@@ -1,0 +1,92 @@
+# ========================================
+# CRITICAL SECURITY - NEVER COMMIT THESE!
+# ========================================
+
+# Environment variables (Contains ALL secrets!)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+**/.env
+**/.env.local
+Server/.env
+Client/.env.local
+Client/.env
+
+# CRITICAL: These files contain:
+# - MongoDB connection strings with passwords
+# - Firebase private keys
+# - SMTP passwords
+# - VAPID keys (push notifications)
+# - API keys (ImgBB, etc.)
+# - JWT secrets
+# - OAuth credentials
+
+# Firebase credentials
+firebase-adminsdk-*.json
+serviceAccountKey.json
+*-firebase-adminsdk-*.json
+
+# SSL/TLS certificates
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Database dumps
+*.sql
+*.dump
+*.backup
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+request.log
+Server/request.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
+# MongoDB
+*.pem
+
+# Uploads (user uploaded files - may contain sensitive data)
+Server/uploads/*
+!Server/uploads/.gitkeep
+
+# Generated invoices (may contain customer data)
+Server/invoices/*.pdf
+!Server/invoices/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~

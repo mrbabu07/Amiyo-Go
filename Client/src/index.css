@@ -1,0 +1,601 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import mobile optimizations */
+@import "./mobile-optimizations.css";
+
+/* Social Proof Animations */
+@keyframes pulse-subtle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s ease-in-out infinite;
+}
+
+/* Slide Up Animation */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slideUp {
+  animation: slideUp 0.3s ease-out;
+}
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+
+  body {
+    @apply m-0 font-sans antialiased bg-gray-50 text-gray-900;
+    /* Prevent horizontal scroll on mobile */
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  html {
+    /* Prevent horizontal scroll */
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-semibold;
+  }
+
+  /* Mobile-first responsive typography */
+  h1 {
+    @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl;
+  }
+
+  h2 {
+    @apply text-xl sm:text-2xl md:text-3xl lg:text-4xl;
+  }
+
+  h3 {
+    @apply text-lg sm:text-xl md:text-2xl lg:text-3xl;
+  }
+
+  h4 {
+    @apply text-base sm:text-lg md:text-xl lg:text-2xl;
+  }
+
+  /* Ensure images are responsive */
+  img {
+    @apply max-w-full h-auto;
+  }
+
+  /* Responsive container */
+  .container {
+    @apply w-full mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary-500 hover:bg-primary-600 active:bg-primary-700 text-white font-medium py-2.5 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary-500 hover:bg-secondary-600 active:bg-secondary-700 text-white font-medium py-2.5 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md;
+  }
+
+  .btn-outline {
+    @apply border-2 border-gray-300 hover:border-primary-500 hover:text-primary-500 hover:bg-primary-50 font-medium py-2 px-6 rounded-lg transition-all duration-200;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-white rounded-xl shadow-sm hover:shadow-medium transition-all duration-300;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .delay-200 {
+    animation-delay: 0.2s;
+  }
+
+  .delay-300 {
+    animation-delay: 0.3s;
+  }
+
+  .delay-400 {
+    animation-delay: 0.4s;
+  }
+
+  .delay-1000 {
+    animation-delay: 1s;
+  }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .badge-primary {
+    @apply badge bg-primary-100 text-primary-800;
+  }
+
+  .badge-success {
+    @apply badge bg-success-100 text-success-800;
+  }
+
+  .badge-warning {
+    @apply badge bg-accent-100 text-accent-800;
+  }
+
+  .badge-danger {
+    @apply badge bg-error-100 text-error-800;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Mobile-first responsive utilities */
+  .mobile-padding {
+    @apply px-4 sm:px-6 lg:px-8;
+  }
+
+  .mobile-text {
+    @apply text-sm sm:text-base md:text-lg;
+  }
+
+  .mobile-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6;
+  }
+
+  .mobile-flex {
+    @apply flex flex-col sm:flex-row gap-4;
+  }
+
+  /* Touch-friendly buttons on mobile */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Responsive spacing */
+  .section-padding {
+    @apply py-8 sm:py-12 md:py-16 lg:py-20;
+  }
+
+  .section-margin {
+    @apply my-8 sm:my-12 md:my-16 lg:my-20;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+/* Loading Bar Animation */
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-loading-bar {
+  animation: loading-bar 2s ease-in-out infinite;
+}
+
+/* Fade In Animation */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+/* Review Image Styles */
+.review-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.75rem;
+}
+
+.review-image-modal {
+  backdrop-filter: blur(4px);
+}
+
+/* Image Upload Drag and Drop */
+.image-upload-area {
+  transition: all 0.3s ease;
+}
+
+.image-upload-area:hover {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.dark .image-upload-area:hover {
+  border-color: #60a5fa;
+  background-color: #1e3a8a;
+}
+
+/* Image Preview Animation */
+.image-preview {
+  transition: all 0.3s ease;
+}
+
+.image-preview:hover {
+  transform: scale(1.05);
+  box-shadow:
+    0 10px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* ========================================
+   MOBILE-FIRST RESPONSIVE DESIGN
+   ======================================== */
+
+/* Mobile (default) - 320px to 639px */
+@media (max-width: 639px) {
+  /* Reduce font sizes on very small screens */
+  html {
+    font-size: 14px;
+  }
+
+  /* Stack elements vertically */
+  .mobile-stack {
+    flex-direction: column !important;
+  }
+
+  /* Full width on mobile */
+  .mobile-full {
+    width: 100% !important;
+  }
+
+  /* Hide on mobile */
+  .mobile-hide {
+    display: none !important;
+  }
+
+  /* Smaller padding on mobile */
+  .mobile-compact {
+    padding: 0.5rem !important;
+  }
+
+  /* Touch-friendly spacing */
+  button,
+  a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Prevent text overflow */
+  p,
+  span,
+  div {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+}
+
+/* Tablet - 640px to 1023px */
+@media (min-width: 640px) and (max-width: 1023px) {
+  html {
+    font-size: 15px;
+  }
+
+  /* 2-column grid on tablets */
+  .tablet-grid-2 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Hide on tablet */
+  .tablet-hide {
+    display: none !important;
+  }
+}
+
+/* Laptop - 1024px to 1279px */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  html {
+    font-size: 16px;
+  }
+
+  /* 3-column grid on laptops */
+  .laptop-grid-3 {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Hide on laptop */
+  .laptop-hide {
+    display: none !important;
+  }
+}
+
+/* Desktop - 1280px and above */
+@media (min-width: 1280px) {
+  html {
+    font-size: 16px;
+  }
+
+  /* 4-column grid on desktop */
+  .desktop-grid-4 {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+
+  /* Max width for readability */
+  .desktop-max-width {
+    max-width: 1400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Hide on desktop */
+  .desktop-hide {
+    display: none !important;
+  }
+}
+
+/* ========================================
+   RESPONSIVE COMPONENTS
+   ======================================== */
+
+/* Responsive Cards */
+.responsive-card {
+  @apply p-4 sm:p-6 md:p-8;
+  @apply rounded-lg sm:rounded-xl md:rounded-2xl;
+  @apply shadow-sm sm:shadow-md md:shadow-lg;
+}
+
+/* Responsive Buttons */
+.responsive-btn {
+  @apply px-4 py-2 sm:px-6 sm:py-3 md:px-8 md:py-4;
+  @apply text-sm sm:text-base md:text-lg;
+  @apply rounded-md sm:rounded-lg md:rounded-xl;
+}
+
+/* Responsive Images */
+.responsive-img {
+  @apply w-full h-auto;
+  @apply object-cover;
+  @apply rounded-lg sm:rounded-xl;
+}
+
+/* Responsive Grid */
+.responsive-grid {
+  @apply grid;
+  @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+  @apply gap-4 sm:gap-6 lg:gap-8;
+}
+
+/* Responsive Flex */
+.responsive-flex {
+  @apply flex flex-col sm:flex-row;
+  @apply gap-4 sm:gap-6 lg:gap-8;
+  @apply items-stretch sm:items-center;
+}
+
+/* Responsive Container */
+.responsive-container {
+  @apply w-full max-w-7xl mx-auto;
+  @apply px-4 sm:px-6 lg:px-8;
+}
+
+/* Responsive Section */
+.responsive-section {
+  @apply py-8 sm:py-12 md:py-16 lg:py-20;
+  @apply px-4 sm:px-6 lg:px-8;
+}
+
+/* ========================================
+   MOBILE NAVIGATION FIX
+   ======================================== */
+
+/* Prevent body scroll when mobile menu is open */
+body.mobile-menu-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+
+/* Mobile menu overlay */
+.mobile-menu-overlay {
+  @apply fixed inset-0 bg-black/50 z-40;
+  @apply transition-opacity duration-300;
+}
+
+/* Mobile menu panel */
+.mobile-menu-panel {
+  @apply fixed inset-y-0 right-0 w-full sm:w-80;
+  @apply bg-white shadow-xl z-50;
+  @apply transform transition-transform duration-300;
+  @apply overflow-y-auto;
+}
+
+/* ========================================
+   RESPONSIVE TABLES
+   ======================================== */
+
+@media (max-width: 639px) {
+  /* Stack table cells on mobile */
+  table.responsive-table {
+    display: block;
+  }
+
+  table.responsive-table thead {
+    display: none;
+  }
+
+  table.responsive-table tbody {
+    display: block;
+  }
+
+  table.responsive-table tr {
+    display: block;
+    margin-bottom: 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+  }
+
+  table.responsive-table td {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  table.responsive-table td:last-child {
+    border-bottom: none;
+  }
+
+  table.responsive-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    margin-right: 1rem;
+  }
+}
+
+/* ========================================
+   PRINT STYLES
+   ======================================== */
+
+@media print {
+  /* Hide navigation and non-essential elements */
+  nav,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Optimize for printing */
+  body {
+    background: white;
+    color: black;
+  }
+
+  /* Prevent page breaks inside elements */
+  .print-keep-together {
+    page-break-inside: avoid;
+  }
+}

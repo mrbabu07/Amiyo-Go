@@ -1,0 +1,50 @@
+{
+  "navbar": {
+    "home": "Home",
+    "products": "Products",
+    "support": "Support",
+    "categories": "Categories",
+    "search_placeholder": "Search for products, brands, categories...",
+    "search_button": "Search",
+    "search_mobile_placeholder": "Search products...",
+    "my_profile": "My Profile",
+    "my_orders": "My Orders",
+    "admin_dashboard": "Admin Dashboard",
+    "sign_out": "Sign Out",
+    "sign_in": "Sign In",
+    "sign_up": "Sign Up",
+    "shop_by_category": "Shop by Category",
+    "no_categories": "No categories available",
+    "free_delivery": "Free Delivery on Orders Over $100",
+    "free_delivery_mobile": "Free Delivery $100+",
+    "your_shopping_destination": "Your Shopping Destination"
+  },
+  "topbar": {
+    "welcome_message": "Welcome to HnilaBazar online eCommerce store.",
+    "follow_us": "Follow us:"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "language": "Language",
+    "cart": "Cart",
+    "wishlist": "Wishlist",
+    "compare": "Compare",
+    "notifications": "Notifications"
+  },
+  "languages": {
+    "en": "English",
+    "bn": "বাংলা",
+    "hi": "हिन्दी"
+  }
+}

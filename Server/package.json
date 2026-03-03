@@ -1,0 +1,36 @@
+{
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "firebase-admin": "^13.6.0",
+    "mongodb": "^7.0.0",
+    "mongoose": "^9.1.4",
+    "multer": "^2.0.2",
+    "nodemailer": "^8.0.0",
+    "pdfkit": "^0.17.2",
+    "web-push": "^3.6.7"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "seed": "node scripts/seed.js",
+    "seed:all": "node scripts/seedAll.js",
+    "seed:flash": "node scripts/seedFlashSales.js",
+    "seed:flash:now": "node scripts/seedActiveFlashSales.js",
+    "check:flash": "node scripts/checkFlashSales.js",
+    "test:flash": "node scripts/testFlashSalesAPI.js",
+    "test:all": "node scripts/testAllAPIs.js",
+    "test:server": "node scripts/test-server.js",
+    "test:push": "node scripts/testPushNotifications.js",
+    "test:notifications": "node scripts/testFullNotificationFlow.js",
+    "test:notification-api": "node scripts/testNotificationAPI.js",
+    "test:email": "node scripts/testEmail.js",
+    "check:email": "node scripts/checkEmailService.js",
+    "generate:vapid": "node scripts/generateVapidKeys.js",
+    "make:admin": "node scripts/makeAdmin.js"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}

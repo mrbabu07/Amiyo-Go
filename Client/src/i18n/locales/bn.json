@@ -1,0 +1,50 @@
+{
+  "navbar": {
+    "home": "হোম",
+    "products": "পণ্যসমূহ",
+    "support": "সাপোর্ট",
+    "categories": "ক্যাটেগরি",
+    "search_placeholder": "পণ্য, ব্র্যান্ড, ক্যাটেগরি খুঁজুন...",
+    "search_button": "খুঁজুন",
+    "search_mobile_placeholder": "পণ্য খুঁজুন...",
+    "my_profile": "আমার প্রোফাইল",
+    "my_orders": "আমার অর্ডার",
+    "admin_dashboard": "অ্যাডমিন ড্যাশবোর্ড",
+    "sign_out": "সাইন আউট",
+    "sign_in": "সাইন ইন",
+    "sign_up": "সাইন আপ",
+    "shop_by_category": "ক্যাটেগরি অনুযায়ী কিনুন",
+    "no_categories": "কোন ক্যাটেগরি উপলব্ধ নেই",
+    "free_delivery": "১০০ ডলারের বেশি অর্ডারে ফ্রি ডেলিভারি",
+    "free_delivery_mobile": "ফ্রি ডেলিভারি ১০০ ডলার+",
+    "your_shopping_destination": "আপনার কেনাকাটার গন্তব্য"
+  },
+  "topbar": {
+    "welcome_message": "হনিলাবাজার অনলাইন ই-কমার্স স্টোরে স্বাগতম।",
+    "follow_us": "আমাদের ফলো করুন:"
+  },
+  "common": {
+    "loading": "লোড হচ্ছে...",
+    "error": "ত্রুটি",
+    "success": "সফল",
+    "cancel": "বাতিল",
+    "save": "সংরক্ষণ",
+    "delete": "মুছুন",
+    "edit": "সম্পাদনা",
+    "add": "যোগ করুন",
+    "close": "বন্ধ",
+    "back": "পিছনে",
+    "next": "পরবর্তী",
+    "previous": "পূর্ববর্তী",
+    "language": "ভাষা",
+    "cart": "কার্ট",
+    "wishlist": "পছন্দের তালিকা",
+    "compare": "তুলনা",
+    "notifications": "বিজ্ঞপ্তি"
+  },
+  "languages": {
+    "en": "English",
+    "bn": "বাংলা",
+    "hi": "हिन्दी"
+  }
+}

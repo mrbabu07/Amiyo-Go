@@ -1,0 +1,21 @@
+{
+  "name": "HnilaBazar - Online Shopping",
+  "short_name": "HnilaBazar",
+  "description": "Your favorite online shopping destination with the best deals and products",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e7098",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["shopping", "business"],
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

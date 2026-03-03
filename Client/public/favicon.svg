@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e7098;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2563eb;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background Circle -->
+  <circle cx="50" cy="50" r="48" fill="url(#grad)"/>
+  
+  <!-- Shopping Bag Icon -->
+  <path d="M 30 35 L 30 75 C 30 78 32 80 35 80 L 65 80 C 68 80 70 78 70 75 L 70 35 Z" 
+        fill="white" stroke="white" stroke-width="2"/>
+  
+  <!-- Bag Handle -->
+  <path d="M 35 35 C 35 28 40 23 50 23 C 60 23 65 28 65 35" 
+        fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- H Letter -->
+  <text x="50" y="62" font-family="Arial, sans-serif" font-size="28" font-weight="bold" 
+        fill="#1e7098" text-anchor="middle">H</text>
+</svg>

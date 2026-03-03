@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Offline - HnilaBazar</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+      }
+
+      .offline-container {
+        text-align: center;
+        max-width: 400px;
+        padding: 40px 20px;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      }
+
+      .offline-icon {
+        font-size: 80px;
+        margin-bottom: 20px;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.1);
+        }
+      }
+
+      h1 {
+        font-size: 2.5rem;
+        margin-bottom: 15px;
+        font-weight: 700;
+      }
+
+      .subtitle {
+        font-size: 1.2rem;
+        margin-bottom: 10px;
+        opacity: 0.9;
+      }
+
+      .description {
+        font-size: 1rem;
+        margin-bottom: 30px;
+        opacity: 0.8;
+        line-height: 1.6;
+      }
+
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin-bottom: 30px;
+      }
+
+      .btn {
+        padding: 15px 30px;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      .btn-primary {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .btn-primary:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+      }
+
+      .btn-secondary {
+        background: transparent;
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: translateY(-2px);
+      }
+
+      .features {
+        margin-top: 30px;
+        padding-top: 30px;
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .features h3 {
+        font-size: 1.1rem;
+        margin-bottom: 15px;
+        opacity: 0.9;
+      }
+
+      .feature-list {
+        list-style: none;
+        text-align: left;
+      }
+
+      .feature-list li {
+        padding: 8px 0;
+        opacity: 0.8;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .feature-icon {
+        font-size: 1.2rem;
+      }
+
+      .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 20px;
+        padding: 10px 15px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        font-size: 0.9rem;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ff6b6b;
+        animation: blink 1.5s infinite;
+      }
+
+      @keyframes blink {
+        0%,
+        50% {
+          opacity: 1;
+        }
+        51%,
+        100% {
+          opacity: 0.3;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .offline-container {
+          margin: 20px;
+          padding: 30px 15px;
+        }
+
+        h1 {
+          font-size: 2rem;
+        }
+
+        .subtitle {
+          font-size: 1.1rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="offline-container">
+      <div class="offline-icon">📱</div>
+      <h1>You're Offline</h1>
+      <p class="subtitle">No Internet Connection</p>
+      <p class="description">
+        Don't worry! You can still browse some content that's been saved on your
+        device.
+      </p>
+
+      <div class="actions">
+        <button class="btn btn-primary" onclick="window.location.reload()">
+          <span>🔄</span>
+          Try Again
+        </button>
+        <a href="/" class="btn btn-secondary">
+          <span>🏠</span>
+          Go to Home
+        </a>
+      </div>
+
+      <div class="status-indicator">
+        <div class="status-dot"></div>
+        <span>Waiting for connection...</span>
+      </div>
+
+      <div class="features">
+        <h3>Available Offline:</h3>
+        <ul class="feature-list">
+          <li>
+            <span class="feature-icon">📦</span>
+            Browse cached products
+          </li>
+          <li>
+            <span class="feature-icon">🛒</span>
+            View your cart
+          </li>
+          <li>
+            <span class="feature-icon">❤️</span>
+            Check your wishlist
+          </li>
+          <li>
+            <span class="feature-icon">📋</span>
+            View order history
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <script>
+      // Auto-retry when connection is restored
+      window.addEventListener("online", () => {
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      });
+
+      // Update status indicator
+      function updateConnectionStatus() {
+        const statusIndicator = document.querySelector(".status-indicator");
+        const statusDot = document.querySelector(".status-dot");
+
+        if (navigator.onLine) {
+          statusIndicator.innerHTML = `
+                    <div style="width: 8px; height: 8px; border-radius: 50%; background: #51cf66;"></div>
+                    <span>Connection restored! Refreshing...</span>
+                `;
+          setTimeout(() => window.location.reload(), 1000);
+        }
+      }
+
+      window.addEventListener("online", updateConnectionStatus);
+      window.addEventListener("offline", updateConnectionStatus);
+
+      // Check connection status periodically
+      setInterval(() => {
+        if (navigator.onLine) {
+          updateConnectionStatus();
+        }
+      }, 5000);
+    </script>
+  </body>
+</html>

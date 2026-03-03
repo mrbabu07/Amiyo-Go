@@ -1,0 +1,50 @@
+{
+  "navbar": {
+    "home": "होम",
+    "products": "उत्पाद",
+    "support": "सहायता",
+    "categories": "श्रेणियां",
+    "search_placeholder": "उत्पाद, ब्रांड, श्रेणियां खोजें...",
+    "search_button": "खोजें",
+    "search_mobile_placeholder": "उत्पाद खोजें...",
+    "my_profile": "मेरी प्रोफ़ाइल",
+    "my_orders": "मेरे ऑर्डर",
+    "admin_dashboard": "एडमिन डैशबोर्ड",
+    "sign_out": "साइन आउट",
+    "sign_in": "साइन इन",
+    "sign_up": "साइन अप",
+    "shop_by_category": "श्रेणी के अनुसार खरीदारी करें",
+    "no_categories": "कोई श्रेणी उपलब्ध नहीं",
+    "free_delivery": "$100 से अधिक के ऑर्डर पर मुफ्त डिलीवरी",
+    "free_delivery_mobile": "मुफ्त डिलीवरी $100+",
+    "your_shopping_destination": "आपका शॉपिंग गंतव्य"
+  },
+  "topbar": {
+    "welcome_message": "हनिलाबाज़ार ऑनलाइन ई-कॉमर्स स्टोर में आपका स्वागत है।",
+    "follow_us": "हमें फॉलो करें:"
+  },
+  "common": {
+    "loading": "लोड हो रहा है...",
+    "error": "त्रुटि",
+    "success": "सफलता",
+    "cancel": "रद्द करें",
+    "save": "सहेजें",
+    "delete": "हटाएं",
+    "edit": "संपादित करें",
+    "add": "जोड़ें",
+    "close": "बंद करें",
+    "back": "वापस",
+    "next": "अगला",
+    "previous": "पिछला",
+    "language": "भाषा",
+    "cart": "कार्ट",
+    "wishlist": "इच्छा सूची",
+    "compare": "तुलना",
+    "notifications": "सूचनाएं"
+  },
+  "languages": {
+    "en": "English",
+    "bn": "বাংলা",
+    "hi": "हिन्दी"
+  }
+}

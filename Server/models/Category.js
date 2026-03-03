@@ -1,0 +1,117 @@
+const { ObjectId } = require("mongodb");
+
+class Category {
+  constructor(db) {
+    this.collection = db.collection("categories");
+    this.createIndexes();
+  }
+
+  async createIndexes() {
+    try {
+      await this.collection.createIndex({ slug: 1 }, { unique: true });
+      await this.collection.createIndex({ parentId: 1 });
+      await this.collection.createIndex({ isActive: 1 });
+    } catch (error) {
+      console.error("Error creating Category indexes:", error);
+    }
+  }
+
+  async findAll(filter = {}) {
+    const query = {};
+    if (filter.isActive !== undefined) {
+      query.isActive = filter.isActive;
+    }
+    if (filter.parentId !== undefined) {
+      query.parentId = filter.parentId === null ? null : new ObjectId(filter.parentId);
+    }
+    return await this.collection.find(query).sort({ name: 1 }).toArray();
+  }
+
+  async findActive() {
+    return await this.collection.find({ isActive: true }).sort({ name: 1 }).toArray();
+  }
+
+  async findById(id) {
+    return await this.collection.findOne({ _id: new ObjectId(id) });
+  }
+
+  async findByIds(ids) {
+    return await this.collection.find({ 
+      _id: { $in: ids.map(id => new ObjectId(id)) } 
+    }).toArray();
+  }
+
+  async findBySlug(slug) {
+    return await this.collection.findOne({ slug });
+  }
+
+  async findChildren(parentId) {
+    return await this.collection.find({ 
+      parentId: new ObjectId(parentId),
+      isActive: true 
+    }).toArray();
+  }
+
+  async create(categoryData) {
+    const category = {
+      ...categoryData,
+      parentId: categoryData.parentId ? new ObjectId(categoryData.parentId) : null,
+      isActive: categoryData.isActive !== undefined ? categoryData.isActive : true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const result = await this.collection.insertOne(category);
+    return { ...category, _id: result.insertedId };
+  }
+
+  async update(id, categoryData) {
+    const { _id, __v, createdAt, ...safeData } = categoryData;
+    
+    if (safeData.parentId) {
+      safeData.parentId = new ObjectId(safeData.parentId);
+    }
+
+    return await this.collection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { ...safeData, updatedAt: new Date() } },
+    );
+  }
+
+  async softDelete(id) {
+    return await this.collection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { isActive: false, updatedAt: new Date() } }
+    );
+  }
+
+  async delete(id) {
+    return await this.collection.deleteOne({ _id: new ObjectId(id) });
+  }
+
+  async getCategoryTree() {
+    const categories = await this.findAll({ isActive: true });
+    return this.buildTree(categories);
+  }
+
+  buildTree(categories, parentId = null) {
+    const tree = [];
+    
+    for (const category of categories) {
+      const catParentId = category.parentId ? category.parentId.toString() : null;
+      const compareParentId = parentId ? parentId.toString() : null;
+      
+      if (catParentId === compareParentId) {
+        const children = this.buildTree(categories, category._id);
+        tree.push({
+          ...category,
+          children: children.length > 0 ? children : undefined,
+        });
+      }
+    }
+    
+    return tree;
+  }
+}
+
+module.exports = Category;

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reset Currency to BDT</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 600px;
+        margin: 50px auto;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      .container {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #1e7098;
+        margin-bottom: 20px;
+      }
+      button {
+        background: #1e7098;
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        font-size: 16px;
+        border-radius: 5px;
+        cursor: pointer;
+        margin: 10px 5px;
+      }
+      button:hover {
+        background: #155a7a;
+      }
+      .success {
+        background: #10b981;
+        color: white;
+        padding: 15px;
+        border-radius: 5px;
+        margin-top: 20px;
+        display: none;
+      }
+      .info {
+        background: #e0f2fe;
+        border-left: 4px solid #0284c7;
+        padding: 15px;
+        margin: 20px 0;
+      }
+      .current {
+        background: #fef3c7;
+        border-left: 4px solid #f59e0b;
+        padding: 15px;
+        margin: 20px 0;
+      }
+      code {
+        background: #f3f4f6;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🇧🇩 Reset Currency to BDT</h1>
+
+      <div class="current">
+        <strong>Current Currency:</strong>
+        <span id="currentCurrency">Loading...</span>
+      </div>
+
+      <div class="info">
+        <strong>ℹ️ What this does:</strong>
+        <ul>
+          <li>Clears your saved currency preference</li>
+          <li>Sets default currency to BDT (Bangladeshi Taka)</li>
+          <li>Clears exchange rate cache</li>
+          <li>Reloads the page</li>
+        </ul>
+      </div>
+
+      <button onclick="resetToBDT()">Reset to BDT (৳)</button>
+      <button onclick="clearAll()">Clear All Currency Data</button>
+      <button onclick="goHome()">Go to Home Page</button>
+
+      <div class="success" id="successMessage">
+        ✅ Currency reset to BDT successfully! Redirecting...
+      </div>
+    </div>
+
+    <script>
+      // Display current currency
+      function displayCurrent() {
+        const saved = localStorage.getItem("selectedCurrency");
+        const currentEl = document.getElementById("currentCurrency");
+
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            currentEl.innerHTML = `<strong>${parsed.flag} ${parsed.code}</strong> - ${parsed.name} (${parsed.symbol})`;
+          } catch {
+            currentEl.textContent = saved;
+          }
+        } else {
+          currentEl.innerHTML =
+            "<em>No currency set (will default to BDT)</em>";
+        }
+      }
+
+      // Reset to BDT
+      function resetToBDT() {
+        const bdtCurrency = {
+          code: "BDT",
+          symbol: "৳",
+          name: "Bangladeshi Taka",
+          flag: "🇧🇩",
+        };
+
+        localStorage.setItem("selectedCurrency", JSON.stringify(bdtCurrency));
+        localStorage.removeItem("exchangeRates");
+        localStorage.removeItem("exchangeRatesTime");
+
+        document.getElementById("successMessage").style.display = "block";
+
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 1500);
+      }
+
+      // Clear all currency data
+      function clearAll() {
+        localStorage.removeItem("selectedCurrency");
+        localStorage.removeItem("exchangeRates");
+        localStorage.removeItem("exchangeRatesTime");
+
+        document.getElementById("successMessage").textContent =
+          "✅ All currency data cleared! Redirecting...";
+        document.getElementById("successMessage").style.display = "block";
+
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 1500);
+      }
+
+      // Go to home
+      function goHome() {
+        window.location.href = "/";
+      }
+
+      // Display current currency on load
+      displayCurrent();
+    </script>
+  </body>
+</html>
