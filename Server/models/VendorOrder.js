@@ -103,6 +103,43 @@ class VendorOrder {
 
     return stats;
   }
+
+  /**
+   * Aggregated earnings stats for a vendor
+   */
+  async getVendorOrderStats(vendorId) {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [statusCounts, today, month, earningsData] = await Promise.all([
+      this.collection.aggregate([
+        { $match: { vendorId: vendorId.toString() } },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]).toArray(),
+      this.collection.countDocuments({ vendorId: vendorId.toString(), createdAt: { $gte: todayStart } }),
+      this.collection.countDocuments({ vendorId: vendorId.toString(), createdAt: { $gte: thisMonthStart } }),
+      this.collection.aggregate([
+        { $match: { vendorId: vendorId.toString(), status: { $nin: ['cancelled'] } } },
+        { $unwind: '$products' },
+        { $match: { 'products.vendorId': vendorId.toString() } },
+        {
+          $group: {
+            _id: null,
+            grossSales: { $sum: { $multiply: ['$products.price', '$products.quantity'] } },
+            totalCommission: { $sum: '$products.adminCommissionAmount' },
+            netEarnings: { $sum: '$products.vendorEarningAmount' },
+          },
+        },
+      ]).toArray(),
+    ]);
+
+    const counts = { pending: 0, processing: 0, shipped: 0, delivered: 0, cancelled: 0 };
+    statusCounts.forEach(s => { if (s._id) counts[s._id] = s.count; });
+
+    const earnings = earningsData[0] || { grossSales: 0, totalCommission: 0, netEarnings: 0 };
+    return { ...counts, ...earnings, todayCount: today, monthCount: month };
+  }
 }
 
 module.exports = VendorOrder;

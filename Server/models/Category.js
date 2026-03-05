@@ -11,6 +11,7 @@ class Category {
       await this.collection.createIndex({ slug: 1 }, { unique: true });
       await this.collection.createIndex({ parentId: 1 });
       await this.collection.createIndex({ isActive: 1 });
+      await this.collection.createIndex({ commissionRate: 1 });
     } catch (error) {
       console.error("Error creating Category indexes:", error);
     }
@@ -53,10 +54,20 @@ class Category {
   }
 
   async create(categoryData) {
+    // Validate commissionRate
+    let commissionRate = categoryData.commissionRate !== undefined 
+      ? categoryData.commissionRate 
+      : 0;
+    
+    if (typeof commissionRate !== 'number' || commissionRate < 0 || commissionRate > 100) {
+      throw new Error('Commission rate must be a number between 0 and 100');
+    }
+
     const category = {
       ...categoryData,
       parentId: categoryData.parentId ? new ObjectId(categoryData.parentId) : null,
       isActive: categoryData.isActive !== undefined ? categoryData.isActive : true,
+      commissionRate: Math.round(commissionRate * 100) / 100, // Round to 2 decimals
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -67,6 +78,16 @@ class Category {
 
   async update(id, categoryData) {
     const { _id, __v, createdAt, ...safeData } = categoryData;
+    
+    // Validate commissionRate if provided
+    if (safeData.commissionRate !== undefined) {
+      if (typeof safeData.commissionRate !== 'number' || 
+          safeData.commissionRate < 0 || 
+          safeData.commissionRate > 100) {
+        throw new Error('Commission rate must be a number between 0 and 100');
+      }
+      safeData.commissionRate = Math.round(safeData.commissionRate * 100) / 100;
+    }
     
     if (safeData.parentId) {
       safeData.parentId = new ObjectId(safeData.parentId);

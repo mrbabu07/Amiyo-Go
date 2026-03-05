@@ -151,6 +151,38 @@ const deleteCategory = async (req, res) => {
   }
 };
 
+const updateCommissionRate = async (req, res) => {
+  try {
+    const Category = req.app.locals.models.Category;
+    const { commissionRate } = req.body;
+
+    if (commissionRate === undefined) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Commission rate is required" });
+    }
+
+    if (typeof commissionRate !== 'number' || commissionRate < 0 || commissionRate > 100) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Commission rate must be a number between 0 and 100" });
+    }
+
+    const result = await Category.update(req.params.id, { commissionRate });
+
+    if (result.matchedCount === 0) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Category not found" });
+    }
+
+    const updated = await Category.findById(req.params.id);
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 module.exports = {
   getAllCategories,
   getCategoryById,
@@ -158,4 +190,5 @@ module.exports = {
   createCategory,
   updateCategory,
   deleteCategory,
+  updateCommissionRate,
 };

@@ -32,6 +32,7 @@ const NotificationSubscription = require("./models/NotificationSubscription");
 const Question = require("./models/Question");
 const Vendor = require("./models/Vendor");
 const VendorOrder = require("./models/VendorOrder");
+const VendorPayout = require("./models/VendorPayout");
 
 // Import routes
 const productRoutes = require("./routes/productRoutes");
@@ -57,6 +58,9 @@ const deliverySettingsRoutes = require("./routes/deliverySettingsRoutes");
 const vendorRoutes = require("./routes/vendorRoutes");
 const vendorProductRoutes = require("./routes/vendorProductRoutes");
 const adminUserRoutes = require("./routes/adminUserRoutes");
+const adminProductRoutes = require("./routes/adminProductRoutes");
+const adminFinanceRoutes = require("./routes/adminFinanceRoutes");
+const adminPayoutRoutes  = require("./routes/adminPayoutRoutes");
 
 // Import middleware and controllers for direct routes
 const { verifyToken, verifyAdmin } = require("./middleware/auth");
@@ -73,27 +77,6 @@ const port = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// Request logger
-const logStream = fs.createWriteStream('request.log', { flags: 'a' });
-
-app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] ${req.method} ${req.path}`;
-  
-  // Log to console
-  console.log('\n' + logMessage);
-  
-  // Log to file
-  logStream.write(logMessage + '\n');
-  
-  if (req.path.startsWith("/api/vendors")) {
-    const vendorLog = `📥 VENDOR REQUEST: ${req.method} ${req.url} | Auth: ${req.headers.authorization ? 'YES' : 'NO'}`;
-    console.log(vendorLog);
-    logStream.write(vendorLog + '\n');
-  }
-  next();
-});
 
 // Add cache control headers for API responses
 app.use((req, res, next) => {
@@ -156,6 +139,7 @@ async function run() {
       Question: new Question(db),
       Vendor: new Vendor(db),
       VendorOrder: new VendorOrder(db),
+      VendorPayout: new VendorPayout(db),
     };
 
     // Store db reference for controllers that need it
@@ -244,17 +228,21 @@ async function run() {
 
     app.use("/api/vendors", vendorRoutes);
     console.log("✅ Vendor routes registered");
-    
-    // Test endpoint to verify vendor routes are working
-    app.get("/api/vendors/test", (req, res) => {
-      res.json({ message: "Vendor routes are working!", timestamp: new Date() });
-    });
 
     app.use("/api/vendor/products", vendorProductRoutes);
     console.log("✅ Vendor Product routes registered");
 
-    app.use("/api/admin/users", adminUserRoutes);
+    app.use("/api/admin/users",    adminUserRoutes);
     console.log("✅ Admin User Management routes registered");
+
+    app.use("/api/admin/products", adminProductRoutes);
+    console.log("✅ Admin Product Moderation routes registered");
+
+    app.use("/api/admin/finance",  adminFinanceRoutes);
+    console.log("✅ Admin Finance routes registered");
+
+    app.use("/api/admin/payouts",  adminPayoutRoutes);
+    console.log("✅ Admin Payout routes registered");
 
     // Returns routes
     app.post("/api/returns", verifyToken, createReturnRequest);

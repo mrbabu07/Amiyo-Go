@@ -3,10 +3,103 @@ const { ObjectId } = require("mongodb");
 class Order {
   constructor(db) {
     this.collection = db.collection("orders");
+    this.createIndexes();
+  }
+
+  async createIndexes() {
+    try {
+      await this.collection.createIndex({ createdAt: -1 });
+      await this.collection.createIndex({ status: 1 });
+      await this.collection.createIndex({ userId: 1 });
+      await this.collection.createIndex({ "products.vendorId": 1 });
+      await this.collection.createIndex({ "shippingInfo.email": 1 });
+    } catch (error) {
+      console.error("Error creating Order indexes:", error);
+    }
   }
 
   async findAll() {
     return await this.collection.find({}).sort({ createdAt: -1 }).toArray();
+  }
+
+  /**
+   * Paginated + filtered order list (Admin use)
+   */
+  async findAllPaginated(filter = {}) {
+    const { status, from, to, search, page = 1, limit = 20 } = filter;
+    const query = {};
+
+    if (status && status !== "all") query.status = status;
+
+    if (from || to) {
+      query.createdAt = {};
+      if (from) query.createdAt.$gte = new Date(from);
+      if (to) {
+        const toDate = new Date(to);
+        toDate.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = toDate;
+      }
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(search, "i");
+      query.$or = [
+        { "shippingInfo.name": searchRegex },
+        { "shippingInfo.email": searchRegex },
+        { "shippingInfo.phone": searchRegex },
+      ];
+    }
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [orders, total] = await Promise.all([
+      this.collection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .toArray(),
+      this.collection.countDocuments(query),
+    ]);
+
+    return {
+      orders,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      pages: Math.ceil(total / limitNum),
+    };
+  }
+
+  /**
+   * Admin dashboard stats
+   */
+  async getOrderStats() {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [statusCounts, todayCount, monthCount, revenueData] = await Promise.all([
+      this.collection.aggregate([
+        { $group: { _id: "$status", count: { $sum: 1 } } }
+      ]).toArray(),
+      this.collection.countDocuments({ createdAt: { $gte: todayStart } }),
+      this.collection.countDocuments({ createdAt: { $gte: thisMonthStart } }),
+      this.collection.aggregate([
+        { $match: { status: { $nin: ["cancelled"] } } },
+        { $group: { _id: null, totalRevenue: { $sum: "$total" }, totalOrders: { $sum: 1 } } }
+      ]).toArray(),
+    ]);
+
+    const counts = { pending: 0, processing: 0, shipped: 0, delivered: 0, cancelled: 0 };
+    statusCounts.forEach(s => { if (s._id) counts[s._id] = s.count; });
+
+    const totalRevenue = revenueData[0]?.totalRevenue || 0;
+    const totalOrders = revenueData[0]?.totalOrders || 0;
+
+    return { ...counts, totalRevenue, totalOrders, todayCount, monthCount };
   }
 
   async findById(id) {
@@ -21,12 +114,39 @@ class Order {
   }
 
   async create(orderData) {
+    const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+    // Fetch categories to get commission rates
+    const categoriesCollection = this.collection.db.collection("categories");
+    
     // ALWAYS calculate subtotal from products (don't trust frontend)
     let calculatedSubtotal = 0;
     if (orderData.products && Array.isArray(orderData.products)) {
-      calculatedSubtotal = orderData.products.reduce((sum, product) => {
-        return sum + product.price * product.quantity;
-      }, 0);
+      for (const product of orderData.products) {
+        // Find category commission rate
+        let commissionRate = 0;
+        if (product.categoryId) {
+          try {
+            const category = await categoriesCollection.findOne({ _id: new ObjectId(product.categoryId) });
+            if (category && category.commissionRate !== undefined) {
+              commissionRate = category.commissionRate;
+            }
+          } catch (err) {
+            console.error("Error fetching category for commission:", err);
+          }
+        }
+
+        const itemSubtotal = product.price * product.quantity;
+        const adminCommissionAmount = round2((itemSubtotal * commissionRate) / 100);
+        const vendorEarningAmount = round2(itemSubtotal - adminCommissionAmount);
+
+        // Mutate product object
+        product.commissionRateSnapshot = commissionRate;
+        product.adminCommissionAmount = adminCommissionAmount;
+        product.vendorEarningAmount = vendorEarningAmount;
+
+        calculatedSubtotal += itemSubtotal;
+      }
     }
 
     // Use calculated subtotal (secure)
@@ -149,10 +269,36 @@ class Order {
     return result.insertedId;
   }
 
-  async updateStatus(id, status) {
+  async updateStatus(id, status, changedBy = null, note = "") {
     return await this.collection.updateOne(
       { _id: new ObjectId(id) },
-      { $set: { status, updatedAt: new Date() } },
+      {
+        $set: { status, updatedAt: new Date() },
+        $push: {
+          statusHistory: {
+            status,
+            changedAt: new Date(),
+            changedBy: changedBy || null,
+            note: note || "",
+          },
+        },
+      },
+    );
+  }
+
+  async addNote(id, note, addedBy) {
+    return await this.collection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $push: {
+          notes: {
+            text: note,
+            addedBy: addedBy || null,
+            addedAt: new Date(),
+          },
+        },
+        $set: { updatedAt: new Date() },
+      },
     );
   }
 

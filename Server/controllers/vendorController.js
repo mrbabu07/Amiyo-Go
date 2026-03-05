@@ -75,31 +75,16 @@ exports.registerVendor = async (req, res) => {
 // Get current vendor profile
 exports.getMyVendorProfile = async (req, res) => {
   try {
-    console.log('\n🔍 GET MY VENDOR PROFILE');
-    console.log('   req.user:', req.user);
-    console.log('   req.user._id:', req.user._id);
-    console.log('   req.dbUser:', req.dbUser);
-    
     const Vendor = req.app.locals.models.Vendor;
-    
-    if (!req.user._id) {
-      console.log('   ❌ req.user._id is undefined!');
-      return res.status(400).json({ error: "User ID not found in request" });
-    }
-    
-    console.log('   🔎 Looking for vendor with ownerUserId:', req.user._id);
     const vendor = await Vendor.findByUserId(req.user._id);
-    console.log('   📦 Vendor found:', vendor ? 'YES' : 'NO');
 
     if (!vendor) {
-      console.log('   ❌ Vendor profile not found for user:', req.user._id);
       return res.status(404).json({ error: "Vendor profile not found" });
     }
 
-    console.log('   ✅ Returning vendor:', vendor.shopName);
     res.json({ vendor });
   } catch (error) {
-    console.error("❌ Error fetching vendor profile:", error);
+    console.error("Error fetching vendor profile:", error);
     res.status(500).json({ error: "Failed to fetch vendor profile" });
   }
 };
@@ -246,6 +231,70 @@ exports.getVendorStats = async (req, res) => {
   } catch (error) {
     console.error("Error fetching vendor stats:", error);
     res.status(500).json({ error: "Failed to fetch vendor stats" });
+  }
+};
+
+// Admin: Reject vendor
+exports.rejectVendor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const Vendor = req.app.locals.models.Vendor;
+    const User = req.app.locals.models.User;
+
+    const vendor = await Vendor.findById(id);
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    await Vendor.updateStatus(id, "rejected");
+    if (reason) {
+      await Vendor.update(id, { rejectionReason: reason });
+    }
+
+    // Revert user role back to customer if they were approved previously
+    const user = await User.findById(vendor.ownerUserId);
+    if (user && user.role === "vendor") {
+      await User.updateRole(user.firebaseUid, "customer", req.user.uid);
+    }
+
+    res.json({
+      message: "Vendor rejected.",
+      vendor: await Vendor.findById(id),
+    });
+  } catch (error) {
+    console.error("Error rejecting vendor:", error);
+    res.status(500).json({ error: "Failed to reject vendor" });
+  }
+};
+
+// Admin: Reactivate vendor (approved → approved, rejected/suspended → approved)
+exports.reactivateVendor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const Vendor = req.app.locals.models.Vendor;
+    const User = req.app.locals.models.User;
+
+    const vendor = await Vendor.findById(id);
+    if (!vendor) {
+      return res.status(404).json({ error: "Vendor not found" });
+    }
+
+    await Vendor.updateStatus(id, "approved");
+
+    // Restore user role to vendor
+    const user = await User.findById(vendor.ownerUserId);
+    if (user && user.role !== "vendor") {
+      await User.updateRole(user.firebaseUid, "vendor", req.user.uid);
+    }
+
+    res.json({
+      message: "Vendor reactivated and approved.",
+      vendor: await Vendor.findById(id),
+    });
+  } catch (error) {
+    console.error("Error reactivating vendor:", error);
+    res.status(500).json({ error: "Failed to reactivate vendor" });
   }
 };
 

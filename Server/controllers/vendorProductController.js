@@ -68,6 +68,7 @@ exports.createProduct = async (req, res) => {
       variants: variants || [],
       attributes: attributes || {},
       status: status || "active",
+      approvalStatus: "pending",   // Requires admin approval before appearing publicly
     };
 
     const productId = await Product.create(productData);

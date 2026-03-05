@@ -142,9 +142,11 @@ class InvoiceService {
       .fillColor("#10B981")
       .fontSize(10)
       .text("Item", 50, invoiceTableTop)
-      .text("Qty", 280, invoiceTableTop, { width: 90, align: "right" })
-      .text("Price", 370, invoiceTableTop, { width: 90, align: "right" })
-      .text("Total", 0, invoiceTableTop, { align: "right" });
+      .text("Vendor", 200, invoiceTableTop, { width: 90 })
+      .text("Qty", 290, invoiceTableTop, { width: 50, align: "right" })
+      .text("Price", 340, invoiceTableTop, { width: 70, align: "right" })
+      .text("Total", 410, invoiceTableTop, { width: 70, align: "right" })
+      .text("Comm.", 480, invoiceTableTop, { width: 70, align: "right" });
 
     // Line under header
     doc
@@ -164,33 +166,31 @@ class InvoiceService {
       const itemPrice = item.price || 0;
       const itemQuantity = item.quantity || 1;
       const itemTotal = itemPrice * itemQuantity;
+      const vendorName = item.vendorName || item.shopName || "-";
+      const commission = item.adminCommissionAmount != null
+        ? `৳${Math.round(item.adminCommissionAmount * 110)}`
+        : "-";
 
       // Item details
       let itemText = itemName;
-      if (item.selectedSize) {
-        itemText += ` (Size: ${item.selectedSize})`;
-      }
+      if (item.selectedSize) itemText += ` (${item.selectedSize})`;
       if (item.selectedColor) {
-        const colorName =
-          typeof item.selectedColor === "string"
-            ? item.selectedColor
-            : item.selectedColor.name || "N/A";
-        itemText += ` (Color: ${colorName})`;
+        const colorName = typeof item.selectedColor === "string"
+          ? item.selectedColor
+          : item.selectedColor.name || "N/A";
+        itemText += ` (${colorName})`;
       }
 
       doc
         .fontSize(9)
-        .text(itemText, 50, position, { width: 220 })
-        .text(itemQuantity, 280, position, { width: 90, align: "right" })
-        .text(`৳${Math.round(itemPrice * 110)}`, 370, position, {
-          width: 90,
-          align: "right",
-        })
-        .text(`৳${Math.round(itemTotal * 110)}`, 0, position, {
-          align: "right",
-        });
+        .text(itemText, 50, position, { width: 145, ellipsis: true })
+        .text(vendorName, 200, position, { width: 85, ellipsis: true })
+        .text(itemQuantity, 290, position, { width: 50, align: "right" })
+        .text(`৳${Math.round(itemPrice * 110)}`, 340, position, { width: 70, align: "right" })
+        .text(`৳${Math.round(itemTotal * 110)}`, 410, position, { width: 70, align: "right" })
+        .text(commission, 480, position, { width: 70, align: "right" });
 
-      position += 25;
+      position += 22;
 
       // Add new page if needed
       if (position > 700) {
@@ -199,8 +199,16 @@ class InvoiceService {
       }
     }
 
+    // Commission rate note
+    if (order.products && order.products.some(p => p.commissionRateSnapshot != null)) {
+      doc.fillColor("#888888").fontSize(7)
+        .text("* Comm. = Admin Commission deducted from vendor earnings per item.", 50, position);
+      position += 14;
+      doc.fillColor("#444444");
+    }
+
     // Summary section
-    position += 20;
+    position += 10;
 
     // Line before summary
     doc
@@ -226,10 +234,7 @@ class InvoiceService {
       doc
         .fillColor("#EF4444")
         .text("Discount:", 370, position)
-        .text(`-৳${Math.round(order.totalDiscount * 110)}`, 0, position, {
-          align: "right",
-        });
-
+        .text(`-৳${Math.round(order.totalDiscount * 110)}`, 0, position, { align: "right" });
       position += 20;
       doc.fillColor("#444444");
     }
@@ -238,15 +243,8 @@ class InvoiceService {
     if (order.couponDiscount && order.couponDiscount > 0) {
       doc
         .fillColor("#EF4444")
-        .text(
-          `Coupon (${order.couponApplied?.code || "DISCOUNT"}):`,
-          370,
-          position,
-        )
-        .text(`-৳${Math.round(order.couponDiscount * 110)}`, 0, position, {
-          align: "right",
-        });
-
+        .text(`Coupon (${order.couponApplied?.code || "DISCOUNT"}):`, 370, position)
+        .text(`-৳${Math.round(order.couponDiscount * 110)}`, 0, position, { align: "right" });
       position += 20;
       doc.fillColor("#444444");
     }
@@ -256,10 +254,7 @@ class InvoiceService {
       doc
         .fillColor("#EF4444")
         .text("Loyalty Points:", 370, position)
-        .text(`-৳${Math.round(order.pointsDiscount * 110)}`, 0, position, {
-          align: "right",
-        });
-
+        .text(`-৳${Math.round(order.pointsDiscount * 110)}`, 0, position, { align: "right" });
       position += 20;
       doc.fillColor("#444444");
     }
@@ -270,12 +265,21 @@ class InvoiceService {
       .text("Delivery Charge:", 370, position)
       .text(
         deliveryCharge === 0 ? "FREE" : `৳${Math.round(deliveryCharge * 110)}`,
-        0,
-        position,
-        { align: "right" },
+        0, position, { align: "right" },
       );
 
     position += 20;
+
+    // Commission summary (admin)
+    if (order.totalCommission != null && order.totalCommission > 0) {
+      doc
+        .fillColor("#6366F1")
+        .fontSize(9)
+        .text("Platform Commission:", 370, position)
+        .text(`৳${Math.round(order.totalCommission * 110)}`, 0, position, { align: "right" });
+      position += 18;
+      doc.fillColor("#444444").fontSize(10);
+    }
 
     // Line before total
     doc
@@ -296,6 +300,28 @@ class InvoiceService {
       .text(`৳${Math.round(total * 110)}`, 0, position, { align: "right" });
 
     doc.fillColor("#444444").fontSize(10);
+    position += 30;
+
+    // Order notes
+    if (order.notes && order.notes.length > 0) {
+      doc
+        .strokeColor("#CCCCCC")
+        .lineWidth(1)
+        .moveTo(50, position)
+        .lineTo(550, position)
+        .stroke();
+
+      position += 12;
+      doc.fillColor("#444444").fontSize(10).text("Internal Notes:", 50, position);
+      position += 15;
+      order.notes.forEach(note => {
+        const dateStr = note.addedAt ? new Date(note.addedAt).toLocaleString() : "";
+        doc.fontSize(8).fillColor("#888888")
+          .text(`[${dateStr}] ${note.text}`, 50, position, { width: 500 });
+        position += 14;
+      });
+      doc.fillColor("#444444");
+    }
   }
 
   generateFooter(doc) {

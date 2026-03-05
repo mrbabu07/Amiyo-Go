@@ -46,18 +46,25 @@ import SearchResults from "../pages/SearchResults";
 import VendorLayout from "../layouts/VendorLayout";
 import VendorRegister from "../pages/VendorRegister";
 import VendorHome from "../pages/vendor/VendorHome";
-import VendorDashboard from "../pages/vendor/VendorDashboard";
-import VendorDashboardEnhanced from "../pages/vendor/VendorDashboardEnhanced";
-import VendorDashboardSimple from "../pages/vendor/VendorDashboardSimple";
 import VendorAddProduct from "../pages/vendor/VendorAddProduct";
 import VendorEditProduct from "../pages/vendor/VendorEditProduct";
 import VendorProducts from "../pages/vendor/VendorProducts";
 import VendorOrders from "../pages/vendor/VendorOrders";
 import VendorSettings from "../pages/vendor/VendorSettings";
+import VendorFinance from "../pages/vendor/VendorFinance";
+import VendorMarketing from "../pages/vendor/VendorMarketing";
+import VendorReports from "../pages/vendor/VendorReports";
+import VendorShop from "../pages/vendor/VendorShop";
+import VendorMessages from "../pages/vendor/VendorMessages";
+import VendorReviews from "../pages/vendor/VendorReviews";
+import VendorQA from "../pages/vendor/VendorQA";
+import VendorBulkUpload from "../pages/vendor/VendorBulkUpload";
+import ComingSoon from "../pages/vendor/ComingSoon";
 import AdminVendors from "../pages/admin/AdminVendors";
 import AuthDebug from "../pages/AuthDebug";
 
 const router = createBrowserRouter([
+  // Main site routes
   {
     path: "/",
     element: <MainLayout />,
@@ -268,6 +275,14 @@ const router = createBrowserRouter([
         ),
       },
       {
+        path: "/admin/vendors",
+        element: (
+          <AdminRoute>
+            <AdminVendors />
+          </AdminRoute>
+        ),
+      },
+      {
         path: "/returns",
         element: (
           <PrivateRoute>
@@ -307,25 +322,7 @@ const router = createBrowserRouter([
           </PrivateRoute>
         ),
       },
-
-      // Vendor routes with layout
-      {
-        path: "/vendor",
-        element: (
-          <PrivateRoute>
-            <VendorLayout />
-          </PrivateRoute>
-        ),
-        children: [
-          { path: "dashboard", element: <VendorHome /> },
-          { path: "products", element: <VendorProducts /> },
-          { path: "products/add", element: <VendorAddProduct /> },
-          { path: "products/edit/:id", element: <VendorEditProduct /> },
-          { path: "orders", element: <VendorOrders /> },
-          { path: "settings", element: <VendorSettings /> },
-        ],
-      },
-      // Vendor registration (no layout)
+      // Vendor registration (uses main layout)
       {
         path: "/vendor/register",
         element: (
@@ -334,14 +331,43 @@ const router = createBrowserRouter([
           </PrivateRoute>
         ),
       },
-      {
-        path: "/admin/vendors",
-        element: (
-          <AdminRoute>
-            <AdminVendors />
-          </AdminRoute>
-        ),
-      },
+    ],
+  },
+  // Vendor Seller Center routes (separate layout, no main site header)
+  {
+    path: "/vendor",
+    element: (
+      <PrivateRoute>
+        <VendorLayout />
+      </PrivateRoute>
+    ),
+    children: [
+      { path: "dashboard", element: <VendorHome /> },
+      { path: "products", element: <VendorProducts /> },
+      { path: "products/add", element: <VendorAddProduct /> },
+      { path: "products/edit/:id", element: <VendorEditProduct /> },
+      { path: "products/bulk", element: <VendorBulkUpload /> },
+      { path: "orders", element: <VendorOrders /> },
+      { path: "finance/payments", element: <VendorFinance /> },
+      { path: "finance/transactions", element: <VendorFinance /> },
+      { path: "finance/statements", element: <VendorFinance /> },
+      { path: "finance", element: <VendorFinance /> },
+      { path: "marketing/promotions", element: <VendorMarketing /> },
+      { path: "marketing/vouchers", element: <VendorMarketing /> },
+      { path: "marketing/campaigns", element: <VendorMarketing /> },
+      { path: "marketing", element: <VendorMarketing /> },
+      { path: "reports/sales", element: <VendorReports /> },
+      { path: "reports/products", element: <VendorReports /> },
+      { path: "reports/traffic", element: <VendorReports /> },
+      { path: "reports", element: <VendorReports /> },
+      { path: "shop/profile", element: <VendorShop /> },
+      { path: "shop/decoration", element: <VendorShop /> },
+      { path: "shop/categories", element: <VendorShop /> },
+      { path: "shop", element: <VendorShop /> },
+      { path: "messages", element: <VendorMessages /> },
+      { path: "reviews", element: <VendorReviews /> },
+      { path: "qa", element: <VendorQA /> },
+      { path: "settings", element: <VendorSettings /> },
     ],
   },
 ]);

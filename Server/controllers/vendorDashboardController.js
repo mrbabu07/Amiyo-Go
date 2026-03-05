@@ -120,7 +120,7 @@ exports.getVendorOrders = async (req, res) => {
           if (item.productId) {
             const product = await productsCollection.findOne({ 
               _id: typeof item.productId === 'string' 
-                ? new require('mongodb').ObjectId(item.productId) 
+                ? new ObjectId(item.productId) 
                 : item.productId 
             });
             if (product) {
@@ -217,4 +217,86 @@ exports.getTopProducts = async (req, res) => {
   }
 };
 
+// ─── Vendor: Single order detail ─────────────────────────────
+exports.getVendorOrderDetail = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const VendorOrder = req.app.locals.models.VendorOrder;
+    const Vendor = req.app.locals.models.Vendor;
+    const User = req.app.locals.models.User;
+    const db = req.app.locals.db;
+
+    const user = await User.findByFirebaseUid(req.user.uid);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const vendor = await Vendor.findByUserId(user._id);
+    if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+
+    const order = await VendorOrder.findById(orderId);
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    if (order.vendorId !== vendor._id.toString()) {
+      return res.status(403).json({ error: "Unauthorized to view this order" });
+    }
+
+    // Enrich products with full product details
+    const productsCollection = db.collection("products");
+    const enrichedProducts = [];
+    if (order.products && Array.isArray(order.products)) {
+      for (const item of order.products) {
+        let productDetails = null;
+        if (item.productId) {
+          try {
+            const { ObjectId } = require("mongodb");
+            productDetails = await productsCollection.findOne({
+              _id: typeof item.productId === "string" ? new ObjectId(item.productId) : item.productId,
+            });
+          } catch (_) {}
+        }
+        enrichedProducts.push({ ...item, productDetails });
+      }
+    }
+
+    const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+    const totalCommission = enrichedProducts.reduce((s, p) => s + (p.adminCommissionAmount || 0), 0);
+    const totalVendorEarnings = enrichedProducts.reduce((s, p) => s + (p.vendorEarningAmount || 0), 0);
+
+    res.json({
+      success: true,
+      data: {
+        ...order,
+        products: enrichedProducts,
+        totalCommission: round2(totalCommission),
+        totalVendorEarnings: round2(totalVendorEarnings),
+        statusHistory: order.statusHistory || [],
+      },
+    });
+  } catch (error) {
+    console.error("Error in getVendorOrderDetail:", error);
+    res.status(500).json({ error: "Failed to fetch order detail" });
+  }
+};
+
+// ─── Vendor: Finance stats ────────────────────────────────────
+exports.getVendorOrderStats = async (req, res) => {
+  try {
+    const VendorOrder = req.app.locals.models.VendorOrder;
+    const Vendor = req.app.locals.models.Vendor;
+    const User = req.app.locals.models.User;
+
+    const user = await User.findByFirebaseUid(req.user.uid);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const vendor = await Vendor.findByUserId(user._id);
+    if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+
+    const stats = await VendorOrder.getVendorOrderStats(vendor._id.toString());
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    console.error("Error in getVendorOrderStats:", error);
+    res.status(500).json({ error: "Failed to fetch vendor order stats" });
+  }
+};
+
 module.exports = exports;
+

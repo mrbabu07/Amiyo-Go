@@ -303,16 +303,13 @@ const searchProducts = async (req, res) => {
       return res.json({ success: true, data: [] });
     }
 
-    // Simple text search - in production, you'd use MongoDB text search or Elasticsearch
-    const products = await Product.findAll();
-    const searchResults = products.filter(
-      (product) =>
-        product.title.toLowerCase().includes(q.toLowerCase()) ||
-        (product.description &&
-          product.description.toLowerCase().includes(q.toLowerCase())),
-    );
+    // Use findWithFilters so approvalStatus filter is automatically applied
+    const products = await Product.findWithFilters({
+      search: q.trim(),
+      limit: 50,
+    });
 
-    res.json({ success: true, data: searchResults });
+    res.json({ success: true, data: products });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

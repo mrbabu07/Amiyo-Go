@@ -5,7 +5,52 @@ const getAllOrders = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
     const orders = await Order.findAll();
-    res.json({ success: true, data: orders });
+
+    const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+    const extendedOrders = orders.map(order => {
+      let totalCommission = 0;
+      let totalVendorEarnings = 0;
+      const vendorMap = {};
+
+      if (order.products && Array.isArray(order.products)) {
+        for (const product of order.products) {
+          const adminComm = product.adminCommissionAmount || 0;
+          const vendorEarn = product.vendorEarningAmount || 0;
+          const vId = product.vendorId || 'platform';
+          
+          totalCommission += adminComm;
+          totalVendorEarnings += vendorEarn;
+          
+          if (!vendorMap[vId]) {
+            vendorMap[vId] = {
+              vendorId: vId === 'platform' ? null : vId,
+              grossSales: 0,
+              totalCommission: 0,
+              netEarnings: 0
+            };
+          }
+          
+          vendorMap[vId].grossSales += (product.price * product.quantity);
+          vendorMap[vId].totalCommission += adminComm;
+          vendorMap[vId].netEarnings += vendorEarn;
+        }
+      }
+
+      return {
+        ...order,
+        totalCommission: round2(totalCommission),
+        totalVendorEarnings: round2(totalVendorEarnings),
+        perVendorBreakdown: Object.values(vendorMap).map(v => ({
+          ...v,
+          grossSales: round2(v.grossSales),
+          totalCommission: round2(v.totalCommission),
+          netEarnings: round2(v.netEarnings)
+        }))
+      };
+    });
+
+    res.json({ success: true, data: extendedOrders });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -320,7 +365,7 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    const result = await Order.updateStatus(id, status);
+    const result = await Order.updateStatus(id, status, req.user?.uid, req.body.note || "");
 
     if (result.matchedCount === 0) {
       return res.status(404).json({
@@ -506,8 +551,270 @@ const downloadInvoice = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────
+// Admin: Paginated + filtered order list
+// ─────────────────────────────────────────
+const getAdminOrders = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const { status, from, to, search, page = 1, limit = 20 } = req.query;
+    const result = await Order.findAllPaginated({ status, from, to, search, page, limit });
+
+    const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+    result.orders = result.orders.map(order => {
+      let totalCommission = 0;
+      let totalVendorEarnings = 0;
+      const vendorMap = {};
+      if (order.products && Array.isArray(order.products)) {
+        for (const p of order.products) {
+          const comm = p.adminCommissionAmount || 0;
+          const earn = p.vendorEarningAmount || 0;
+          const vId = p.vendorId || 'platform';
+          totalCommission += comm;
+          totalVendorEarnings += earn;
+          if (!vendorMap[vId]) {
+            vendorMap[vId] = { vendorId: vId === 'platform' ? null : vId, grossSales: 0, totalCommission: 0, netEarnings: 0 };
+          }
+          vendorMap[vId].grossSales += (p.price * p.quantity);
+          vendorMap[vId].totalCommission += comm;
+          vendorMap[vId].netEarnings += earn;
+        }
+      }
+      return {
+        ...order,
+        totalCommission: round2(totalCommission),
+        totalVendorEarnings: round2(totalVendorEarnings),
+        perVendorBreakdown: Object.values(vendorMap).map(v => ({
+          ...v,
+          grossSales: round2(v.grossSales),
+          totalCommission: round2(v.totalCommission),
+          netEarnings: round2(v.netEarnings),
+        })),
+      };
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Error in getAdminOrders:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────
+// Admin: Single enriched order detail
+// ─────────────────────────────────────────
+const getAdminOrderById = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const db = req.app.locals.db;
+    const { id } = req.params;
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+    // Build commission breakdown
+    let totalCommission = 0;
+    let totalVendorEarnings = 0;
+    const vendorMap = {};
+    if (order.products && Array.isArray(order.products)) {
+      for (const p of order.products) {
+        const comm = p.adminCommissionAmount || 0;
+        const earn = p.vendorEarningAmount || 0;
+        const vId = p.vendorId || 'platform';
+        totalCommission += comm;
+        totalVendorEarnings += earn;
+        if (!vendorMap[vId]) {
+          vendorMap[vId] = { vendorId: vId === 'platform' ? null : vId, grossSales: 0, totalCommission: 0, netEarnings: 0 };
+        }
+        vendorMap[vId].grossSales += (p.price * p.quantity);
+        vendorMap[vId].totalCommission += comm;
+        vendorMap[vId].netEarnings += earn;
+      }
+    }
+
+    // Enrich vendor info
+    const vendorsCollection = db.collection('vendors');
+    const perVendorBreakdown = await Promise.all(
+      Object.values(vendorMap).map(async (v) => {
+        let shopName = null;
+        if (v.vendorId) {
+          try {
+            const { ObjectId } = require('mongodb');
+            const vendor = await vendorsCollection.findOne({ _id: new ObjectId(v.vendorId) });
+            shopName = vendor?.shopName || null;
+          } catch (_) {}
+        }
+        return {
+          ...v,
+          shopName,
+          grossSales: round2(v.grossSales),
+          totalCommission: round2(v.totalCommission),
+          netEarnings: round2(v.netEarnings),
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: {
+        ...order,
+        totalCommission: round2(totalCommission),
+        totalVendorEarnings: round2(totalVendorEarnings),
+        perVendorBreakdown,
+        statusHistory: order.statusHistory || [],
+        notes: order.notes || [],
+      },
+    });
+  } catch (error) {
+    console.error('Error in getAdminOrderById:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────
+// Admin: Order dashboard stats
+// ─────────────────────────────────────────
+const getAdminOrderStats = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const stats = await Order.getOrderStats();
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    console.error('Error in getAdminOrderStats:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────
+// Admin: Export orders as CSV
+// ─────────────────────────────────────────
+const exportOrdersCsv = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const { status, from, to, search } = req.query;
+    const result = await Order.findAllPaginated({ status, from, to, search, page: 1, limit: 10000 });
+
+    const rows = result.orders.map(o => [
+      o._id.toString(),
+      o.createdAt ? new Date(o.createdAt).toISOString() : '',
+      o.status,
+      o.paymentMethod,
+      o.paymentStatus,
+      o.shippingInfo?.name || '',
+      o.shippingInfo?.email || '',
+      o.shippingInfo?.phone || '',
+      o.shippingInfo?.address || '',
+      o.shippingInfo?.city || '',
+      o.products?.length || 0,
+      o.subtotal || 0,
+      o.totalDiscount || 0,
+      o.deliveryCharge || 0,
+      o.total || 0,
+      o.couponApplied?.code || '',
+    ]);
+
+    const header = 'OrderId,CreatedAt,Status,PaymentMethod,PaymentStatus,CustomerName,Email,Phone,Address,City,ItemCount,Subtotal,Discount,Delivery,Total,CouponCode';
+    const csv = [header, ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="orders-${Date.now()}.csv"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Error in exportOrdersCsv:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────
+// Admin: Bulk status update
+// ─────────────────────────────────────────
+const bulkUpdateOrderStatus = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const { orderIds, status, note } = req.body;
+
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'orderIds must be a non-empty array' });
+    }
+
+    const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, error: `Status must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    const results = await Promise.allSettled(
+      orderIds.map(id => Order.updateStatus(id, status, req.user?.uid, note || ''))
+    );
+
+    const succeeded = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+
+    res.json({ success: true, message: `Updated ${succeeded} orders. ${failed} failed.`, succeeded, failed });
+  } catch (error) {
+    console.error('Error in bulkUpdateOrderStatus:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────
+// Admin: Add internal note to an order
+// ─────────────────────────────────────────
+const addOrderNote = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const { id } = req.params;
+    const { note } = req.body;
+
+    if (!note || !note.trim()) {
+      return res.status(400).json({ success: false, error: 'Note text is required' });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    await Order.addNote(id, note.trim(), req.user?.uid);
+
+    const updated = await Order.findById(id);
+    res.json({ success: true, data: { notes: updated.notes || [] } });
+  } catch (error) {
+    console.error('Error in addOrderNote:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────
+// Admin: Regenerate invoice PDF
+// ─────────────────────────────────────────
+const regenerateInvoice = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const { id } = req.params;
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+    invoiceService.deleteInvoice(id);
+    await invoiceService.generateInvoice(order);
+
+    res.json({ success: true, message: 'Invoice regenerated successfully' });
+  } catch (error) {
+    console.error('Error in regenerateInvoice:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 module.exports = {
   getAllOrders,
+  getAdminOrders,
+  getAdminOrderById,
+  getAdminOrderStats,
+  exportOrdersCsv,
+  bulkUpdateOrderStatus,
+  addOrderNote,
+  regenerateInvoice,
   getUserOrders,
   createOrder,
   updateOrderStatus,

@@ -28,6 +28,13 @@ class Product {
     // Build MongoDB query
     const query = {};
 
+    // Only show vendor products that are approved (admin products have no approvalStatus)
+    query.$or = [
+      { approvalStatus: { $exists: false } },  // admin-created products
+      { approvalStatus: null },                 // legacy products
+      { approvalStatus: "approved" },           // approved vendor products
+    ];
+
     // Category filter
     if (category) {
       query.categoryId = category;
