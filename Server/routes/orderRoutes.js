@@ -15,13 +15,23 @@ const {
   updateOrderStatus,
   cancelOrder,
   downloadInvoice,
+  adminCancelOrder,
+  adminResolveDispute,
+  adminApproveRefund,
+  adminOverrideStatus,
 } = require("../controllers/orderController");
 
 // ── Admin routes ───────────────────────────────────────────────
 router.get("/admin/stats",       verifyToken, verifyAdmin, getAdminOrderStats);
 router.get("/admin/export/csv",  verifyToken, verifyAdmin, exportOrdersCsv);
 router.get("/admin",             verifyToken, verifyAdmin, getAdminOrders);
-router.patch("/admin/bulk-status", verifyToken, verifyAdmin, bulkUpdateOrderStatus);
+router.patch("/admin/bulk-status",             verifyToken, verifyAdmin, bulkUpdateOrderStatus);
+
+// ── Admin order action routes (Daraz-style control) ────────────
+router.patch("/admin/:id/cancel",          verifyToken, verifyAdmin, adminCancelOrder);
+router.patch("/admin/:id/resolve-dispute", verifyToken, verifyAdmin, adminResolveDispute);
+router.patch("/admin/:id/approve-refund",  verifyToken, verifyAdmin, adminApproveRefund);
+router.patch("/admin/:id/override-status", verifyToken, verifyAdmin, adminOverrideStatus);
 
 // ── Shared detail (admin + owner) ─────────────────────────────
 router.get("/:id/detail", verifyToken, getAdminOrderById);

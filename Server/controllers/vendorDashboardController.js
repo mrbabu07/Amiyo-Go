@@ -298,5 +298,142 @@ exports.getVendorOrderStats = async (req, res) => {
   }
 };
 
+// ─── Vendor: Pack items ────────────────────────────────────────
+exports.packVendorItems = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const Order = req.app.locals.models.Order;
+    const VendorOrder = req.app.locals.models.VendorOrder;
+    const Vendor = req.app.locals.models.Vendor;
+    const User = req.app.locals.models.User;
+
+    const user = await User.findByFirebaseUid(req.user.uid);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const vendor = await Vendor.findByUserId(user._id);
+    if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+    if (vendor.status !== "approved") return res.status(403).json({ error: "Vendor not approved" });
+
+    const vendorId = vendor._id.toString();
+
+    // Find the VendorOrder for this vendor
+    const vendorOrders = await VendorOrder.findByParentOrderId(orderId);
+    const myVendorOrder = vendorOrders.find((vo) => vo.vendorId === vendorId);
+    if (!myVendorOrder) return res.status(404).json({ error: "Order not found for this vendor" });
+
+    // Check parent order exists
+    const parentOrder = await Order.findById(orderId);
+    if (!parentOrder) return res.status(404).json({ error: "Parent order not found" });
+
+    // Verify vendor has items in this order
+    const hasItems = (parentOrder.products || []).some((p) => p.vendorId === vendorId);
+    if (!hasItems) return res.status(403).json({ error: "No items for this vendor in order" });
+
+    // Update item statuses on parent order
+    await Order.updateItemStatus(orderId, vendorId, "packed");
+    await Order.syncOrderStatus(orderId);
+
+    // Update VendorOrder status
+    await VendorOrder.updateStatus(myVendorOrder._id.toString(), "packed");
+
+    res.json({ success: true, message: "Items marked as packed" });
+  } catch (error) {
+    console.error("Error in packVendorItems:", error);
+    res.status(500).json({ error: "Failed to pack items" });
+  }
+};
+
+// ─── Vendor: Ship items ────────────────────────────────────────
+exports.shipVendorItems = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { trackingNumber } = req.body;
+    const Order = req.app.locals.models.Order;
+    const VendorOrder = req.app.locals.models.VendorOrder;
+    const Vendor = req.app.locals.models.Vendor;
+    const User = req.app.locals.models.User;
+
+    if (!trackingNumber || !trackingNumber.trim()) {
+      return res.status(400).json({ error: "trackingNumber is required for shipping" });
+    }
+
+    const user = await User.findByFirebaseUid(req.user.uid);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const vendor = await Vendor.findByUserId(user._id);
+    if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+    if (vendor.status !== "approved") return res.status(403).json({ error: "Vendor not approved" });
+
+    const vendorId = vendor._id.toString();
+
+    const vendorOrders = await VendorOrder.findByParentOrderId(orderId);
+    const myVendorOrder = vendorOrders.find((vo) => vo.vendorId === vendorId);
+    if (!myVendorOrder) return res.status(404).json({ error: "Order not found for this vendor" });
+
+    const parentOrder = await Order.findById(orderId);
+    if (!parentOrder) return res.status(404).json({ error: "Parent order not found" });
+
+    const hasItems = (parentOrder.products || []).some((p) => p.vendorId === vendorId);
+    if (!hasItems) return res.status(403).json({ error: "No items for this vendor in order" });
+
+    // Update item statuses on parent order (with tracking number)
+    await Order.updateItemStatus(orderId, vendorId, "shipped", trackingNumber.trim());
+    await Order.syncOrderStatus(orderId);
+
+    // Update VendorOrder with tracking info
+    await VendorOrder.updateStatus(myVendorOrder._id.toString(), "shipped", {
+      trackingNumber: trackingNumber.trim(),
+      shippedAt: new Date(),
+    });
+
+    res.json({ success: true, message: "Items marked as shipped", trackingNumber: trackingNumber.trim() });
+  } catch (error) {
+    console.error("Error in shipVendorItems:", error);
+    res.status(500).json({ error: "Failed to ship items" });
+  }
+};
+
+// ─── Vendor: Deliver items ─────────────────────────────────────
+exports.deliverVendorItems = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const Order = req.app.locals.models.Order;
+    const VendorOrder = req.app.locals.models.VendorOrder;
+    const Vendor = req.app.locals.models.Vendor;
+    const User = req.app.locals.models.User;
+
+    const user = await User.findByFirebaseUid(req.user.uid);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const vendor = await Vendor.findByUserId(user._id);
+    if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+    if (vendor.status !== "approved") return res.status(403).json({ error: "Vendor not approved" });
+
+    const vendorId = vendor._id.toString();
+
+    const vendorOrders = await VendorOrder.findByParentOrderId(orderId);
+    const myVendorOrder = vendorOrders.find((vo) => vo.vendorId === vendorId);
+    if (!myVendorOrder) return res.status(404).json({ error: "Order not found for this vendor" });
+
+    const parentOrder = await Order.findById(orderId);
+    if (!parentOrder) return res.status(404).json({ error: "Parent order not found" });
+
+    const hasItems = (parentOrder.products || []).some((p) => p.vendorId === vendorId);
+    if (!hasItems) return res.status(403).json({ error: "No items for this vendor in order" });
+
+    await Order.updateItemStatus(orderId, vendorId, "delivered");
+    await Order.syncOrderStatus(orderId);
+
+    await VendorOrder.updateStatus(myVendorOrder._id.toString(), "delivered", {
+      deliveredAt: new Date(),
+    });
+
+    res.json({ success: true, message: "Items marked as delivered" });
+  } catch (error) {
+    console.error("Error in deliverVendorItems:", error);
+    res.status(500).json({ error: "Failed to mark items as delivered" });
+  }
+};
+
 module.exports = exports;
 

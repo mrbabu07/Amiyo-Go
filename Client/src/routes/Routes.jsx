@@ -61,6 +61,7 @@ import VendorQA from "../pages/vendor/VendorQA";
 import VendorBulkUpload from "../pages/vendor/VendorBulkUpload";
 import ComingSoon from "../pages/vendor/ComingSoon";
 import AdminVendors from "../pages/admin/AdminVendors";
+import AdminVendorDetail from "../pages/admin/AdminVendorDetail";
 import AuthDebug from "../pages/AuthDebug";
 
 const router = createBrowserRouter([
@@ -279,6 +280,14 @@ const router = createBrowserRouter([
         element: (
           <AdminRoute>
             <AdminVendors />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "/admin/vendors/:vendorId",
+        element: (
+          <AdminRoute>
+            <AdminVendorDetail />
           </AdminRoute>
         ),
       },

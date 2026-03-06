@@ -63,15 +63,15 @@ class VendorOrder {
       .toArray();
   }
 
-  async updateStatus(id, status) {
+  async updateStatus(id, status, extra = {}) {
+    const setFields = {
+      status,
+      updatedAt: new Date(),
+      ...extra,
+    };
     return await this.collection.updateOne(
       { _id: new ObjectId(id) },
-      {
-        $set: {
-          status,
-          updatedAt: new Date(),
-        },
-      }
+      { $set: setFields }
     );
   }
 

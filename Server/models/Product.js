@@ -3,6 +3,17 @@ const { ObjectId } = require("mongodb");
 class Product {
   constructor(db) {
     this.collection = db.collection("products");
+    this.createIndexes();
+  }
+
+  async createIndexes() {
+    try {
+      await this.collection.createIndex({ approvalStatus: 1, isActive: 1, createdAt: -1 });
+      await this.collection.createIndex({ vendorId: 1, createdAt: -1 });
+      await this.collection.createIndex({ categoryId: 1 });
+    } catch (error) {
+      console.error("Error creating Product indexes:", error);
+    }
   }
 
   async findAll(filter = {}) {
@@ -28,9 +39,10 @@ class Product {
     // Build MongoDB query
     const query = {};
 
-    // Only show vendor products that are approved (admin products have no approvalStatus)
+    // Only show active, approved products on public listing
+    query.isActive = { $ne: false };
     query.$or = [
-      { approvalStatus: { $exists: false } },  // admin-created products
+      { approvalStatus: { $exists: false } },  // admin-created products (no moderation)
       { approvalStatus: null },                 // legacy products
       { approvalStatus: "approved" },           // approved vendor products
     ];
@@ -275,10 +287,22 @@ class Product {
   }
 
   async create(productData) {
+    const now = new Date();
     const product = {
+      // Moderation defaults — always set, never trust frontend for these
+      approvalStatus: "pending",
+      isActive: true,
+      approvedBy: null,
+      approvedAt: null,
+      rejectionReason: null,
+      lastSubmittedAt: now,
+      lastModeratedAt: null,
       ...productData,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      // Override any inbound approvalStatus/isActive from frontend
+      approvalStatus: productData.approvalStatus || "pending",
+      isActive: productData.isActive !== undefined ? productData.isActive : true,
+      createdAt: now,
+      updatedAt: now,
     };
 
     // Convert vendorId and categoryId to ObjectId if present
@@ -291,6 +315,41 @@ class Product {
 
     const result = await this.collection.insertOne(product);
     return result.insertedId;
+  }
+
+  /**
+   * Paginated products for a specific vendor (vendor dashboard use)
+   * @param {string} vendorId
+   * @param {{ status, page, limit }} options
+   */
+  async findByVendorPaginated(vendorId, options = {}) {
+    const { status, page = 1, limit = 20 } = options;
+    const pageNum  = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip     = (pageNum - 1) * limitNum;
+
+    const query = { vendorId: new ObjectId(vendorId) };
+    if (status && status !== "all") {
+      query.approvalStatus = status;
+    }
+
+    const [products, total] = await Promise.all([
+      this.collection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .toArray(),
+      this.collection.countDocuments(query),
+    ]);
+
+    return {
+      products,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      pages: Math.ceil(total / limitNum),
+    };
   }
 
   async update(id, productData) {

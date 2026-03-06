@@ -12,6 +12,7 @@ class Order {
       await this.collection.createIndex({ status: 1 });
       await this.collection.createIndex({ userId: 1 });
       await this.collection.createIndex({ "products.vendorId": 1 });
+      await this.collection.createIndex({ "products.itemStatus": 1 });
       await this.collection.createIndex({ "shippingInfo.email": 1 });
     } catch (error) {
       console.error("Error creating Order indexes:", error);
@@ -144,6 +145,12 @@ class Order {
         product.commissionRateSnapshot = commissionRate;
         product.adminCommissionAmount = adminCommissionAmount;
         product.vendorEarningAmount = vendorEarningAmount;
+
+        // Item-level shipping status fields
+        product.itemStatus = "pending";
+        product.trackingNumber = null;
+        product.shippedAt = null;
+        product.deliveredAt = null;
 
         calculatedSubtotal += itemSubtotal;
       }
@@ -335,6 +342,82 @@ class Order {
         },
       },
     );
+  }
+
+  /**
+   * Update itemStatus (and optional tracking fields) for all products
+   * belonging to a specific vendor inside an order.
+   * Possible newStatus values: pending | processing | packed | shipped | delivered | cancelled | returned
+   */
+  async updateItemStatus(orderId, vendorId, newStatus, trackingNumber = null) {
+    const now = new Date();
+    const order = await this.findById(orderId);
+    if (!order) throw new Error("Order not found");
+
+    const updatedProducts = (order.products || []).map((p) => {
+      if (p.vendorId && p.vendorId.toString() === vendorId.toString()) {
+        const updated = { ...p, itemStatus: newStatus };
+        if (newStatus === "shipped") {
+          updated.shippedAt = now;
+          if (trackingNumber) updated.trackingNumber = trackingNumber;
+        }
+        if (newStatus === "delivered") {
+          updated.deliveredAt = now;
+        }
+        return updated;
+      }
+      return p;
+    });
+
+    return await this.collection.updateOne(
+      { _id: new ObjectId(orderId) },
+      { $set: { products: updatedProducts, updatedAt: now } }
+    );
+  }
+
+  /**
+   * Derive and persist order.status from all products[].itemStatus.
+   * Called after any vendor shipping action.
+   */
+  async syncOrderStatus(orderId) {
+    const order = await this.findById(orderId);
+    if (!order || !Array.isArray(order.products) || order.products.length === 0) return;
+
+    const statuses = order.products.map((p) => p.itemStatus || "pending");
+    const nonCancelled = statuses.filter((s) => s !== "cancelled");
+
+    let derivedStatus;
+    if (nonCancelled.length === 0) {
+      // All items cancelled
+      derivedStatus = "cancelled";
+    } else if (nonCancelled.every((s) => s === "delivered")) {
+      derivedStatus = "delivered";
+    } else if (nonCancelled.some((s) => s === "shipped")) {
+      derivedStatus = "shipped";
+    } else if (nonCancelled.some((s) => s === "packed" || s === "processing")) {
+      derivedStatus = "processing";
+    } else {
+      derivedStatus = "pending";
+    }
+
+    // Only write if status actually changed
+    if (derivedStatus !== order.status) {
+      await this.collection.updateOne(
+        { _id: new ObjectId(orderId) },
+        {
+          $set: { status: derivedStatus, updatedAt: new Date() },
+          $push: {
+            statusHistory: {
+              status: derivedStatus,
+              changedAt: new Date(),
+              changedBy: "system",
+              note: "Auto-synced from item statuses",
+            },
+          },
+        }
+      );
+    }
+    return derivedStatus;
   }
 }
 

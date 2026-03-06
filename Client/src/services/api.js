@@ -152,3 +152,45 @@ export const generateCustomerInsight = (userId) =>
   api.post(`/admin/insights/${userId}/generate`);
 export const getCustomerSegmentStats = () =>
   api.get("/admin/insights/segments");
+
+// ── Admin: Vendor detail + product moderation ──────────────────
+export const getAdminVendorById = (vendorId) =>
+  api.get(`/vendors/${vendorId}`);
+
+export const getAdminVendorProducts = (vendorId, params = {}) =>
+  api.get(`/admin/products/by-vendor/${vendorId}`, { params });
+
+export const approveAdminProduct = (productId) =>
+  api.patch(`/admin/products/${productId}/approve`);
+
+export const rejectAdminProduct = (productId, reason) =>
+  api.patch(`/admin/products/${productId}/reject`, { reason });
+
+export const disableAdminProduct = (productId) =>
+  api.patch(`/admin/products/${productId}/disable`);
+
+// ── Admin: Vendor finance ──────────────────────────────────────
+export const getAdminVendorFinanceSummary = (vendorId, params = {}) =>
+  api.get(`/admin/vendors/${vendorId}/finance/summary`, { params });
+
+export const getAdminVendorFinanceTransactions = (vendorId, params = {}) =>
+  api.get(`/admin/vendors/${vendorId}/finance/transactions`, { params });
+
+// ── Admin: Vendor orders ──────────────────────────────────────
+export const getAdminVendorOrders = (vendorId, params = {}) =>
+  api.get(`/admin/vendors/${vendorId}/orders`, { params });
+
+// ── Admin: Category commission ────────────────────────────────
+export const updateCategoryCommission = (id, commissionRate) =>
+  api.patch(`/categories/${id}/commission`, { commissionRate });
+
+// ── Admin: Vendor status actions ─────────────────────────────
+export const approveVendor = (vendorId) =>
+  api.patch(`/vendors/${vendorId}/approve`);
+
+export const suspendVendor = (vendorId, reason) =>
+  api.patch(`/vendors/${vendorId}/suspend`, { reason });
+
+export const reactivateVendor = (vendorId) =>
+  api.patch(`/vendors/${vendorId}/reactivate`);
+

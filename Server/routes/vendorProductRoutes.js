@@ -8,10 +8,12 @@ router.use(verifyToken);
 router.use(requireApprovedVendor);
 
 // Vendor product management
-router.get("/", vendorProductController.getVendorProducts);
-router.post("/", vendorProductController.createProduct);
-router.get("/:id", vendorProductController.getProductById);
-router.patch("/:id", vendorProductController.updateProduct);
-router.delete("/:id", vendorProductController.deleteProduct);
+router.get("/",                    vendorProductController.getVendorProducts);
+router.post("/",                   vendorProductController.createProduct);
+router.get("/:id",                 vendorProductController.getProductById);
+router.patch("/:id",               vendorProductController.updateProduct);
+router.delete("/:id",              vendorProductController.deleteProduct);
+router.post("/:id/submit",         vendorProductController.submitForApproval);
+router.patch("/:id/archive",       vendorProductController.archiveProduct);
 
 module.exports = router;

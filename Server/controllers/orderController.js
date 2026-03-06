@@ -806,6 +806,161 @@ const regenerateInvoice = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────
+// Admin: Cancel order (overrides customer cancellation rules)
+// ─────────────────────────────────────────
+const adminCancelOrder = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, error: "Order not found" });
+
+    if (order.status === "cancelled") {
+      return res.status(400).json({ success: false, error: "Order is already cancelled" });
+    }
+
+    // Cancel all item statuses too
+    const cancelledProducts = (order.products || []).map((p) => ({
+      ...p,
+      itemStatus: "cancelled",
+    }));
+
+    const { ObjectId } = require("mongodb");
+    await Order.collection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          status: "cancelled",
+          products: cancelledProducts,
+          cancelledAt: new Date(),
+          updatedAt: new Date(),
+        },
+        $push: {
+          statusHistory: {
+            status: "cancelled",
+            changedAt: new Date(),
+            changedBy: req.user?.uid || "admin",
+            note: reason || "Cancelled by admin",
+          },
+        },
+      }
+    );
+
+    res.json({ success: true, message: "Order cancelled by admin" });
+  } catch (error) {
+    console.error("Error in adminCancelOrder:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────
+// Admin: Resolve dispute
+// ─────────────────────────────────────────
+const adminResolveDispute = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const { id } = req.params;
+    const { resolution, note, restoreStatus } = req.body;
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, error: "Order not found" });
+
+    const noteText = `Dispute resolved: ${resolution || "No resolution details provided"}${note ? ". " + note : ""}`;
+    await Order.addNote(id, noteText, req.user?.uid || "admin");
+
+    // Optionally restore order to processing if it was on hold
+    if (restoreStatus) {
+      const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
+      if (validStatuses.includes(restoreStatus)) {
+        await Order.updateStatus(id, restoreStatus, req.user?.uid || "admin", `Status restored after dispute resolution`);
+      }
+    }
+
+    res.json({ success: true, message: "Dispute resolved", resolution });
+  } catch (error) {
+    console.error("Error in adminResolveDispute:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────
+// Admin: Approve refund
+// ─────────────────────────────────────────
+const adminApproveRefund = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const { id } = req.params;
+    const { note } = req.body;
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, error: "Order not found" });
+
+    if (order.refundApproved) {
+      return res.status(400).json({ success: false, error: "Refund already approved" });
+    }
+
+    const { ObjectId } = require("mongodb");
+    await Order.collection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          refundApproved: true,
+          refundApprovedAt: new Date(),
+          refundApprovedBy: req.user?.uid || "admin",
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    if (note) {
+      await Order.addNote(id, `Refund approved: ${note}`, req.user?.uid || "admin");
+    } else {
+      await Order.addNote(id, "Refund approved by admin", req.user?.uid || "admin");
+    }
+
+    res.json({ success: true, message: "Refund approved" });
+  } catch (error) {
+    console.error("Error in adminApproveRefund:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────
+// Admin: Override order status (bypass auto-sync)
+// ─────────────────────────────────────────
+const adminOverrideStatus = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const { id } = req.params;
+    const { status, note } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ success: false, error: "status is required" });
+    }
+
+    const validStatuses = ["pending", "processing", "packed", "shipped", "delivered", "cancelled", "returned"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: `status must be one of: ${validStatuses.join(", ")}`,
+      });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, error: "Order not found" });
+
+    await Order.updateStatus(id, status, req.user?.uid || "admin", note || "Status overridden by admin");
+
+    res.json({ success: true, message: `Order status overridden to "${status}"` });
+  } catch (error) {
+    console.error("Error in adminOverrideStatus:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 module.exports = {
   getAllOrders,
   getAdminOrders,
@@ -820,4 +975,8 @@ module.exports = {
   updateOrderStatus,
   cancelOrder,
   downloadInvoice,
+  adminCancelOrder,
+  adminResolveDispute,
+  adminApproveRefund,
+  adminOverrideStatus,
 };

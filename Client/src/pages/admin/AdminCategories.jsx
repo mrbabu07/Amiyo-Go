@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import toast from "react-hot-toast";
 import {
   getCategories,
   createCategory,
   deleteCategory,
+  updateCategoryCommission,
 } from "../../services/api";
 import Loading from "../../components/Loading";
 
@@ -14,6 +16,9 @@ export default function AdminCategories() {
   const [formData, setFormData] = useState({ name: "", slug: "" });
   const [deleteId, setDeleteId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  // commission editing: { [categoryId]: string }
+  const [commissionEdits, setCommissionEdits] = useState({});
+  const [savingCommission, setSavingCommission] = useState({});
 
   useEffect(() => {
     fetchCategories();
@@ -25,6 +30,7 @@ export default function AdminCategories() {
       setCategories(response.data.data);
     } catch (error) {
       console.error("Failed to fetch categories:", error);
+      toast.error("Failed to load categories");
     } finally {
       setLoading(false);
     }
@@ -38,9 +44,10 @@ export default function AdminCategories() {
       setFormData({ name: "", slug: "" });
       setShowForm(false);
       fetchCategories();
+      toast.success("Category created");
     } catch (error) {
       console.error("Failed to create category:", error);
-      alert("Failed to create category");
+      toast.error("Failed to create category");
     } finally {
       setSubmitting(false);
     }
@@ -49,11 +56,44 @@ export default function AdminCategories() {
   const handleDelete = async (id) => {
     try {
       await deleteCategory(id);
-      setCategories(categories.filter((c) => c._id !== id));
+      setCategories((prev) => prev.filter((c) => c._id !== id));
       setDeleteId(null);
+      toast.success("Category deleted");
     } catch (error) {
       console.error("Failed to delete category:", error);
-      alert("Failed to delete category");
+      toast.error("Failed to delete category");
+    }
+  };
+
+  const handleCommissionChange = (id, value) => {
+    setCommissionEdits((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const handleSaveCommission = async (category) => {
+    const raw = commissionEdits[category._id];
+    const rate = parseFloat(raw);
+    if (isNaN(rate) || rate < 0 || rate > 100) {
+      toast.error("Commission must be 0–100");
+      return;
+    }
+    setSavingCommission((prev) => ({ ...prev, [category._id]: true }));
+    try {
+      await updateCategoryCommission(category._id, rate);
+      // Update local state instantly — no full reload
+      setCategories((prev) =>
+        prev.map((c) => (c._id === category._id ? { ...c, commissionRate: rate } : c))
+      );
+      setCommissionEdits((prev) => {
+        const next = { ...prev };
+        delete next[category._id];
+        return next;
+      });
+      toast.success(`Commission set to ${rate}% for "${category.name}"`);
+    } catch (error) {
+      console.error("Failed to update commission:", error);
+      toast.error("Failed to update commission");
+    } finally {
+      setSavingCommission((prev) => ({ ...prev, [category._id]: false }));
     }
   };
 
@@ -63,7 +103,7 @@ export default function AdminCategories() {
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       {/* Header */}
       <div className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link
@@ -71,25 +111,13 @@ export default function AdminCategories() {
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Back to Dashboard"
               >
-                <svg
-                  className="w-6 h-6 text-gray-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 19l-7-7 7-7"
-                  />
+                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </Link>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Categories</h1>
-                <p className="text-gray-600">
-                  {categories.length} categories total
-                </p>
+                <p className="text-gray-600">{categories.length} categories total</p>
               </div>
             </div>
             <button
@@ -97,183 +125,132 @@ export default function AdminCategories() {
               className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
                 showForm
                   ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  : "bg-primary-500 text-white hover:bg-primary-600"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
               }`}
             >
-              {showForm ? (
-                <>
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                  Cancel
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
-                  Add Category
-                </>
-              )}
+              {showForm ? "Cancel" : "+ Add Category"}
             </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Add Category Form */}
         {showForm && (
-          <form
-            onSubmit={handleSubmit}
-            className="bg-white rounded-xl shadow-sm p-6 mb-6"
-          >
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              New Category
-            </h2>
+          <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">New Category</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Category Name
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                   placeholder="e.g., Men's Fashion"
-                  className="input-field"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Slug
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Slug</label>
                 <input
                   type="text"
                   value={formData.slug}
-                  onChange={(e) =>
-                    setFormData({ ...formData, slug: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
                   required
                   placeholder="e.g., mens"
-                  className="input-field"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  URL-friendly identifier (lowercase, no spaces)
-                </p>
+                <p className="text-xs text-gray-500 mt-1">URL-friendly identifier (lowercase, no spaces)</p>
               </div>
             </div>
             <button
               type="submit"
               disabled={submitting}
-              className="btn-primary disabled:opacity-50"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
             >
               {submitting ? "Creating..." : "Create Category"}
             </button>
           </form>
         )}
 
-        {/* Categories Grid */}
+        {/* Categories Table */}
         {categories.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm p-12 text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              No categories yet
-            </h3>
-            <p className="text-gray-600 mb-4">
-              Create your first category to organize products
-            </p>
-            <button onClick={() => setShowForm(true)} className="btn-primary">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No categories yet</h3>
+            <p className="text-gray-600 mb-4">Create your first category to organize products</p>
+            <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg">
               Add Category
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {categories.map((category) => (
-              <div
-                key={category._id}
-                className="bg-white rounded-xl shadow-sm p-6 flex items-center justify-between group hover:shadow-md transition"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center text-primary-600">
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">
-                      {category.name}
-                    </h3>
-                    <p className="text-sm text-gray-500">/{category.slug}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setDeleteId(category._id)}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
-                  title="Delete"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                </button>
-              </div>
-            ))}
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-52">Commission (%)</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {categories.map((category) => {
+                  const editVal = commissionEdits[category._id];
+                  const displayVal = editVal !== undefined ? editVal : (category.commissionRate ?? 0).toString();
+                  const isDirty = editVal !== undefined;
+                  const isSaving = savingCommission[category._id];
+
+                  return (
+                    <tr key={category._id} className="hover:bg-gray-50 transition">
+                      <td className="px-6 py-4 font-medium text-gray-900">{category.name}</td>
+                      <td className="px-6 py-4 text-gray-500 text-sm">/{category.slug}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          category.isActive !== false
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 text-gray-500"
+                        }`}>
+                          {category.isActive !== false ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.5"
+                            value={displayVal}
+                            onChange={(e) => handleCommissionChange(category._id, e.target.value)}
+                            className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                          <span className="text-gray-400 text-sm">%</span>
+                          {isDirty && (
+                            <button
+                              onClick={() => handleSaveCommission(category)}
+                              disabled={isSaving}
+                              className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              {isSaving ? "Saving..." : "Save"}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => setDeleteId(category._id)}
+                          className="text-red-400 hover:text-red-600 text-sm"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -282,27 +259,8 @@ export default function AdminCategories() {
       {deleteId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-6 h-6 text-red-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-              Delete Category?
-            </h3>
-            <p className="text-gray-600 text-center mb-6">
-              This may affect products in this category.
-            </p>
+            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">Delete Category?</h3>
+            <p className="text-gray-600 text-center mb-6">This may affect products in this category.</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteId(null)}
