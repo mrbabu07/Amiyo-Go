@@ -1,5 +1,221 @@
 const { ObjectId } = require("mongodb");
 
+// Public: Get vendor public information (for product pages)
+exports.getVendorPublicInfo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const Vendor = req.app.locals.models.Vendor;
+    const Product = req.app.locals.models.Product;
+
+    // Validate ObjectId
+    if (!id || typeof id !== "string" || id.length !== 24) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Invalid vendor ID format" 
+      });
+    }
+
+    const vendor = await Vendor.findById(id);
+    if (!vendor) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Vendor not found" 
+      });
+    }
+
+    // Only return public information for approved vendors
+    if (vendor.status !== "approved") {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Vendor not available" 
+      });
+    }
+
+    // Get vendor's product count
+    const totalProducts = await Product.collection.countDocuments({
+      vendorId: new ObjectId(id),
+      isActive: true,
+      approvalStatus: "approved"
+    });
+
+    // Calculate vendor rating from reviews
+    const Review = req.app.locals.models.Review;
+    const vendorProducts = await Product.collection
+      .find({ vendorId: new ObjectId(id) })
+      .project({ _id: 1 })
+      .toArray();
+    
+    const productIds = vendorProducts.map(p => p._id);
+    
+    let averageRating = 0;
+    let totalReviews = 0;
+    
+    if (productIds.length > 0) {
+      const ratingStats = await Review.collection.aggregate([
+        { $match: { productId: { $in: productIds } } },
+        {
+          $group: {
+            _id: null,
+            avgRating: { $avg: "$rating" },
+            count: { $sum: 1 }
+          }
+        }
+      ]).toArray();
+      
+      if (ratingStats.length > 0) {
+        averageRating = Math.round(ratingStats[0].avgRating * 10) / 10;
+        totalReviews = ratingStats[0].count;
+      }
+    }
+
+    // Get total sales from vendor orders
+    const VendorOrder = req.app.locals.models.VendorOrder;
+    const salesStats = await VendorOrder.collection.aggregate([
+      { 
+        $match: { 
+          vendorId: id,
+          status: { $in: ["delivered", "completed"] }
+        } 
+      },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: 1 }
+        }
+      }
+    ]).toArray();
+
+    const totalSales = salesStats.length > 0 ? salesStats[0].totalSales : 0;
+
+    // Return public vendor information
+    const publicInfo = {
+      _id: vendor._id,
+      shopName: vendor.shopName,
+      slug: vendor.slug,
+      logo: vendor.logo || null,
+      banner: vendor.banner || null,
+      description: vendor.description || null,
+      phone: vendor.phone || null,
+      email: vendor.email || null,
+      address: vendor.address || null,
+      status: vendor.status,
+      rating: averageRating,
+      totalReviews,
+      totalProducts,
+      totalSales,
+      followerCount: vendor.followerCount || 0,
+      responseRate: vendor.responseRate || 95, // Default if not calculated
+      responseTime: vendor.responseTime || "within hours", // Default
+      joinedDate: vendor.createdAt
+    };
+
+    res.json({ 
+      success: true, 
+      data: publicInfo 
+    });
+  } catch (error) {
+    console.error("Error fetching vendor public info:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: "Failed to fetch vendor information" 
+    });
+  }
+};
+
+// Get follow status
+exports.getFollowStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const User = req.app.locals.models.User;
+
+    const user = await User.findById(req.user._id);
+    const isFollowing = user.followedVendors?.includes(id) || false;
+
+    res.json({ success: true, isFollowing });
+  } catch (error) {
+    console.error("Error checking follow status:", error);
+    res.status(500).json({ success: false, error: "Failed to check follow status" });
+  }
+};
+
+// Follow vendor
+exports.followVendor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const User = req.app.locals.models.User;
+    const Vendor = req.app.locals.models.Vendor;
+
+    // Check if vendor exists
+    const vendor = await Vendor.findById(id);
+    if (!vendor) {
+      return res.status(404).json({ success: false, error: "Vendor not found" });
+    }
+
+    // Add vendor to user's followed list
+    await User.collection.updateOne(
+      { _id: req.user._id },
+      { 
+        $addToSet: { followedVendors: id },
+        $set: { updatedAt: new Date() }
+      }
+    );
+
+    // Increment vendor's follower count
+    await Vendor.collection.updateOne(
+      { _id: vendor._id },
+      { 
+        $inc: { followerCount: 1 },
+        $set: { updatedAt: new Date() }
+      }
+    );
+
+    res.json({ 
+      success: true, 
+      message: "Successfully followed vendor",
+      isFollowing: true
+    });
+  } catch (error) {
+    console.error("Error following vendor:", error);
+    res.status(500).json({ success: false, error: "Failed to follow vendor" });
+  }
+};
+
+// Unfollow vendor
+exports.unfollowVendor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const User = req.app.locals.models.User;
+    const Vendor = req.app.locals.models.Vendor;
+
+    // Remove vendor from user's followed list
+    await User.collection.updateOne(
+      { _id: req.user._id },
+      { 
+        $pull: { followedVendors: id },
+        $set: { updatedAt: new Date() }
+      }
+    );
+
+    // Decrement vendor's follower count
+    await Vendor.collection.updateOne(
+      { _id: new ObjectId(id) },
+      { 
+        $inc: { followerCount: -1 },
+        $set: { updatedAt: new Date() }
+      }
+    );
+
+    res.json({ 
+      success: true, 
+      message: "Successfully unfollowed vendor",
+      isFollowing: false
+    });
+  } catch (error) {
+    console.error("Error unfollowing vendor:", error);
+    res.status(500).json({ success: false, error: "Failed to unfollow vendor" });
+  }
+};
+
 // Vendor Registration
 exports.registerVendor = async (req, res) => {
   try {
@@ -327,5 +543,254 @@ exports.updateVendor = async (req, res) => {
   } catch (error) {
     console.error("Error updating vendor:", error);
     res.status(500).json({ error: "Failed to update vendor" });
+  }
+};
+
+// Admin: Get vendor finance summary
+exports.getVendorFinanceSummary = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const Order = req.app.locals.models.Order;
+
+    // Get all orders containing this vendor's products
+    const orders = await Order.collection
+      .find({ "products.vendorId": new ObjectId(id) })
+      .toArray();
+
+    let grossSales = 0;
+    let totalCommission = 0;
+    let netEarnings = 0;
+    let ordersCount = 0;
+
+    orders.forEach((order) => {
+      const vendorProducts = order.products.filter(
+        (p) => p.vendorId && p.vendorId.toString() === id
+      );
+
+      if (vendorProducts.length > 0) {
+        ordersCount++;
+        vendorProducts.forEach((product) => {
+          const itemTotal = product.price * product.quantity;
+          grossSales += itemTotal;
+          totalCommission += product.adminCommissionAmount || 0;
+          netEarnings += product.vendorEarningAmount || 0;
+        });
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        grossSales: Math.round(grossSales * 100) / 100,
+        totalCommission: Math.round(totalCommission * 100) / 100,
+        netEarnings: Math.round(netEarnings * 100) / 100,
+        ordersCount,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching vendor finance summary:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to fetch finance summary" 
+    });
+  }
+};
+
+// Admin: Get vendor finance transactions
+exports.getVendorFinanceTransactions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const Order = req.app.locals.models.Order;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Get orders with vendor's products
+    const orders = await Order.collection
+      .find({ "products.vendorId": new ObjectId(id) })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .toArray();
+
+    // Extract vendor's products as transactions
+    const transactions = [];
+    orders.forEach((order) => {
+      const vendorProducts = order.products.filter(
+        (p) => p.vendorId && p.vendorId.toString() === id
+      );
+
+      vendorProducts.forEach((product) => {
+        transactions.push({
+          orderId: order._id,
+          date: order.createdAt,
+          product: product.name || product.title,
+          qty: product.quantity,
+          subtotal: product.price * product.quantity,
+          commissionRateSnapshot: product.commissionRateSnapshot || 0,
+          adminCommissionAmount: product.adminCommissionAmount || 0,
+          vendorEarningAmount: product.vendorEarningAmount || 0,
+          itemStatus: product.itemStatus || "pending",
+        });
+      });
+    });
+
+    const total = await Order.collection.countDocuments({
+      "products.vendorId": new ObjectId(id),
+    });
+
+    res.json({
+      success: true,
+      data: transactions,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching vendor transactions:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to fetch transactions" 
+    });
+  }
+};
+
+// Get vendor's allowed categories
+exports.getVendorAllowedCategories = async (req, res) => {
+  try {
+    const vendorId = req.user.vendorId;
+    
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    const Vendor = req.app.locals.models.Vendor;
+    const Category = req.app.locals.models.Category;
+
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        error: "Vendor not found",
+      });
+    }
+
+    // Get all categories that vendor has access to
+    const allowedCategoryIds = vendor.allowedCategoryIds || [];
+    
+    if (allowedCategoryIds.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        message: "No categories assigned yet. Please request category access.",
+      });
+    }
+
+    const categories = await Category.collection
+      .find({ 
+        _id: { $in: allowedCategoryIds.map(id => new ObjectId(id)) } 
+      })
+      .toArray();
+
+    res.json({
+      success: true,
+      data: categories,
+    });
+  } catch (error) {
+    console.error("Error fetching vendor allowed categories:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch allowed categories",
+    });
+  }
+};
+
+// Upload vendor logo (simplified - stores URL)
+exports.uploadLogo = async (req, res) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    // For now, accept a URL. In production, you'd use multer + cloud storage
+    const { url } = req.body;
+    
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        error: "Image URL is required",
+      });
+    }
+
+    await Vendor.collection.updateOne(
+      { _id: new ObjectId(vendorId) },
+      { $set: { logo: url, updatedAt: new Date() } }
+    );
+
+    res.json({
+      success: true,
+      url,
+      message: "Logo uploaded successfully",
+    });
+  } catch (error) {
+    console.error("Error uploading logo:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to upload logo",
+    });
+  }
+};
+
+// Upload vendor banner (simplified - stores URL)
+exports.uploadBanner = async (req, res) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    // For now, accept a URL. In production, you'd use multer + cloud storage
+    const { url } = req.body;
+    
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        error: "Image URL is required",
+      });
+    }
+
+    await Vendor.collection.updateOne(
+      { _id: new ObjectId(vendorId) },
+      { $set: { banner: url, updatedAt: new Date() } }
+    );
+
+    res.json({
+      success: true,
+      url,
+      message: "Banner uploaded successfully",
+    });
+  } catch (error) {
+    console.error("Error uploading banner:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to upload banner",
+    });
   }
 };

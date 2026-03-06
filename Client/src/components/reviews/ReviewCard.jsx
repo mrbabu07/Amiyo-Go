@@ -265,6 +265,37 @@ const ReviewCard = ({
         </div>
       )}
 
+      {/* Vendor Reply */}
+      {review.vendorReply && (
+        <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 border-l-4 border-orange-500">
+          <div className="flex items-center space-x-2 mb-2">
+            <svg
+              className="w-5 h-5 text-orange-500"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <span className="font-medium text-orange-700 dark:text-orange-300">
+              {review.vendorRepliedBy || "Vendor"}
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
+              Seller
+            </span>
+            <span className="text-sm text-orange-600 dark:text-orange-400">
+              {formatDate(review.vendorRepliedAt)}
+            </span>
+          </div>
+          <p className="text-orange-800 dark:text-orange-200">
+            {review.vendorReply}
+          </p>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-4">

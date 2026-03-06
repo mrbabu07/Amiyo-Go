@@ -13,6 +13,7 @@ import BackButton from "../components/BackButton";
 import Breadcrumb from "../components/Breadcrumb";
 import ProductVariantSelector from "../components/ProductVariantSelector";
 import ProductQA from "../components/ProductQA";
+import VendorInfo from "../components/VendorInfo";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -32,10 +33,27 @@ export default function ProductDetail() {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState(null);
+  const [categoryPath, setCategoryPath] = useState([]);
 
   useEffect(() => {
     fetchProduct();
   }, [id]);
+
+  const fetchCategoryPath = async (categoryId) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/categories/${categoryId}/path`);
+      if (response.ok) {
+        const data = await response.json();
+        setCategoryPath(data.path || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch category path:", error);
+      // Fallback: just show the category name if available
+      if (product?.categoryName) {
+        setCategoryPath([{ name: product.categoryName }]);
+      }
+    }
+  };
 
   const fetchProduct = async () => {
     try {
@@ -50,6 +68,11 @@ export default function ProductDetail() {
       const response = await getProductById(id);
       const data = response.data.data;
       setProduct(data);
+
+      // Fetch category hierarchy if product has categoryId
+      if (data.categoryId) {
+        fetchCategoryPath(data.categoryId);
+      }
 
       // Add to recently viewed
       addToRecentlyViewed(data);
@@ -232,13 +255,43 @@ export default function ProductDetail() {
         <BackButton />
       </div>
 
-      {/* Breadcrumb */}
-      <Breadcrumb
-        customItems={[
-          { label: "Products", href: "/products" },
-          { label: product.title },
-        ]}
-      />
+      {/* Category Path & Product Title */}
+      <div className="mb-6">
+        <div className="flex items-center flex-wrap gap-2 text-sm text-gray-600 dark:text-gray-400 mb-3">
+          <Link to="/" className="hover:text-orange-600 transition">
+            Home
+          </Link>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+          <Link to="/products" className="hover:text-orange-600 transition">
+            Products
+          </Link>
+          {categoryPath.length > 0 && (
+            <>
+              {categoryPath.map((cat, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  <Link 
+                    to={cat._id ? `/category/${cat._id}` : '#'} 
+                    className="hover:text-orange-600 transition"
+                  >
+                    {cat.name}
+                  </Link>
+                </div>
+              ))}
+            </>
+          )}
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+          <span className="text-gray-900 dark:text-white font-medium">
+            {product.title}
+          </span>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
         {/* Product Images */}
@@ -646,6 +699,13 @@ export default function ProductDetail() {
           </div>
         </div>
       </div>
+
+      {/* Vendor Information */}
+      {product.vendorId && (
+        <div className="mt-8">
+          <VendorInfo vendorId={product.vendorId} productId={id} />
+        </div>
+      )}
 
       {/* Image Modal */}
       {showImageModal && (

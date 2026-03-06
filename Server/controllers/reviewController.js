@@ -477,6 +477,125 @@ const canUserReviewProduct = async (req, res) => {
   }
 };
 
+const addVendorReply = async (req, res) => {
+  try {
+    const Review = req.app.locals.models.Review;
+    const Product = req.app.locals.models.Product;
+    const { reviewId } = req.params;
+    const { reply } = req.body;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    if (!reply || reply.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Reply text is required",
+      });
+    }
+
+    // Get the review to verify vendor owns the product
+    const review = await Review.getReviewById(reviewId);
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        error: "Review not found",
+      });
+    }
+
+    // Verify vendor owns this product
+    const product = await Product.findById(review.productId);
+    if (!product || product.vendorId.toString() !== vendorId.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only reply to reviews for your own products",
+      });
+    }
+
+    const vendorName = req.vendor?.shopName || "Vendor";
+
+    const result = await Review.addVendorReply(
+      reviewId,
+      reply.trim(),
+      vendorId,
+      vendorName
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Review not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Reply added successfully",
+    });
+  } catch (error) {
+    console.error("Error adding vendor reply:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const getVendorReviews = async (req, res) => {
+  try {
+    const Review = req.app.locals.models.Review;
+    const Product = req.app.locals.models.Product;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    // Get all vendor's products
+    const products = await Product.collection
+      .find({ vendorId: new ObjectId(vendorId) })
+      .toArray();
+
+    const productIds = products.map((p) => p._id);
+
+    // Get all reviews for vendor's products
+    const reviews = await Review.collection
+      .find({ productId: { $in: productIds } })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    // Attach product info to each review
+    const reviewsWithProduct = reviews.map((review) => {
+      const product = products.find(
+        (p) => p._id.toString() === review.productId.toString()
+      );
+      return {
+        ...review,
+        product: product
+          ? {
+              _id: product._id,
+              title: product.title,
+              image: product.image,
+            }
+          : null,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: reviewsWithProduct,
+    });
+  } catch (error) {
+    console.error("Error fetching vendor reviews:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 module.exports = {
   createReview,
   getProductReviews,
@@ -490,4 +609,6 @@ module.exports = {
   addAdminReply,
   deleteReviewAdmin,
   canUserReviewProduct,
+  addVendorReply,
+  getVendorReviews,
 };

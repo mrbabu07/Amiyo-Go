@@ -87,9 +87,10 @@ exports.getVendorFinanceSummary = async (req, res) => {
     const { vendorId } = req.params;
     const { from, to } = req.query;
     const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+    const { ObjectId } = require("mongodb");
 
     const match = {
-      vendorId: vendorId.toString(),
+      "products.vendorId": new ObjectId(vendorId),
       status: { $ne: "cancelled" },
     };
     if (from || to) {
@@ -101,7 +102,7 @@ exports.getVendorFinanceSummary = async (req, res) => {
     const pipeline = [
       { $match: match },
       { $unwind: "$products" },
-      { $match: { "products.vendorId": vendorId.toString() } },
+      { $match: { "products.vendorId": new ObjectId(vendorId) } },
       {
         $group: {
           _id: null,
@@ -122,7 +123,7 @@ exports.getVendorFinanceSummary = async (req, res) => {
       },
     ];
 
-    const result = await db.collection("vendorOrders").aggregate(pipeline).toArray();
+    const result = await db.collection("orders").aggregate(pipeline).toArray();
     const summary = result[0] || { grossSales: 0, totalCommission: 0, netEarnings: 0, ordersCount: 0 };
 
     res.json({
@@ -150,8 +151,9 @@ exports.getVendorFinanceTransactions = async (req, res) => {
     const { from, to, page = 1, limit = 20 } = req.query;
     const pageNum  = parseInt(page);
     const limitNum = parseInt(limit);
+    const { ObjectId } = require("mongodb");
 
-    const match = { vendorId: vendorId.toString() };
+    const match = { "products.vendorId": new ObjectId(vendorId) };
     if (from || to) {
       match.createdAt = {};
       if (from) match.createdAt.$gte = new Date(from);
@@ -161,7 +163,7 @@ exports.getVendorFinanceTransactions = async (req, res) => {
     const pipeline = [
       { $match: match },
       { $unwind: "$products" },
-      { $match: { "products.vendorId": vendorId.toString() } },
+      { $match: { "products.vendorId": new ObjectId(vendorId) } },
       { $sort: { createdAt: -1 } },
       { $skip: (pageNum - 1) * limitNum },
       { $limit: limitNum },
@@ -170,7 +172,7 @@ exports.getVendorFinanceTransactions = async (req, res) => {
           _id: 0,
           orderId: "$_id",
           date: "$createdAt",
-          product: "$products.title",
+          product: { $ifNull: ["$products.title", "$products.name"] },
           qty: "$products.quantity",
           subtotal: { $multiply: ["$products.price", "$products.quantity"] },
           commissionRateSnapshot: "$products.commissionRateSnapshot",
@@ -184,13 +186,13 @@ exports.getVendorFinanceTransactions = async (req, res) => {
     const countPipeline = [
       { $match: match },
       { $unwind: "$products" },
-      { $match: { "products.vendorId": vendorId.toString() } },
+      { $match: { "products.vendorId": new ObjectId(vendorId) } },
       { $count: "total" },
     ];
 
     const [transactions, countResult] = await Promise.all([
-      db.collection("vendorOrders").aggregate(pipeline).toArray(),
-      db.collection("vendorOrders").aggregate(countPipeline).toArray(),
+      db.collection("orders").aggregate(pipeline).toArray(),
+      db.collection("orders").aggregate(countPipeline).toArray(),
     ]);
 
     const total = countResult[0]?.total || 0;

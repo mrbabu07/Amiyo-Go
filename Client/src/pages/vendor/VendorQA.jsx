@@ -1,74 +1,96 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
-
-const mockQAs = [
-  {
-    id: 1,
-    customer: "Rakib M.",
-    product: "Men's Casual Shirt",
-    question: "Is this shirt true to size? I usually wear a size L but sometimes XL in local brands.",
-    date: "2026-03-02",
-    answer: null,
-    votes: 5,
-  },
-  {
-    id: 2,
-    customer: "Samia K.",
-    product: "Women's Kurti Set",
-    question: "What material is this made of? Is it suitable for summer?",
-    date: "2026-03-01",
-    answer: "This kurti is made of 100% cotton, making it perfect for warm Bangladeshi summers!",
-    votes: 11,
-  },
-  {
-    id: 3,
-    customer: "Tawfiq A.",
-    product: "Leather Handbag",
-    question: "Is this genuine leather or synthetic?",
-    date: "2026-02-28",
-    answer: null,
-    votes: 14,
-  },
-  {
-    id: 4,
-    customer: "Roshni B.",
-    product: "Sports Cap",
-    question: "Is this adjustable? What is the one-size-fits-all measurement?",
-    date: "2026-02-27",
-    answer: "Yes! The cap is fully adjustable with a snapback closure. It fits head circumferences from 56–61cm.",
-    votes: 7,
-  },
-  {
-    id: 5,
-    customer: "Omar F.",
-    product: "Kids Sneakers",
-    question: "Do you have size 32 available?",
-    date: "2026-02-25",
-    answer: null,
-    votes: 3,
-  },
-];
+import useAuth from "../../hooks/useAuth";
 
 export default function VendorQA() {
-  const [qas, setQAs] = useState(mockQAs);
+  const { user } = useAuth();
+  const [qas, setQAs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [answeringId, setAnsweringId] = useState(null);
   const [answerText, setAnswerText] = useState("");
 
-  const filtered = filter === "all" ? qas
-    : filter === "pending" ? qas.filter(q => !q.answer)
-    : qas.filter(q => !!q.answer);
+  useEffect(() => {
+    fetchQuestions();
+  }, []);
 
-  const submitAnswer = (id) => {
-    if (!answerText.trim()) { toast.error("Please enter your answer"); return; }
-    setQAs(prev => prev.map(q => q.id === id ? { ...q, answer: answerText } : q));
-    toast.success("Answer published!");
-    setAnsweringId(null);
-    setAnswerText("");
+  const fetchQuestions = async () => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/vendor/my-questions`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setQAs(data.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch questions:', error);
+      toast.error('Failed to load questions');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const pending = qas.filter(q => !q.answer).length;
+  const submitAnswer = async (questionId) => {
+    if (!answerText.trim()) {
+      toast.error("Please enter your answer");
+      return;
+    }
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/questions/${questionId}/answers`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ answer: answerText }),
+        }
+      );
+
+      if (res.ok) {
+        toast.success("Answer published!");
+        setAnsweringId(null);
+        setAnswerText("");
+        fetchQuestions();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to submit answer');
+      }
+    } catch (error) {
+      console.error('Failed to submit answer:', error);
+      toast.error('Failed to submit answer');
+    }
+  };
+
+  const hasVendorAnswer = (question) => {
+    return question.answers?.some(a => a.role === 'vendor');
+  };
+
+  const getVendorAnswer = (question) => {
+    return question.answers?.find(a => a.role === 'vendor');
+  };
+
+  const filtered = filter === "all" ? qas
+    : filter === "pending" ? qas.filter(q => !hasVendorAnswer(q))
+    : qas.filter(q => hasVendorAnswer(q));
+
+  const pending = qas.filter(q => !hasVendorAnswer(q)).length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -135,79 +157,81 @@ export default function VendorQA() {
 
         {/* Q&A list */}
         <div className="space-y-4">
-          {filtered.map((q) => (
-            <div key={q.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
-              <div className="p-5">
-                {/* Question */}
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-blue-600 font-bold text-sm">Q</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="font-medium text-gray-900 leading-relaxed">{q.question}</p>
-                      {!q.answer && (
-                        <span className="flex-shrink-0 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full font-medium">Needs Answer</span>
-                      )}
+          {filtered.map((q) => {
+            const vendorAnswer = getVendorAnswer(q);
+            return (
+              <div key={q._id} className="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div className="p-5">
+                  {/* Question */}
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-blue-600 font-bold text-sm">Q</span>
                     </div>
-                    <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
-                      <span>👤 {q.customer}</span>
-                      <span>📦 {q.product}</span>
-                      <span>📅 {new Date(q.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                      <span>👍 {q.votes} votes</span>
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="font-medium text-gray-900 leading-relaxed">{q.question}</p>
+                        {!vendorAnswer && (
+                          <span className="flex-shrink-0 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full font-medium">Needs Answer</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
+                        <span>📦 {q.product?.title || 'Product'}</span>
+                        <span>📅 {new Date(q.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                        <span>👍 {q.helpful || 0} helpful</span>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Existing Answer */}
+                  {vendorAnswer && (
+                    <div className="flex items-start gap-3 mb-4 pl-3 border-l-2 border-orange-300">
+                      <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-orange-600 font-bold text-sm">A</span>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-orange-700 mb-1">🏪 Your Answer</p>
+                        <p className="text-sm text-gray-700 leading-relaxed">{vendorAnswer.answer}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Answer form */}
+                  {answeringId === q._id ? (
+                    <div className="pl-11">
+                      <textarea
+                        rows={3}
+                        value={answerText}
+                        onChange={(e) => setAnswerText(e.target.value)}
+                        placeholder="Write a clear, helpful answer for this customer..."
+                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
+                        autoFocus
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={() => submitAnswer(q._id)} className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+                          Publish Answer
+                        </button>
+                        <button onClick={() => setAnsweringId(null)} className="border border-gray-200 text-gray-600 px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="pl-11">
+                      <button
+                        onClick={() => { setAnsweringId(q._id); setAnswerText(vendorAnswer?.answer || ""); }}
+                        className="flex items-center gap-1.5 text-sm text-orange-600 hover:text-orange-700 font-medium"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                        {vendorAnswer ? "Edit Answer" : "Answer this question"}
+                      </button>
+                    </div>
+                  )}
                 </div>
-
-                {/* Existing Answer */}
-                {q.answer && (
-                  <div className="flex items-start gap-3 mb-4 pl-3 border-l-2 border-orange-300">
-                    <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-orange-600 font-bold text-sm">A</span>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-orange-700 mb-1">🏪 Your Answer</p>
-                      <p className="text-sm text-gray-700 leading-relaxed">{q.answer}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Answer form */}
-                {answeringId === q.id ? (
-                  <div className="pl-11">
-                    <textarea
-                      rows={3}
-                      value={answerText}
-                      onChange={(e) => setAnswerText(e.target.value)}
-                      placeholder="Write a clear, helpful answer for this customer..."
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
-                      autoFocus
-                    />
-                    <div className="flex gap-2 mt-2">
-                      <button onClick={() => submitAnswer(q.id)} className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
-                        Publish Answer
-                      </button>
-                      <button onClick={() => setAnsweringId(null)} className="border border-gray-200 text-gray-600 px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="pl-11">
-                    <button
-                      onClick={() => { setAnsweringId(q.id); setAnswerText(q.answer || ""); }}
-                      className="flex items-center gap-1.5 text-sm text-orange-600 hover:text-orange-700 font-medium"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                      </svg>
-                      {q.answer ? "Edit Answer" : "Answer this question"}
-                    </button>
-                  </div>
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {filtered.length === 0 && (
             <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">

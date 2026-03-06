@@ -15,9 +15,11 @@ import Compare from "../pages/Compare";
 import Checkout from "../pages/Checkout";
 import Orders from "../pages/Orders";
 import Profile from "../pages/Profile";
+import Messages from "../pages/Messages";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminProducts from "../pages/admin/AdminProducts";
 import AdminCategories from "../pages/admin/AdminCategories";
+import AdminCategoryRequests from "../pages/admin/AdminCategoryRequests";
 import AdminOrders from "../pages/admin/AdminOrders";
 import AdminInventory from "../pages/admin/AdminInventory";
 import ProductForm from "../pages/admin/ProductForm";
@@ -49,6 +51,7 @@ import VendorHome from "../pages/vendor/VendorHome";
 import VendorAddProduct from "../pages/vendor/VendorAddProduct";
 import VendorEditProduct from "../pages/vendor/VendorEditProduct";
 import VendorProducts from "../pages/vendor/VendorProducts";
+import VendorCategoryRequests from "../pages/vendor/VendorCategoryRequests";
 import VendorOrders from "../pages/vendor/VendorOrders";
 import VendorSettings from "../pages/vendor/VendorSettings";
 import VendorFinance from "../pages/vendor/VendorFinance";
@@ -62,7 +65,9 @@ import VendorBulkUpload from "../pages/vendor/VendorBulkUpload";
 import ComingSoon from "../pages/vendor/ComingSoon";
 import AdminVendors from "../pages/admin/AdminVendors";
 import AdminVendorDetail from "../pages/admin/AdminVendorDetail";
+import AdminPayouts from "../pages/admin/AdminPayouts";
 import AuthDebug from "../pages/AuthDebug";
+import VendorStore from "../pages/VendorStore";
 
 const router = createBrowserRouter([
   // Main site routes
@@ -88,6 +93,7 @@ const router = createBrowserRouter([
       { path: "/electronics", element: <CategoryPage /> },
       { path: "/baby", element: <CategoryPage /> },
       { path: "/product/:id", element: <ProductDetail /> },
+      { path: "/vendor/:vendorId/products", element: <VendorStore /> },
       { path: "/cart", element: <Cart /> },
       { path: "/compare", element: <Compare /> },
       {
@@ -120,6 +126,14 @@ const router = createBrowserRouter([
         element: (
           <PrivateRoute>
             <Profile />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "/messages",
+        element: (
+          <PrivateRoute>
+            <Messages />
           </PrivateRoute>
         ),
       },
@@ -292,6 +306,22 @@ const router = createBrowserRouter([
         ),
       },
       {
+        path: "/admin/payouts",
+        element: (
+          <AdminRoute>
+            <AdminPayouts />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "/admin/category-requests",
+        element: (
+          <AdminRoute>
+            <AdminCategoryRequests />
+          </AdminRoute>
+        ),
+      },
+      {
         path: "/returns",
         element: (
           <PrivateRoute>
@@ -357,10 +387,9 @@ const router = createBrowserRouter([
       { path: "products/edit/:id", element: <VendorEditProduct /> },
       { path: "products/bulk", element: <VendorBulkUpload /> },
       { path: "orders", element: <VendorOrders /> },
-      { path: "finance/payments", element: <VendorFinance /> },
-      { path: "finance/transactions", element: <VendorFinance /> },
-      { path: "finance/statements", element: <VendorFinance /> },
       { path: "finance", element: <VendorFinance /> },
+      { path: "finance/payouts", element: <VendorFinance /> },
+      { path: "finance/transactions", element: <VendorFinance /> },
       { path: "marketing/promotions", element: <VendorMarketing /> },
       { path: "marketing/vouchers", element: <VendorMarketing /> },
       { path: "marketing/campaigns", element: <VendorMarketing /> },
@@ -376,6 +405,7 @@ const router = createBrowserRouter([
       { path: "messages", element: <VendorMessages /> },
       { path: "reviews", element: <VendorReviews /> },
       { path: "qa", element: <VendorQA /> },
+      { path: "category-requests", element: <VendorCategoryRequests /> },
       { path: "settings", element: <VendorSettings /> },
     ],
   },

@@ -10,9 +10,22 @@ const vendorsFinanceController = require("../controllers/vendorsFinanceControlle
 // Public vendor registration
 router.post("/register", verifyToken, vendorController.registerVendor);
 
+// Public vendor info (for product pages)
+router.get("/:id/public", vendorController.getVendorPublicInfo);
+
+// Vendor follow/unfollow
+router.get("/:id/follow-status", verifyToken, vendorController.getFollowStatus);
+router.post("/:id/follow", verifyToken, vendorController.followVendor);
+router.delete("/:id/unfollow", verifyToken, vendorController.unfollowVendor);
+
 // Vendor profile management
 router.get("/me", verifyToken, vendorController.getMyVendorProfile);
 router.patch("/me", verifyToken, vendorController.updateVendorProfile);
+router.post("/upload-logo", verifyToken, vendorController.uploadLogo);
+router.post("/upload-banner", verifyToken, vendorController.uploadBanner);
+
+// Vendor allowed categories
+router.get("/my-categories", verifyToken, requireRole("vendor"), vendorController.getVendorAllowedCategories);
 
 // Vendor dashboard
 router.get("/dashboard/stats", verifyToken, vendorDashboardController.getDashboardStats);

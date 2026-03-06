@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { verifyToken } = require("../middleware/auth");
+const { verifyToken, requireRole } = require("../middleware/auth");
 const {
   getProductQuestions,
   createQuestion,
@@ -8,6 +8,7 @@ const {
   markHelpful,
   deleteQuestion,
   deleteAnswer,
+  getVendorQuestions,
 } = require("../controllers/questionController");
 
 // Public routes
@@ -23,5 +24,8 @@ router.delete(
   verifyToken,
   deleteAnswer,
 );
+
+// Vendor routes
+router.get("/vendor/my-questions", verifyToken, requireRole("vendor"), getVendorQuestions);
 
 module.exports = router;

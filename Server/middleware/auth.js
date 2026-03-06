@@ -79,6 +79,17 @@ const verifyToken = async (req, res, next) => {
       req.user._id = dbUser._id;
       req.user.role = dbUser.role;
       req.dbUser = dbUser;
+
+      // If user is a vendor, fetch and attach vendorId
+      if (dbUser.role === "vendor") {
+        const Vendor = req.app.locals.models.Vendor;
+        const vendor = await Vendor.findByUserId(dbUser._id);
+        if (vendor) {
+          console.log('   ✅ Vendor found, setting vendorId:', vendor._id);
+          req.user.vendorId = vendor._id;
+          req.vendor = vendor;
+        }
+      }
     } else {
       console.log('   ⚠️  User not found in database for UID:', decodedToken.uid);
     }
@@ -124,8 +135,21 @@ const requireRole = (role) => {
 
       req.dbUser = user;
       req.user._id = user._id;
+      req.user.role = user.role;
+
+      // If role is vendor, fetch and attach vendorId
+      if (role === "vendor" || user.role === "vendor") {
+        const Vendor = req.app.locals.models.Vendor;
+        const vendor = await Vendor.findByUserId(user._id);
+        if (vendor) {
+          req.user.vendorId = vendor._id;
+          req.vendor = vendor;
+        }
+      }
+
       next();
     } catch (error) {
+      console.error("requireRole error:", error);
       return res.status(500).json({ error: "Authorization failed" });
     }
   };

@@ -13,6 +13,11 @@ import {
   approveVendor,
   suspendVendor,
   reactivateVendor,
+  calculateEligiblePayout,
+  createVendorPayout,
+  getAllPayouts,
+  markPayoutPaid,
+  cancelPayout,
 } from '../../services/api';
 
 const TABS = ['Overview', 'Products', 'Orders', 'Earnings', 'Payouts', 'Actions'];
@@ -61,6 +66,18 @@ export default function AdminVendorDetail() {
   const [financeLoading, setFinanceLoading] = useState(false);
   const [txPage, setTxPage] = useState(1);
   const [txTotal, setTxTotal] = useState(0);
+
+  // payouts tab
+  const [payouts, setPayouts] = useState([]);
+  const [payoutsLoading, setPayoutsLoading] = useState(false);
+  const [eligiblePayout, setEligiblePayout] = useState(null);
+  const [showCreatePayoutModal, setShowCreatePayoutModal] = useState(false);
+  const [payoutAmount, setPayoutAmount] = useState('');
+  const [payoutNote, setPayoutNote] = useState('');
+  const [createPayoutLoading, setCreatePayoutLoading] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(null); // payoutId
+  const [transactionId, setTransactionId] = useState('');
+  const [paymentNote, setPaymentNote] = useState('');
 
   // actions tab
   const [actionNote, setActionNote] = useState('');
@@ -143,6 +160,27 @@ export default function AdminVendorDetail() {
     if (activeTab === 'Earnings') loadFinance();
   }, [activeTab, loadFinance]);
 
+  // ─── fetch payouts ────────────────────────────────────────────
+  const loadPayouts = useCallback(async () => {
+    setPayoutsLoading(true);
+    try {
+      const [payoutsRes, eligibleRes] = await Promise.all([
+        getAllPayouts({ vendorId }),
+        calculateEligiblePayout(vendorId),
+      ]);
+      setPayouts(payoutsRes.data.payouts || []);
+      setEligiblePayout(eligibleRes.data.data);
+    } catch {
+      toast.error('Failed to load payouts');
+    } finally {
+      setPayoutsLoading(false);
+    }
+  }, [vendorId]);
+
+  useEffect(() => {
+    if (activeTab === 'Payouts') loadPayouts();
+  }, [activeTab, loadPayouts]);
+
   // ─── product actions ──────────────────────────────────────────
   const handleApproveProduct = async (productId) => {
     try {
@@ -182,6 +220,58 @@ export default function AdminVendorDetail() {
       toast.success('Product disabled');
     } catch {
       toast.error('Failed to disable product');
+    }
+  };
+
+  // ─── payout actions ───────────────────────────────────────────
+  const handleCreatePayout = async () => {
+    if (!payoutAmount || parseFloat(payoutAmount) <= 0) {
+      toast.error('Enter valid payout amount');
+      return;
+    }
+    setCreatePayoutLoading(true);
+    try {
+      await createVendorPayout(vendorId, {
+        amount: parseFloat(payoutAmount),
+        note: payoutNote,
+      });
+      toast.success('Payout created successfully');
+      setShowCreatePayoutModal(false);
+      setPayoutAmount('');
+      setPayoutNote('');
+      loadPayouts();
+    } catch {
+      toast.error('Failed to create payout');
+    } finally {
+      setCreatePayoutLoading(false);
+    }
+  };
+
+  const handleMarkPaid = async () => {
+    if (!showPaymentModal) return;
+    try {
+      await markPayoutPaid(showPaymentModal, {
+        transactionId,
+        note: paymentNote,
+      });
+      toast.success('Payout marked as paid');
+      setShowPaymentModal(null);
+      setTransactionId('');
+      setPaymentNote('');
+      loadPayouts();
+    } catch {
+      toast.error('Failed to mark payout as paid');
+    }
+  };
+
+  const handleCancelPayout = async (payoutId) => {
+    if (!confirm('Cancel this payout?')) return;
+    try {
+      await cancelPayout(payoutId, 'Cancelled by admin');
+      toast.success('Payout cancelled');
+      loadPayouts();
+    } catch {
+      toast.error('Failed to cancel payout');
     }
   };
 
@@ -546,9 +636,129 @@ export default function AdminVendorDetail() {
 
         {/* ── TAB: Payouts ──────────────────────────────────────── */}
         {activeTab === 'Payouts' && (
-          <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500">
-            <p className="text-lg font-medium mb-2">Payouts</p>
-            <p className="text-sm">Payout processing and history coming soon.</p>
+          <div className="space-y-6">
+            {payoutsLoading ? (
+              <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500">Loading payouts...</div>
+            ) : (
+              <>
+                {/* Eligible Payout Card */}
+                {eligiblePayout && (
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-sm p-6 border border-green-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900">Eligible for Payout</h3>
+                      <button
+                        onClick={() => {
+                          setPayoutAmount(eligiblePayout.eligibleAmount.toString());
+                          setShowCreatePayoutModal(true);
+                        }}
+                        disabled={eligiblePayout.eligibleAmount <= 0}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Create Payout
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Total Delivered Earnings</p>
+                        <p className="text-xl font-bold text-gray-900">৳{eligiblePayout.totalDeliveredEarnings?.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Already Paid</p>
+                        <p className="text-xl font-bold text-red-600">৳{eligiblePayout.alreadyPaid?.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Pending Payouts</p>
+                        <p className="text-xl font-bold text-yellow-600">৳{eligiblePayout.pendingPayouts?.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Available Now</p>
+                        <p className="text-2xl font-bold text-green-600">৳{eligiblePayout.eligibleAmount?.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs text-gray-600">
+                      {eligiblePayout.totalItems} delivered items from {eligiblePayout.eligibleOrdersCount} orders
+                    </div>
+                  </div>
+                )}
+
+                {/* Payouts History */}
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-900">Payout History</h3>
+                    <button
+                      onClick={() => setShowCreatePayoutModal(true)}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      + New Payout
+                    </button>
+                  </div>
+                  {payouts.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">No payouts yet</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                          <tr>
+                            <th className="px-4 py-3 text-left">Date</th>
+                            <th className="px-4 py-3 text-right">Amount</th>
+                            <th className="px-4 py-3 text-left">Status</th>
+                            <th className="px-4 py-3 text-left">Note</th>
+                            <th className="px-4 py-3 text-left">Transaction ID</th>
+                            <th className="px-4 py-3 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {payouts.map((payout) => (
+                            <tr key={payout._id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-gray-600">
+                                {new Date(payout.createdAt).toLocaleDateString()}
+                              </td>
+                              <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                ৳{payout.amount?.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-3">
+                                <StatusBadge status={payout.status} />
+                              </td>
+                              <td className="px-4 py-3 text-gray-600 max-w-xs truncate">
+                                {payout.note || '—'}
+                              </td>
+                              <td className="px-4 py-3 text-gray-600 font-mono text-xs">
+                                {payout.transactionId || '—'}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex justify-end gap-2">
+                                  {payout.status === 'pending' && (
+                                    <>
+                                      <button
+                                        onClick={() => setShowPaymentModal(payout._id)}
+                                        className="text-green-600 hover:text-green-800 font-medium"
+                                      >
+                                        Mark Paid
+                                      </button>
+                                      <button
+                                        onClick={() => handleCancelPayout(payout._id)}
+                                        className="text-red-500 hover:text-red-700 font-medium"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  )}
+                                  {payout.status === 'paid' && payout.paidAt && (
+                                    <span className="text-xs text-gray-500">
+                                      Paid {new Date(payout.paidAt).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -621,6 +831,110 @@ export default function AdminVendorDetail() {
               </button>
               <button
                 onClick={() => setRejectModal(null)}
+                className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Create Payout Modal ──────────────────────────────────── */}
+      {showCreatePayoutModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Create Payout</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount (৳)</label>
+                <input
+                  type="number"
+                  value={payoutAmount}
+                  onChange={e => setPayoutAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {eligiblePayout && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Eligible: ৳{eligiblePayout.eligibleAmount?.toLocaleString()}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note (optional)</label>
+                <textarea
+                  value={payoutNote}
+                  onChange={e => setPayoutNote(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Payout for January 2024..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleCreatePayout}
+                disabled={createPayoutLoading}
+                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
+              >
+                {createPayoutLoading ? 'Creating...' : 'Create Payout'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowCreatePayoutModal(false);
+                  setPayoutAmount('');
+                  setPayoutNote('');
+                }}
+                className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mark Paid Modal ───────────────────────────────────────── */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Mark Payout as Paid</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID</label>
+                <input
+                  type="text"
+                  value={transactionId}
+                  onChange={e => setTransactionId(e.target.value)}
+                  placeholder="e.g. TXN123456789"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Note (optional)</label>
+                <textarea
+                  value={paymentNote}
+                  onChange={e => setPaymentNote(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. Paid via bank transfer..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleMarkPaid}
+                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-green-700"
+              >
+                Confirm Payment
+              </button>
+              <button
+                onClick={() => {
+                  setShowPaymentModal(null);
+                  setTransactionId('');
+                  setPaymentNote('');
+                }}
                 className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
               >
                 Cancel

@@ -35,6 +35,35 @@ const getCategoryById = async (req, res) => {
   }
 };
 
+const getCategoryPath = async (req, res) => {
+  try {
+    const Category = req.app.locals.models.Category;
+    const categoryId = req.params.id;
+    
+    const path = [];
+    let currentId = categoryId;
+    
+    // Traverse up the category tree
+    while (currentId) {
+      const category = await Category.findById(currentId);
+      if (!category) break;
+      
+      path.unshift({
+        _id: category._id,
+        name: category.name,
+        slug: category.slug
+      });
+      
+      currentId = category.parentId;
+    }
+    
+    res.json({ success: true, path });
+  } catch (error) {
+    console.error("Error fetching category path:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 const getCategoryChildren = async (req, res) => {
   try {
     const Category = req.app.locals.models.Category;
@@ -186,6 +215,7 @@ const updateCommissionRate = async (req, res) => {
 module.exports = {
   getAllCategories,
   getCategoryById,
+  getCategoryPath,
   getCategoryChildren,
   createCategory,
   updateCategory,

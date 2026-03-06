@@ -1,3 +1,5 @@
+const { ObjectId } = require("mongodb");
+
 const getAllProducts = async (req, res) => {
   try {
     const Product = req.app.locals.models.Product;
@@ -14,6 +16,7 @@ const getAllProducts = async (req, res) => {
       sortOrder,
       page = 1,
       limit = 20,
+      vendorId, // Add vendorId filter
     } = req.query;
 
     // Calculate pagination
@@ -33,6 +36,7 @@ const getAllProducts = async (req, res) => {
       sortOrder,
       limit: parseInt(limit),
       skip,
+      vendorId, // Pass vendorId to filters
     };
 
     // Remove undefined values
@@ -44,11 +48,23 @@ const getAllProducts = async (req, res) => {
 
     const products = await Product.findWithFilters(filters);
 
-    // Get total count for pagination (simplified - in production, use separate count query)
-    const totalProducts = await Product.findAll(
-      category ? { categoryId: category } : {},
-    );
-    const totalCount = totalProducts.length;
+    // Debug logging
+    if (vendorId && products.length > 0) {
+      console.log('📦 Sample product from API:', {
+        title: products[0].title,
+        categoryId: products[0].categoryId,
+        categoryName: products[0].categoryName,
+        hasCategoryName: !!products[0].categoryName
+      });
+    }
+
+    // Get total count for pagination
+    const countQuery = {};
+    if (category) countQuery.categoryId = category;
+    if (vendorId) countQuery.vendorId = new ObjectId(vendorId);
+    
+    const totalProducts = await Product.collection.countDocuments(countQuery);
+    const totalCount = totalProducts;
     const totalPages = Math.ceil(totalCount / parseInt(limit));
 
     res.json({

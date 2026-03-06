@@ -194,3 +194,35 @@ export const suspendVendor = (vendorId, reason) =>
 export const reactivateVendor = (vendorId) =>
   api.patch(`/vendors/${vendorId}/reactivate`);
 
+// ── Admin: Vendor payouts ────────────────────────────────────
+export const calculateEligiblePayout = (vendorId) =>
+  api.get(`/admin/payouts/vendor/${vendorId}/eligible`);
+
+export const createVendorPayout = (vendorId, data) =>
+  api.post(`/admin/payouts/vendor/${vendorId}`, data);
+
+export const getAllPayouts = (params = {}) =>
+  api.get("/admin/payouts", { params });
+
+export const getPayoutById = (payoutId) =>
+  api.get(`/admin/payouts/${payoutId}`);
+
+export const markPayoutPaid = (payoutId, data) =>
+  api.patch(`/admin/payouts/${payoutId}/paid`, data);
+
+export const cancelPayout = (payoutId, reason) =>
+  api.patch(`/admin/payouts/${payoutId}/cancel`, { reason });
+
+export const getPayoutStats = () =>
+  api.get("/admin/payouts/stats");
+
+export const getVendorPayouts = (params = {}) =>
+  api.get("/vendors/finance/payouts", { params });
+
+// Vendor Finance
+export const getVendorFinanceSummary = () =>
+  api.get("/vendors/finance/summary");
+
+export const getVendorFinanceTransactions = (params = {}) =>
+  api.get("/vendors/finance/transactions", { params });
+

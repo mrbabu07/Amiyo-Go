@@ -302,55 +302,40 @@ export default function ProductQA({ productId }) {
                   {/* Answers */}
                   {question.answers.length > 0 && (
                     <div className="mt-4 space-y-4">
-                      {question.answers.map((answer) => (
-                        <div
-                          key={answer._id}
-                          className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4"
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0">
-                              <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-                                <svg
-                                  className="w-4 h-4 text-green-600 dark:text-green-400"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M5 13l4 4L19 7"
-                                  />
-                                </svg>
-                              </div>
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-gray-900 dark:text-white mb-2">
-                                {answer.answer}
-                              </p>
-                              <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
-                                <span className="flex items-center gap-1">
-                                  {answer.answeredByName || "Anonymous"}
-                                  {answer.role === "admin" && (
-                                    <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-xs font-medium">
-                                      Admin
-                                    </span>
-                                  )}
-                                </span>
-                                <span>
-                                  {new Date(
-                                    answer.createdAt,
-                                  ).toLocaleDateString()}
-                                </span>
-                                <button
-                                  onClick={() =>
-                                    handleMarkHelpful(question._id, answer._id)
-                                  }
-                                  className="flex items-center gap-1 hover:text-primary-600 dark:hover:text-primary-400"
+                      {question.answers.map((answer) => {
+                        const isVendor = answer.role === "vendor";
+                        const isAdmin = answer.role === "admin";
+                        
+                        return (
+                          <div
+                            key={answer._id}
+                            className={`rounded-lg p-4 ${
+                              isVendor
+                                ? "bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500"
+                                : isAdmin
+                                  ? "bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500"
+                                  : "bg-gray-50 dark:bg-gray-700"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex-shrink-0">
+                                <div
+                                  className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                    isVendor
+                                      ? "bg-orange-100 dark:bg-orange-900/30"
+                                      : isAdmin
+                                        ? "bg-blue-100 dark:bg-blue-900/30"
+                                        : "bg-green-100 dark:bg-green-900/30"
+                                  }`}
                                 >
                                   <svg
-                                    className="w-3 h-3"
+                                    className={`w-4 h-4 ${
+                                      isVendor
+                                        ? "text-orange-600 dark:text-orange-400"
+                                        : isAdmin
+                                          ? "text-blue-600 dark:text-blue-400"
+                                          : "text-green-600 dark:text-green-400"
+                                    }`}
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -359,16 +344,69 @@ export default function ProductQA({ productId }) {
                                       strokeLinecap="round"
                                       strokeLinejoin="round"
                                       strokeWidth={2}
-                                      d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"
+                                      d="M5 13l4 4L19 7"
                                     />
                                   </svg>
-                                  {answer.helpful}
-                                </button>
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <p
+                                  className={`mb-2 ${
+                                    isVendor
+                                      ? "text-orange-900 dark:text-orange-100"
+                                      : isAdmin
+                                        ? "text-blue-900 dark:text-blue-100"
+                                        : "text-gray-900 dark:text-white"
+                                  }`}
+                                >
+                                  {answer.answer}
+                                </p>
+                                <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
+                                  <span className="flex items-center gap-1">
+                                    {answer.answeredByName || "Anonymous"}
+                                    {isVendor && (
+                                      <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded text-xs font-medium">
+                                        Seller
+                                      </span>
+                                    )}
+                                    {isAdmin && (
+                                      <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-xs font-medium">
+                                        Admin
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span>
+                                    {new Date(
+                                      answer.createdAt,
+                                    ).toLocaleDateString()}
+                                  </span>
+                                  <button
+                                    onClick={() =>
+                                      handleMarkHelpful(question._id, answer._id)
+                                    }
+                                    className="flex items-center gap-1 hover:text-primary-600 dark:hover:text-primary-400"
+                                  >
+                                    <svg
+                                      className="w-3 h-3"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"
+                                      />
+                                    </svg>
+                                    {answer.helpful}
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 

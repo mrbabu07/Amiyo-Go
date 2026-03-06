@@ -4,6 +4,7 @@ const { verifyToken, verifyAdmin } = require("../middleware/auth");
 const {
   getAllCategories,
   getCategoryById,
+  getCategoryPath,
   getCategoryChildren,
   createCategory,
   updateCategory,
@@ -13,6 +14,7 @@ const {
 
 router.get("/", getAllCategories);
 router.get("/:id", getCategoryById);
+router.get("/:id/path", getCategoryPath);
 router.get("/:id/children", getCategoryChildren);
 router.post("/", verifyToken, verifyAdmin, createCategory);
 router.put("/:id", verifyToken, verifyAdmin, updateCategory);

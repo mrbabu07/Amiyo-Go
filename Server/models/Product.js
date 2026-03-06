@@ -34,6 +34,7 @@ class Product {
       sortOrder = -1,
       limit = 20,
       skip = 0,
+      vendorId, // Add vendorId filter
     } = filters;
 
     // Build MongoDB query
@@ -46,6 +47,11 @@ class Product {
       { approvalStatus: null },                 // legacy products
       { approvalStatus: "approved" },           // approved vendor products
     ];
+
+    // Vendor filter
+    if (vendorId) {
+      query.vendorId = new ObjectId(vendorId);
+    }
 
     // Category filter
     if (category) {
@@ -84,6 +90,28 @@ class Product {
 
     // Rating filter (requires aggregation with reviews)
     let pipeline = [{ $match: query }];
+
+    // Lookup category name
+    pipeline.push({
+      $lookup: {
+        from: "categories",
+        localField: "categoryId",
+        foreignField: "_id",
+        as: "categoryInfo"
+      }
+    });
+
+    pipeline.push({
+      $addFields: {
+        categoryName: { $arrayElemAt: ["$categoryInfo.name", 0] }
+      }
+    });
+
+    pipeline.push({
+      $project: {
+        categoryInfo: 0
+      }
+    });
 
     // Add rating filter if specified
     if (minRating) {

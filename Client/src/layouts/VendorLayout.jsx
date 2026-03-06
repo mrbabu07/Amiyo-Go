@@ -10,78 +10,89 @@ const VendorLayout = () => {
 
   const menuItems = [
     {
+      title: 'Home',
+      icon: '🏠',
+      path: '/',
+      description: 'Visit main site',
+    },
+    {
       title: 'Dashboard',
       icon: '📊',
       path: '/vendor/dashboard',
+      description: 'Overview & stats',
     },
     {
       title: 'Products',
       icon: '📦',
       children: [
-        { title: 'All Products', path: '/vendor/products' },
-        { title: 'Add Product', path: '/vendor/products/add' },
-        { title: 'Bulk Upload', path: '/vendor/products/bulk' },
+        { title: 'All Products', path: '/vendor/products', icon: '📋' },
+        { title: 'Add Product', path: '/vendor/products/add', icon: '➕' },
+        { title: 'Bulk Upload', path: '/vendor/products/bulk', icon: '📤' },
       ],
     },
     {
       title: 'Orders',
       icon: '🛍️',
+      badge: 'new',
       children: [
-        { title: 'All Orders', path: '/vendor/orders' },
-        { title: 'Pending', path: '/vendor/orders?status=pending' },
-        { title: 'Processing', path: '/vendor/orders?status=processing' },
-        { title: 'Shipped', path: '/vendor/orders?status=shipped' },
+        { title: 'All Orders', path: '/vendor/orders', icon: '📋' },
+        { title: 'Pending', path: '/vendor/orders?status=pending', icon: '⏳' },
+        { title: 'Processing', path: '/vendor/orders?status=processing', icon: '🔄' },
+        { title: 'Shipped', path: '/vendor/orders?status=shipped', icon: '📦' },
+        { title: 'Delivered', path: '/vendor/orders?status=delivered', icon: '✅' },
       ],
     },
     {
       title: 'Finance',
       icon: '💰',
       children: [
-        { title: 'Payments', path: '/vendor/finance/payments' },
-        { title: 'Transactions', path: '/vendor/finance/transactions' },
-        { title: 'Statements', path: '/vendor/finance/statements' },
+        { title: 'Overview', path: '/vendor/finance', icon: '💵' },
+        { title: 'Payouts', path: '/vendor/finance/payouts', icon: '📋' },
+        { title: 'Transactions', path: '/vendor/finance/transactions', icon: '📊' },
       ],
     },
     {
       title: 'Marketing',
       icon: '📢',
       children: [
-        { title: 'Promotions', path: '/vendor/marketing/promotions' },
-        { title: 'Vouchers', path: '/vendor/marketing/vouchers' },
-        { title: 'Campaigns', path: '/vendor/marketing/campaigns' },
+        { title: 'Promotions', path: '/vendor/marketing/promotions', icon: '🎯' },
+        { title: 'Vouchers', path: '/vendor/marketing/vouchers', icon: '🎟️' },
+        { title: 'Campaigns', path: '/vendor/marketing/campaigns', icon: '📣' },
       ],
     },
     {
       title: 'Reports',
       icon: '📈',
       children: [
-        { title: 'Sales Report', path: '/vendor/reports/sales' },
-        { title: 'Product Report', path: '/vendor/reports/products' },
-        { title: 'Traffic Report', path: '/vendor/reports/traffic' },
+        { title: 'Sales Report', path: '/vendor/reports/sales', icon: '💹' },
+        { title: 'Product Report', path: '/vendor/reports/products', icon: '📊' },
+        { title: 'Traffic Report', path: '/vendor/reports/traffic', icon: '👥' },
       ],
     },
     {
       title: 'Shop',
       icon: '🏪',
       children: [
-        { title: 'Shop Profile', path: '/vendor/shop/profile' },
-        { title: 'Shop Decoration', path: '/vendor/shop/decoration' },
-        { title: 'Categories', path: '/vendor/shop/categories' },
+        { title: 'Shop Profile', path: '/vendor/shop/profile', icon: '🏷️' },
+        { title: 'Shop Decoration', path: '/vendor/shop/decoration', icon: '🎨' },
+        { title: 'Categories', path: '/vendor/shop/categories', icon: '📂' },
+        { title: 'Request Category', path: '/vendor/category-requests', icon: '➕' },
       ],
     },
     {
       title: 'Customer Service',
       icon: '💬',
       children: [
-        { title: 'Messages', path: '/vendor/messages' },
-        { title: 'Reviews', path: '/vendor/reviews' },
-        { title: 'Q&A', path: '/vendor/qa' },
+        { title: 'Messages', path: '/vendor/messages', icon: '✉️' },
+        { title: 'Reviews', path: '/vendor/reviews', icon: '⭐' },
+        { title: 'Q&A', path: '/vendor/qa', icon: '❓' },
       ],
     },
     {
       title: 'Settings',
       icon: '⚙️',
       path: '/vendor/settings',
+      description: 'Account settings',
     },
   ];
 
@@ -123,6 +134,18 @@ const VendorLayout = () => {
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Home Button */}
+            <Link
+              to="/"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition"
+              title="Visit Main Site"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+              <span className="hidden md:inline">Home</span>
+            </Link>
+
             {/* Notifications */}
             <button className="relative p-2 hover:bg-gray-100 rounded-lg">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -132,7 +155,7 @@ const VendorLayout = () => {
             </button>
 
             {/* Help */}
-            <button className="p-2 hover:bg-gray-100 rounded-lg">
+            <button className="p-2 hover:bg-gray-100 rounded-lg" title="Help Center">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -168,7 +191,7 @@ const VendorLayout = () => {
                   <div>
                     <button
                       onClick={() => toggleMenu(item.title)}
-                      className="w-full flex items-center justify-between px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                      className="w-full flex items-center justify-between px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
                     >
                       <div className="flex items-center gap-3">
                         <span className="text-xl">{item.icon}</span>
@@ -189,13 +212,14 @@ const VendorLayout = () => {
                           <Link
                             key={child.path}
                             to={child.path}
-                            className={`block px-3 py-2 text-sm rounded-lg ${
+                            className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition ${
                               isActive(child.path)
                                 ? 'bg-orange-50 text-orange-600 font-medium'
                                 : 'text-gray-600 hover:bg-gray-100'
                             }`}
                           >
-                            {child.title}
+                            {child.icon && <span>{child.icon}</span>}
+                            <span>{child.title}</span>
                           </Link>
                         ))}
                       </div>
@@ -204,14 +228,20 @@ const VendorLayout = () => {
                 ) : (
                   <Link
                     to={item.path}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg ${
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition ${
                       isActive(item.path)
                         ? 'bg-orange-50 text-orange-600 font-medium'
                         : 'text-gray-700 hover:bg-gray-100'
                     }`}
+                    title={item.description}
                   >
                     <span className="text-xl">{item.icon}</span>
                     <span className="font-medium">{item.title}</span>
+                    {item.badge && (
+                      <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 )}
               </div>

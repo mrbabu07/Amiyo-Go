@@ -1,3 +1,5 @@
+const { ObjectId } = require("mongodb");
+
 const getProductQuestions = async (req, res) => {
   try {
     const Question = req.app.locals.models.Question;
@@ -48,8 +50,12 @@ const createQuestion = async (req, res) => {
 const addAnswer = async (req, res) => {
   try {
     const Question = req.app.locals.models.Question;
+    const Product = req.app.locals.models.Product;
     const { questionId } = req.params;
     const { answer } = req.body;
+    const userId = req.user.uid;
+    const vendorId = req.user.vendorId;
+    const userRole = req.user.role;
 
     if (!answer || answer.trim().length === 0) {
       return res.status(400).json({
@@ -58,11 +64,34 @@ const addAnswer = async (req, res) => {
       });
     }
 
+    // Determine answerer type and name
+    let answererType = "user";
+    let answererName = req.user.name || req.user.email;
+
+    if (userRole === "admin") {
+      answererType = "admin";
+    } else if (vendorId) {
+      answererType = "vendor";
+      answererName = req.vendor?.shopName || "Vendor";
+
+      // Verify vendor owns the product
+      const question = await Question.findById(questionId);
+      if (question) {
+        const product = await Product.findById(question.productId);
+        if (product && product.vendorId.toString() !== vendorId.toString()) {
+          return res.status(403).json({
+            success: false,
+            error: "You can only answer questions for your own products",
+          });
+        }
+      }
+    }
+
     const answerData = {
       answer: answer.trim(),
-      answeredBy: req.user.uid,
-      answeredByName: req.user.name || req.user.email,
-      role: req.user.role || "user",
+      answeredBy: vendorId ? vendorId.toString() : userId,
+      answeredByName: answererName,
+      role: answererType,
     };
 
     const newAnswer = await Question.addAnswer(questionId, answerData);
@@ -198,6 +227,59 @@ const deleteAnswer = async (req, res) => {
   }
 };
 
+const getVendorQuestions = async (req, res) => {
+  try {
+    const Question = req.app.locals.models.Question;
+    const Product = req.app.locals.models.Product;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    // Get all vendor's products
+    const products = await Product.collection
+      .find({ vendorId: new ObjectId(vendorId) })
+      .toArray();
+
+    const productIds = products.map((p) => p._id);
+
+    // Get all questions for vendor's products
+    const questions = await Question.collection
+      .find({ productId: { $in: productIds } })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    // Attach product info to each question
+    const questionsWithProduct = questions.map((question) => {
+      const product = products.find(
+        (p) => p._id.toString() === question.productId.toString()
+      );
+      return {
+        ...question,
+        product: product
+          ? {
+              _id: product._id,
+              title: product.title,
+              image: product.image,
+            }
+          : null,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: questionsWithProduct,
+    });
+  } catch (error) {
+    console.error("Error fetching vendor questions:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 module.exports = {
   getProductQuestions,
   createQuestion,
@@ -205,4 +287,5 @@ module.exports = {
   markHelpful,
   deleteQuestion,
   deleteAnswer,
+  getVendorQuestions,
 };

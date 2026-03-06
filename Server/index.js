@@ -33,6 +33,8 @@ const Question = require("./models/Question");
 const Vendor = require("./models/Vendor");
 const VendorOrder = require("./models/VendorOrder");
 const VendorPayout = require("./models/VendorPayout");
+const VendorChat = require("./models/VendorChat");
+const CategoryRequest = require("./models/CategoryRequest");
 
 // Import routes
 const productRoutes = require("./routes/productRoutes");
@@ -57,10 +59,14 @@ const questionRoutes = require("./routes/questionRoutes");
 const deliverySettingsRoutes = require("./routes/deliverySettingsRoutes");
 const vendorRoutes = require("./routes/vendorRoutes");
 const vendorProductRoutes = require("./routes/vendorProductRoutes");
+const vendorFinanceRoutes = require("./routes/vendorFinanceRoutes");
 const adminUserRoutes = require("./routes/adminUserRoutes");
 const adminProductRoutes = require("./routes/adminProductRoutes");
 const adminFinanceRoutes = require("./routes/adminFinanceRoutes");
 const adminPayoutRoutes  = require("./routes/adminPayoutRoutes");
+const adminVendorRoutes = require("./routes/adminVendorRoutes");
+const categoryRequestRoutes = require("./routes/categoryRequestRoutes");
+const vendorChatRoutes = require("./routes/vendorChatRoutes");
 
 // Import middleware and controllers for direct routes
 const { verifyToken, verifyAdmin } = require("./middleware/auth");
@@ -76,7 +82,8 @@ const port = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased limit for image uploads
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Add cache control headers for API responses
 app.use((req, res, next) => {
@@ -140,6 +147,8 @@ async function run() {
       Vendor: new Vendor(db),
       VendorOrder: new VendorOrder(db),
       VendorPayout: new VendorPayout(db),
+      VendorChat: new VendorChat(db),
+      CategoryRequest: new CategoryRequest(db),
     };
 
     // Store db reference for controllers that need it
@@ -232,17 +241,29 @@ async function run() {
     app.use("/api/vendor/products", vendorProductRoutes);
     console.log("✅ Vendor Product routes registered");
 
+    app.use("/api/vendors/finance", vendorFinanceRoutes);
+    console.log("✅ Vendor Finance routes registered");
+
     app.use("/api/admin/users",    adminUserRoutes);
     console.log("✅ Admin User Management routes registered");
 
     app.use("/api/admin/products", adminProductRoutes);
     console.log("✅ Admin Product Moderation routes registered");
 
+    app.use("/api/admin/vendors", adminVendorRoutes);
+    console.log("✅ Admin Vendor routes registered");
+
     app.use("/api/admin/finance",  adminFinanceRoutes);
     console.log("✅ Admin Finance routes registered");
 
     app.use("/api/admin/payouts",  adminPayoutRoutes);
     console.log("✅ Admin Payout routes registered");
+
+    app.use("/api/category-requests", categoryRequestRoutes);
+    console.log("✅ Category Request routes registered");
+
+    app.use("/api/vendor-chat", vendorChatRoutes);
+    console.log("✅ Vendor Chat routes registered");
 
     // Returns routes
     app.post("/api/returns", verifyToken, createReturnRequest);

@@ -14,6 +14,8 @@ const {
   addAdminReply,
   deleteReviewAdmin,
   canUserReviewProduct,
+  addVendorReply,
+  getVendorReviews,
 } = require("../controllers/reviewController");
 
 // GET /api/reviews/product/:productId/stats - Get rating stats for a product (public)
@@ -48,5 +50,9 @@ router.get("/admin/all", verifyAdmin, getAllReviews);
 router.get("/admin/unreplied", verifyAdmin, getUnrepliedReviews);
 router.post("/:reviewId/admin-reply", verifyAdmin, addAdminReply);
 router.delete("/:reviewId/admin", verifyAdmin, deleteReviewAdmin);
+
+// Vendor routes
+router.get("/vendor/my-reviews", getVendorReviews);
+router.post("/:reviewId/vendor-reply", addVendorReply);
 
 module.exports = router;

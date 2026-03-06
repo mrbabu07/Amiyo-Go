@@ -19,6 +19,9 @@ class Review {
       adminReply: null, // Admin response to the review
       adminRepliedAt: null,
       adminRepliedBy: null,
+      vendorReply: null, // Vendor response to the review
+      vendorRepliedAt: null,
+      vendorRepliedBy: null,
     };
 
     const result = await this.collection.insertOne(review);
@@ -33,6 +36,20 @@ class Review {
           adminReply,
           adminRepliedAt: new Date(),
           adminRepliedBy: adminName || adminId,
+          updatedAt: new Date(),
+        },
+      },
+    );
+  }
+
+  async addVendorReply(reviewId, vendorReply, vendorId, vendorName) {
+    return await this.collection.updateOne(
+      { _id: new ObjectId(reviewId) },
+      {
+        $set: {
+          vendorReply,
+          vendorRepliedAt: new Date(),
+          vendorRepliedBy: vendorName || vendorId,
           updatedAt: new Date(),
         },
       },

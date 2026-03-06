@@ -13,7 +13,7 @@ export default function AdminCategories() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: "", slug: "" });
+  const [formData, setFormData] = useState({ name: "", slug: "", commissionRate: 0 });
   const [deleteId, setDeleteId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   // commission editing: { [categoryId]: string }
@@ -41,7 +41,7 @@ export default function AdminCategories() {
     setSubmitting(true);
     try {
       await createCategory(formData);
-      setFormData({ name: "", slug: "" });
+      setFormData({ name: "", slug: "", commissionRate: 0 });
       setShowForm(false);
       fetchCategories();
       toast.success("Category created");
@@ -116,7 +116,7 @@ export default function AdminCategories() {
                 </svg>
               </Link>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Categories</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Categories & Commission</h1>
                 <p className="text-gray-600">{categories.length} categories total</p>
               </div>
             </div>
@@ -131,6 +131,22 @@ export default function AdminCategories() {
               {showForm ? "Cancel" : "+ Add Category"}
             </button>
           </div>
+          
+          {/* Commission Info Banner */}
+          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-blue-900 mb-1">Commission System</h3>
+                <p className="text-sm text-blue-800">
+                  Set commission rates for each category. When a product is sold, the platform takes the commission percentage and the vendor receives the remaining amount. 
+                  <span className="font-medium"> Example: 10% commission on ৳1000 = ৳100 to platform, ৳900 to vendor.</span>
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -139,7 +155,7 @@ export default function AdminCategories() {
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">New Category</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
                 <input
@@ -161,7 +177,21 @@ export default function AdminCategories() {
                   placeholder="e.g., mens"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
-                <p className="text-xs text-gray-500 mt-1">URL-friendly identifier (lowercase, no spaces)</p>
+                <p className="text-xs text-gray-500 mt-1">URL-friendly identifier</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Commission Rate (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={formData.commissionRate}
+                  onChange={(e) => setFormData({ ...formData, commissionRate: parseFloat(e.target.value) || 0 })}
+                  placeholder="0"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">Platform commission (0-100%)</p>
               </div>
             </div>
             <button
@@ -184,7 +214,30 @@ export default function AdminCategories() {
             </button>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <>
+            {/* Commission Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-white rounded-xl shadow-sm p-4">
+                <p className="text-xs text-gray-500 mb-1">Average Commission</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {(categories.reduce((sum, c) => sum + (c.commissionRate || 0), 0) / categories.length).toFixed(1)}%
+                </p>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm p-4">
+                <p className="text-xs text-gray-500 mb-1">Highest Commission</p>
+                <p className="text-2xl font-bold text-red-600">
+                  {Math.max(...categories.map(c => c.commissionRate || 0))}%
+                </p>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm p-4">
+                <p className="text-xs text-gray-500 mb-1">Categories with Commission</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {categories.filter(c => (c.commissionRate || 0) > 0).length} / {categories.length}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -237,6 +290,12 @@ export default function AdminCategories() {
                             </button>
                           )}
                         </div>
+                        {/* Commission breakdown example */}
+                        {parseFloat(displayVal) > 0 && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            On ৳1000: Platform ৳{(1000 * parseFloat(displayVal) / 100).toFixed(0)}, Vendor ৳{(1000 - (1000 * parseFloat(displayVal) / 100)).toFixed(0)}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button
@@ -252,6 +311,7 @@ export default function AdminCategories() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

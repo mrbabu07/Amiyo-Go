@@ -79,6 +79,39 @@ exports.createProduct = async (req, res) => {
     const productId = await Product.create(productData);
     const product = await Product.findById(productId.toString());
 
+    // Notify followers about new product
+    try {
+      const User = req.app.locals.models.User;
+      const followers = await User.collection.find({
+        followedVendors: req.vendor._id.toString()
+      }).toArray();
+
+      if (followers.length > 0) {
+        const Notification = req.app.locals.models.Notification;
+        const notifications = followers.map(follower => ({
+          userId: follower.firebaseUid,
+          type: "vendor_new_product",
+          title: "New Product Available",
+          message: `${req.vendor.shopName} has added a new product: ${title}`,
+          data: {
+            vendorId: req.vendor._id.toString(),
+            productId: productId.toString(),
+            productTitle: title,
+            vendorName: req.vendor.shopName
+          },
+          read: false,
+          createdAt: new Date()
+        }));
+
+        if (Notification) {
+          await Notification.collection.insertMany(notifications);
+        }
+      }
+    } catch (notifError) {
+      console.error("Error sending notifications:", notifError);
+      // Don't fail product creation if notification fails
+    }
+
     res.status(201).json({
       success: true,
       message: "Product created and submitted for admin approval.",

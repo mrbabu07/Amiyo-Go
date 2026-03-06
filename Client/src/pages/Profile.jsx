@@ -28,6 +28,27 @@ export default function Profile() {
       color: "bg-blue-500",
     },
     {
+      to: "/messages",
+      icon: (
+        <svg
+          className="w-8 h-8"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+          />
+        </svg>
+      ),
+      title: "Messages",
+      description: "Chat with vendors",
+      color: "bg-green-500",
+    },
+    {
       to: "/addresses",
       icon: (
         <svg
@@ -76,27 +97,6 @@ export default function Profile() {
       color: "bg-orange-500",
     },
     {
-      to: "/cart",
-      icon: (
-        <svg
-          className="w-8 h-8"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
-          />
-        </svg>
-      ),
-      title: "Shopping Cart",
-      description: "View items in your cart",
-      color: "bg-green-500",
-    },
-    {
       to: "/wishlist",
       icon: (
         <svg
@@ -118,6 +118,27 @@ export default function Profile() {
       color: "bg-pink-500",
     },
     {
+      to: "/support",
+      icon: (
+        <svg
+          className="w-8 h-8"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"
+          />
+        </svg>
+      ),
+      title: "Help & Support",
+      description: "Get help with your orders",
+      color: "bg-indigo-500",
+    },
+    {
       to: "/",
       icon: (
         <svg
@@ -136,7 +157,7 @@ export default function Profile() {
       ),
       title: "Continue Shopping",
       description: "Browse our products",
-      color: "bg-indigo-500",
+      color: "bg-teal-500",
     },
   ];
 
