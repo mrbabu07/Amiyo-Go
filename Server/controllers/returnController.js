@@ -394,6 +394,90 @@ const getVendorReturnStats = async (req, res) => {
   }
 };
 
+/**
+ * Vendor responds to return request (approve or dispute)
+ */
+const vendorRespondToReturn = async (req, res) => {
+  try {
+    const Return = req.app.locals.models.Return;
+    const { id } = req.params;
+    const { action, notes, evidenceImages, disputeReason } = req.body;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    if (!action || !['approved', 'disputed'].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        error: "Action must be 'approved' or 'disputed'",
+      });
+    }
+
+    if (action === 'disputed' && !disputeReason) {
+      return res.status(400).json({
+        success: false,
+        error: "Dispute reason is required when disputing a return",
+      });
+    }
+
+    const result = await Return.vendorRespond(id, vendorId, {
+      action,
+      notes,
+      evidenceImages: evidenceImages || [],
+      disputeReason,
+    });
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Return not found or already responded",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: action === 'approved' 
+        ? "Return approved successfully" 
+        : "Return disputed. Admin will review your evidence.",
+    });
+  } catch (error) {
+    console.error("Error responding to return:", error);
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Get returns pending vendor response
+ */
+const getPendingVendorResponse = async (req, res) => {
+  try {
+    const Return = req.app.locals.models.Return;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    const returns = await Return.getPendingVendorResponse(vendorId);
+
+    res.json({
+      success: true,
+      data: returns,
+    });
+  } catch (error) {
+    console.error("Error fetching pending returns:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 module.exports = {
   getAllReturns,
   getUserReturns,
@@ -405,4 +489,6 @@ module.exports = {
   getOrderReturns,
   getVendorReturns,
   getVendorReturnStats,
+  vendorRespondToReturn,
+  getPendingVendorResponse,
 };

@@ -558,6 +558,79 @@ export default function AdminReturns() {
                 </div>
               )}
 
+              {/* Vendor Response Section */}
+              {selectedReturn.vendorResponse && (
+                <div className={`mt-4 p-4 rounded-lg border-2 ${
+                  selectedReturn.vendorResponse === 'approved' 
+                    ? 'bg-green-50 border-green-300' 
+                    : 'bg-orange-50 border-orange-300'
+                }`}>
+                  <h5 className={`font-bold mb-2 flex items-center gap-2 ${
+                    selectedReturn.vendorResponse === 'approved' ? 'text-green-900' : 'text-orange-900'
+                  }`}>
+                    {selectedReturn.vendorResponse === 'approved' ? (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Vendor Approved Return
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        Vendor Disputed Return
+                      </>
+                    )}
+                  </h5>
+                  <div className="text-sm space-y-2">
+                    <div>
+                      <span className={selectedReturn.vendorResponse === 'approved' ? 'text-green-700' : 'text-orange-700'}>
+                        Response Date:
+                      </span>
+                      <p className={`font-medium ${selectedReturn.vendorResponse === 'approved' ? 'text-green-900' : 'text-orange-900'}`}>
+                        {new Date(selectedReturn.vendorResponseDate).toLocaleString()}
+                      </p>
+                    </div>
+                    {selectedReturn.disputeReason && (
+                      <div>
+                        <span className="text-orange-700">Dispute Reason:</span>
+                        <p className="font-medium text-orange-900 mt-1">{selectedReturn.disputeReason}</p>
+                      </div>
+                    )}
+                    {selectedReturn.vendorResponseNotes && (
+                      <div>
+                        <span className={selectedReturn.vendorResponse === 'approved' ? 'text-green-700' : 'text-orange-700'}>
+                          Vendor Notes:
+                        </span>
+                        <p className={`font-medium mt-1 ${selectedReturn.vendorResponse === 'approved' ? 'text-green-900' : 'text-orange-900'}`}>
+                          {selectedReturn.vendorResponseNotes}
+                        </p>
+                      </div>
+                    )}
+                    {selectedReturn.vendorEvidenceImages && selectedReturn.vendorEvidenceImages.length > 0 && (
+                      <div>
+                        <span className={selectedReturn.vendorResponse === 'approved' ? 'text-green-700' : 'text-orange-700'}>
+                          Vendor Evidence:
+                        </span>
+                        <div className="grid grid-cols-3 gap-2 mt-2">
+                          {selectedReturn.vendorEvidenceImages.map((img, idx) => (
+                            <img
+                              key={idx}
+                              src={img}
+                              alt={`Vendor evidence ${idx + 1}`}
+                              className="w-full h-20 object-cover rounded cursor-pointer hover:opacity-80"
+                              onClick={() => window.open(img, '_blank')}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Refund Banking Information */}
               {selectedReturn.refundMethod &&
                 selectedReturn.refundAccountNumber && (

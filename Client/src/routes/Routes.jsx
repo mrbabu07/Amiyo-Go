@@ -69,6 +69,7 @@ import ComingSoon from "../pages/vendor/ComingSoon";
 import AdminVendors from "../pages/admin/AdminVendorsEnhanced";
 import AdminVendorDetail from "../pages/admin/AdminVendorDetail";
 import AdminPayouts from "../pages/admin/AdminPayouts";
+import AdminPayoutRequests from "../pages/admin/AdminPayoutRequests";
 import AdminVendorChats from "../pages/admin/AdminVendorChats";
 import AdminChatDetail from "../pages/admin/AdminChatDetail";
 import VendorActivityDashboard from "../pages/admin/VendorActivityDashboard";
@@ -264,6 +265,7 @@ const router = createBrowserRouter([
       
       // Finance Control
       { path: "payouts", element: <AdminPayouts /> },
+      { path: "payout-requests", element: <AdminPayoutRequests /> },
       
       // Marketplace Settings
       { path: "categories", element: <AdminCategories /> },

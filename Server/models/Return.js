@@ -44,6 +44,12 @@ class Return {
       adminRefund: 0, // Amount admin refunds to customer (set when approved)
       isDeductedFromVendor: false, // Whether deduction has been applied to vendor
       deductedAt: null,
+      // Vendor response fields
+      vendorResponse: null, // 'approved' | 'disputed' | null
+      vendorResponseDate: null,
+      vendorResponseNotes: null,
+      vendorEvidenceImages: [], // Photos/documents uploaded by vendor
+      disputeReason: null, // Why vendor disputes the return
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -304,6 +310,76 @@ class Return {
         },
       }
     );
+  }
+
+  /**
+   * Vendor responds to return request (approve or dispute)
+   */
+  async vendorRespond(returnId, vendorId, response) {
+    const { action, notes, evidenceImages = [], disputeReason = null } = response;
+
+    if (!['approved', 'disputed'].includes(action)) {
+      throw new Error('Invalid vendor response action');
+    }
+
+    // Verify return belongs to this vendor
+    const returnDoc = await this.findById(returnId);
+    if (!returnDoc) {
+      throw new Error('Return not found');
+    }
+
+    if (returnDoc.vendorId.toString() !== vendorId.toString()) {
+      throw new Error('This return does not belong to your products');
+    }
+
+    if (returnDoc.status !== 'pending') {
+      throw new Error('Can only respond to pending returns');
+    }
+
+    if (returnDoc.vendorResponse) {
+      throw new Error('You have already responded to this return');
+    }
+
+    const updateData = {
+      vendorResponse: action,
+      vendorResponseDate: new Date(),
+      vendorResponseNotes: notes || null,
+      vendorEvidenceImages: evidenceImages,
+      updatedAt: new Date(),
+    };
+
+    // If vendor approves, auto-approve the return
+    if (action === 'approved') {
+      updateData.status = 'approved';
+      updateData.approvedAt = new Date();
+      updateData.vendorDeduction = returnDoc.vendorEarningAmount || 0;
+      updateData.adminRefund = returnDoc.refundAmount || 0;
+    }
+
+    // If vendor disputes, add dispute reason and keep status pending for admin review
+    if (action === 'disputed') {
+      updateData.disputeReason = disputeReason;
+      updateData.status = 'pending'; // Admin needs to arbitrate
+    }
+
+    return await this.collection.updateOne(
+      { _id: new ObjectId(returnId) },
+      { $set: updateData }
+    );
+  }
+
+  /**
+   * Get returns pending vendor response
+   */
+  async getPendingVendorResponse(vendorId) {
+    return await this.collection
+      .find({
+        vendorId: new ObjectId(vendorId),
+        status: 'pending',
+        vendorResponse: null,
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
   }
 }
 

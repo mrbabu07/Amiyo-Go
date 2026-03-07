@@ -23,9 +23,14 @@ class VendorPayout {
       vendorId: typeof payoutData.vendorId === "string"
         ? new ObjectId(payoutData.vendorId)
         : payoutData.vendorId,
-      status: "pending",
+      status: payoutData.status || "pending", // pending, approved, paid, rejected
+      type: payoutData.type || "admin_generated", // admin_generated or vendor_requested
       createdAt: new Date(),
       paidAt: null,
+      requestedAt: payoutData.type === "vendor_requested" ? new Date() : null,
+      approvedAt: null,
+      rejectedAt: null,
+      rejectionReason: null,
     };
     const result = await this.collection.insertOne(payout);
     return { ...payout, _id: result.insertedId };
@@ -59,6 +64,66 @@ class VendorPayout {
       { _id: new ObjectId(id) },
       { $set: { status: "paid", paidAt: new Date() } }
     );
+  }
+
+  async approvePayout(id, approvedBy) {
+    return await this.collection.updateOne(
+      { _id: new ObjectId(id) },
+      { 
+        $set: { 
+          status: "approved", 
+          approvedAt: new Date(),
+          approvedBy: approvedBy 
+        } 
+      }
+    );
+  }
+
+  async rejectPayout(id, reason, rejectedBy) {
+    return await this.collection.updateOne(
+      { _id: new ObjectId(id) },
+      { 
+        $set: { 
+          status: "rejected", 
+          rejectedAt: new Date(),
+          rejectionReason: reason,
+          rejectedBy: rejectedBy 
+        } 
+      }
+    );
+  }
+
+  async cancelRequest(id) {
+    return await this.collection.updateOne(
+      { _id: new ObjectId(id) },
+      { 
+        $set: { 
+          status: "cancelled", 
+          cancelledAt: new Date() 
+        } 
+      }
+    );
+  }
+
+  async getVendorPendingRequests(vendorId) {
+    return await this.collection
+      .find({ 
+        vendorId: new ObjectId(vendorId), 
+        type: "vendor_requested",
+        status: "pending" 
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
+  }
+
+  async getAllPendingRequests() {
+    return await this.collection
+      .find({ 
+        type: "vendor_requested",
+        status: "pending" 
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
   }
 }
 

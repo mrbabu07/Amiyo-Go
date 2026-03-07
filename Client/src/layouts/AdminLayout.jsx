@@ -67,6 +67,7 @@ const AdminLayout = () => {
       ),
       children: [
         { name: 'Vendor Payouts', path: '/admin/payouts' },
+        { name: 'Payout Requests', path: '/admin/payout-requests' },
       ],
     },
     {

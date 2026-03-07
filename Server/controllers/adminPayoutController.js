@@ -656,3 +656,212 @@ exports.createBulkPayouts = async (req, res) => {
     });
   }
 };
+
+
+/**
+ * Get all vendor payout requests (pending approval)
+ */
+exports.getPayoutRequests = async (req, res) => {
+  try {
+    const { status = "pending" } = req.query;
+    const VendorPayout = req.app.locals.models.VendorPayout;
+    const Vendor = req.app.locals.models.Vendor;
+
+    const query = { type: "vendor_requested" };
+    if (status && status !== "all") {
+      query.status = status;
+    }
+
+    const requests = await VendorPayout.collection
+      .find(query)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    // Populate vendor details
+    const requestsWithVendor = await Promise.all(
+      requests.map(async (request) => {
+        const vendor = await Vendor.findById(request.vendorId);
+        return {
+          ...request,
+          vendorName: vendor?.shopName || request.vendorName || "Unknown",
+          vendorEmail: vendor?.email || request.vendorEmail || "",
+          vendorPhone: vendor?.phone || request.vendorPhone || "",
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: requestsWithVendor,
+    });
+  } catch (error) {
+    console.error("Error fetching payout requests:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch payout requests",
+    });
+  }
+};
+
+/**
+ * Approve a vendor payout request
+ */
+exports.approvePayoutRequest = async (req, res) => {
+  try {
+    const { payoutId } = req.params;
+    const { note } = req.body;
+
+    const VendorPayout = req.app.locals.models.VendorPayout;
+
+    const payout = await VendorPayout.findById(payoutId);
+    if (!payout) {
+      return res.status(404).json({
+        success: false,
+        error: "Payout request not found",
+      });
+    }
+
+    if (payout.type !== "vendor_requested") {
+      return res.status(400).json({
+        success: false,
+        error: "Not a vendor request",
+      });
+    }
+
+    if (payout.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        error: "Payout request is not pending",
+      });
+    }
+
+    // Approve the request
+    await VendorPayout.approvePayout(payoutId, req.user._id);
+
+    // Update note if provided
+    if (note) {
+      await VendorPayout.collection.updateOne(
+        { _id: new ObjectId(payoutId) },
+        { $set: { adminNote: note } }
+      );
+    }
+
+    res.json({
+      success: true,
+      message: "Payout request approved successfully",
+    });
+  } catch (error) {
+    console.error("Error approving payout request:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to approve payout request",
+    });
+  }
+};
+
+/**
+ * Reject a vendor payout request
+ */
+exports.rejectPayoutRequest = async (req, res) => {
+  try {
+    const { payoutId } = req.params;
+    const { reason } = req.body;
+
+    if (!reason) {
+      return res.status(400).json({
+        success: false,
+        error: "Rejection reason is required",
+      });
+    }
+
+    const VendorPayout = req.app.locals.models.VendorPayout;
+
+    const payout = await VendorPayout.findById(payoutId);
+    if (!payout) {
+      return res.status(404).json({
+        success: false,
+        error: "Payout request not found",
+      });
+    }
+
+    if (payout.type !== "vendor_requested") {
+      return res.status(400).json({
+        success: false,
+        error: "Not a vendor request",
+      });
+    }
+
+    if (payout.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        error: "Payout request is not pending",
+      });
+    }
+
+    // Reject the request
+    await VendorPayout.rejectPayout(payoutId, reason, req.user._id);
+
+    res.json({
+      success: true,
+      message: "Payout request rejected",
+    });
+  } catch (error) {
+    console.error("Error rejecting payout request:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to reject payout request",
+    });
+  }
+};
+
+/**
+ * Mark approved payout request as paid
+ */
+exports.markRequestPaid = async (req, res) => {
+  try {
+    const { payoutId } = req.params;
+    const { transactionId, note } = req.body;
+
+    const VendorPayout = req.app.locals.models.VendorPayout;
+
+    const payout = await VendorPayout.findById(payoutId);
+    if (!payout) {
+      return res.status(404).json({
+        success: false,
+        error: "Payout request not found",
+      });
+    }
+
+    if (payout.status !== "approved" && payout.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        error: "Payout must be approved before marking as paid",
+      });
+    }
+
+    // Mark as paid
+    await VendorPayout.collection.updateOne(
+      { _id: new ObjectId(payoutId) },
+      {
+        $set: {
+          status: "paid",
+          paidAt: new Date(),
+          paidBy: req.user._id,
+          transactionId: transactionId || "",
+          paymentNote: note || "",
+        },
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Payout marked as paid successfully",
+    });
+  } catch (error) {
+    console.error("Error marking payout as paid:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to mark payout as paid",
+    });
+  }
+};

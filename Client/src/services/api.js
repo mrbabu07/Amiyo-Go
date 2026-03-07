@@ -102,6 +102,10 @@ export const getVendorReturns = (params) =>
   api.get("/returns/vendor/my-returns", { params });
 export const getVendorReturnStats = () => 
   api.get("/returns/vendor/stats");
+export const getPendingVendorResponse = () =>
+  api.get("/returns/vendor/pending-response");
+export const vendorRespondToReturn = (id, data) =>
+  api.post(`/returns/vendor/${id}/respond`, data);
 
 // Payments
 export const processPayment = (data) => api.post("/payments/process", data);
@@ -230,6 +234,32 @@ export const createBulkPayouts = (data) =>
 
 export const getVendorPayouts = (params = {}) =>
   api.get("/vendors/finance/payouts", { params });
+
+// Vendor Payout Requests
+export const getAvailableBalance = () =>
+  api.get("/vendors/finance/available-balance");
+
+export const requestPayout = (data) =>
+  api.post("/vendors/finance/request-payout", data);
+
+export const getPayoutRequests = () =>
+  api.get("/vendors/finance/payout-requests");
+
+export const cancelPayoutRequest = (id) =>
+  api.delete(`/vendors/finance/payout-requests/${id}`);
+
+// Admin Payout Requests Management
+export const getAdminPayoutRequests = (params = {}) =>
+  api.get("/admin/payouts/requests", { params });
+
+export const approvePayoutRequest = (payoutId, data) =>
+  api.patch(`/admin/payouts/requests/${payoutId}/approve`, data);
+
+export const rejectPayoutRequest = (payoutId, data) =>
+  api.patch(`/admin/payouts/requests/${payoutId}/reject`, data);
+
+export const markPayoutRequestPaid = (payoutId, data) =>
+  api.patch(`/admin/payouts/requests/${payoutId}/mark-paid`, data);
 
 // Vendor Shop Status Management
 export const getShopStatus = () =>

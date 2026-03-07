@@ -12,6 +12,8 @@ const {
   getOrderReturns,
   getVendorReturns,
   getVendorReturnStats,
+  vendorRespondToReturn,
+  getPendingVendorResponse,
 } = require("../controllers/returnController");
 
 // Test route without authentication (for debugging)
@@ -40,6 +42,8 @@ router.post("/", createReturnRequest);
 // Vendor routes
 router.get("/vendor/my-returns", requireRole("vendor"), getVendorReturns);
 router.get("/vendor/stats", requireRole("vendor"), getVendorReturnStats);
+router.get("/vendor/pending-response", requireRole("vendor"), getPendingVendorResponse);
+router.post("/vendor/:id/respond", requireRole("vendor"), vendorRespondToReturn);
 
 // Admin routes - these should come before the /:id route to avoid conflicts
 router.get("/admin/all", verifyAdmin, getAllReturns);

@@ -8,6 +8,8 @@ import {
   getVendorFinanceTransactions, 
   getVendorPayouts 
 } from "../../services/api";
+import PayoutRequestButton from "../../components/vendor/PayoutRequestButton";
+import PayoutRequestsList from "../../components/vendor/PayoutRequestsList";
 
 const tabs = [
   { id: "overview", label: "💰 Overview", path: "/vendor/finance" },
@@ -35,6 +37,7 @@ export default function VendorFinance() {
   const [stats, setStats] = useState(null);
   const [payouts, setPayouts] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Fetch finance data
   const fetchFinanceData = useCallback(async () => {
@@ -171,12 +174,18 @@ export default function VendorFinance() {
           </div>
         )}
 
-        {/* Payout Schedule Info */}
+        {/* Payout Schedule Info & Request Button */}
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-200">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="text-xl">📅</span>
-            Payout Schedule
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <span className="text-xl">📅</span>
+              Payout Schedule
+            </h3>
+            <PayoutRequestButton onRequestSuccess={() => {
+              fetchFinanceData();
+              setRefreshTrigger(prev => prev + 1);
+            }} />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -322,69 +331,77 @@ export default function VendorFinance() {
 
             {/* Payouts Tab */}
             {activeTab === "payouts" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-gray-900">Payout History</h3>
-                  <span className="text-sm text-gray-500">{payouts.length} total payouts</span>
-                </div>
+              <div className="space-y-6">
+                {/* Payout Requests Section */}
+                <PayoutRequestsList refreshTrigger={refreshTrigger} />
 
-                {payouts.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <div className="text-4xl mb-2">💰</div>
-                    <p>No payouts yet</p>
-                    <p className="text-sm mt-1">Payouts will appear here when admin processes them</p>
+                {/* Payout History Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-gray-900">Payout History</h3>
+                    <span className="text-sm text-gray-500">{payouts.length} total payouts</span>
                   </div>
-                ) : (
-                  payouts.map((payout) => (
-                    <div
-                      key={payout._id}
-                      className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          payout.status === 'paid' ? 'bg-green-100' :
-                          payout.status === 'pending' ? 'bg-yellow-100' :
-                          'bg-red-100'
-                        }`}>
-                          <span className="text-xl">
-                            {payout.status === 'paid' ? '✅' :
-                             payout.status === 'pending' ? '⏳' : '❌'}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {payout.status === 'paid' ? 'Payout Received' :
-                             payout.status === 'pending' ? 'Payout Pending' :
-                             'Payout Cancelled'}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(payout.createdAt).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })}
-                            {payout.transactionId && ` · ${payout.transactionId}`}
-                          </p>
-                          {payout.note && (
-                            <p className="text-xs text-gray-400 mt-1">{payout.note}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className={`font-bold text-lg ${
-                          payout.status === 'paid' ? 'text-green-600' :
-                          payout.status === 'pending' ? 'text-yellow-600' :
-                          'text-red-600'
-                        }`}>
-                          {payout.status === 'cancelled' ? '-' : '+'}{formatPrice(payout.amount)}
-                        </p>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${statusBadge(payout.status)}`}>
-                          {payout.status}
-                        </span>
-                      </div>
+
+                  {payouts.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500 bg-white rounded-lg border border-gray-200">
+                      <div className="text-4xl mb-2">💰</div>
+                      <p>No payouts yet</p>
+                      <p className="text-sm mt-1">Payouts will appear here when admin processes them</p>
                     </div>
-                  ))
-                )}
+                  ) : (
+                    <div className="space-y-4">
+                      {payouts.map((payout) => (
+                        <div
+                          key={payout._id}
+                          className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition bg-white"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              payout.status === 'paid' ? 'bg-green-100' :
+                              payout.status === 'pending' ? 'bg-yellow-100' :
+                              'bg-red-100'
+                            }`}>
+                              <span className="text-xl">
+                                {payout.status === 'paid' ? '✅' :
+                                 payout.status === 'pending' ? '⏳' : '❌'}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                {payout.status === 'paid' ? 'Payout Received' :
+                                 payout.status === 'pending' ? 'Payout Pending' :
+                                 'Payout Cancelled'}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(payout.createdAt).toLocaleDateString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                                {payout.transactionId && ` · ${payout.transactionId}`}
+                              </p>
+                              {payout.note && (
+                                <p className="text-xs text-gray-400 mt-1">{payout.note}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className={`font-bold text-lg ${
+                              payout.status === 'paid' ? 'text-green-600' :
+                              payout.status === 'pending' ? 'text-yellow-600' :
+                              'text-red-600'
+                            }`}>
+                              {payout.status === 'cancelled' ? '-' : '+'}{formatPrice(payout.amount)}
+                            </p>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${statusBadge(payout.status)}`}>
+                              {payout.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
