@@ -1,5 +1,6 @@
 import { createBrowserRouter } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
+import AdminLayout from "../layouts/AdminLayout";
 import Home from "../pages/Home";
 import About from "../pages/About";
 import Contact from "../pages/Contact";
@@ -65,11 +66,12 @@ import VendorReturns from "../pages/vendor/VendorReturns";
 import VendorBulkUpload from "../pages/vendor/VendorBulkUpload";
 import VendorSupportChat from "../pages/vendor/VendorSupportChat";
 import ComingSoon from "../pages/vendor/ComingSoon";
-import AdminVendors from "../pages/admin/AdminVendors";
+import AdminVendors from "../pages/admin/AdminVendorsEnhanced";
 import AdminVendorDetail from "../pages/admin/AdminVendorDetail";
 import AdminPayouts from "../pages/admin/AdminPayouts";
 import AdminVendorChats from "../pages/admin/AdminVendorChats";
 import AdminChatDetail from "../pages/admin/AdminChatDetail";
+import VendorActivityDashboard from "../pages/admin/VendorActivityDashboard";
 import AuthDebug from "../pages/AuthDebug";
 import VendorStore from "../pages/VendorStore";
 
@@ -139,206 +141,6 @@ const router = createBrowserRouter([
           <PrivateRoute>
             <Messages />
           </PrivateRoute>
-        ),
-      },
-      {
-        path: "/admin",
-        element: (
-          <AdminRoute>
-            <AdminDashboard />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/products",
-        element: (
-          <AdminRoute>
-            <AdminProducts />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/inventory",
-        element: (
-          <AdminRoute>
-            <AdminInventory />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/products/add",
-        element: (
-          <AdminRoute>
-            <ProductForm />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/products/edit/:id",
-        element: (
-          <AdminRoute>
-            <ProductForm />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/categories",
-        element: (
-          <AdminRoute>
-            <AdminCategories />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/orders",
-        element: (
-          <AdminRoute>
-            <AdminOrders />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/coupons",
-        element: (
-          <AdminRoute>
-            <AdminCoupons />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/returns",
-        element: (
-          <AdminRoute>
-            <AdminReturns />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/offers",
-        element: (
-          <AdminRoute>
-            <AdminOffers />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/offers/add",
-        element: (
-          <AdminRoute>
-            <OfferForm />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/offers/edit/:id",
-        element: (
-          <AdminRoute>
-            <OfferForm />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/reviews",
-        element: (
-          <AdminRoute>
-            <AdminReviews />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/qa",
-        element: (
-          <AdminRoute>
-            <AdminQA />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/users",
-        element: (
-          <AdminRoute>
-            <AdminUserManagement />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/insights",
-        element: (
-          <AdminRoute>
-            <AdminCustomerInsights />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/support",
-        element: (
-          <AdminRoute>
-            <AdminSupport />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/flash-sales",
-        element: (
-          <AdminRoute>
-            <AdminFlashSales />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/delivery-settings",
-        element: (
-          <AdminRoute>
-            <AdminDeliverySettings />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/vendors",
-        element: (
-          <AdminRoute>
-            <AdminVendors />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/vendors/:vendorId",
-        element: (
-          <AdminRoute>
-            <AdminVendorDetail />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/payouts",
-        element: (
-          <AdminRoute>
-            <AdminPayouts />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/chats",
-        element: (
-          <AdminRoute>
-            <AdminVendorChats />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/chat/:vendorId",
-        element: (
-          <AdminRoute>
-            <AdminChatDetail />
-          </AdminRoute>
-        ),
-      },
-      {
-        path: "/admin/category-requests",
-        element: (
-          <AdminRoute>
-            <AdminCategoryRequests />
-          </AdminRoute>
         ),
       },
       {
@@ -431,6 +233,57 @@ const router = createBrowserRouter([
       { path: "settings", element: <VendorSettings /> },
     ],
   },
+  // Admin Control Panel routes (separate layout with sidebar navigation)
+  {
+    path: "/admin",
+    element: (
+      <AdminRoute>
+        <AdminLayout />
+      </AdminRoute>
+    ),
+    children: [
+      // Dashboard
+      { path: "", element: <AdminDashboard /> },
+      
+      // Vendor Management
+      { path: "vendors", element: <AdminVendors /> },
+      { path: "vendors/:vendorId", element: <AdminVendorDetail /> },
+      { path: "vendor-activity", element: <VendorActivityDashboard /> },
+      { path: "chats", element: <AdminVendorChats /> },
+      { path: "chat/:vendorId", element: <AdminChatDetail /> },
+      
+      // Product Management
+      { path: "products", element: <AdminProducts /> },
+      { path: "products/add", element: <ProductForm /> },
+      { path: "products/edit/:id", element: <ProductForm /> },
+      { path: "inventory", element: <AdminInventory /> },
+      
+      // Order Management
+      { path: "orders", element: <AdminOrders /> },
+      { path: "returns", element: <AdminReturns /> },
+      
+      // Finance Control
+      { path: "payouts", element: <AdminPayouts /> },
+      
+      // Marketplace Settings
+      { path: "categories", element: <AdminCategories /> },
+      { path: "category-requests", element: <AdminCategoryRequests /> },
+      { path: "coupons", element: <AdminCoupons /> },
+      { path: "flash-sales", element: <AdminFlashSales /> },
+      { path: "offers", element: <AdminOffers /> },
+      { path: "offers/add", element: <OfferForm /> },
+      { path: "offers/edit/:id", element: <OfferForm /> },
+      { path: "delivery-settings", element: <AdminDeliverySettings /> },
+      
+      // User Management
+      { path: "users", element: <AdminUserManagement /> },
+      { path: "insights", element: <AdminCustomerInsights /> },
+      { path: "support", element: <AdminSupport /> },
+      
+      // Content & Reviews
+      { path: "reviews", element: <AdminReviews /> },
+      { path: "qa", element: <AdminQA /> },
+    ],
+  },
 ]);
-
 export default router;

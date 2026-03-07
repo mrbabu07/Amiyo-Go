@@ -392,6 +392,106 @@ export default function AdminVendorDetail() {
 
       <div className="max-w-7xl mx-auto px-4 py-6">
 
+        {/* Quick Actions Panel */}
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <span className="text-xl">⚡</span>
+            Quick Actions
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {v.status === 'pending' && (
+              <button
+                onClick={() => handleVendorAction('approve')}
+                disabled={actionLoading}
+                className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition disabled:opacity-50"
+              >
+                <span className="text-xl">✅</span>
+                Approve Vendor
+              </button>
+            )}
+            {v.status === 'approved' && (
+              <button
+                onClick={() => setActiveTab('Actions')}
+                className="flex items-center justify-center gap-2 px-4 py-3 bg-yellow-600 text-white rounded-lg font-medium hover:bg-yellow-700 transition"
+              >
+                <span className="text-xl">⏸️</span>
+                Suspend Vendor
+              </button>
+            )}
+            {v.status === 'suspended' && (
+              <button
+                onClick={() => handleVendorAction('reactivate')}
+                disabled={actionLoading}
+                className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                <span className="text-xl">▶️</span>
+                Reactivate Vendor
+              </button>
+            )}
+            <button
+              onClick={() => setActiveTab('Payouts')}
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition"
+            >
+              <span className="text-xl">💰</span>
+              Create Payout
+            </button>
+            <button
+              onClick={() => setActiveTab('Products')}
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition"
+            >
+              <span className="text-xl">📦</span>
+              View Products
+            </button>
+            <Link
+              to={`/admin/chat/${vendorId}`}
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition"
+            >
+              <span className="text-xl">💬</span>
+              Send Message
+            </Link>
+          </div>
+        </div>
+
+        {/* Vendor Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-500">Total Products</span>
+              <span className="text-2xl">📦</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{productTotal || 0}</p>
+            <p className="text-xs text-gray-400 mt-1">All products</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-500">Total Orders</span>
+              <span className="text-2xl">🛒</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{orders.length || 0}</p>
+            <p className="text-xs text-gray-400 mt-1">Lifetime orders</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-500">Total Earnings</span>
+              <span className="text-2xl">💵</span>
+            </div>
+            <p className="text-2xl font-bold text-green-600">
+              ${financeSummary?.netEarnings?.toFixed(2) || '0.00'}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">Net earnings</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-500">Status</span>
+              <span className="text-2xl">
+                {v.status === 'approved' ? '✅' : v.status === 'pending' ? '⏳' : '⏸️'}
+              </span>
+            </div>
+            <StatusBadge status={v.status} />
+            <p className="text-xs text-gray-400 mt-1">Current status</p>
+          </div>
+        </div>
+
         {/* ── TAB: Overview ─────────────────────────────────────── */}
         {activeTab === 'Overview' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -129,6 +129,27 @@ export default function AdminProducts() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Info Banner */}
+        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-blue-800">
+                Product Moderation
+              </h3>
+              <div className="mt-2 text-sm text-blue-700">
+                <p>
+                  Review vendor products for quality and policy compliance. Click on vendor name to see their profile and approval history.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Search Bar */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
           <div className="relative">
@@ -201,6 +222,7 @@ export default function AdminProducts() {
                           <img
                             src={
                               product.image ||
+                              product.images?.[0] ||
                               "https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=100&h=100&fit=crop"
                             }
                             alt={product.title}
@@ -213,6 +235,32 @@ export default function AdminProducts() {
                             <p className="text-sm text-gray-500 truncate max-w-xs">
                               {product.description}
                             </p>
+                            {/* Vendor Context */}
+                            {product.vendorId && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-gray-400">by</span>
+                                <Link
+                                  to={`/admin/vendors/${product.vendorId}`}
+                                  className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium flex items-center gap-1"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                  </svg>
+                                  {product.vendorShopName || 'View Vendor'}
+                                </Link>
+                              </div>
+                            )}
+                            {/* Approval Status */}
+                            {product.approvalStatus && (
+                              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                product.approvalStatus === 'approved' ? 'bg-green-100 text-green-800' :
+                                product.approvalStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {product.approvalStatus}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
