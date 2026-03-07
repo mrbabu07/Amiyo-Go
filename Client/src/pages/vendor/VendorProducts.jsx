@@ -5,34 +5,53 @@ import useAuth from '../../hooks/useAuth';
 const VendorProducts = () => {
   const { user } = useAuth();
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (user) {
-      fetchProducts();
+      fetchData();
     }
   }, [user]);
 
-  const fetchProducts = async () => {
+  const fetchData = async () => {
     try {
       const token = await user.getIdToken();
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/vendor/products`, {
+      
+      // Fetch products
+      const productsRes = await fetch(`${import.meta.env.VITE_API_URL}/vendor/products`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
-
-      const data = await response.json();
-      if (response.ok) {
-        setProducts(data.products || []);
+      const productsData = await productsRes.json();
+      
+      // Fetch categories with commission
+      const categoriesRes = await fetch(`${import.meta.env.VITE_API_URL}/categories`);
+      const categoriesData = await categoriesRes.json();
+      
+      // Create category lookup map
+      const categoryMap = {};
+      (categoriesData.data || []).forEach(cat => {
+        categoryMap[cat._id] = cat;
+      });
+      
+      setCategories(categoryMap);
+      
+      if (productsRes.ok) {
+        setProducts(productsData.products || []);
       } else {
-        setError(data.error || 'Failed to fetch products');
+        setError(productsData.error || 'Failed to fetch products');
       }
     } catch (error) {
-      console.error('Error fetching products:', error);
-      setError('Failed to fetch products');
+      console.error('Error fetching data:', error);
+      setError('Failed to fetch data');
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchProducts = async () => {
+    await fetchData();
   };
 
   const handleDelete = async (productId) => {
@@ -146,6 +165,12 @@ const VendorProducts = () => {
                     Price
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Commission
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Your Earning
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Stock
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -157,7 +182,14 @@ const VendorProducts = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {products.map((product) => (
+                {products.map((product) => {
+                  const category = categories[product.categoryId];
+                  const commissionRate = category?.commissionRate || 0;
+                  const price = product.price || 0;
+                  const commission = (price * commissionRate) / 100;
+                  const earning = price - commission;
+                  
+                  return (
                   <tr key={product._id}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -177,13 +209,21 @@ const VendorProducts = () => {
                             {product.title}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {product.categoryId?.name || 'Uncategorized'}
+                            {category?.name || 'Uncategorized'}
                           </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">৳{product.price}</div>
+                      <div className="text-sm font-medium text-gray-900">৳{price.toLocaleString()}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-red-600">-৳{commission.toFixed(2)}</div>
+                      <div className="text-xs text-gray-500">{commissionRate}%</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-semibold text-green-600">৳{earning.toFixed(2)}</div>
+                      <div className="text-xs text-gray-500">per sale</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
@@ -220,7 +260,8 @@ const VendorProducts = () => {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

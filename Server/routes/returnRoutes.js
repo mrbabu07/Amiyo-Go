@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { verifyToken, verifyAdmin } = require("../middleware/auth");
+const { verifyToken, verifyAdmin, requireRole } = require("../middleware/auth");
 const {
   getAllReturns,
   getUserReturns,
@@ -10,6 +10,8 @@ const {
   processRefund,
   getReturnStats,
   getOrderReturns,
+  getVendorReturns,
+  getVendorReturnStats,
 } = require("../controllers/returnController");
 
 // Test route without authentication (for debugging)
@@ -34,6 +36,10 @@ router.use(verifyToken);
 router.get("/my-returns", getUserReturns);
 router.get("/order/:orderId", getOrderReturns);
 router.post("/", createReturnRequest);
+
+// Vendor routes
+router.get("/vendor/my-returns", requireRole("vendor"), getVendorReturns);
+router.get("/vendor/stats", requireRole("vendor"), getVendorReturnStats);
 
 // Admin routes - these should come before the /:id route to avoid conflicts
 router.get("/admin/all", verifyAdmin, getAllReturns);

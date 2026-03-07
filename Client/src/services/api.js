@@ -97,6 +97,12 @@ export const updateReturnStatus = (id, status, adminNotes) =>
 export const processRefund = (id, refundAmount, refundMethod) =>
   api.post(`/returns/${id}/refund`, { refundAmount, refundMethod });
 
+// Vendor Returns
+export const getVendorReturns = (params) => 
+  api.get("/returns/vendor/my-returns", { params });
+export const getVendorReturnStats = () => 
+  api.get("/returns/vendor/stats");
+
 // Payments
 export const processPayment = (data) => api.post("/payments/process", data);
 export const getUserPayments = () => api.get("/payments/my-payments");
@@ -216,8 +222,27 @@ export const cancelPayout = (payoutId, reason) =>
 export const getPayoutStats = () =>
   api.get("/admin/payouts/stats");
 
+export const getWeeklyPayoutList = () =>
+  api.get("/admin/payouts/weekly-list");
+
+export const createBulkPayouts = (data) =>
+  api.post("/admin/payouts/bulk", data);
+
 export const getVendorPayouts = (params = {}) =>
   api.get("/vendors/finance/payouts", { params });
+
+// Vendor Shop Status Management
+export const getShopStatus = () =>
+  api.get("/vendors/shop/status");
+
+export const toggleShopStatus = (isShopOpen) =>
+  api.patch("/vendors/shop/toggle", { isShopOpen });
+
+export const setVacationMode = (data) =>
+  api.post("/vendors/shop/vacation", data);
+
+export const cancelVacationMode = () =>
+  api.delete("/vendors/shop/vacation");
 
 // Vendor Finance
 export const getVendorFinanceSummary = () =>

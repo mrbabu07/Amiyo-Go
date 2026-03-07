@@ -101,6 +101,47 @@ class Product {
       }
     });
 
+    // Lookup vendor to check shop status
+    pipeline.push({
+      $lookup: {
+        from: "vendors",
+        localField: "vendorId",
+        foreignField: "_id",
+        as: "vendorInfo"
+      }
+    });
+
+    // Filter out products from closed shops or vendors on vacation
+    pipeline.push({
+      $match: {
+        $or: [
+          { vendorId: { $exists: false } }, // Admin products (no vendor)
+          { vendorId: null }, // Admin products
+          {
+            $and: [
+              { "vendorInfo.0.isShopOpen": { $ne: false } }, // Shop is open (default true if not set)
+              {
+                $or: [
+                  { "vendorInfo.0.vacationMode.enabled": { $ne: true } }, // Not on vacation
+                  {
+                    $and: [
+                      { "vendorInfo.0.vacationMode.enabled": true },
+                      {
+                        $or: [
+                          { "vendorInfo.0.vacationMode.startDate": { $gt: new Date() } }, // Vacation hasn't started
+                          { "vendorInfo.0.vacationMode.endDate": { $lt: new Date() } }, // Vacation has ended
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    });
+
     pipeline.push({
       $addFields: {
         categoryName: { $arrayElemAt: ["$categoryInfo.name", 0] }
@@ -109,7 +150,8 @@ class Product {
 
     pipeline.push({
       $project: {
-        categoryInfo: 0
+        categoryInfo: 0,
+        vendorInfo: 0 // Remove vendor info from output
       }
     });
 

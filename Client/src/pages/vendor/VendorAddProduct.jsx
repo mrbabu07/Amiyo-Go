@@ -288,9 +288,28 @@ const VendorAddProduct = () => {
               >
                 <option value="">Select Category</option>
                 {categories.map(cat => (
-                  <option key={cat._id} value={cat._id}>{cat.name}</option>
+                  <option key={cat._id} value={cat._id}>
+                    {cat.name} {cat.commissionRate ? `(${cat.commissionRate}% commission)` : ''}
+                  </option>
                 ))}
               </select>
+              
+              {/* Commission Info */}
+              {selectedCategory && selectedCategory.commissionRate > 0 && (
+                <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <span className="text-orange-600 text-lg">ℹ️</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-orange-900">
+                        Commission: {selectedCategory.commissionRate}%
+                      </p>
+                      <p className="text-xs text-orange-700 mt-1">
+                        Platform commission will be deducted from your earnings for this category
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Basic Fields */}
@@ -333,6 +352,30 @@ const VendorAddProduct = () => {
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
+                
+                {/* Earnings Calculator */}
+                {formData.price && selectedCategory && selectedCategory.commissionRate > 0 && (
+                  <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="text-xs space-y-1">
+                      <div className="flex justify-between text-gray-600">
+                        <span>Product Price:</span>
+                        <span className="font-medium">৳{parseFloat(formData.price).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-red-600">
+                        <span>Commission ({selectedCategory.commissionRate}%):</span>
+                        <span className="font-medium">
+                          -৳{((parseFloat(formData.price) * selectedCategory.commissionRate) / 100).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-green-700 font-semibold pt-1 border-t border-green-300">
+                        <span>Your Earning:</span>
+                        <span>
+                          ৳{(parseFloat(formData.price) - (parseFloat(formData.price) * selectedCategory.commissionRate) / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>

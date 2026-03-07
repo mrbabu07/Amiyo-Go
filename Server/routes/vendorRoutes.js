@@ -27,6 +27,12 @@ router.post("/upload-banner", verifyToken, vendorController.uploadBanner);
 // Vendor allowed categories
 router.get("/my-categories", verifyToken, requireRole("vendor"), vendorController.getVendorAllowedCategories);
 
+// Vendor shop status management
+router.get("/shop/status", verifyToken, requireRole("vendor"), vendorController.getShopStatus);
+router.patch("/shop/toggle", verifyToken, requireRole("vendor"), vendorController.toggleShopStatus);
+router.post("/shop/vacation", verifyToken, requireRole("vendor"), vendorController.setVacationMode);
+router.delete("/shop/vacation", verifyToken, requireRole("vendor"), vendorController.cancelVacationMode);
+
 // Vendor dashboard
 router.get("/dashboard/stats", verifyToken, vendorDashboardController.getDashboardStats);
 router.get("/orders/stats",    verifyToken, vendorDashboardController.getVendorOrderStats);

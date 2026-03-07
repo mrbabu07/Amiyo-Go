@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 import { useCurrency } from '../../hooks/useCurrency';
+import { getShopStatus } from '../../services/api';
 
 const VendorHome = () => {
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
   const [stats, setStats] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
+  const [shopStatus, setShopStatus] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,6 +41,16 @@ const VendorHome = () => {
         const ordersData = await ordersRes.json();
         setRecentOrders(ordersData.orders || []);
       }
+
+      // Fetch shop status
+      try {
+        const statusRes = await getShopStatus();
+        if (statusRes.data) {
+          setShopStatus(statusRes.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching shop status:', error);
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -61,6 +73,69 @@ const VendorHome = () => {
         <h1 className="text-2xl font-bold mb-2">Welcome to Seller Center!</h1>
         <p className="text-orange-100">Manage your shop, track sales, and grow your business</p>
       </div>
+
+      {/* Shop Status Alert */}
+      {shopStatus && (
+        <div className={`rounded-lg p-4 border-2 ${
+          shopStatus.isShopOpen && !shopStatus.isCurrentlyOnVacation
+            ? 'bg-green-50 border-green-300'
+            : 'bg-yellow-50 border-yellow-300'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                shopStatus.isShopOpen && !shopStatus.isCurrentlyOnVacation
+                  ? 'bg-green-500'
+                  : 'bg-yellow-500'
+              }`}>
+                <span className="text-2xl">
+                  {shopStatus.isShopOpen && !shopStatus.isCurrentlyOnVacation ? '🏪' : '🔒'}
+                </span>
+              </div>
+              <div>
+                <div className="font-bold text-gray-900">
+                  {shopStatus.isShopOpen && !shopStatus.isCurrentlyOnVacation
+                    ? 'Your shop is open'
+                    : shopStatus.isCurrentlyOnVacation
+                    ? 'Your shop is on vacation'
+                    : 'Your shop is closed'}
+                </div>
+                <div className="text-sm text-gray-600">
+                  {shopStatus.isCurrentlyOnVacation && shopStatus.vacationMode?.endDate
+                    ? `Vacation ends on ${new Date(shopStatus.vacationMode.endDate).toLocaleDateString()}`
+                    : shopStatus.isShopOpen
+                    ? 'Your products are visible to customers'
+                    : 'Your products are hidden from homepage'}
+                </div>
+              </div>
+            </div>
+            <Link
+              to="/vendor/settings"
+              className="bg-white hover:bg-gray-50 text-gray-900 px-4 py-2 rounded-lg font-medium transition border border-gray-300"
+            >
+              Manage Shop Status
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Commission Info Banner */}
+      {stats?.totalRevenue > 0 && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-2xl flex-shrink-0">
+              💡
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-blue-900 mb-1">Commission System Active</p>
+              <p className="text-sm text-blue-700">
+                Platform commission is calculated per category. Your actual earnings = Product Price - Commission. 
+                View detailed breakdown in <Link to="/vendor/finance" className="underline font-medium">Finance Center</Link>.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

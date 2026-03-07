@@ -35,6 +35,7 @@ const VendorOrder = require("./models/VendorOrder");
 const VendorPayout = require("./models/VendorPayout");
 const VendorChat = require("./models/VendorChat");
 const CategoryRequest = require("./models/CategoryRequest");
+const AdminVendorChat = require("./models/AdminVendorChat");
 
 // Import routes
 const productRoutes = require("./routes/productRoutes");
@@ -67,6 +68,7 @@ const adminPayoutRoutes  = require("./routes/adminPayoutRoutes");
 const adminVendorRoutes = require("./routes/adminVendorRoutes");
 const categoryRequestRoutes = require("./routes/categoryRequestRoutes");
 const vendorChatRoutes = require("./routes/vendorChatRoutes");
+const adminVendorChatRoutes = require("./routes/chatRoutes");
 
 // Import middleware and controllers for direct routes
 const { verifyToken, verifyAdmin } = require("./middleware/auth");
@@ -149,6 +151,7 @@ async function run() {
       VendorPayout: new VendorPayout(db),
       VendorChat: new VendorChat(db),
       CategoryRequest: new CategoryRequest(db),
+      AdminVendorChat: new AdminVendorChat(db),
     };
 
     // Store db reference for controllers that need it
@@ -264,6 +267,9 @@ async function run() {
 
     app.use("/api/vendor-chat", vendorChatRoutes);
     console.log("✅ Vendor Chat routes registered");
+    
+    app.use("/api/chat", adminVendorChatRoutes);
+    console.log("✅ Admin-Vendor Chat routes registered");
 
     // Returns routes
     app.post("/api/returns", verifyToken, createReturnRequest);

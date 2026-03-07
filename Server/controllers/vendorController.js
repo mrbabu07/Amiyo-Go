@@ -794,3 +794,247 @@ exports.uploadBanner = async (req, res) => {
     });
   }
 };
+
+/**
+ * Toggle shop status (open/closed)
+ * When closed, vendor's products won't show on homepage
+ */
+exports.toggleShopStatus = async (req, res) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    const { isShopOpen } = req.body;
+
+    if (typeof isShopOpen !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: "isShopOpen must be a boolean value",
+      });
+    }
+
+    await Vendor.collection.updateOne(
+      { _id: new ObjectId(vendorId) },
+      { 
+        $set: { 
+          isShopOpen,
+          shopClosedAt: isShopOpen ? null : new Date(),
+          shopOpenedAt: isShopOpen ? new Date() : null,
+          updatedAt: new Date() 
+        } 
+      }
+    );
+
+    res.json({
+      success: true,
+      message: isShopOpen ? "Shop opened successfully" : "Shop closed successfully",
+      isShopOpen,
+    });
+  } catch (error) {
+    console.error("Error toggling shop status:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to toggle shop status" 
+    });
+  }
+};
+
+/**
+ * Set vacation mode with start and end dates
+ * Automatically closes shop during vacation period
+ */
+exports.setVacationMode = async (req, res) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    const { vacationStart, vacationEnd, vacationReason } = req.body;
+
+    if (!vacationStart || !vacationEnd) {
+      return res.status(400).json({
+        success: false,
+        error: "Vacation start and end dates are required",
+      });
+    }
+
+    const startDate = new Date(vacationStart);
+    const endDate = new Date(vacationEnd);
+    const now = new Date();
+
+    if (startDate >= endDate) {
+      return res.status(400).json({
+        success: false,
+        error: "End date must be after start date",
+      });
+    }
+
+    if (endDate < now) {
+      return res.status(400).json({
+        success: false,
+        error: "End date cannot be in the past",
+      });
+    }
+
+    // Check if currently in vacation period
+    const isCurrentlyOnVacation = startDate <= now && endDate >= now;
+
+    await Vendor.collection.updateOne(
+      { _id: new ObjectId(vendorId) },
+      { 
+        $set: { 
+          vacationMode: {
+            enabled: true,
+            startDate,
+            endDate,
+            reason: vacationReason || "Vendor is on vacation",
+            setAt: new Date(),
+          },
+          isShopOpen: !isCurrentlyOnVacation, // Close shop if vacation is active now
+          updatedAt: new Date() 
+        } 
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Vacation mode set successfully",
+      vacationMode: {
+        enabled: true,
+        startDate,
+        endDate,
+        reason: vacationReason || "Vendor is on vacation",
+        isCurrentlyActive: isCurrentlyOnVacation,
+      },
+    });
+  } catch (error) {
+    console.error("Error setting vacation mode:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to set vacation mode" 
+    });
+  }
+};
+
+/**
+ * Cancel vacation mode
+ */
+exports.cancelVacationMode = async (req, res) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    await Vendor.collection.updateOne(
+      { _id: new ObjectId(vendorId) },
+      { 
+        $set: { 
+          "vacationMode.enabled": false,
+          "vacationMode.cancelledAt": new Date(),
+          isShopOpen: true, // Reopen shop when cancelling vacation
+          updatedAt: new Date() 
+        } 
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Vacation mode cancelled successfully",
+    });
+  } catch (error) {
+    console.error("Error cancelling vacation mode:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to cancel vacation mode" 
+    });
+  }
+};
+
+/**
+ * Get shop status and vacation info
+ */
+exports.getShopStatus = async (req, res) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    const vendor = await Vendor.findById(vendorId);
+    
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        error: "Vendor not found",
+      });
+    }
+
+    const now = new Date();
+    let isCurrentlyOnVacation = false;
+    
+    if (vendor.vacationMode?.enabled) {
+      const start = new Date(vendor.vacationMode.startDate);
+      const end = new Date(vendor.vacationMode.endDate);
+      isCurrentlyOnVacation = start <= now && end >= now;
+      
+      // Auto-disable vacation if period has ended
+      if (now > end) {
+        await Vendor.collection.updateOne(
+          { _id: new ObjectId(vendorId) },
+          { 
+            $set: { 
+              "vacationMode.enabled": false,
+              "vacationMode.autoDisabledAt": new Date(),
+              isShopOpen: true,
+              updatedAt: new Date() 
+            } 
+          }
+        );
+        vendor.vacationMode.enabled = false;
+        vendor.isShopOpen = true;
+        isCurrentlyOnVacation = false;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        isShopOpen: vendor.isShopOpen !== false, // Default to true if not set
+        vacationMode: vendor.vacationMode || { enabled: false },
+        isCurrentlyOnVacation,
+        shopClosedAt: vendor.shopClosedAt,
+        shopOpenedAt: vendor.shopOpenedAt,
+      },
+    });
+  } catch (error) {
+    console.error("Error getting shop status:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to get shop status" 
+    });
+  }
+};

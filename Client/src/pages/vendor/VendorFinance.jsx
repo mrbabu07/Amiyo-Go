@@ -100,25 +100,35 @@ export default function VendorFinance() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {/* Balance Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Available Balance */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          {/* Pending Balance */}
           <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-orange-100 text-sm font-medium">Total Earnings</span>
+              <span className="text-orange-100 text-sm font-medium">Pending Balance</span>
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">💰</div>
             </div>
-            <div className="text-3xl font-bold mb-1">{formatPrice(stats?.netEarnings || 0)}</div>
-            <div className="text-orange-100 text-sm">After commission deduction</div>
+            <div className="text-3xl font-bold mb-1">{formatPrice(stats?.pendingBalance || 0)}</div>
+            <div className="text-orange-100 text-sm">Available for payout</div>
+          </div>
+
+          {/* Paid Balance */}
+          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-green-100 text-sm font-medium">Paid Balance</span>
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">✅</div>
+            </div>
+            <div className="text-3xl font-bold mb-1">{formatPrice(stats?.paidBalance || 0)}</div>
+            <div className="text-green-100 text-sm">Already received</div>
           </div>
 
           {/* Gross Sales */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <div className="flex items-center justify-between mb-4">
               <span className="text-gray-500 text-sm font-medium">Gross Sales</span>
-              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-xl">📊</div>
+              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-xl">�</div>
             </div>
             <div className="text-3xl font-bold text-gray-900 mb-1">{formatPrice(stats?.grossSales || 0)}</div>
-            <div className="text-sm text-gray-400">Total sales before commission</div>
+            <div className="text-sm text-gray-400">Before commission</div>
           </div>
 
           {/* Commission */}
@@ -127,8 +137,8 @@ export default function VendorFinance() {
               <span className="text-gray-500 text-sm font-medium">Total Commission</span>
               <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-xl">📉</div>
             </div>
-            <div className="text-3xl font-bold text-red-600 mb-1">{formatPrice(stats?.totalCommission || 0)}</div>
-            <div className="text-sm text-gray-400">{stats?.ordersCount || 0} orders processed</div>
+            <div className="text-3xl font-bold text-red-600 mb-1">-{formatPrice(stats?.totalCommission || 0)}</div>
+            <div className="text-sm text-gray-400">Platform fee</div>
           </div>
         </div>
 
@@ -166,28 +176,59 @@ export default function VendorFinance() {
             {/* Overview Tab */}
             {activeTab === "overview" && (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
-                    <p className="text-sm text-green-700 mb-1">Gross Sales</p>
-                    <p className="text-2xl font-bold text-green-900">{formatPrice(stats?.grossSales || 0)}</p>
-                  </div>
-                  <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-4 border border-red-200">
-                    <p className="text-sm text-red-700 mb-1">Commission</p>
-                    <p className="text-2xl font-bold text-red-900">-{formatPrice(stats?.totalCommission || 0)}</p>
-                  </div>
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
-                    <p className="text-sm text-blue-700 mb-1">Net Earnings</p>
-                    <p className="text-2xl font-bold text-blue-900">{formatPrice(stats?.netEarnings || 0)}</p>
+                {/* Earnings Breakdown */}
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
+                  <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <span className="text-xl">💵</span>
+                    Earnings Breakdown
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Gross Sales (All Orders)</span>
+                      <span className="text-xl font-bold text-gray-900">{formatPrice(stats?.grossSales || 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-red-600">Platform Commission</span>
+                      <span className="text-xl font-bold text-red-600">-{formatPrice(stats?.totalCommission || 0)}</span>
+                    </div>
+                    <div className="border-t-2 border-gray-300 pt-3 flex justify-between items-center">
+                      <span className="text-green-700 font-semibold">Net Earnings</span>
+                      <span className="text-2xl font-bold text-green-700">{formatPrice(stats?.netEarnings || 0)}</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-lg p-6">
-                  <h4 className="font-semibold text-gray-900 mb-4">How Earnings Work</h4>
-                  <div className="space-y-3 text-sm text-gray-600">
-                    <p>• <strong>Gross Sales:</strong> Total amount from all your delivered orders</p>
-                    <p>• <strong>Commission:</strong> Platform fee based on product category (varies by category)</p>
-                    <p>• <strong>Net Earnings:</strong> Your actual earnings after commission deduction</p>
-                    <p>• <strong>Payouts:</strong> Processed by admin when orders are delivered</p>
+                {/* Balance Status */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-5 border border-orange-200">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-2xl">⏳</span>
+                      <p className="text-sm text-orange-700 font-medium">Pending Balance</p>
+                    </div>
+                    <p className="text-3xl font-bold text-orange-900">{formatPrice(stats?.pendingBalance || 0)}</p>
+                    <p className="text-xs text-orange-600 mt-1">From delivered orders, awaiting payout</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-5 border border-green-200">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-2xl">✅</span>
+                      <p className="text-sm text-green-700 font-medium">Paid Balance</p>
+                    </div>
+                    <p className="text-3xl font-bold text-green-900">{formatPrice(stats?.paidBalance || 0)}</p>
+                    <p className="text-xs text-green-600 mt-1">Total amount received via payouts</p>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+                  <h4 className="font-semibold text-blue-900 mb-4 flex items-center gap-2">
+                    <span className="text-xl">ℹ️</span>
+                    How Earnings Work
+                  </h4>
+                  <div className="space-y-3 text-sm text-blue-800">
+                    <p>• <strong>Gross Sales:</strong> Total amount from all your delivered orders (what customers paid)</p>
+                    <p>• <strong>Commission:</strong> Platform fee based on product category - deducted automatically</p>
+                    <p>• <strong>Net Earnings:</strong> Your actual earnings after commission (Gross Sales - Commission)</p>
+                    <p>• <strong>Pending Balance:</strong> Net earnings from delivered orders waiting for admin payout</p>
+                    <p>• <strong>Paid Balance:</strong> Amount already transferred to you by admin</p>
                   </div>
                 </div>
               </div>

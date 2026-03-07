@@ -20,7 +20,7 @@ import {
   cancelPayout,
 } from '../../services/api';
 
-const TABS = ['Overview', 'Products', 'Orders', 'Earnings', 'Payouts', 'Actions'];
+const TABS = ['Overview', 'Products', 'Orders', 'Returns', 'Earnings', 'Payouts', 'Actions'];
 const PRODUCT_STATUS_FILTERS = ['pending', 'approved', 'rejected'];
 
 const StatusBadge = ({ status }) => {
@@ -78,6 +78,11 @@ export default function AdminVendorDetail() {
   const [showPaymentModal, setShowPaymentModal] = useState(null); // payoutId
   const [transactionId, setTransactionId] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
+
+  // returns tab
+  const [returns, setReturns] = useState([]);
+  const [returnsLoading, setReturnsLoading] = useState(false);
+  const [returnStats, setReturnStats] = useState(null);
 
   // actions tab
   const [actionNote, setActionNote] = useState('');
@@ -180,6 +185,38 @@ export default function AdminVendorDetail() {
   useEffect(() => {
     if (activeTab === 'Payouts') loadPayouts();
   }, [activeTab, loadPayouts]);
+
+  // ─── fetch returns ────────────────────────────────────────────
+  const loadReturns = useCallback(async () => {
+    setReturnsLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const [returnsRes, statsRes] = await Promise.all([
+        fetch(`${import.meta.env.VITE_API_URL}/returns/admin/all`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).then(r => r.json()),
+        fetch(`${import.meta.env.VITE_API_URL}/returns/admin/stats`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).then(r => r.json()),
+      ]);
+      
+      // Filter returns for this vendor
+      const vendorReturns = (returnsRes.data || []).filter(
+        ret => ret.vendorId && ret.vendorId.toString() === vendorId
+      );
+      
+      setReturns(vendorReturns);
+      setReturnStats(statsRes.data);
+    } catch {
+      toast.error('Failed to load returns');
+    } finally {
+      setReturnsLoading(false);
+    }
+  }, [vendorId, user]);
+
+  useEffect(() => {
+    if (activeTab === 'Returns') loadReturns();
+  }, [activeTab, loadReturns]);
 
   // ─── product actions ──────────────────────────────────────────
   const handleApproveProduct = async (productId) => {
@@ -546,6 +583,147 @@ export default function AdminVendorDetail() {
           </div>
         )}
 
+        {/* ── TAB: Returns ──────────────────────────────────────── */}
+        {activeTab === 'Returns' && (
+          <div className="space-y-6">
+            {returnsLoading ? (
+              <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500">Loading returns...</div>
+            ) : (
+              <>
+                {/* Returns Impact Card */}
+                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl shadow-sm p-6 border border-red-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Returns Impact on Payouts</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Total Returns</p>
+                      <p className="text-2xl font-bold text-gray-900">{returns.length}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Pending Review</p>
+                      <p className="text-2xl font-bold text-yellow-600">
+                        {returns.filter(r => r.status === 'pending').length}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Approved</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {returns.filter(r => ['approved', 'completed', 'refunded'].includes(r.status)).length}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Total Deductions</p>
+                      <p className="text-2xl font-bold text-red-600">
+                        ৳{returns
+                          .filter(r => ['approved', 'completed', 'refunded'].includes(r.status))
+                          .reduce((sum, r) => sum + (r.vendorDeduction || 0), 0)
+                          .toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 p-3 bg-white/50 rounded-lg">
+                    <p className="text-xs text-gray-700">
+                      <strong>Note:</strong> When a return is approved, the vendor's earning amount is deducted from their next payout. 
+                      The customer receives a full refund (including commission).
+                    </p>
+                  </div>
+                </div>
+
+                {/* Returns List */}
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b">
+                    <h3 className="font-semibold text-gray-900">Return Requests</h3>
+                  </div>
+                  {returns.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">No returns found</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                          <tr>
+                            <th className="px-4 py-3 text-left">Return ID</th>
+                            <th className="px-4 py-3 text-left">Date</th>
+                            <th className="px-4 py-3 text-left">Product</th>
+                            <th className="px-4 py-3 text-left">Reason</th>
+                            <th className="px-4 py-3 text-right">Customer Refund</th>
+                            <th className="px-4 py-3 text-right">Vendor Deduction</th>
+                            <th className="px-4 py-3 text-left">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {returns.map((ret) => (
+                            <tr key={ret._id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                                #{ret._id?.toString().slice(-8)}
+                              </td>
+                              <td className="px-4 py-3 text-gray-600">
+                                {new Date(ret.createdAt).toLocaleDateString()}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="font-medium text-gray-900 max-w-xs truncate">
+                                  {ret.productTitle}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  Qty: {ret.quantity} × ৳{ret.productPrice?.toLocaleString()}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-gray-600 max-w-xs truncate">
+                                {ret.reason?.replace(/_/g, ' ')}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="font-semibold text-gray-900">
+                                  ৳{ret.refundAmount?.toLocaleString()}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  To customer
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="font-semibold text-red-600">
+                                  -৳{ret.vendorDeduction?.toLocaleString() || '0'}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  From vendor
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <StatusBadge status={ret.status} />
+                                {ret.adminNotes && (
+                                  <div className="text-xs text-gray-500 mt-1 max-w-xs truncate">
+                                    {ret.adminNotes}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* How It Works */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="text-sm text-blue-900">
+                      <p className="font-medium mb-2">How Returns Affect Vendor Payouts:</p>
+                      <ul className="list-disc list-inside space-y-1 text-blue-800">
+                        <li><strong>Customer Refund:</strong> Full amount paid (price + commission)</li>
+                        <li><strong>Vendor Deduction:</strong> Only their earning amount (price - commission)</li>
+                        <li><strong>Admin Loss:</strong> Commission amount is not recovered</li>
+                        <li><strong>Payout Calculation:</strong> Earnings - Paid - Pending - Return Deductions</li>
+                        <li><strong>Example:</strong> Product sold for ৳100 with 15% commission → Vendor earned ৳85 → If returned, vendor loses ৳85, customer gets ৳100 back</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* ── TAB: Earnings ─────────────────────────────────────── */}
         {activeTab === 'Earnings' && (
           <div className="space-y-6">
@@ -657,7 +835,7 @@ export default function AdminVendorDetail() {
                         Create Payout
                       </button>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                       <div>
                         <p className="text-xs text-gray-600 mb-1">Total Delivered Earnings</p>
                         <p className="text-xl font-bold text-gray-900">৳{eligiblePayout.totalDeliveredEarnings?.toLocaleString()}</p>
@@ -669,6 +847,13 @@ export default function AdminVendorDetail() {
                       <div>
                         <p className="text-xs text-gray-600 mb-1">Pending Payouts</p>
                         <p className="text-xl font-bold text-yellow-600">৳{eligiblePayout.pendingPayouts?.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Return Deductions</p>
+                        <p className="text-xl font-bold text-red-600">৳{eligiblePayout.returnDeductions?.toLocaleString() || '0'}</p>
+                        {eligiblePayout.returnsCount > 0 && (
+                          <p className="text-xs text-gray-500 mt-0.5">{eligiblePayout.returnsCount} returns</p>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs text-gray-600 mb-1">Available Now</p>

@@ -133,6 +133,43 @@ class Category {
     
     return tree;
   }
+
+  /**
+   * Bulk update commission rates for multiple categories
+   */
+  async bulkUpdateCommission(updates) {
+    const bulkOps = updates.map((update) => ({
+      updateOne: {
+        filter: { _id: new ObjectId(update.categoryId) },
+        update: {
+          $set: {
+            commissionRate: Math.round(update.commissionRate * 100) / 100,
+            updatedAt: new Date(),
+          },
+        },
+      },
+    }));
+
+    return await this.collection.bulkWrite(bulkOps);
+  }
+
+  /**
+   * Get categories with their commission rates
+   */
+  async getCategoriesWithCommission() {
+    return await this.collection
+      .find({ isActive: true })
+      .project({
+        _id: 1,
+        name: 1,
+        slug: 1,
+        parentId: 1,
+        commissionRate: 1,
+        icon: 1,
+      })
+      .sort({ name: 1 })
+      .toArray();
+  }
 }
 
 module.exports = Category;

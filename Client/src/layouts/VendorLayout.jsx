@@ -85,8 +85,16 @@ const VendorLayout = () => {
       children: [
         { title: 'Messages', path: '/vendor/messages', icon: '✉️' },
         { title: 'Reviews', path: '/vendor/reviews', icon: '⭐' },
+        { title: 'Returns', path: '/vendor/returns', icon: '↩️' },
         { title: 'Q&A', path: '/vendor/qa', icon: '❓' },
       ],
+    },
+    {
+      title: 'Support Chat',
+      icon: '💬',
+      path: '/vendor/support-chat',
+      description: 'Chat with Admin',
+      highlight: true,
     },
     {
       title: 'Settings',
@@ -229,7 +237,11 @@ const VendorLayout = () => {
                   <Link
                     to={item.path}
                     className={`flex items-center gap-3 px-3 py-2 rounded-lg transition ${
-                      isActive(item.path)
+                      item.highlight
+                        ? isActive(item.path)
+                          ? 'bg-green-600 text-white font-medium shadow-lg'
+                          : 'bg-green-500 text-white hover:bg-green-600 font-medium shadow-md'
+                        : isActive(item.path)
                         ? 'bg-orange-50 text-orange-600 font-medium'
                         : 'text-gray-700 hover:bg-gray-100'
                     }`}

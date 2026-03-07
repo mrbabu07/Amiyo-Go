@@ -129,20 +129,33 @@ const createReturnRequest = async (req, res) => {
       });
     }
 
+    const orderProduct = canReturn.orderProduct;
+
+    // Calculate refund amount and track vendor/commission info
+    const refundAmount = orderProduct.price * orderProduct.quantity;
+    const vendorEarningAmount = orderProduct.vendorEarningAmount || 0;
+    const adminCommissionAmount = orderProduct.adminCommissionAmount || 0;
+    const commissionRateSnapshot = orderProduct.commissionRateSnapshot || 0;
+
     const returnData = {
       userId,
       orderId,
       productId,
-      productTitle: canReturn.orderProduct.title,
-      productPrice: canReturn.orderProduct.price,
-      quantity: canReturn.orderProduct.quantity,
+      productTitle: orderProduct.title || orderProduct.name,
+      productPrice: orderProduct.price,
+      quantity: orderProduct.quantity,
       reason,
       description,
       images,
       refundMethod,
       refundAccountNumber,
-      refundAmount:
-        canReturn.orderProduct.price * canReturn.orderProduct.quantity,
+      refundAmount,
+      // Track vendor and commission info
+      vendorId: orderProduct.vendorId || null,
+      vendorEarningAmount,
+      adminCommissionAmount,
+      commissionRateSnapshot,
+      categoryId: orderProduct.categoryId || null,
     };
 
     const returnId = await Return.create(returnData);
@@ -319,4 +332,77 @@ module.exports = {
   processRefund,
   getReturnStats,
   getOrderReturns,
+};
+
+
+/**
+ * Get vendor's returns (for vendor dashboard)
+ */
+const getVendorReturns = async (req, res) => {
+  try {
+    const Return = req.app.locals.models.Return;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    const { status, page = 1, limit = 20 } = req.query;
+
+    const filter = { page: parseInt(page), limit: parseInt(limit) };
+    if (status) filter.status = status;
+
+    const result = await Return.findByVendorId(vendorId, filter);
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error("Error fetching vendor returns:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Get vendor return statistics
+ */
+const getVendorReturnStats = async (req, res) => {
+  try {
+    const Return = req.app.locals.models.Return;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    const stats = await Return.getVendorReturnStats(vendorId);
+
+    res.json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    console.error("Error fetching vendor return stats:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+module.exports = {
+  getAllReturns,
+  getUserReturns,
+  getReturnById,
+  createReturnRequest,
+  updateReturnStatus,
+  processRefund,
+  getReturnStats,
+  getOrderReturns,
+  getVendorReturns,
+  getVendorReturnStats,
 };

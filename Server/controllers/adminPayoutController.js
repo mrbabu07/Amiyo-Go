@@ -2,13 +2,14 @@ const { ObjectId } = require("mongodb");
 
 /**
  * Calculate eligible payout for a vendor
- * Shows delivered items that haven't been paid yet
+ * Shows delivered items that haven't been paid yet, minus return deductions
  */
 exports.calculateEligiblePayout = async (req, res) => {
   try {
     const { vendorId } = req.params;
     const Order = req.app.locals.models.Order;
     const VendorPayout = req.app.locals.models.VendorPayout;
+    const Return = req.app.locals.models.Return;
 
     // Get all orders with delivered items for this vendor
     const orders = await Order.collection
@@ -59,8 +60,15 @@ exports.calculateEligiblePayout = async (req, res) => {
       .toArray();
     const pendingAmount = pendingPayouts.reduce((sum, p) => sum + (p.amount || 0), 0);
 
-    // Calculate final eligible amount
-    const finalEligibleAmount = Math.max(0, eligibleAmount - alreadyPaid - pendingAmount);
+    // Get return deductions (approved/completed returns)
+    const returnDeductions = await Return.getVendorDeductions(vendorId);
+    const totalReturnDeductions = returnDeductions.totalDeduction || 0;
+
+    // Calculate final eligible amount (earnings - paid - pending - returns)
+    const finalEligibleAmount = Math.max(
+      0,
+      eligibleAmount - alreadyPaid - pendingAmount - totalReturnDeductions
+    );
 
     res.json({
       success: true,
@@ -68,10 +76,13 @@ exports.calculateEligiblePayout = async (req, res) => {
         totalDeliveredEarnings: Math.round(eligibleAmount * 100) / 100,
         alreadyPaid: Math.round(alreadyPaid * 100) / 100,
         pendingPayouts: Math.round(pendingAmount * 100) / 100,
+        returnDeductions: Math.round(totalReturnDeductions * 100) / 100,
+        returnsCount: returnDeductions.returnsCount,
         eligibleAmount: Math.round(finalEligibleAmount * 100) / 100,
         totalItems,
         eligibleOrdersCount: eligibleOrders.length,
         eligibleOrders: eligibleOrders.slice(0, 10), // Show first 10
+        returns: returnDeductions.returns.slice(0, 10), // Show first 10 returns
       },
     });
   } catch (error) {
@@ -404,6 +415,244 @@ exports.getVendorPayouts = async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to fetch payouts",
+    });
+  }
+};
+
+/**
+ * Get vendors eligible for 7-day payout cycle
+ * Returns vendors with delivered orders from the last 7 days
+ */
+exports.getWeeklyPayoutList = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const Vendor = req.app.locals.models.Vendor;
+    const VendorPayout = req.app.locals.models.VendorPayout;
+
+    // Calculate date range (last 7 days)
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 7);
+
+    console.log(`📅 Calculating weekly payouts from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+
+    // Get all orders with delivered items in the last 7 days
+    const orders = await Order.collection
+      .find({
+        "products.itemStatus": "delivered",
+        "products.deliveredAt": {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      })
+      .toArray();
+
+    console.log(`📦 Found ${orders.length} orders with delivered items in last 7 days`);
+
+    // Group earnings by vendor
+    const vendorEarnings = {};
+
+    orders.forEach((order) => {
+      order.products.forEach((product) => {
+        if (
+          product.itemStatus === "delivered" &&
+          product.deliveredAt &&
+          new Date(product.deliveredAt) >= startDate &&
+          new Date(product.deliveredAt) <= endDate &&
+          product.vendorId
+        ) {
+          const vendorId = product.vendorId.toString();
+          
+          if (!vendorEarnings[vendorId]) {
+            vendorEarnings[vendorId] = {
+              vendorId,
+              totalEarnings: 0,
+              itemsCount: 0,
+              ordersCount: 0,
+              orderIds: new Set(),
+            };
+          }
+
+          vendorEarnings[vendorId].totalEarnings += product.vendorEarningAmount || 0;
+          vendorEarnings[vendorId].itemsCount++;
+          vendorEarnings[vendorId].orderIds.add(order._id.toString());
+        }
+      });
+    });
+
+    // Convert to array and get vendor details
+    const vendorsList = await Promise.all(
+      Object.values(vendorEarnings).map(async (earning) => {
+        earning.ordersCount = earning.orderIds.size;
+        delete earning.orderIds;
+
+        // Get vendor details
+        const vendor = await Vendor.findById(earning.vendorId);
+        
+        // Get already paid amount for this period
+        const existingPayouts = await VendorPayout.collection
+          .find({
+            vendorId: new ObjectId(earning.vendorId),
+            periodStart: { $gte: startDate },
+            periodEnd: { $lte: endDate },
+            status: { $in: ["paid", "pending"] },
+          })
+          .toArray();
+
+        const alreadyPaidOrPending = existingPayouts.reduce(
+          (sum, p) => sum + (p.amount || 0),
+          0
+        );
+
+        // Get return deductions for this period
+        const Return = req.app.locals.models.Return;
+        const returnDeductions = await Return.getVendorDeductions(
+          earning.vendorId,
+          startDate,
+          endDate
+        );
+
+        const eligibleAmount = Math.max(
+          0,
+          earning.totalEarnings - alreadyPaidOrPending - returnDeductions.totalDeduction
+        );
+
+        return {
+          vendorId: earning.vendorId,
+          vendorName: vendor?.shopName || "Unknown Vendor",
+          vendorEmail: vendor?.email || "",
+          vendorPhone: vendor?.phone || "",
+          // Bank info for payout
+          bankName: vendor?.bankName || "",
+          bankAccountNumber: vendor?.bankAccountNumber || "",
+          bankAccountName: vendor?.bankAccountName || "",
+          bankBranch: vendor?.bankBranch || "",
+          mobileBankingProvider: vendor?.mobileBankingProvider || "",
+          mobileBankingNumber: vendor?.mobileBankingNumber || "",
+          totalEarnings: Math.round(earning.totalEarnings * 100) / 100,
+          alreadyPaidOrPending: Math.round(alreadyPaidOrPending * 100) / 100,
+          returnDeductions: Math.round(returnDeductions.totalDeduction * 100) / 100,
+          returnsCount: returnDeductions.returnsCount,
+          eligibleAmount: Math.round(eligibleAmount * 100) / 100,
+          itemsCount: earning.itemsCount,
+          ordersCount: earning.ordersCount,
+          hasPendingPayout: existingPayouts.some((p) => p.status === "pending"),
+          periodStart: startDate,
+          periodEnd: endDate,
+        };
+      })
+    );
+
+    // Filter out vendors with no eligible amount
+    const eligibleVendors = vendorsList.filter((v) => v.eligibleAmount > 0);
+
+    // Calculate totals
+    const totalEligibleAmount = eligibleVendors.reduce(
+      (sum, v) => sum + v.eligibleAmount,
+      0
+    );
+
+    console.log(`✅ Found ${eligibleVendors.length} vendors eligible for payout`);
+
+    res.json({
+      success: true,
+      data: {
+        periodStart: startDate,
+        periodEnd: endDate,
+        vendors: eligibleVendors,
+        totalVendors: eligibleVendors.length,
+        totalEligibleAmount: Math.round(totalEligibleAmount * 100) / 100,
+      },
+    });
+  } catch (error) {
+    console.error("Error calculating weekly payout list:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to calculate weekly payout list",
+    });
+  }
+};
+
+/**
+ * Create bulk payouts for weekly cycle
+ * Creates payout records for multiple vendors at once
+ */
+exports.createBulkPayouts = async (req, res) => {
+  try {
+    const { payouts, periodStart, periodEnd } = req.body;
+
+    if (!Array.isArray(payouts) || payouts.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Payouts array is required",
+      });
+    }
+
+    const VendorPayout = req.app.locals.models.VendorPayout;
+    const Vendor = req.app.locals.models.Vendor;
+
+    const createdPayouts = [];
+    const errors = [];
+
+    for (const payoutData of payouts) {
+      try {
+        const { vendorId, amount, note } = payoutData;
+
+        if (!vendorId || !amount || amount <= 0) {
+          errors.push({
+            vendorId,
+            error: "Invalid vendor ID or amount",
+          });
+          continue;
+        }
+
+        // Get vendor details
+        const vendor = await Vendor.findById(vendorId);
+        if (!vendor) {
+          errors.push({
+            vendorId,
+            error: "Vendor not found",
+          });
+          continue;
+        }
+
+        // Create payout record
+        const payout = await VendorPayout.create({
+          vendorId,
+          amount: Math.round(amount * 100) / 100,
+          note: note || `Weekly payout for ${new Date(periodStart).toLocaleDateString()} - ${new Date(periodEnd).toLocaleDateString()}`,
+          periodStart: periodStart ? new Date(periodStart) : null,
+          periodEnd: periodEnd ? new Date(periodEnd) : null,
+          createdBy: req.user._id,
+          vendorName: vendor.shopName,
+          vendorPhone: vendor.phone,
+        });
+
+        createdPayouts.push(payout);
+      } catch (error) {
+        console.error(`Error creating payout for vendor ${payoutData.vendorId}:`, error);
+        errors.push({
+          vendorId: payoutData.vendorId,
+          error: error.message,
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Created ${createdPayouts.length} payouts successfully`,
+      data: {
+        created: createdPayouts.length,
+        failed: errors.length,
+        payouts: createdPayouts,
+        errors: errors.length > 0 ? errors : undefined,
+      },
+    });
+  } catch (error) {
+    console.error("Error creating bulk payouts:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create bulk payouts",
     });
   }
 };

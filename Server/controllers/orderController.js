@@ -159,10 +159,11 @@ const createOrder = async (req, res) => {
         });
       }
 
-      // Add vendorId to product item
+      // Add vendorId and categoryId to product item (categoryId needed for commission calculation)
       productsWithVendor.push({
         ...item,
         vendorId: product.vendorId || null,
+        categoryId: product.categoryId || null,
       });
     }
 

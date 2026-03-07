@@ -61,11 +61,15 @@ import VendorShop from "../pages/vendor/VendorShop";
 import VendorMessages from "../pages/vendor/VendorMessages";
 import VendorReviews from "../pages/vendor/VendorReviews";
 import VendorQA from "../pages/vendor/VendorQA";
+import VendorReturns from "../pages/vendor/VendorReturns";
 import VendorBulkUpload from "../pages/vendor/VendorBulkUpload";
+import VendorSupportChat from "../pages/vendor/VendorSupportChat";
 import ComingSoon from "../pages/vendor/ComingSoon";
 import AdminVendors from "../pages/admin/AdminVendors";
 import AdminVendorDetail from "../pages/admin/AdminVendorDetail";
 import AdminPayouts from "../pages/admin/AdminPayouts";
+import AdminVendorChats from "../pages/admin/AdminVendorChats";
+import AdminChatDetail from "../pages/admin/AdminChatDetail";
 import AuthDebug from "../pages/AuthDebug";
 import VendorStore from "../pages/VendorStore";
 
@@ -314,6 +318,22 @@ const router = createBrowserRouter([
         ),
       },
       {
+        path: "/admin/chats",
+        element: (
+          <AdminRoute>
+            <AdminVendorChats />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "/admin/chat/:vendorId",
+        element: (
+          <AdminRoute>
+            <AdminChatDetail />
+          </AdminRoute>
+        ),
+      },
+      {
         path: "/admin/category-requests",
         element: (
           <AdminRoute>
@@ -404,7 +424,9 @@ const router = createBrowserRouter([
       { path: "shop", element: <VendorShop /> },
       { path: "messages", element: <VendorMessages /> },
       { path: "reviews", element: <VendorReviews /> },
+      { path: "returns", element: <VendorReturns /> },
       { path: "qa", element: <VendorQA /> },
+      { path: "support-chat", element: <VendorSupportChat /> },
       { path: "category-requests", element: <VendorCategoryRequests /> },
       { path: "settings", element: <VendorSettings /> },
     ],

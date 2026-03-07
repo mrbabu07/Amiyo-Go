@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 import { auth } from '../../firebase/firebase.config';
 import axios from 'axios';
+import ShopStatusManager from '../../components/vendor/ShopStatusManager';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -197,6 +198,9 @@ const VendorSettings = () => {
             <span>{success}</span>
           </div>
         )}
+
+        {/* Shop Status Manager */}
+        <ShopStatusManager />
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Banner & Logo Section */}

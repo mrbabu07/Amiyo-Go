@@ -10,6 +10,8 @@ const {
   cancelPayout,
   getPayoutStats,
   getVendorPayouts,
+  getWeeklyPayoutList,
+  createBulkPayouts,
 } = require("../controllers/adminPayoutController");
 
 // Vendor route (for vendor dashboard) - MUST be before /:payoutId to avoid route conflict
@@ -18,6 +20,8 @@ router.get("/my-payouts", verifyToken, getVendorPayouts);
 // Admin routes
 router.get("/", verifyToken, verifyAdmin, getAllPayouts);
 router.get("/stats", verifyToken, verifyAdmin, getPayoutStats);
+router.get("/weekly-list", verifyToken, verifyAdmin, getWeeklyPayoutList);
+router.post("/bulk", verifyToken, verifyAdmin, createBulkPayouts);
 router.get("/:payoutId", verifyToken, verifyAdmin, getPayoutById);
 router.get("/vendor/:vendorId/eligible", verifyToken, verifyAdmin, calculateEligiblePayout);
 router.post("/vendor/:vendorId", verifyToken, verifyAdmin, createPayout);

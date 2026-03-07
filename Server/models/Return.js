@@ -30,10 +30,20 @@ class Return {
   async create(returnData) {
     const returnRequest = {
       ...returnData,
-      status: "pending", // pending, approved, rejected, processing, completed
+      status: "pending", // pending, approved, rejected, processing, completed, refunded
       images: returnData.images || [], // Support for multiple images
-      refundMethod: returnData.refundMethod || null, // bkash, nagad, rocket, upay
+      refundMethod: returnData.refundMethod || null, // bkash, nagad, rocket, upay, bank_transfer
       refundAccountNumber: returnData.refundAccountNumber || null, // Mobile banking account number
+      // Financial tracking
+      vendorId: returnData.vendorId || null,
+      vendorEarningAmount: returnData.vendorEarningAmount || 0, // Amount vendor earned from this item
+      adminCommissionAmount: returnData.adminCommissionAmount || 0, // Commission admin earned
+      commissionRateSnapshot: returnData.commissionRateSnapshot || 0, // Commission rate at time of sale
+      // Deduction tracking
+      vendorDeduction: 0, // Amount to deduct from vendor payout (set when approved)
+      adminRefund: 0, // Amount admin refunds to customer (set when approved)
+      isDeductedFromVendor: false, // Whether deduction has been applied to vendor
+      deductedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -54,7 +64,15 @@ class Return {
 
     if (status === "approved") {
       updateData.approvedAt = new Date();
-    } else if (status === "completed") {
+      // When approved, calculate deductions
+      const returnDoc = await this.findById(id);
+      if (returnDoc) {
+        // Vendor loses their earning amount
+        updateData.vendorDeduction = returnDoc.vendorEarningAmount || 0;
+        // Admin refunds full amount to customer (including commission)
+        updateData.adminRefund = returnDoc.refundAmount || 0;
+      }
+    } else if (status === "completed" || status === "refunded") {
       updateData.completedAt = new Date();
     }
 
@@ -160,6 +178,131 @@ class Return {
           updatedAt: new Date(),
         },
       },
+    );
+  }
+
+  /**
+   * Get returns by vendor ID
+   */
+  async findByVendorId(vendorId, filter = {}) {
+    const query = { vendorId: new ObjectId(vendorId) };
+    
+    if (filter.status) {
+      query.status = filter.status;
+    }
+
+    const { page = 1, limit = 20 } = filter;
+    const skip = (page - 1) * limit;
+
+    const [returns, total] = await Promise.all([
+      this.collection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray(),
+      this.collection.countDocuments(query),
+    ]);
+
+    return {
+      returns,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+    };
+  }
+
+  /**
+   * Get vendor return statistics
+   */
+  async getVendorReturnStats(vendorId) {
+    const pipeline = [
+      { $match: { vendorId: new ObjectId(vendorId) } },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+          totalDeduction: { $sum: "$vendorDeduction" },
+        },
+      },
+    ];
+
+    const stats = await this.collection.aggregate(pipeline).toArray();
+
+    const result = {
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      processing: 0,
+      completed: 0,
+      refunded: 0,
+      totalReturns: 0,
+      totalDeductions: 0,
+      approvedDeductions: 0,
+    };
+
+    stats.forEach((stat) => {
+      result[stat._id] = stat.count;
+      result.totalReturns += stat.count;
+      result.totalDeductions += stat.totalDeduction || 0;
+      
+      if (stat._id === "approved" || stat._id === "completed" || stat._id === "refunded") {
+        result.approvedDeductions += stat.totalDeduction || 0;
+      }
+    });
+
+    return result;
+  }
+
+  /**
+   * Get total vendor deductions for payout calculation
+   * Returns sum of approved/completed returns that should be deducted from vendor earnings
+   */
+  async getVendorDeductions(vendorId, periodStart = null, periodEnd = null) {
+    const query = {
+      vendorId: new ObjectId(vendorId),
+      status: { $in: ["approved", "completed", "refunded"] },
+    };
+
+    if (periodStart || periodEnd) {
+      query.approvedAt = {};
+      if (periodStart) query.approvedAt.$gte = new Date(periodStart);
+      if (periodEnd) query.approvedAt.$lte = new Date(periodEnd);
+    }
+
+    const returns = await this.collection.find(query).toArray();
+
+    const totalDeduction = returns.reduce(
+      (sum, ret) => sum + (ret.vendorDeduction || 0),
+      0
+    );
+
+    return {
+      totalDeduction: Math.round(totalDeduction * 100) / 100,
+      returnsCount: returns.length,
+      returns: returns.map((r) => ({
+        returnId: r._id,
+        orderId: r.orderId,
+        productTitle: r.productTitle,
+        deduction: r.vendorDeduction,
+        approvedAt: r.approvedAt,
+        status: r.status,
+      })),
+    };
+  }
+
+  /**
+   * Mark vendor deduction as applied
+   */
+  async markDeductionApplied(returnId) {
+    return await this.collection.updateOne(
+      { _id: new ObjectId(returnId) },
+      {
+        $set: {
+          isDeductedFromVendor: true,
+          deductedAt: new Date(),
+        },
+      }
     );
   }
 }
