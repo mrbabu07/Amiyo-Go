@@ -1,5 +1,5 @@
-// Vendor Packing Slip Template
-// Shows only vendor's items for packing and shipping
+// Vendor Packing Slip Template - Daraz Style (One Page)
+// Compact, professional layout for easy printing
 
 export const generateVendorPackingSlip = (order, vendorInfo = {}) => {
   const orderDate = new Date(order.createdAt).toLocaleDateString("en-US", {
@@ -10,7 +10,7 @@ export const generateVendorPackingSlip = (order, vendorInfo = {}) => {
 
   const BDT_SYMBOL = "৳";
 
-  // Format price in BDT (prices are already in BDT)
+  // Format price in BDT
   const formatPrice = (price) => {
     if (!price && price !== 0) return `${BDT_SYMBOL}0`;
     return `${BDT_SYMBOL}${Math.round(price).toLocaleString()}`;
@@ -21,7 +21,7 @@ export const generateVendorPackingSlip = (order, vendorInfo = {}) => {
     if (!color) return '';
     if (typeof color === "string") return color;
     if (typeof color === "object" && color.name) return color.name;
-    return "Unknown";
+    return "";
   };
 
   // Get vendor's products only
@@ -35,206 +35,256 @@ export const generateVendorPackingSlip = (order, vendorInfo = {}) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Packing Slip - Order #${order._id.slice(-8).toUpperCase()}</title>
-      <script src="https://cdn.tailwindcss.com"></script>
+      <title>Packing Slip - #${order._id.slice(-8).toUpperCase()}</title>
       <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+          font-family: Arial, sans-serif; 
+          font-size: 11px;
+          line-height: 1.3;
+          color: #000;
+          background: #fff;
+        }
+        .container { 
+          max-width: 210mm; 
+          margin: 0 auto; 
+          padding: 10mm;
+        }
         @media print {
           body { margin: 0; padding: 0; }
-          .no-print { display: none; }
+          .container { padding: 5mm; }
+          .no-print { display: none !important; }
+          @page { margin: 0; size: A4 portrait; }
         }
-        .barcode-box {
-          border: 2px dashed #666;
-          padding: 20px;
+        .header { 
+          border-bottom: 3px solid #f57224; 
+          padding-bottom: 8px; 
+          margin-bottom: 10px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .header h1 { 
+          font-size: 20px; 
+          font-weight: bold; 
+          color: #f57224;
+          margin: 0;
+        }
+        .order-id { 
+          font-size: 16px; 
+          font-weight: bold; 
+          color: #333;
+        }
+        .section { 
+          margin-bottom: 10px; 
+          padding: 8px;
+          border: 1px solid #ddd;
+        }
+        .section-title { 
+          font-size: 10px; 
+          font-weight: bold; 
+          color: #666; 
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+        .grid-2 { 
+          display: grid; 
+          grid-template-columns: 1fr 1fr; 
+          gap: 10px;
+        }
+        .grid-3 { 
+          display: grid; 
+          grid-template-columns: 1fr 1fr 1fr; 
+          gap: 8px;
+          text-align: center;
+        }
+        table { 
+          width: 100%; 
+          border-collapse: collapse; 
+          margin: 8px 0;
+        }
+        th { 
+          background: #f5f5f5; 
+          padding: 6px 4px; 
+          text-align: left; 
+          font-size: 10px;
+          font-weight: bold;
+          border: 1px solid #ddd;
+        }
+        td { 
+          padding: 6px 4px; 
+          border: 1px solid #ddd;
+          font-size: 10px;
+        }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .font-bold { font-weight: bold; }
+        .text-orange { color: #f57224; }
+        .bg-gray { background: #f9f9f9; }
+        .status-badge {
+          display: inline-block;
+          padding: 2px 6px;
+          border-radius: 3px;
+          font-size: 9px;
+          font-weight: bold;
+        }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-processing { background: #dbeafe; color: #1e40af; }
+        .status-packed { background: #e9d5ff; color: #6b21a8; }
+        .status-shipped { background: #bfdbfe; color: #1e3a8a; }
+        .status-delivered { background: #d1fae5; color: #065f46; }
+        .tracking-box {
+          border: 2px dashed #999;
+          padding: 12px;
           text-align: center;
           font-family: 'Courier New', monospace;
-          font-size: 24px;
+          font-size: 16px;
           font-weight: bold;
-          letter-spacing: 3px;
+          letter-spacing: 2px;
+          background: #fafafa;
+        }
+        .info-row { 
+          display: flex; 
+          justify-content: space-between; 
+          margin: 3px 0;
+        }
+        .checklist { 
+          display: grid; 
+          grid-template-columns: 1fr 1fr; 
+          gap: 4px;
+          font-size: 9px;
+        }
+        .checkbox { 
+          display: flex; 
+          align-items: center; 
+          gap: 4px;
+        }
+        .checkbox input { 
+          width: 12px; 
+          height: 12px;
         }
       </style>
     </head>
-    <body class="bg-white p-4">
-      <div class="max-w-4xl mx-auto">
+    <body>
+      <div class="container">
         
         <!-- Header -->
-        <div class="border-b-4 border-orange-500 pb-4 mb-6">
-          <div class="flex justify-between items-start">
-            <div>
-              <h1 class="text-3xl font-bold text-gray-800">PACKING SLIP</h1>
-              <p class="text-sm text-gray-600 mt-1">For Vendor Fulfillment</p>
-            </div>
-            <div class="text-right">
-              <div class="text-xs text-gray-500 mb-1">ORDER ID</div>
-              <div class="text-2xl font-bold text-orange-600">#${order._id.slice(-8).toUpperCase()}</div>
-              <div class="text-xs text-gray-600 mt-2">${orderDate}</div>
+        <div class="header">
+          <div>
+            <h1>PACKING SLIP</h1>
+            <div style="font-size: 9px; color: #666; margin-top: 2px;">${orderDate}</div>
+          </div>
+          <div class="order-id">Order #${order._id.slice(-8).toUpperCase()}</div>
+        </div>
+
+        <!-- Quick Info Bar -->
+        <div class="grid-3 bg-gray" style="padding: 8px; margin-bottom: 10px; border: 1px solid #ddd;">
+          <div>
+            <div style="font-size: 9px; color: #666;">ITEMS</div>
+            <div class="font-bold" style="font-size: 16px;">${totalItems}</div>
+          </div>
+          <div>
+            <div style="font-size: 9px; color: #666;">PRODUCTS</div>
+            <div class="font-bold" style="font-size: 16px;">${vendorProducts.length}</div>
+          </div>
+          <div>
+            <div style="font-size: 9px; color: #666;">PAYMENT</div>
+            <div class="font-bold" style="font-size: 12px;">${order.paymentMethod?.toUpperCase() || 'COD'}</div>
+          </div>
+        </div>
+
+        <!-- Shipping & Tracking -->
+        <div class="grid-2">
+          <div class="section">
+            <div class="section-title">Ship To</div>
+            ${order.shippingInfo ? `
+              <div class="font-bold" style="font-size: 12px; margin-bottom: 3px;">${order.shippingInfo.name || "N/A"}</div>
+              <div style="margin-bottom: 2px;">${order.shippingInfo.address || "N/A"}</div>
+              <div style="margin-bottom: 2px;">${order.shippingInfo.city || "N/A"} ${order.shippingInfo.zipCode || ""}</div>
+              <div class="font-bold" style="margin-top: 4px;">📞 ${order.shippingInfo.phone || "N/A"}</div>
+            ` : `<div>No shipping information</div>`}
+          </div>
+          <div class="section">
+            <div class="section-title">Tracking Number</div>
+            <div class="tracking-box">
+              ${vendorProducts[0]?.trackingNumber || '_______________'}
             </div>
           </div>
         </div>
 
-        <!-- Vendor Info -->
         ${vendorInfo.businessName ? `
-        <div class="bg-orange-50 border-l-4 border-orange-500 p-4 mb-6">
-          <div class="text-xs font-bold text-gray-600 mb-1">VENDOR</div>
-          <div class="font-semibold text-gray-900">${vendorInfo.businessName}</div>
-          ${vendorInfo.phone ? `<div class="text-sm text-gray-600">${vendorInfo.phone}</div>` : ''}
+        <div class="section" style="background: #fff8f0; border-color: #f57224;">
+          <div class="section-title">Vendor</div>
+          <div class="font-bold">${vendorInfo.businessName}</div>
+          ${vendorInfo.phone ? `<div style="font-size: 10px; margin-top: 2px;">${vendorInfo.phone}</div>` : ''}
         </div>
         ` : ''}
 
-        <!-- Ship To Address -->
-        <div class="grid grid-cols-2 gap-6 mb-6">
-          <div class="border-2 border-gray-300 p-4 rounded-lg">
-            <div class="text-xs font-bold text-gray-600 mb-3 uppercase">Ship To</div>
-            ${
-              order.shippingInfo
-                ? `
-              <div class="space-y-2">
-                <div class="font-bold text-lg text-gray-900">${order.shippingInfo.name || "N/A"}</div>
-                <div class="text-gray-700">${order.shippingInfo.address || "N/A"}</div>
-                <div class="text-gray-700">${order.shippingInfo.city || "N/A"} ${order.shippingInfo.zipCode || ""}</div>
-                <div class="text-gray-700 font-semibold mt-3">📞 ${order.shippingInfo.phone || "N/A"}</div>
-              </div>
-            `
-                : `<div class="text-sm text-gray-500">No shipping information</div>`
-            }
-          </div>
-
-          <!-- Tracking Number Box -->
-          <div class="border-2 border-gray-300 p-4 rounded-lg">
-            <div class="text-xs font-bold text-gray-600 mb-3 uppercase">Tracking Number</div>
-            <div class="barcode-box">
-              ${vendorProducts[0]?.trackingNumber || '___________________'}
-            </div>
-            <div class="text-xs text-gray-500 text-center mt-2">
-              ${vendorProducts[0]?.trackingNumber ? 'Scan or enter tracking number' : 'Write tracking number above'}
-            </div>
-          </div>
-        </div>
-
-        <!-- Order Summary -->
-        <div class="bg-gray-50 border border-gray-300 p-4 rounded-lg mb-6">
-          <div class="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <div class="text-xs text-gray-600 mb-1">TOTAL ITEMS</div>
-              <div class="text-2xl font-bold text-gray-900">${totalItems}</div>
-            </div>
-            <div>
-              <div class="text-xs text-gray-600 mb-1">PRODUCTS</div>
-              <div class="text-2xl font-bold text-gray-900">${vendorProducts.length}</div>
-            </div>
-            <div>
-              <div class="text-xs text-gray-600 mb-1">PAYMENT</div>
-              <div class="text-lg font-semibold text-gray-900">${order.paymentMethod?.toUpperCase() || 'N/A'}</div>
-            </div>
-          </div>
-        </div>
-
         <!-- Products Table -->
-        <div class="mb-6">
-          <div class="text-lg font-bold text-gray-800 mb-3 border-b-2 border-gray-300 pb-2">
-            Items to Pack
-          </div>
-          <table class="w-full border-collapse">
+        <div style="margin: 10px 0;">
+          <div class="section-title" style="margin-bottom: 6px;">Items to Pack</div>
+          <table>
             <thead>
-              <tr class="bg-gray-200">
-                <th class="border border-gray-300 px-3 py-2 text-left text-xs font-bold">#</th>
-                <th class="border border-gray-300 px-3 py-2 text-left text-xs font-bold">PRODUCT</th>
-                <th class="border border-gray-300 px-3 py-2 text-center text-xs font-bold">QTY</th>
-                <th class="border border-gray-300 px-3 py-2 text-center text-xs font-bold">STATUS</th>
-                <th class="border border-gray-300 px-3 py-2 text-right text-xs font-bold">PRICE</th>
+              <tr>
+                <th style="width: 30px;">#</th>
+                <th>Product Details</th>
+                <th style="width: 50px;" class="text-center">Qty</th>
+                <th style="width: 70px;" class="text-center">Status</th>
+                <th style="width: 80px;" class="text-right">Amount</th>
               </tr>
             </thead>
             <tbody>
-              ${vendorProducts
-                .map(
-                  (product, index) => `
+              ${vendorProducts.map((product, index) => `
                 <tr>
-                  <td class="border border-gray-300 px-3 py-3 text-center font-bold">${index + 1}</td>
-                  <td class="border border-gray-300 px-3 py-3">
-                    <div class="font-semibold text-gray-900">${product.title || product.name || "Unknown Product"}</div>
-                    ${product.selectedColor ? `<div class="text-xs text-gray-600">Color: ${renderColor(product.selectedColor)}</div>` : ""}
-                    ${product.selectedSize ? `<div class="text-xs text-gray-600">Size: ${product.selectedSize}</div>` : ""}
-                    ${product.productId ? `<div class="text-xs text-gray-500 mt-1">SKU: ${product.productId.toString().slice(-8).toUpperCase()}</div>` : ""}
+                  <td class="text-center font-bold">${index + 1}</td>
+                  <td>
+                    <div class="font-bold">${product.title || product.name || "Unknown"}</div>
+                    ${product.selectedColor ? `<div style="font-size: 9px; color: #666;">Color: ${renderColor(product.selectedColor)}</div>` : ""}
+                    ${product.selectedSize ? `<div style="font-size: 9px; color: #666;">Size: ${product.selectedSize}</div>` : ""}
                   </td>
-                  <td class="border border-gray-300 px-3 py-3 text-center">
-                    <div class="text-2xl font-bold text-orange-600">${product.quantity || 0}</div>
-                  </td>
-                  <td class="border border-gray-300 px-3 py-3 text-center">
-                    <span class="inline-block px-2 py-1 text-xs font-semibold rounded ${
-                      product.itemStatus === 'delivered' ? 'bg-green-100 text-green-800' :
-                      product.itemStatus === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                      product.itemStatus === 'packed' ? 'bg-purple-100 text-purple-800' :
-                      product.itemStatus === 'processing' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-gray-100 text-gray-800'
-                    }">
+                  <td class="text-center font-bold" style="font-size: 14px;">${product.quantity || 0}</td>
+                  <td class="text-center">
+                    <span class="status-badge status-${product.itemStatus || 'pending'}">
                       ${(product.itemStatus || 'pending').toUpperCase()}
                     </span>
                   </td>
-                  <td class="border border-gray-300 px-3 py-3 text-right font-semibold">
-                    ${formatPrice((product.price || 0) * (product.quantity || 0))}
-                  </td>
+                  <td class="text-right font-bold">${formatPrice((product.price || 0) * (product.quantity || 0))}</td>
                 </tr>
-              `
-                )
-                .join("")}
-              <tr class="bg-gray-100">
-                <td colspan="4" class="border border-gray-300 px-3 py-3 text-right font-bold">SUBTOTAL:</td>
-                <td class="border border-gray-300 px-3 py-3 text-right font-bold text-lg text-orange-600">
-                  ${formatPrice(subtotal)}
-                </td>
+              `).join("")}
+              <tr class="bg-gray">
+                <td colspan="4" class="text-right font-bold">TOTAL:</td>
+                <td class="text-right font-bold text-orange" style="font-size: 13px;">${formatPrice(subtotal)}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         <!-- Packing Checklist -->
-        <div class="border-2 border-gray-300 p-4 rounded-lg mb-6">
-          <div class="text-sm font-bold text-gray-800 mb-3">PACKING CHECKLIST</div>
-          <div class="space-y-2">
-            <div class="flex items-center">
-              <input type="checkbox" class="mr-3 w-5 h-5" />
-              <span class="text-sm">All items verified and counted</span>
-            </div>
-            <div class="flex items-center">
-              <input type="checkbox" class="mr-3 w-5 h-5" />
-              <span class="text-sm">Items properly packaged and protected</span>
-            </div>
-            <div class="flex items-center">
-              <input type="checkbox" class="mr-3 w-5 h-5" />
-              <span class="text-sm">Shipping label attached</span>
-            </div>
-            <div class="flex items-center">
-              <input type="checkbox" class="mr-3 w-5 h-5" />
-              <span class="text-sm">Tracking number recorded</span>
-            </div>
-            <div class="flex items-center">
-              <input type="checkbox" class="mr-3 w-5 h-5" />
-              <span class="text-sm">Packing slip included in package</span>
-            </div>
+        <div class="section">
+          <div class="section-title" style="margin-bottom: 6px;">Packing Checklist</div>
+          <div class="checklist">
+            <div class="checkbox"><input type="checkbox"> Items verified</div>
+            <div class="checkbox"><input type="checkbox"> Properly packaged</div>
+            <div class="checkbox"><input type="checkbox"> Label attached</div>
+            <div class="checkbox"><input type="checkbox"> Tracking recorded</div>
           </div>
         </div>
 
-        <!-- Footer -->
-        <div class="border-t-2 border-gray-300 pt-4 mt-6">
-          <div class="grid grid-cols-2 gap-6">
-            <div>
-              <div class="text-xs text-gray-600 mb-2">PACKED BY</div>
-              <div class="border-b-2 border-gray-400 pb-1 mb-2" style="min-height: 30px;"></div>
-              <div class="text-xs text-gray-500">Signature</div>
-            </div>
-            <div>
-              <div class="text-xs text-gray-600 mb-2">DATE PACKED</div>
-              <div class="border-b-2 border-gray-400 pb-1 mb-2" style="min-height: 30px;"></div>
-              <div class="text-xs text-gray-500">Date</div>
-            </div>
+        <!-- Signature -->
+        <div class="grid-2" style="margin-top: 10px;">
+          <div>
+            <div style="font-size: 9px; color: #666; margin-bottom: 3px;">PACKED BY</div>
+            <div style="border-bottom: 1px solid #999; height: 30px;"></div>
+          </div>
+          <div>
+            <div style="font-size: 9px; color: #666; margin-bottom: 3px;">DATE</div>
+            <div style="border-bottom: 1px solid #999; height: 30px;"></div>
           </div>
         </div>
 
         <!-- Print Button -->
-        <div class="no-print mt-6 text-center">
-          <button 
-            onclick="window.print()" 
-            class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg"
-          >
+        <div class="no-print" style="text-align: center; margin-top: 15px;">
+          <button onclick="window.print()" style="background: #f57224; color: white; border: none; padding: 12px 30px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer;">
             🖨️ Print Packing Slip
           </button>
         </div>
