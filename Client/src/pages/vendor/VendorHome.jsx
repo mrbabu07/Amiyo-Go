@@ -205,6 +205,15 @@ const VendorHome = () => {
         </Link>
 
         <Link
+          to="/vendor/settings/bank"
+          className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-lg p-6 hover:shadow-xl transition text-center transform hover:scale-105"
+        >
+          <div className="text-4xl mb-3">💳</div>
+          <div className="font-semibold text-white">Bank Settings</div>
+          <div className="text-sm text-blue-100 mt-1">Setup payouts</div>
+        </Link>
+
+        <Link
           to="/vendor/marketing/promotions"
           className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition text-center"
         >
@@ -212,7 +221,10 @@ const VendorHome = () => {
           <div className="font-semibold text-gray-900">Promotions</div>
           <div className="text-sm text-gray-600 mt-1">Boost sales</div>
         </Link>
+      </div>
 
+      {/* Additional Quick Action for Reports */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Link
           to="/vendor/reports/sales"
           className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition text-center"

@@ -38,6 +38,39 @@ const StatusBadge = ({ status }) => {
   );
 };
 
+// Helper function to get bank info from either new or old schema
+const getBankInfo = (vendor) => {
+  // New schema (direct fields)
+  const newSchema = {
+    bankName: vendor.bankName,
+    bankAccountName: vendor.bankAccountName,
+    bankAccountNumber: vendor.bankAccountNumber,
+    bankBranch: vendor.bankBranch,
+    mobileBankingProvider: vendor.mobileBankingProvider,
+    mobileBankingNumber: vendor.mobileBankingNumber,
+  };
+
+  // Old schema (payoutDetails object)
+  const oldSchema = vendor.payoutDetails ? {
+    bankName: vendor.payoutDetails.bankName,
+    bankAccountName: vendor.payoutDetails.accountName,
+    bankAccountNumber: vendor.payoutDetails.accountNumber,
+    bankBranch: vendor.payoutDetails.branchName,
+    mobileBankingProvider: vendor.payoutMethod, // Old schema used payoutMethod for provider
+    mobileBankingNumber: vendor.payoutDetails.mobileNumber,
+  } : {};
+
+  // Merge both, preferring new schema if available
+  return {
+    bankName: newSchema.bankName || oldSchema.bankName || '',
+    bankAccountName: newSchema.bankAccountName || oldSchema.bankAccountName || '',
+    bankAccountNumber: newSchema.bankAccountNumber || oldSchema.bankAccountNumber || '',
+    bankBranch: newSchema.bankBranch || oldSchema.bankBranch || '',
+    mobileBankingProvider: newSchema.mobileBankingProvider || oldSchema.mobileBankingProvider || '',
+    mobileBankingNumber: newSchema.mobileBankingNumber || oldSchema.mobileBankingNumber || '',
+  };
+};
+
 export default function AdminVendorDetail() {
   const { vendorId } = useParams();
   const { user } = useAuth();
@@ -494,52 +527,205 @@ export default function AdminVendorDetail() {
 
         {/* ── TAB: Overview ─────────────────────────────────────── */}
         {activeTab === 'Overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Shop Info</h2>
-              <dl className="space-y-3 text-sm">
-                {[
-                  ['Shop Name', v.shopName],
-                  ['Slug', `/${v.slug}`],
-                  ['Phone', v.phone],
-                  ['Status', <StatusBadge status={v.status} />],
-                  ['Registered', new Date(v.createdAt).toLocaleDateString()],
-                  ['Allowed Categories', v.allowedCategoryIds?.length ?? 0],
-                ].map(([label, val]) => (
-                  <div key={label} className="flex justify-between">
-                    <dt className="text-gray-500">{label}</dt>
-                    <dd className="font-medium text-gray-900">{val}</dd>
-                  </div>
-                ))}
-              </dl>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Shop Info</h2>
+                <dl className="space-y-3 text-sm">
+                  {[
+                    ['Shop Name', v.shopName],
+                    ['Slug', `/${v.slug}`],
+                    ['Phone', v.phone],
+                    ['Status', <StatusBadge status={v.status} />],
+                    ['Registered', new Date(v.createdAt).toLocaleDateString()],
+                    ['Allowed Categories', v.allowedCategoryIds?.length ?? 0],
+                  ].map(([label, val]) => (
+                    <div key={label} className="flex justify-between">
+                      <dt className="text-gray-500">{label}</dt>
+                      <dd className="font-medium text-gray-900">{val}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+                <div className="space-y-3">
+                  {v.status !== 'approved' && (
+                    <button
+                      onClick={() => handleVendorAction('approve')}
+                      className="w-full py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"
+                    >
+                      Approve Vendor
+                    </button>
+                  )}
+                  {v.status === 'approved' && (
+                    <button
+                      onClick={() => setActiveTab('Actions')}
+                      className="w-full py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700"
+                    >
+                      Suspend Vendor
+                    </button>
+                  )}
+                  {v.status === 'suspended' && (
+                    <button
+                      onClick={() => handleVendorAction('reactivate')}
+                      className="w-full py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+                    >
+                      Reactivate Vendor
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-              <div className="space-y-3">
-                {v.status !== 'approved' && (
-                  <button
-                    onClick={() => handleVendorAction('approve')}
-                    className="w-full py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"
-                  >
-                    Approve Vendor
-                  </button>
-                )}
-                {v.status === 'approved' && (
-                  <button
-                    onClick={() => setActiveTab('Actions')}
-                    className="w-full py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700"
-                  >
-                    Suspend Vendor
-                  </button>
-                )}
-                {v.status === 'suspended' && (
-                  <button
-                    onClick={() => handleVendorAction('reactivate')}
-                    className="w-full py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
-                  >
-                    Reactivate Vendor
-                  </button>
-                )}
+
+            {/* Bank Details Section */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl shadow-lg p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-blue-600 rounded-lg">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Payment Information</h2>
+                  <p className="text-sm text-gray-600">Vendor banking details for payouts</p>
+                </div>
+              </div>
+
+              {(() => {
+                const bankInfo = getBankInfo(v);
+                
+                return (
+                  <>
+                    {/* Bank Transfer Details */}
+                    {(bankInfo.bankName || bankInfo.bankAccountNumber) ? (
+                      <div className="bg-white rounded-lg p-5 mb-4">
+                        <div className="flex items-center gap-2 mb-4">
+                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                          </svg>
+                          <h3 className="font-bold text-gray-900">Bank Transfer</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1">Bank Name</div>
+                            <div className="font-semibold text-gray-900">{bankInfo.bankName || 'Not provided'}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1">Account Name</div>
+                            <div className="font-semibold text-gray-900">{bankInfo.bankAccountName || 'Not provided'}</div>
+                          </div>
+                          <div className="md:col-span-2">
+                            <div className="text-xs text-gray-500 mb-1">Account Number</div>
+                            <div className="flex items-center gap-3">
+                              <div className="font-bold text-xl text-blue-600 font-mono tracking-wider flex-1">
+                                {bankInfo.bankAccountNumber || 'Not provided'}
+                              </div>
+                              {bankInfo.bankAccountNumber && (
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(bankInfo.bankAccountNumber);
+                                    toast.success('Account number copied!');
+                                  }}
+                                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 text-sm font-medium"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                  Copy
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {bankInfo.bankBranch && (
+                            <div className="md:col-span-2">
+                              <div className="text-xs text-gray-500 mb-1">Branch</div>
+                              <div className="font-medium text-gray-900">{bankInfo.bankBranch}</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                        <div className="flex items-center gap-2 text-yellow-800">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          <span className="font-medium">No bank account information provided</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mobile Banking Details */}
+                    {(bankInfo.mobileBankingProvider || bankInfo.mobileBankingNumber) ? (
+                      <div className="bg-white rounded-lg p-5">
+                        <div className="flex items-center gap-2 mb-4">
+                          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                          <h3 className="font-bold text-gray-900">Mobile Banking</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1">Provider</div>
+                            <div className="font-semibold text-gray-900 capitalize">
+                              {bankInfo.mobileBankingProvider || 'Not specified'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1">Mobile Number</div>
+                            <div className="flex items-center gap-3">
+                              <div className="font-bold text-xl text-green-600 font-mono tracking-wider flex-1">
+                                {bankInfo.mobileBankingNumber || 'Not provided'}
+                              </div>
+                              {bankInfo.mobileBankingNumber && (
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(bankInfo.mobileBankingNumber);
+                                    toast.success('Mobile number copied!');
+                                  }}
+                                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2 text-sm font-medium"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                  Copy
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-yellow-800">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          <span className="font-medium">No mobile banking information provided</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+
+              {/* Contact Info */}
+              <div className="mt-4 pt-4 border-t border-blue-200">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    <span>Contact: {v.phone || 'Not provided'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <span>{v.email || 'Not provided'}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

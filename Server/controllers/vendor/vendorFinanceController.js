@@ -10,18 +10,31 @@ exports.getFinanceSummary = async (req, res) => {
       return res.status(403).json({ success: false, error: "Not a vendor" });
     }
 
+    console.log('\n💰 VENDOR FINANCE SUMMARY');
+    console.log('   Vendor ID:', vendorId);
+
     const Order = req.app.locals.models.Order;
     const VendorPayout = req.app.locals.models.VendorPayout;
+    const db = req.app.locals.db;
 
-    // Get all orders with vendor's products
-    const orders = await Order.collection
-      .find({ "products.vendorId": new ObjectId(vendorId) })
+    // Get all orders with vendor's products using proper query
+    const ordersCollection = db.collection("orders");
+    const orders = await ordersCollection
+      .find({
+        $or: [
+          { "products.vendorId": vendorId.toString() },
+          { "products.vendorId": vendorId }
+        ]
+      })
       .toArray();
+
+    console.log('   Total orders found:', orders.length);
 
     let grossSales = 0;
     let totalCommission = 0;
     let netEarnings = 0;
     let pendingBalance = 0;
+    let deliveredCount = 0;
 
     orders.forEach((order) => {
       const vendorProducts = order.products.filter(
@@ -29,7 +42,7 @@ exports.getFinanceSummary = async (req, res) => {
       );
 
       vendorProducts.forEach((product) => {
-        const itemTotal = product.price * product.quantity;
+        const itemTotal = (product.price || 0) * (product.quantity || 0);
         grossSales += itemTotal;
         totalCommission += product.adminCommissionAmount || 0;
         netEarnings += product.vendorEarningAmount || 0;
@@ -37,19 +50,50 @@ exports.getFinanceSummary = async (req, res) => {
         // Only count delivered items as pending if not yet paid
         if (product.itemStatus === "delivered") {
           pendingBalance += product.vendorEarningAmount || 0;
+          deliveredCount++;
         }
       });
     });
 
-    // Get paid amount from payouts
-    const payouts = await VendorPayout.collection
-      .find({ vendorId: new ObjectId(vendorId), status: "paid" })
+    console.log('   Delivered items:', deliveredCount);
+    console.log('   Gross sales:', grossSales);
+    console.log('   Net earnings:', netEarnings);
+    console.log('   Pending balance (before payouts):', pendingBalance);
+
+    // Get all payouts (paid, pending, approved)
+    const payoutsCollection = db.collection("vendorPayouts");
+    console.log('   Querying payouts for vendorId:', vendorId, '(type:', typeof vendorId, ')');
+    
+    const allPayouts = await payoutsCollection
+      .find({
+        vendorId: new ObjectId(vendorId),
+        status: { $in: ["paid", "pending", "approved"] }
+      })
       .toArray();
 
-    const paidBalance = payouts.reduce((sum, p) => sum + (p.amount || 0), 0);
+    console.log('   Total payouts found:', allPayouts.length);
 
-    // Adjust pending balance
-    pendingBalance = Math.max(0, pendingBalance - paidBalance);
+    const paidBalance = allPayouts
+      .filter(p => p.status === "paid")
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    const pendingPayouts = allPayouts
+      .filter(p => p.status === "pending" || p.status === "approved")
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    console.log('   Paid balance:', paidBalance);
+    console.log('   Pending payouts:', pendingPayouts);
+
+    // Get return deductions
+    const Return = req.app.locals.models.Return;
+    const returnDeductions = await Return.getVendorDeductions(vendorId);
+    const totalReturnDeductions = returnDeductions.totalDeduction || 0;
+    
+    console.log('   Return deductions:', totalReturnDeductions);
+
+    // Adjust pending balance - subtract paid payouts, pending payouts, AND return deductions
+    pendingBalance = Math.max(0, pendingBalance - paidBalance - pendingPayouts - totalReturnDeductions);
+    console.log('   Final pending balance:', pendingBalance);
 
     res.json({
       success: true,
@@ -59,6 +103,9 @@ exports.getFinanceSummary = async (req, res) => {
         netEarnings: Math.round(netEarnings * 100) / 100,
         pendingBalance: Math.round(pendingBalance * 100) / 100,
         paidBalance: Math.round(paidBalance * 100) / 100,
+        pendingPayouts: Math.round(pendingPayouts * 100) / 100,
+        returnDeductions: Math.round(totalReturnDeductions * 100) / 100,
+        deliveredCount,
       },
     });
   } catch (error) {

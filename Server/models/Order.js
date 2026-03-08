@@ -378,25 +378,76 @@ class Order {
   /**
    * Derive and persist order.status from all products[].itemStatus.
    * Called after any vendor shipping action.
+   * 
+   * Status Priority (Daraz-style split order):
+   * 1. returned - all items returned
+   * 2. partially_returned - any items returned
+   * 3. delivered - all items delivered
+   * 4. partially_delivered - some delivered, some not
+   * 5. shipped - all items shipped (not yet delivered)
+   * 6. partially_shipped - some shipped, some not
+   * 7. processing - all items processing/packed
+   * 8. partially_processing - some processing, some pending
+   * 9. pending - all items pending
+   * 10. cancelled - all items cancelled
    */
   async syncOrderStatus(orderId) {
     const order = await this.findById(orderId);
     if (!order || !Array.isArray(order.products) || order.products.length === 0) return;
 
     const statuses = order.products.map((p) => p.itemStatus || "pending");
-    const nonCancelled = statuses.filter((s) => s !== "cancelled");
+    const total = statuses.length;
 
+    // Count each status
+    const counts = {
+      pending: statuses.filter(s => s === "pending").length,
+      processing: statuses.filter(s => s === "processing").length,
+      packed: statuses.filter(s => s === "packed").length,
+      shipped: statuses.filter(s => s === "shipped").length,
+      delivered: statuses.filter(s => s === "delivered").length,
+      cancelled: statuses.filter(s => s === "cancelled").length,
+      returned: statuses.filter(s => s === "returned").length,
+    };
+
+    const nonCancelled = total - counts.cancelled;
     let derivedStatus;
-    if (nonCancelled.length === 0) {
-      // All items cancelled
+
+    // Priority 1: Handle returns
+    if (counts.returned === total) {
+      derivedStatus = "returned";
+    } else if (counts.returned > 0) {
+      derivedStatus = "partially_returned";
+    }
+    // Priority 2: All cancelled
+    else if (counts.cancelled === total) {
       derivedStatus = "cancelled";
-    } else if (nonCancelled.every((s) => s === "delivered")) {
+    }
+    // Priority 3: All delivered
+    else if (counts.delivered === nonCancelled) {
       derivedStatus = "delivered";
-    } else if (nonCancelled.some((s) => s === "shipped")) {
+    }
+    // Priority 4: Some delivered
+    else if (counts.delivered > 0) {
+      derivedStatus = "partially_delivered";
+    }
+    // Priority 5: All shipped (but not delivered)
+    else if (counts.shipped === nonCancelled) {
       derivedStatus = "shipped";
-    } else if (nonCancelled.some((s) => s === "packed" || s === "processing")) {
+    }
+    // Priority 6: Some shipped
+    else if (counts.shipped > 0) {
+      derivedStatus = "partially_shipped";
+    }
+    // Priority 7: All processing/packed
+    else if ((counts.processing + counts.packed) === nonCancelled) {
       derivedStatus = "processing";
-    } else {
+    }
+    // Priority 8: Some processing/packed
+    else if (counts.processing > 0 || counts.packed > 0) {
+      derivedStatus = "partially_processing";
+    }
+    // Priority 9: All pending
+    else {
       derivedStatus = "pending";
     }
 
@@ -411,13 +462,41 @@ class Order {
               status: derivedStatus,
               changedAt: new Date(),
               changedBy: "system",
-              note: "Auto-synced from item statuses",
+              note: `Auto-synced: ${counts.delivered}/${nonCancelled} delivered, ${counts.shipped}/${nonCancelled} shipped, ${counts.processing + counts.packed}/${nonCancelled} processing`,
             },
           },
         }
       );
     }
     return derivedStatus;
+  }
+
+  /**
+   * Get vendor-specific items from an order
+   */
+  async getVendorItems(orderId, vendorId) {
+    const order = await this.findById(orderId);
+    if (!order) return null;
+
+    const vendorProducts = (order.products || []).filter(
+      p => p.vendorId && p.vendorId.toString() === vendorId.toString()
+    );
+
+    if (vendorProducts.length === 0) return null;
+
+    // Calculate vendor-specific totals
+    const vendorSubtotal = vendorProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
+    const vendorCommission = vendorProducts.reduce((sum, p) => sum + (p.adminCommissionAmount || 0), 0);
+    const vendorEarnings = vendorProducts.reduce((sum, p) => sum + (p.vendorEarningAmount || 0), 0);
+
+    return {
+      ...order,
+      products: vendorProducts,
+      vendorSubtotal,
+      vendorCommission,
+      vendorEarnings,
+      isPartialOrder: vendorProducts.length < (order.products || []).length,
+    };
   }
 }
 

@@ -281,3 +281,22 @@ export const getVendorFinanceSummary = () =>
 export const getVendorFinanceTransactions = (params = {}) =>
   api.get("/vendors/finance/transactions", { params });
 
+
+// ── Vendor Order Management (Daraz-style) ─────────────────────
+export const acceptVendorOrder = (orderId, data = {}) =>
+  api.post(`/vendors/orders/${orderId}/accept`, data);
+
+export const rejectVendorOrder = (orderId, data) =>
+  api.post(`/vendors/orders/${orderId}/reject`, data);
+
+export const markOrderReadyToShip = (orderId) =>
+  api.post(`/vendors/orders/${orderId}/ready-to-ship`);
+
+export const shipVendorOrder = (orderId, data) =>
+  api.post(`/vendors/orders/${orderId}/ship`, data);
+
+export const markVendorOrderDelivered = (orderId, data = {}) =>
+  api.post(`/vendors/orders/${orderId}/deliver`, data);
+
+export const getVendorOrderTimeline = (orderId) =>
+  api.get(`/vendors/orders/${orderId}/timeline`);

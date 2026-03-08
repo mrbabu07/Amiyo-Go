@@ -308,7 +308,20 @@ exports.getMyVendorProfile = async (req, res) => {
 // Update vendor profile
 exports.updateVendorProfile = async (req, res) => {
   try {
-    const { shopName, phone, address, payoutMethod } = req.body;
+    const { 
+      shopName, 
+      phone, 
+      address, 
+      payoutMethod,
+      // Bank transfer fields
+      bankName,
+      bankAccountName,
+      bankAccountNumber,
+      bankBranch,
+      // Mobile banking fields
+      mobileBankingProvider,
+      mobileBankingNumber
+    } = req.body;
     const Vendor = req.app.locals.models.Vendor;
 
     const vendor = await Vendor.findByUserId(req.user._id);
@@ -322,6 +335,16 @@ exports.updateVendorProfile = async (req, res) => {
     if (phone) updateData.phone = phone;
     if (address) updateData.address = address;
     if (payoutMethod) updateData.payoutMethod = payoutMethod;
+    
+    // Bank transfer fields
+    if (bankName !== undefined) updateData.bankName = bankName;
+    if (bankAccountName !== undefined) updateData.bankAccountName = bankAccountName;
+    if (bankAccountNumber !== undefined) updateData.bankAccountNumber = bankAccountNumber;
+    if (bankBranch !== undefined) updateData.bankBranch = bankBranch;
+    
+    // Mobile banking fields
+    if (mobileBankingProvider !== undefined) updateData.mobileBankingProvider = mobileBankingProvider;
+    if (mobileBankingNumber !== undefined) updateData.mobileBankingNumber = mobileBankingNumber;
 
     await Vendor.update(vendor._id, updateData);
 

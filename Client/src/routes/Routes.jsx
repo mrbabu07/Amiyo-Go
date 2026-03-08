@@ -56,6 +56,7 @@ import VendorCategoryRequests from "../pages/vendor/VendorCategoryRequests";
 import VendorOrders from "../pages/vendor/VendorOrders";
 import VendorSettings from "../pages/vendor/VendorSettings";
 import VendorFinance from "../pages/vendor/VendorFinance";
+import VendorBankSettings from "../pages/vendor/VendorBankSettings";
 import VendorMarketing from "../pages/vendor/VendorMarketing";
 import VendorReports from "../pages/vendor/VendorReports";
 import VendorShop from "../pages/vendor/VendorShop";
@@ -213,6 +214,7 @@ const router = createBrowserRouter([
       { path: "finance", element: <VendorFinance /> },
       { path: "finance/payouts", element: <VendorFinance /> },
       { path: "finance/transactions", element: <VendorFinance /> },
+      { path: "settings/bank", element: <VendorBankSettings /> },
       { path: "marketing/promotions", element: <VendorMarketing /> },
       { path: "marketing/vouchers", element: <VendorMarketing /> },
       { path: "marketing/campaigns", element: <VendorMarketing /> },

@@ -85,12 +85,12 @@ exports.getDashboardStats = async (req, res) => {
   }
 };
 
-// Get vendor orders
+// Get vendor orders (from parent orders collection, filtered by vendor items)
 exports.getVendorOrders = async (req, res) => {
   try {
-    const { limit = 20, page = 1, status } = req.query;
+    const { limit = 100, page = 1, status } = req.query;
     const Vendor = req.app.locals.models.Vendor;
-    const VendorOrder = req.app.locals.models.VendorOrder;
+    const Order = req.app.locals.models.Order;
     const User = req.app.locals.models.User;
 
     const user = await User.findByFirebaseUid(req.user.uid);
@@ -103,18 +103,118 @@ exports.getVendorOrders = async (req, res) => {
       return res.status(404).json({ error: "Vendor not found" });
     }
 
-    // Fetch vendor orders from vendorOrders collection
-    const result = await VendorOrder.findByVendorId(vendor._id.toString(), {
-      status,
-      page: parseInt(page),
-      limit: parseInt(limit),
-    });
-
-    // Populate product details
+    const vendorId = vendor._id.toString();
+    console.log('\n🔍 VENDOR ORDERS DEBUG');
+    console.log('   Vendor ID:', vendorId);
+    console.log('   Vendor Shop:', vendor.shopName);
+    
     const db = req.app.locals.db;
+    const ordersCollection = db.collection("orders");
     const productsCollection = db.collection("products");
 
-    for (let order of result.orders) {
+    // First, check total orders in database
+    const totalOrders = await ordersCollection.countDocuments({});
+    console.log('   Total orders in DB:', totalOrders);
+
+    // Build query to find orders containing vendor's items
+    // Try both string and ObjectId formats
+    const query = {
+      $or: [
+        { "products.vendorId": vendorId },
+        { "products.vendorId": vendor._id }
+      ]
+    };
+
+    console.log('   Query:', JSON.stringify(query));
+
+    // Get all orders containing vendor's items
+    const allOrders = await ordersCollection
+      .find(query)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    console.log('   Orders found with vendorId:', allOrders.length);
+
+    // If no orders found, check if there are orders with products from this vendor
+    if (allOrders.length === 0) {
+      console.log('   ⚠️  No orders found with vendorId in products array');
+      
+      // Check vendor's products
+      const vendorProducts = await productsCollection.find({ vendorId }).limit(5).toArray();
+      console.log('   Vendor has', vendorProducts.length, 'products');
+      
+      if (vendorProducts.length > 0) {
+        console.log('   Sample product IDs:', vendorProducts.map(p => p._id.toString()).slice(0, 3));
+        
+        // Check if any orders contain these products
+        const productIds = vendorProducts.map(p => p._id.toString());
+        const ordersWithProducts = await ordersCollection.find({
+          "products.productId": { $in: productIds }
+        }).limit(5).toArray();
+        
+        console.log('   Orders containing vendor products:', ordersWithProducts.length);
+        
+        if (ordersWithProducts.length > 0) {
+          console.log('   ⚠️  Orders exist but vendorId not set on products!');
+          console.log('   Sample order products:', JSON.stringify(ordersWithProducts[0].products[0], null, 2));
+        }
+      }
+    }
+
+    // Filter and transform orders to show only vendor's items
+    let vendorOrders = allOrders.map(order => {
+      const vendorProducts = (order.products || []).filter(
+        p => p.vendorId && p.vendorId.toString() === vendorId
+      );
+
+      if (vendorProducts.length === 0) return null;
+
+      // Calculate vendor-specific totals
+      const vendorSubtotal = vendorProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
+      const vendorCommission = vendorProducts.reduce((sum, p) => sum + (p.adminCommissionAmount || 0), 0);
+      const vendorEarnings = vendorProducts.reduce((sum, p) => sum + (p.vendorEarningAmount || 0), 0);
+
+      // Determine vendor-specific order status from item statuses
+      const itemStatuses = vendorProducts.map(p => p.itemStatus || 'pending');
+      let vendorOrderStatus = 'pending';
+      
+      if (itemStatuses.every(s => s === 'delivered')) {
+        vendorOrderStatus = 'delivered';
+      } else if (itemStatuses.some(s => s === 'shipped')) {
+        vendorOrderStatus = 'shipped';
+      } else if (itemStatuses.some(s => s === 'processing' || s === 'packed')) {
+        vendorOrderStatus = 'processing';
+      } else if (itemStatuses.every(s => s === 'cancelled')) {
+        vendorOrderStatus = 'cancelled';
+      }
+
+      return {
+        _id: order._id,
+        parentOrderId: order._id,
+        vendorId,
+        products: vendorProducts,
+        shippingInfo: order.shippingInfo,
+        paymentMethod: order.paymentMethod,
+        paymentStatus: order.paymentStatus,
+        status: vendorOrderStatus, // Vendor-specific status
+        overallOrderStatus: order.status, // Full order status
+        vendorSubtotal,
+        vendorCommission,
+        vendorEarnings,
+        totalAmount: vendorSubtotal, // Add totalAmount for display
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        isPartialOrder: vendorProducts.length < (order.products || []).length,
+      };
+    }).filter(Boolean);
+
+    // Apply status filter if provided
+    if (status && status !== 'all') {
+      vendorOrders = vendorOrders.filter(o => o.status === status);
+    }
+
+    // Populate product details
+    for (let order of vendorOrders) {
       if (order.products && Array.isArray(order.products)) {
         for (let item of order.products) {
           if (item.productId) {
@@ -131,12 +231,20 @@ exports.getVendorOrders = async (req, res) => {
       }
     }
 
+    // Pagination
+    const total = vendorOrders.length;
+    const startIndex = (parseInt(page) - 1) * parseInt(limit);
+    const endIndex = startIndex + parseInt(limit);
+    const paginatedOrders = vendorOrders.slice(startIndex, endIndex);
+
+    console.log('   ✅ Returning', paginatedOrders.length, 'orders to vendor\n');
+
     res.json({
       success: true,
-      orders: result.orders,
-      total: result.total,
-      page: result.page,
-      totalPages: result.totalPages,
+      orders: paginatedOrders,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
     });
   } catch (error) {
     console.error("Error fetching vendor orders:", error);
@@ -150,8 +258,9 @@ exports.updateOrderStatus = async (req, res) => {
     const { orderId } = req.params;
     const { status } = req.body;
     const Vendor = req.app.locals.models.Vendor;
-    const VendorOrder = req.app.locals.models.VendorOrder;
+    const Order = req.app.locals.models.Order;
     const User = req.app.locals.models.User;
+    const db = req.app.locals.db;
 
     const user = await User.findByFirebaseUid(req.user.uid);
     if (!user) {
@@ -163,18 +272,45 @@ exports.updateOrderStatus = async (req, res) => {
       return res.status(404).json({ error: "Vendor not found" });
     }
 
-    // Verify order belongs to vendor
-    const order = await VendorOrder.findById(orderId);
+    const vendorId = vendor._id.toString();
+
+    // Get the order
+    const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({ error: "Order not found" });
     }
 
-    if (order.vendorId !== vendor._id.toString()) {
-      return res.status(403).json({ error: "Unauthorized to update this order" });
+    // Check if vendor has items in this order
+    const vendorItems = (order.products || []).filter(
+      p => p.vendorId === vendorId || (p.vendorId && p.vendorId.toString() === vendorId)
+    );
+
+    if (vendorItems.length === 0) {
+      return res.status(403).json({ error: "No items for this vendor in order" });
     }
 
-    // Update order status
-    await VendorOrder.updateStatus(orderId, status);
+    // Update item statuses for vendor's products
+    const ordersCollection = db.collection("orders");
+    await ordersCollection.updateOne(
+      { _id: typeof orderId === 'string' ? new ObjectId(orderId) : orderId },
+      {
+        $set: {
+          "products.$[elem].itemStatus": status,
+          "products.$[elem].statusUpdatedAt": new Date(),
+        }
+      },
+      {
+        arrayFilters: [{ 
+          $or: [
+            { "elem.vendorId": vendorId },
+            { "elem.vendorId": vendor._id }
+          ]
+        }]
+      }
+    );
+
+    // Sync overall order status
+    await Order.syncOrderStatus(orderId);
 
     res.json({ success: true, message: "Order status updated" });
   } catch (error) {
@@ -221,7 +357,7 @@ exports.getTopProducts = async (req, res) => {
 exports.getVendorOrderDetail = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const VendorOrder = req.app.locals.models.VendorOrder;
+    const Order = req.app.locals.models.Order;
     const Vendor = req.app.locals.models.Vendor;
     const User = req.app.locals.models.User;
     const db = req.app.locals.db;
@@ -232,18 +368,19 @@ exports.getVendorOrderDetail = async (req, res) => {
     const vendor = await Vendor.findByUserId(user._id);
     if (!vendor) return res.status(404).json({ error: "Vendor not found" });
 
-    const order = await VendorOrder.findById(orderId);
-    if (!order) return res.status(404).json({ error: "Order not found" });
+    const vendorId = vendor._id.toString();
 
-    if (order.vendorId !== vendor._id.toString()) {
-      return res.status(403).json({ error: "Unauthorized to view this order" });
+    // Get vendor-specific items from parent order
+    const orderData = await Order.getVendorItems(orderId, vendorId);
+    if (!orderData) {
+      return res.status(404).json({ error: "Order not found or no items for this vendor" });
     }
 
     // Enrich products with full product details
     const productsCollection = db.collection("products");
     const enrichedProducts = [];
-    if (order.products && Array.isArray(order.products)) {
-      for (const item of order.products) {
+    if (orderData.products && Array.isArray(orderData.products)) {
+      for (const item of orderData.products) {
         let productDetails = null;
         if (item.productId) {
           try {
@@ -258,17 +395,16 @@ exports.getVendorOrderDetail = async (req, res) => {
     }
 
     const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
-    const totalCommission = enrichedProducts.reduce((s, p) => s + (p.adminCommissionAmount || 0), 0);
-    const totalVendorEarnings = enrichedProducts.reduce((s, p) => s + (p.vendorEarningAmount || 0), 0);
 
     res.json({
       success: true,
       data: {
-        ...order,
+        ...orderData,
         products: enrichedProducts,
-        totalCommission: round2(totalCommission),
-        totalVendorEarnings: round2(totalVendorEarnings),
-        statusHistory: order.statusHistory || [],
+        vendorSubtotal: round2(orderData.vendorSubtotal),
+        vendorCommission: round2(orderData.vendorCommission),
+        vendorEarnings: round2(orderData.vendorEarnings),
+        statusHistory: orderData.statusHistory || [],
       },
     });
   } catch (error) {

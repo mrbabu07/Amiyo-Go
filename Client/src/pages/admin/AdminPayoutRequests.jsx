@@ -331,6 +331,10 @@ export default function AdminPayoutRequests() {
                   <span className="text-gray-600">Method:</span>
                   <span className="font-medium capitalize">{selectedRequest.payoutMethod || 'Bank'}</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Phone:</span>
+                  <span className="font-medium">{selectedRequest.vendorPhone || 'N/A'}</span>
+                </div>
                 {selectedRequest.note && (
                   <div className="pt-2 border-t">
                     <span className="text-gray-600">Vendor Note:</span>
@@ -338,6 +342,86 @@ export default function AdminPayoutRequests() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Bank/Payment Details - Prominent Display */}
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+                <h4 className="font-bold text-blue-900">Payment Information</h4>
+              </div>
+              
+              {selectedRequest.payoutMethod === 'bank' || !selectedRequest.payoutMethod ? (
+                <div className="space-y-3">
+                  <div className="bg-white rounded p-3">
+                    <div className="text-xs text-gray-500 mb-1">Bank Name</div>
+                    <div className="font-semibold text-gray-900">{selectedRequest.bankName || 'Not provided'}</div>
+                  </div>
+                  <div className="bg-white rounded p-3">
+                    <div className="text-xs text-gray-500 mb-1">Account Name</div>
+                    <div className="font-semibold text-gray-900">{selectedRequest.bankAccountName || 'Not provided'}</div>
+                  </div>
+                  <div className="bg-white rounded p-3">
+                    <div className="text-xs text-gray-500 mb-1">Account Number</div>
+                    <div className="font-bold text-lg text-blue-600 font-mono tracking-wider">
+                      {selectedRequest.bankAccountNumber || 'Not provided'}
+                    </div>
+                    {selectedRequest.bankAccountNumber && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedRequest.bankAccountNumber);
+                          toast.success('Account number copied!');
+                        }}
+                        className="mt-2 text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        Copy Account Number
+                      </button>
+                    )}
+                  </div>
+                  {selectedRequest.bankBranch && (
+                    <div className="bg-white rounded p-3">
+                      <div className="text-xs text-gray-500 mb-1">Branch</div>
+                      <div className="font-medium text-gray-900">{selectedRequest.bankBranch}</div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="bg-white rounded p-3">
+                    <div className="text-xs text-gray-500 mb-1">Mobile Banking Provider</div>
+                    <div className="font-semibold text-gray-900 capitalize">
+                      {selectedRequest.mobileBankingProvider || selectedRequest.payoutMethod}
+                    </div>
+                  </div>
+                  <div className="bg-white rounded p-3">
+                    <div className="text-xs text-gray-500 mb-1">Mobile Number</div>
+                    <div className="font-bold text-lg text-blue-600 font-mono tracking-wider">
+                      {selectedRequest.mobileBankingNumber || 'Not provided'}
+                    </div>
+                    {selectedRequest.mobileBankingNumber && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedRequest.mobileBankingNumber);
+                          toast.success('Mobile number copied!');
+                        }}
+                        className="mt-2 text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        Copy Mobile Number
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Form Fields */}

@@ -45,7 +45,9 @@ export default function VendorFinance() {
     try {
       // Fetch finance summary
       const summaryRes = await getVendorFinanceSummary();
+      console.log('📊 Finance Summary Response:', summaryRes.data);
       if (summaryRes.data.success) {
+        console.log('💰 Setting stats:', summaryRes.data.data);
         setStats(summaryRes.data.data);
       }
 
@@ -104,14 +106,14 @@ export default function VendorFinance() {
 
         {/* Balance Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          {/* Pending Balance */}
+          {/* Available Balance */}
           <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-orange-100 text-sm font-medium">Pending Balance</span>
+              <span className="text-orange-100 text-sm font-medium">Available Balance</span>
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">💰</div>
             </div>
             <div className="text-3xl font-bold mb-1">{formatPrice(stats?.pendingBalance || 0)}</div>
-            <div className="text-orange-100 text-sm">Available for payout</div>
+            <div className="text-orange-100 text-sm">Ready for payout request</div>
           </div>
 
           {/* Paid Balance */}
@@ -294,14 +296,22 @@ export default function VendorFinance() {
                 </div>
 
                 {/* Balance Status */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-5 border border-orange-200">
                     <div className="flex items-center gap-3 mb-2">
                       <span className="text-2xl">⏳</span>
-                      <p className="text-sm text-orange-700 font-medium">Pending Balance</p>
+                      <p className="text-sm text-orange-700 font-medium">Available Balance</p>
                     </div>
                     <p className="text-3xl font-bold text-orange-900">{formatPrice(stats?.pendingBalance || 0)}</p>
-                    <p className="text-xs text-orange-600 mt-1">From delivered orders, awaiting payout</p>
+                    <p className="text-xs text-orange-600 mt-1">Available for payout request</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-5 border border-blue-200">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-2xl">🕐</span>
+                      <p className="text-sm text-blue-700 font-medium">Pending Payouts</p>
+                    </div>
+                    <p className="text-3xl font-bold text-blue-900">{formatPrice(stats?.pendingPayouts || 0)}</p>
+                    <p className="text-xs text-blue-600 mt-1">Requested, awaiting admin approval</p>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-5 border border-green-200">
                     <div className="flex items-center gap-3 mb-2">
@@ -313,6 +323,29 @@ export default function VendorFinance() {
                   </div>
                 </div>
 
+                {/* Bank Settings Card */}
+                <Link 
+                  to="/vendor/settings/bank"
+                  className="block bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02]"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-white/20 rounded-lg backdrop-blur-sm">
+                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-white mb-1">Payment Settings</h3>
+                        <p className="text-blue-100 text-sm">Set up your bank account or mobile banking for payouts</p>
+                      </div>
+                    </div>
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </Link>
+
                 <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
                   <h4 className="font-semibold text-blue-900 mb-4 flex items-center gap-2">
                     <span className="text-xl">ℹ️</span>
@@ -322,7 +355,8 @@ export default function VendorFinance() {
                     <p>• <strong>Gross Sales:</strong> Total amount from all your delivered orders (what customers paid)</p>
                     <p>• <strong>Commission:</strong> Platform fee based on product category - deducted automatically</p>
                     <p>• <strong>Net Earnings:</strong> Your actual earnings after commission (Gross Sales - Commission)</p>
-                    <p>• <strong>Pending Balance:</strong> Net earnings from delivered orders waiting for admin payout</p>
+                    <p>• <strong>Available Balance:</strong> Net earnings from delivered orders, ready for payout request</p>
+                    <p>• <strong>Pending Payouts:</strong> Amount you've requested but admin hasn't paid yet</p>
                     <p>• <strong>Paid Balance:</strong> Amount already transferred to you by admin</p>
                   </div>
                 </div>

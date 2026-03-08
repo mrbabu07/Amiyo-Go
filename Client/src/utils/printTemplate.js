@@ -13,16 +13,14 @@ export const generateProfessionalInvoice = (order) => {
   const tax = order.tax || 0;
   const total = order.total || 0;
 
-  // Fixed to BDT only - no currency conversion
-  const BDT_RATE = 110; // 1 USD = 110 BDT
+  // Prices are already in BDT
   const BDT_SYMBOL = "৳";
 
-  // Format price in BDT (prices stored in USD in database)
-  const formatPrice = (priceInUSD) => {
-    if (!priceInUSD && priceInUSD !== 0) return `${BDT_SYMBOL}0`;
-    const priceInBDT = priceInUSD * BDT_RATE;
+  // Format price in BDT (prices are already in BDT)
+  const formatPrice = (price) => {
+    if (!price && price !== 0) return `${BDT_SYMBOL}0`;
     // Format with comma separators for BDT (no decimals)
-    return `${BDT_SYMBOL}${Math.round(priceInBDT).toLocaleString()}`;
+    return `${BDT_SYMBOL}${Math.round(price).toLocaleString()}`;
   };
 
   // Utility function to safely render color

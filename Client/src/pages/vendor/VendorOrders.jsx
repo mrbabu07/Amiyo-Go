@@ -4,6 +4,7 @@ import useAuth from "../../hooks/useAuth";
 import { useCurrency } from "../../hooks/useCurrency";
 import Loading from "../../components/Loading";
 import toast, { Toaster } from "react-hot-toast";
+import { generateVendorPackingSlip } from "../../utils/vendorPackingSlip";
 
 const statusConfig = {
   pending: {
@@ -136,127 +137,37 @@ export default function VendorOrders() {
     }
   };
 
-  // ── print invoice ──────────────────────────────────────
-  const printInvoice = (order) => {
-    const orderDate = new Date(order.createdAt).toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  // ── print packing slip ──────────────────────────────────────
+  const printPackingSlip = (order) => {
+    try {
+      // Use vendor packing slip template
+      const printContent = generateVendorPackingSlip(order, {
+        businessName: "Your Business", // TODO: Get from vendor profile
+        phone: "", // TODO: Get from vendor profile
+      });
 
-    const products = order.products || [];
-    const subtotal = products.reduce(
-      (s, p) => s + (p.price || 0) * (p.quantity || 1),
-      0
-    );
-    const deliveryCharge = order.deliveryCharge || 0;
-    const total = order.totalAmount || subtotal + deliveryCharge;
+      // Create a new window for printing
+      const printWindow = window.open("", "_blank", "width=800,height=600");
 
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <title>Order #${order._id?.slice(-8).toUpperCase()} - Vendor Invoice</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:Arial,sans-serif;color:#333;max-width:800px;margin:0 auto;padding:20px}
-    .header{text-align:center;border-bottom:3px solid #ea580c;padding-bottom:16px;margin-bottom:24px}
-    .logo{font-size:26px;font-weight:bold;color:#ea580c}
-    .sub{color:#888;font-size:13px}
-    .box{background:#f8f9fa;padding:16px;border-radius:8px;border-left:4px solid #ea580c;margin-bottom:20px}
-    .order-id{font-size:20px;font-weight:bold;color:#ea580c;margin-bottom:8px}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    .label{font-weight:bold;color:#555}
-    .badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:bold;text-transform:uppercase;background:#fff3cd;color:#856404}
-    table{width:100%;border-collapse:collapse;margin-top:12px}
-    th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #dee2e6}
-    th{background:#f8f9fa;font-weight:bold;color:#555;border-bottom:2px solid #ea580c}
-    .total-box{background:#f8f9fa;padding:16px;border-radius:8px;margin-top:16px}
-    .tr{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #dee2e6}
-    .tr:last-child{border:none;font-weight:bold;font-size:15px;color:#ea580c;border-top:2px solid #ea580c;padding-top:10px;margin-top:6px}
-    .footer{margin-top:32px;padding-top:16px;border-top:2px solid #eee;text-align:center;color:#888;font-size:12px}
-    @media print{body{padding:10px}}
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="logo">BazarBD</div>
-    <div class="sub">Seller Center Invoice</div>
-  </div>
-  <div class="box">
-    <div class="order-id">Order #${order._id?.slice(-8).toUpperCase()}</div>
-    <div class="grid2">
-      <div>
-        <p><span class="label">Date:</span> ${orderDate}</p>
-        <p><span class="label">Payment:</span> ${(order.paymentMethod || "N/A").toUpperCase()}</p>
-      </div>
-      <div>
-        <p><span class="label">Status:</span> <span class="badge">${order.status?.toUpperCase()}</span></p>
-        <p><span class="label">Total:</span> <strong style="color:#ea580c">${formatPrice(total)}</strong></p>
-      </div>
-    </div>
-  </div>
+      if (!printWindow) {
+        toast.error("Popup blocked. Please allow popups.");
+        return;
+      }
 
-  ${
-    order.shippingInfo
-      ? `<div class="grid2" style="margin-bottom:20px">
-    <div>
-      <h4 style="margin-bottom:10px">👤 Customer</h4>
-      <p>${order.shippingInfo.name || ""}</p>
-      <p>${order.shippingInfo.phone || ""}</p>
-      <p>${order.shippingInfo.email || ""}</p>
-    </div>
-    <div>
-      <h4 style="margin-bottom:10px">📍 Delivery Address</h4>
-      <p style="white-space:pre-line">${[order.shippingInfo.name, order.shippingInfo.phone, order.shippingInfo.address, (order.shippingInfo.area || "") + (order.shippingInfo.city ? ", " + order.shippingInfo.city : ""), order.shippingInfo.zipCode].filter(Boolean).join("\n")}</p>
-    </div>
-  </div>`
-      : ""
-  }
+      // Write content to the new window
+      printWindow.document.open();
+      printWindow.document.write(printContent);
+      printWindow.document.close();
 
-  <h4 style="margin-bottom:8px">🛍️ Order Items (${products.length})</h4>
-  <table>
-    <thead><tr><th>Product</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th><th style="text-align:right">Subtotal</th></tr></thead>
-    <tbody>
-      ${products
-        .map(
-          (p) => `<tr>
-        <td>${p.title || "Product"}</td>
-        <td style="text-align:center">${p.quantity}</td>
-        <td style="text-align:right">${formatPrice(p.price)}</td>
-        <td style="text-align:right;font-weight:bold">${formatPrice((p.price || 0) * (p.quantity || 1))}</td>
-      </tr>`
-        )
-        .join("")}
-    </tbody>
-  </table>
-  <div class="total-box">
-    <div class="tr"><span>Subtotal:</span><span>${formatPrice(subtotal)}</span></div>
-    <div class="tr"><span>Delivery:</span><span>${deliveryCharge > 0 ? formatPrice(deliveryCharge) : "FREE"}</span></div>
-    <div class="tr"><span>Total:</span><span>${formatPrice(total)}</span></div>
-  </div>
-  <div class="footer">
-    <p><strong>BazarBD Seller Center</strong></p>
-    <p>Printed on ${new Date().toLocaleString()}</p>
-  </div>
-</body>
-</html>`;
-
-    const win = window.open("", "_blank", "width=820,height=700");
-    if (!win) {
-      toast.error("Popup blocked. Please allow popups.");
-      return;
+      // Wait for content to load, then print
+      printWindow.onload = function () {
+        printWindow.focus();
+        printWindow.print();
+      };
+    } catch (error) {
+      console.error("Print error:", error);
+      toast.error("Failed to print packing slip");
     }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    win.onload = () => {
-      win.focus();
-      win.print();
-      setTimeout(() => win.close(), 1200);
-    };
   };
 
   // ── copy address ───────────────────────────────────────
@@ -515,11 +426,11 @@ export default function VendorOrders() {
                           </p>
                         </div>
 
-                        {/* Print button */}
+                        {/* Print Packing Slip button */}
                         <button
-                          onClick={() => printInvoice(order)}
+                          onClick={() => printPackingSlip(order)}
                           className="p-2 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                          title="Print Invoice"
+                          title="Print Packing Slip"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -833,7 +744,7 @@ export default function VendorOrders() {
                           {/* Quick actions */}
                           <div className="flex gap-2">
                             <button
-                              onClick={() => printInvoice(order)}
+                              onClick={() => printPackingSlip(order)}
                               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
