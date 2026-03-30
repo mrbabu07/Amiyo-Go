@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "E:\\programming hero\\Amiyo-Go\\HnilaBazar\\Server\\logs\\.a08d0ede8c5ba96c767d3760df0e17c3b634d9ae-audit.json",
+    "files": [
+        {
+            "date": 1774883229565,
+            "name": "E:\\programming hero\\Amiyo-Go\\HnilaBazar\\Server\\logs\\error-2026-03-30.log",
+            "hash": "1f87dfdba2de740690b08074973583e3527457a0dcfdd46211b7a6a3f2fe4bea"
+        }
+    ],
+    "hashType": "sha256"
+}

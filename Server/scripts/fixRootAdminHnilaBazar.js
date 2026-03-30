@@ -6,7 +6,7 @@ async function fixRootAdmin() {
 
   const ROOT_ADMIN_EMAIL = "admin@bazarbd.com";
   const ROOT_ADMIN_UID = "ZCJRCBBWlaWCeWme4cBu06DIT3Q2";
-  const DB_NAME = process.env.DB_NAME || "HnilaBazar";
+  const DB_NAME = process.env.DB_NAME || "AmiyoGo";
 
   const adminPermissions = {
     orders: ["read", "create", "update", "delete"],

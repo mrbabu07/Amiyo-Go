@@ -15,7 +15,7 @@ try {
   console.log("📝 Add these to your .env file:");
   console.log(`VAPID_PUBLIC_KEY=${vapidKeys.publicKey}`);
   console.log(`VAPID_PRIVATE_KEY=${vapidKeys.privateKey}`);
-  console.log(`VAPID_EMAIL=mailto:admin@hnilabazar.com`);
+  console.log(`VAPID_EMAIL=mailto:admin@amiyo-go.com`);
   console.log("");
   console.log("✅ Keys generated successfully!");
 } catch (error) {

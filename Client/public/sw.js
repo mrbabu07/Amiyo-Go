@@ -1,6 +1,6 @@
-const CACHE_NAME = "hnilabazar-v1.0.1";
-const STATIC_CACHE = "hnilabazar-static-v1.0.1";
-const DYNAMIC_CACHE = "hnilabazar-dynamic-v1.0.1";
+const CACHE_NAME = "amiyo-go-v1.0.1";
+const STATIC_CACHE = "amiyo-go-static-v1.0.1";
+const DYNAMIC_CACHE = "amiyo-go-dynamic-v1.0.1";
 
 // Assets to cache immediately
 const STATIC_ASSETS = ["/", "/offline.html", "/manifest.json"];
@@ -274,7 +274,7 @@ async function handleNavigationRequest(request) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Offline - HnilaBazar</title>
+          <title>Offline - Amiyo-Go</title>
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <style>
             body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
@@ -442,8 +442,8 @@ self.addEventListener("push", (event) => {
   console.log("📬 Service Worker: Push notification received");
 
   let notificationData = {
-    title: "HnilaBazar",
-    body: "You have new updates from HnilaBazar!",
+    title: "Amiyo-Go",
+    body: "You have new updates from Amiyo-Go!",
     icon: "/icons/icon-192x192.png",
     badge: "/icons/icon-72x72.png",
     vibrate: [100, 50, 100],

@@ -111,7 +111,7 @@ export default function Register() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Create an account
           </h1>
-          <p className="text-gray-600">Join HnilaBazar and start shopping</p>
+          <p className="text-gray-600">Join Amiyo-Go and start shopping</p>
         </div>
 
         {/* Form Card */}

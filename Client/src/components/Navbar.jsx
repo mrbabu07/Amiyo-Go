@@ -124,7 +124,7 @@ export default function Navbar() {
                 <span className="text-white font-bold text-xl">H</span>
               </div>
               <span className="text-2xl font-bold text-gray-900 dark:text-white hidden sm:block">
-                HnilaBazar
+                Amiyo-Go
               </span>
             </Link>
 

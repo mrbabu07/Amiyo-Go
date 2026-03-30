@@ -48,7 +48,7 @@ class InvoiceService {
     doc
       .fillColor("#10B981")
       .fontSize(28)
-      .text("HnilaBazar", 50, 45)
+      .text("Amiyo-Go", 50, 45)
       .fillColor("#444444")
       .fontSize(10)
       .text("E-commerce Platform", 50, 75)
@@ -328,7 +328,7 @@ class InvoiceService {
     doc
       .fontSize(8)
       .fillColor("#999999")
-      .text("Thank you for shopping with HnilaBazar!", 50, 730, {
+      .text("Thank you for shopping with Amiyo-Go!", 50, 730, {
         align: "center",
         width: 500,
       })

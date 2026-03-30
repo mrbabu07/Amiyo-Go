@@ -256,7 +256,7 @@ const showInstallSuccessMessage = () => {
       <div style="font-size: 48px; margin-bottom: 15px;">🎉</div>
       <h3 style="margin: 0 0 10px 0; font-weight: 600;">App Installed!</h3>
       <p style="margin: 0; color: #666; font-size: 14px;">
-        HnilaBazar is now available on your home screen
+        Amiyo-Go is now available on your home screen
       </p>
     </div>
     <div style="

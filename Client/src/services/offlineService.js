@@ -1,6 +1,6 @@
 class OfflineService {
   constructor() {
-    this.dbName = "HnilaBazarOfflineDB";
+    this.dbName = "AmiyoGoOfflineDB";
     this.dbVersion = 1;
     this.db = null;
     this.isOnline = navigator.onLine;

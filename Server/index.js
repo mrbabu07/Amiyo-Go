@@ -36,6 +36,14 @@ const VendorPayout = require("./models/VendorPayout");
 const VendorChat = require("./models/VendorChat");
 const CategoryRequest = require("./models/CategoryRequest");
 const AdminVendorChat = require("./models/AdminVendorChat");
+const CategoryField = require("./models/CategoryField");
+const DeliverySettings = require("./models/DeliverySettings");
+const FlashSale = require("./models/FlashSale");
+const Listing = require("./models/Listing");
+const Recommendation = require("./models/Recommendation");
+const SellerProfile = require("./models/SellerProfile");
+const StockAlert = require("./models/StockAlert");
+const StoreLocation = require("./models/StoreLocation");
 
 // Import routes
 const productRoutes = require("./routes/productRoutes");
@@ -70,6 +78,8 @@ const adminVendorRoutes = require("./routes/adminVendorRoutes");
 const categoryRequestRoutes = require("./routes/categoryRequestRoutes");
 const vendorChatRoutes = require("./routes/vendorChatRoutes");
 const adminVendorChatRoutes = require("./routes/chatRoutes");
+const categoryFieldRoutes = require("./routes/categoryFieldRoutes");
+const storeLocationRoutes = require("./routes/storeLocationRoutes");
 
 // Import middleware and controllers for direct routes
 const { verifyToken, verifyAdmin } = require("./middleware/auth");
@@ -153,6 +163,14 @@ async function run() {
       VendorChat: new VendorChat(db),
       CategoryRequest: new CategoryRequest(db),
       AdminVendorChat: new AdminVendorChat(db),
+      CategoryField: new CategoryField(db),
+      DeliverySettings: new DeliverySettings(db),
+      FlashSale: new FlashSale(db),
+      Listing: new Listing(db),
+      Recommendation: new Recommendation(db),
+      SellerProfile: new SellerProfile(db),
+      StockAlert: new StockAlert(db),
+      StoreLocation: new StoreLocation(db),
     };
 
     // Store db reference for controllers that need it
@@ -274,6 +292,12 @@ async function run() {
     
     app.use("/api/chat", adminVendorChatRoutes);
     console.log("✅ Admin-Vendor Chat routes registered");
+
+    app.use("/api/category-fields", categoryFieldRoutes);
+    console.log("✅ Category Fields routes registered");
+
+    app.use("/api/store-locations", storeLocationRoutes);
+    console.log("✅ Store Locations routes registered");
 
     // Returns routes
     app.post("/api/returns", verifyToken, createReturnRequest);

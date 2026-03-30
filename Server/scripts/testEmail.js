@@ -39,10 +39,10 @@ async function testEmailService() {
   try {
     const result = await emailService.sendEmail(
       process.env.SMTP_USER, // Send to yourself
-      "Test Email - HnilaBazar",
+      "Test Email - Amiyo-Go",
       `
         <h1>✅ Email Service Working!</h1>
-        <p>This is a test email from HnilaBazar.</p>
+        <p>This is a test email from Amiyo-Go.</p>
         <p>If you received this, your email service is configured correctly.</p>
         <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
       `,

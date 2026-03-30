@@ -23,7 +23,7 @@ async function makeAdmin() {
     await client.connect();
     console.log("✅ Connected to MongoDB");
 
-    const db = client.db("HnilaBazar");
+    const db = client.db("AmiyoGo");
     const userModel = new User(db);
 
     // Find user by email

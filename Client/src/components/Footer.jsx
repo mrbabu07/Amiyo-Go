@@ -12,9 +12,9 @@ export default function Footer() {
           <div className="lg:col-span-1">
             <Link to="/" className="flex items-center space-x-2 mb-4">
               <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">H</span>
+                <span className="text-white font-bold text-xl">A</span>
               </div>
-              <span className="text-2xl font-bold text-white">HnilaBazar</span>
+              <span className="text-2xl font-bold text-white">Amiyo-Go</span>
             </Link>
             <p className="text-gray-400 text-sm leading-relaxed mb-4">
               Your trusted online shopping destination. Quality products, great
@@ -182,7 +182,7 @@ export default function Footer() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0 gap-6">
             <p className="text-gray-400 text-sm">
-              © {currentYear} HnilaBazar. All rights reserved.
+              © {currentYear} Amiyo-Go. All rights reserved.
             </p>
 
             {/* Payment Methods */}

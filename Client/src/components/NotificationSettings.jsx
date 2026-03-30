@@ -138,7 +138,7 @@ export default function NotificationSettings() {
 
   const testNotification = () => {
     pushNotificationService.showLocalNotification("🧪 Test Notification", {
-      body: "This is a test notification from HnilaBazar!",
+      body: "This is a test notification from Amiyo-Go!",
       tag: "test-notification",
     });
   };
