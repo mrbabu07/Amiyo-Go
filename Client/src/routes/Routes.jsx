@@ -20,7 +20,6 @@ import Messages from "../pages/Messages";
 import AdminDynamicCategories from "../pages/admin/AdminDynamicCategories";
 import AdminEditCategoryAttributes from "../pages/admin/AdminEditCategoryAttributes";
 import AdminProducts from "../pages/admin/AdminProducts";
-import AdminCategories from "../pages/admin/AdminCategories";
 import AdminCategoryRequests from "../pages/admin/AdminCategoryRequests";
 import AdminOrders from "../pages/admin/AdminOrders";
 import AdminInventory from "../pages/admin/AdminInventory";
