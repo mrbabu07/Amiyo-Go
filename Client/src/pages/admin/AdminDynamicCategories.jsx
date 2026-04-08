@@ -3,6 +3,7 @@ import axios from "axios";
 import DynamicCategoryForm from "@/components/admin/DynamicCategoryForm";
 import CategoryList from "@/components/admin/CategoryList";
 import { Plus, Search, AlertCircle, Trash2, ChevronDown, ChevronUp, Settings, Edit2, Eye, Check } from "lucide-react";
+import { getCurrentUserToken } from "../../utils/auth";
 
 export default function AdminDynamicCategories() {
   const [dynamicCategories, setDynamicCategories] = useState([]);
@@ -67,11 +68,16 @@ export default function AdminDynamicCategories() {
   const handleDelete = async (categoryId) => {
     if (window.confirm("Are you sure you want to delete this category?")) {
       try {
+        const token = await getCurrentUserToken();
+        if (!token) {
+          alert("Authentication required. Please log in again.");
+          return;
+        }
         await axios.delete(
           `${import.meta.env.VITE_API_URL}/dynamic-categories/${categoryId}`,
           {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
+              Authorization: `Bearer ${token}`,
             },
           }
         );
@@ -96,12 +102,18 @@ export default function AdminDynamicCategories() {
     }
     setSavingCommission((prev) => ({ ...prev, [category._id]: true }));
     try {
+      const token = await getCurrentUserToken();
+      if (!token) {
+        alert("Authentication required. Please log in again.");
+        setSavingCommission((prev) => ({ ...prev, [category._id]: false }));
+        return;
+      }
       await axios.put(
         `${import.meta.env.VITE_API_URL}/categories/${category._id}`,
         { commissionRate: rate },
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -195,13 +207,18 @@ export default function AdminDynamicCategories() {
 
   const handleSaveAttributes = async (category) => {
     try {
+      const token = await getCurrentUserToken();
+      if (!token) {
+        alert("Authentication required. Please log in again.");
+        return;
+      }
       const attributes = editingAttributes[category._id] || [];
       await axios.put(
         `${import.meta.env.VITE_API_URL}/categories/${category._id}`,
         { attributes },
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -229,21 +246,21 @@ export default function AdminDynamicCategories() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Header - Daraz Style */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 border-b-4 border-blue-800 shadow-2xl">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-primary-500 to-primary-600 shadow-medium">
         <div className="max-w-7xl mx-auto px-6 py-10">
           <div className="flex justify-between items-center">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-lg">
-                  <Settings className="w-6 h-6 text-blue-600" />
+                <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-soft">
+                  <Settings className="w-6 h-6 text-primary-600" />
                 </div>
                 <div>
                   <h1 className="text-4xl font-black text-white">
                     Category Management
                   </h1>
-                  <p className="text-blue-100 mt-1 font-medium">
+                  <p className="text-primary-100 mt-1 font-medium">
                     Manage categories, attributes & commission rates
                   </p>
                 </div>
@@ -252,7 +269,7 @@ export default function AdminDynamicCategories() {
             <div className="flex gap-3">
               <button
                 onClick={() => window.location.href = "/admin/categories/manage"}
-                className="px-6 py-4 bg-purple-600 text-white rounded-xl hover:bg-purple-700 font-bold transition-all shadow-lg hover:shadow-2xl flex items-center gap-2 transform hover:scale-105"
+                className="px-6 py-4 bg-secondary-500 text-white rounded-xl hover:bg-secondary-600 font-bold transition-all shadow-soft hover:shadow-medium flex items-center gap-2"
               >
                 <Settings className="w-5 h-5" />
                 <span>Manage All</span>
@@ -262,7 +279,7 @@ export default function AdminDynamicCategories() {
                   setEditingCategory(null);
                   setShowForm(true);
                 }}
-                className="px-8 py-4 bg-white text-blue-600 rounded-xl hover:bg-blue-50 font-bold transition-all shadow-lg hover:shadow-2xl flex items-center gap-2 transform hover:scale-105"
+                className="px-8 py-4 bg-white text-primary-600 rounded-xl hover:bg-gray-50 font-bold transition-all shadow-soft hover:shadow-medium flex items-center gap-2"
               >
                 <Plus className="w-6 h-6" />
                 <span>New Category</span>
@@ -276,10 +293,10 @@ export default function AdminDynamicCategories() {
         {/* Form Modal */}
         {showForm && (
           <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 border-blue-200">
-              <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200 p-8 flex justify-between items-center">
+            <div className="bg-white rounded-2xl shadow-strong max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200">
+              <div className="sticky top-0 bg-gradient-to-r from-primary-50 to-secondary-50 border-b border-gray-200 p-8 flex justify-between items-center">
                 <h2 className="text-3xl font-black text-gray-900">
-                  {editingCategory ? "✏️ Edit Category" : "➕ Create New Category"}
+                  {editingCategory ? "Edit Category" : "Create New Category"}
                 </h2>
                 <button
                   onClick={handleFormClose}
@@ -303,38 +320,38 @@ export default function AdminDynamicCategories() {
 
         {/* Error Alert */}
         {error && (
-          <div className="mb-8 p-6 bg-red-50 border-2 border-red-300 rounded-xl flex items-center gap-4 shadow-lg">
-            <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
+          <div className="mb-8 p-6 bg-error-50 border border-error-300 rounded-xl flex items-center gap-4 shadow-soft">
+            <AlertCircle className="w-6 h-6 text-error-600 flex-shrink-0" />
             <div className="flex-1">
-              <p className="text-red-800 font-bold">{error}</p>
+              <p className="text-error-700 font-bold">{error}</p>
             </div>
             <button
               onClick={fetchAllCategories}
-              className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold text-sm transition-all"
+              className="px-6 py-2 bg-error-600 text-white rounded-lg hover:bg-error-700 font-bold text-sm transition-all"
             >
               Retry
             </button>
           </div>
         )}
 
-        {/* Search Bar - Daraz Style */}
+        {/* Search Bar */}
         <div className="mb-10">
           <div className="relative">
-            <Search className="absolute left-5 top-4 w-6 h-6 text-blue-400" />
+            <Search className="absolute left-5 top-4 w-6 h-6 text-primary-400" />
             <input
               type="text"
-              placeholder="🔍 Search categories by name..."
+              placeholder="Search categories by name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-16 pr-6 py-4 border-2 border-blue-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white text-lg font-medium shadow-md"
+              className="w-full pl-16 pr-6 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all bg-white text-lg font-medium shadow-soft"
             />
           </div>
         </div>
 
         {loading ? (
           <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-20 w-20 border-4 border-blue-300 border-t-blue-600 mb-6"></div>
-            <p className="mt-6 text-white font-bold text-xl">Loading categories...</p>
+            <div className="inline-block animate-spin rounded-full h-20 w-20 border-4 border-primary-300 border-t-primary-600 mb-6"></div>
+            <p className="mt-6 text-gray-600 font-bold text-xl">Loading categories...</p>
           </div>
         ) : (
           <>
@@ -342,30 +359,30 @@ export default function AdminDynamicCategories() {
             <div className="mb-16">
               <div className="mb-8">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-2 h-10 bg-gradient-to-b from-blue-400 to-blue-600 rounded-full"></div>
-                  <h2 className="text-3xl font-black text-white">
+                  <div className="w-2 h-10 bg-gradient-to-b from-primary-400 to-primary-600 rounded-full"></div>
+                  <h2 className="text-3xl font-black text-gray-900">
                     Dynamic Categories
                   </h2>
-                  <span className="px-4 py-2 bg-blue-500 text-white rounded-full font-bold text-sm">
+                  <span className="px-4 py-2 bg-primary-500 text-white rounded-full font-bold text-sm">
                     {filteredDynamic.length}
                   </span>
                 </div>
-                <p className="text-blue-200 ml-5 font-medium">Categories with custom attributes for products</p>
+                <p className="text-gray-600 ml-5 font-medium">Categories with custom attributes for products</p>
               </div>
 
               {filteredDynamic.length === 0 ? (
-                <div className="bg-gradient-to-br from-blue-900 to-blue-800 rounded-2xl shadow-2xl border-2 border-blue-700 p-16 text-center">
-                  <div className="w-20 h-20 bg-blue-700 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Plus className="w-10 h-10 text-blue-300" />
+                <div className="bg-white rounded-2xl shadow-soft border border-gray-200 p-16 text-center">
+                  <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Plus className="w-10 h-10 text-primary-600" />
                   </div>
-                  <p className="text-blue-100 text-lg mb-2 font-bold">No dynamic categories</p>
-                  <p className="text-blue-300 mb-8">Create your first dynamic category to get started</p>
+                  <p className="text-gray-700 text-lg mb-2 font-bold">No dynamic categories</p>
+                  <p className="text-gray-500 mb-8">Create your first dynamic category to get started</p>
                   <button
                     onClick={() => {
                       setEditingCategory(null);
                       setShowForm(true);
                     }}
-                    className="px-8 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-bold transition-all shadow-lg"
+                    className="px-8 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-bold transition-all shadow-soft"
                   >
                     Create Category
                   </button>
@@ -383,20 +400,20 @@ export default function AdminDynamicCategories() {
             <div>
               <div className="mb-8">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-2 h-10 bg-gradient-to-b from-green-400 to-green-600 rounded-full"></div>
-                  <h2 className="text-3xl font-black text-white">
+                  <div className="w-2 h-10 bg-gradient-to-b from-success-400 to-success-600 rounded-full"></div>
+                  <h2 className="text-3xl font-black text-gray-900">
                     All Categories
                   </h2>
-                  <span className="px-4 py-2 bg-green-500 text-white rounded-full font-bold text-sm">
+                  <span className="px-4 py-2 bg-success-500 text-white rounded-full font-bold text-sm">
                     {filteredRegular.length}
                   </span>
                 </div>
-                <p className="text-green-200 ml-5 font-medium">Manage commission rates and add attributes</p>
+                <p className="text-gray-600 ml-5 font-medium">Manage commission rates and add attributes</p>
               </div>
 
               {filteredRegular.length === 0 ? (
-                <div className="bg-gradient-to-br from-green-900 to-green-800 rounded-2xl shadow-2xl border-2 border-green-700 p-16 text-center">
-                  <p className="text-green-100 text-lg font-bold">No categories found</p>
+                <div className="bg-white rounded-2xl shadow-soft border border-gray-200 p-16 text-center">
+                  <p className="text-gray-700 text-lg font-bold">No categories found</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -410,27 +427,27 @@ export default function AdminDynamicCategories() {
                     return (
                       <div
                         key={category._id}
-                        className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-xl shadow-xl border-2 border-slate-600 hover:border-green-400 hover:shadow-2xl transition-all overflow-hidden group"
+                        className="bg-white rounded-xl shadow-soft hover:shadow-medium transition-all overflow-hidden border border-gray-200"
                       >
                         {/* Card Header */}
-                        <div className="p-6 bg-gradient-to-r from-slate-800 to-slate-700 border-b-2 border-slate-600">
+                        <div className="p-6 bg-gradient-to-r from-primary-50 to-secondary-50 border-b border-gray-200">
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
-                                <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center">
+                                <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-lg flex items-center justify-center">
                                   <span className="text-white font-bold text-lg">📦</span>
                                 </div>
                                 <div>
-                                  <h3 className="text-lg font-black text-white">{category.name}</h3>
-                                  <p className="text-slate-400 text-xs">/{category.slug}</p>
+                                  <h3 className="text-lg font-black text-gray-900">{category.name}</h3>
+                                  <p className="text-gray-500 text-xs">/{category.slug}</p>
                                 </div>
                               </div>
                             </div>
                             <span
                               className={`px-3 py-1 rounded-full text-xs font-bold ${
                                 category.isActive !== false
-                                  ? "bg-green-500 text-white"
-                                  : "bg-gray-500 text-white"
+                                  ? "bg-success-100 text-success-700"
+                                  : "bg-gray-100 text-gray-600"
                               }`}
                             >
                               {category.isActive !== false ? "✓ Active" : "Inactive"}
@@ -441,14 +458,14 @@ export default function AdminDynamicCategories() {
                         {/* Card Body */}
                         <div className="p-6 space-y-4">
                           {/* Attributes Count */}
-                          <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
-                            <p className="text-xs font-bold text-slate-400 mb-1">ATTRIBUTES</p>
-                            <p className="text-2xl font-black text-purple-400">{attributes.length}</p>
+                          <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                            <p className="text-xs font-bold text-gray-600 mb-1">ATTRIBUTES</p>
+                            <p className="text-2xl font-black text-primary-600">{attributes.length}</p>
                           </div>
 
                           {/* Commission Rate */}
-                          <div className="bg-slate-900 rounded-lg p-3 border border-slate-700">
-                            <p className="text-xs font-bold text-slate-400 mb-2">COMMISSION RATE</p>
+                          <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                            <p className="text-xs font-bold text-gray-600 mb-2">COMMISSION RATE</p>
                             <div className="flex items-center gap-2">
                               <input
                                 type="number"
@@ -457,21 +474,21 @@ export default function AdminDynamicCategories() {
                                 step="0.5"
                                 value={displayVal}
                                 onChange={(e) => handleCommissionChange(category._id, e.target.value)}
-                                className="flex-1 border-2 border-slate-600 bg-slate-800 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent font-bold text-lg"
+                                className="input-field text-sm"
                               />
-                              <span className="text-slate-300 font-bold">%</span>
+                              <span className="text-gray-600 font-bold">%</span>
                               {isDirty && (
                                 <button
                                   onClick={() => handleSaveCommission(category)}
                                   disabled={isSaving}
-                                  className="px-3 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 font-bold transition-all"
+                                  className="px-3 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 font-bold transition-all"
                                 >
                                   {isSaving ? "..." : "✓"}
                                 </button>
                               )}
                             </div>
                             {parseFloat(displayVal) > 0 && (
-                              <div className="mt-2 text-xs text-slate-400">
+                              <div className="mt-2 text-xs text-gray-600">
                                 <p>On ৳1000: Platform ৳{(1000 * parseFloat(displayVal) / 100).toFixed(0)}</p>
                               </div>
                             )}
@@ -483,7 +500,7 @@ export default function AdminDynamicCategories() {
                               onClick={() => {
                                 setExpandedCategory(expandedCategory === category._id ? null : category._id);
                               }}
-                              className="px-3 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold transition-all text-sm flex items-center justify-center gap-1"
+                              className="px-3 py-2.5 bg-secondary-500 text-white rounded-lg hover:bg-secondary-600 font-bold transition-all text-sm flex items-center justify-center gap-1"
                               title="Manage attributes"
                             >
                               <Settings className="w-4 h-4" />
@@ -494,7 +511,7 @@ export default function AdminDynamicCategories() {
                                 setEditingCategory(category);
                                 setShowForm(true);
                               }}
-                              className="px-3 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold transition-all text-sm flex items-center justify-center gap-1"
+                              className="px-3 py-2.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-bold transition-all text-sm flex items-center justify-center gap-1"
                               title="Edit category"
                             >
                               <Edit2 className="w-4 h-4" />
@@ -504,7 +521,7 @@ export default function AdminDynamicCategories() {
                               onClick={() => {
                                 setExpandedCategory(expandedCategory === category._id ? null : category._id);
                               }}
-                              className="px-3 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold transition-all text-sm flex items-center justify-center gap-1"
+                              className="px-3 py-2.5 bg-accent-500 text-white rounded-lg hover:bg-accent-600 font-bold transition-all text-sm flex items-center justify-center gap-1"
                               title="View details"
                             >
                               <Eye className="w-4 h-4" />
@@ -516,7 +533,7 @@ export default function AdminDynamicCategories() {
                                   handleDelete(category._id);
                                 }
                               }}
-                              className="px-3 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold transition-all text-sm flex items-center justify-center gap-1"
+                              className="px-3 py-2.5 bg-error-500 text-white rounded-lg hover:bg-error-600 font-bold transition-all text-sm flex items-center justify-center gap-1"
                               title="Delete category"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -527,51 +544,51 @@ export default function AdminDynamicCategories() {
 
                         {/* Expanded Details */}
                         {expandedCategory === category._id && (
-                          <div className="border-t-2 border-slate-600 p-6 bg-slate-900 space-y-6">
+                          <div className="border-t border-gray-200 p-6 bg-gray-50 space-y-6">
                             {/* Current Attributes Section */}
                             <div>
-                              <h4 className="text-sm font-bold text-purple-300 mb-4 uppercase tracking-wider flex items-center gap-2">
+                              <h4 className="text-sm font-bold text-primary-700 mb-4 uppercase tracking-wider flex items-center gap-2">
                                 <Settings className="w-4 h-4" />
-                                📋 Manage Attributes ({(editingAttributes[category._id] || category.attributes || []).length})
+                                Manage Attributes ({(editingAttributes[category._id] || category.attributes || []).length})
                               </h4>
 
                               {(editingAttributes[category._id] || category.attributes || []).length === 0 ? (
-                                <div className="text-center py-8 bg-slate-800 rounded-lg border border-dashed border-slate-600">
-                                  <p className="text-slate-400 text-sm">No attributes yet. Add one below.</p>
+                                <div className="text-center py-8 bg-white rounded-lg border border-dashed border-gray-300">
+                                  <p className="text-gray-500 text-sm">No attributes yet. Add one below.</p>
                                 </div>
                               ) : (
                                 <div className="space-y-3 mb-6">
                                   {(editingAttributes[category._id] || category.attributes || []).map((attr, attrIdx) => (
                                     <div
                                       key={attr._id}
-                                      className="border border-purple-600 rounded-lg p-4 bg-slate-800 space-y-3"
+                                      className="border border-secondary-300 rounded-lg p-4 bg-white space-y-3"
                                     >
                                       {/* Attribute Header */}
                                       <div className="flex justify-between items-start">
                                         <div className="flex-1 grid grid-cols-2 gap-3">
                                           {/* Name */}
                                           <div>
-                                            <label className="text-xs font-bold text-slate-400 mb-1 block">NAME</label>
+                                            <label className="text-xs font-bold text-gray-600 mb-1 block">NAME</label>
                                             <input
                                               type="text"
                                               value={attr.name}
                                               onChange={(e) =>
                                                 handleUpdateAttribute(category._id, attrIdx, "name", e.target.value)
                                               }
-                                              className="w-full border-2 border-slate-600 bg-slate-700 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-sm"
+                                              className="input-field text-sm"
                                               placeholder="e.g., RAM, Color"
                                             />
                                           </div>
 
                                           {/* Type */}
                                           <div>
-                                            <label className="text-xs font-bold text-slate-400 mb-1 block">TYPE</label>
+                                            <label className="text-xs font-bold text-gray-600 mb-1 block">TYPE</label>
                                             <select
                                               value={attr.type}
                                               onChange={(e) =>
                                                 handleUpdateAttribute(category._id, attrIdx, "type", e.target.value)
                                               }
-                                              className="w-full border-2 border-slate-600 bg-slate-700 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-sm"
+                                              className="input-field text-sm"
                                             >
                                               <option value="text">Text</option>
                                               <option value="number">Number</option>
@@ -587,7 +604,7 @@ export default function AdminDynamicCategories() {
                                         <button
                                           type="button"
                                           onClick={() => handleDeleteAttribute(category._id, attrIdx)}
-                                          className="p-2 text-red-400 hover:bg-red-900 rounded transition-colors ml-3"
+                                          className="p-2 text-error-600 hover:bg-error-50 rounded transition-colors ml-3"
                                           title="Delete attribute"
                                         >
                                           <Trash2 className="w-4 h-4" />
@@ -595,22 +612,22 @@ export default function AdminDynamicCategories() {
                                       </div>
 
                                       {/* Required Checkbox */}
-                                      <div className="flex items-center gap-2 p-2 bg-slate-700 rounded">
+                                      <div className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
                                         <input
                                           type="checkbox"
                                           checked={attr.required || false}
                                           onChange={(e) =>
                                             handleUpdateAttribute(category._id, attrIdx, "required", e.target.checked)
                                           }
-                                          className="w-4 h-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+                                          className="w-4 h-4 text-primary-600 rounded focus:ring-2 focus:ring-primary-500"
                                         />
-                                        <label className="text-sm font-medium text-slate-300">Required Field</label>
+                                        <label className="text-sm font-medium text-gray-700">Required Field</label>
                                       </div>
 
                                       {/* Options Section (for select/multiselect) */}
                                       {(attr.type === "select" || attr.type === "multiselect") && (
-                                        <div className="border-t border-slate-600 pt-3">
-                                          <label className="text-xs font-bold text-slate-400 mb-2 block">OPTIONS</label>
+                                        <div className="border-t border-gray-200 pt-3">
+                                          <label className="text-xs font-bold text-gray-600 mb-2 block">OPTIONS</label>
                                           
                                           {/* Existing Options */}
                                           {attr.options && attr.options.length > 0 && (
@@ -618,7 +635,7 @@ export default function AdminDynamicCategories() {
                                               {attr.options.map((opt, optIdx) => (
                                                 <div
                                                   key={optIdx}
-                                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-700 text-purple-100 text-xs rounded-full"
+                                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-100 text-primary-700 text-xs rounded-full border border-primary-300"
                                                 >
                                                   <span>{opt}</span>
                                                   <button
@@ -626,7 +643,7 @@ export default function AdminDynamicCategories() {
                                                     onClick={() =>
                                                       handleRemoveOption(category._id, attrIdx, optIdx)
                                                     }
-                                                    className="text-purple-300 hover:text-purple-100 font-bold"
+                                                    className="text-primary-600 hover:text-error-600 font-bold"
                                                   >
                                                     ×
                                                   </button>
@@ -651,13 +668,13 @@ export default function AdminDynamicCategories() {
                                                   handleAddOption(category._id, attrIdx);
                                                 }
                                               }}
-                                              className="flex-1 border-2 border-slate-600 bg-slate-700 text-white rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-sm"
+                                              className="input-field text-sm"
                                               placeholder="Add option..."
                                             />
                                             <button
                                               type="button"
                                               onClick={() => handleAddOption(category._id, attrIdx)}
-                                              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold transition-all text-sm"
+                                              className="px-3 py-2 bg-secondary-500 text-white rounded-lg hover:bg-secondary-600 font-bold transition-all text-sm"
                                             >
                                               +
                                             </button>
@@ -671,15 +688,15 @@ export default function AdminDynamicCategories() {
                             </div>
 
                             {/* Add New Attribute Form */}
-                            <div className="border-t border-slate-600 pt-6">
-                              <h4 className="text-sm font-bold text-green-300 mb-4 uppercase tracking-wider flex items-center gap-2">
+                            <div className="border-t border-gray-200 pt-6">
+                              <h4 className="text-sm font-bold text-success-700 mb-4 uppercase tracking-wider flex items-center gap-2">
                                 <Plus className="w-4 h-4" />
-                                ➕ Add New Attribute
+                                Add New Attribute
                               </h4>
-                              <div className="space-y-3 bg-slate-800 p-4 rounded-lg border border-slate-700">
+                              <div className="space-y-3 bg-white p-4 rounded-lg border border-gray-200">
                                 {/* Name Input */}
                                 <div>
-                                  <label className="text-xs font-bold text-slate-400 mb-1 block">ATTRIBUTE NAME</label>
+                                  <label className="text-xs font-bold text-gray-600 mb-1 block">ATTRIBUTE NAME</label>
                                   <input
                                     type="text"
                                     placeholder="e.g., RAM, Color, Size"
@@ -693,13 +710,13 @@ export default function AdminDynamicCategories() {
                                         },
                                       }))
                                     }
-                                    className="w-full border-2 border-slate-600 bg-slate-700 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent font-medium text-sm"
+                                    className="input-field text-sm"
                                   />
                                 </div>
 
                                 {/* Type Select */}
                                 <div>
-                                  <label className="text-xs font-bold text-slate-400 mb-1 block">TYPE</label>
+                                  <label className="text-xs font-bold text-gray-600 mb-1 block">TYPE</label>
                                   <select
                                     value={newAttribute[category._id]?.type || "text"}
                                     onChange={(e) =>
@@ -711,7 +728,7 @@ export default function AdminDynamicCategories() {
                                         },
                                       }))
                                     }
-                                    className="w-full border-2 border-slate-600 bg-slate-700 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent font-medium text-sm"
+                                    className="input-field text-sm"
                                   >
                                     <option value="text">Text</option>
                                     <option value="number">Number</option>
@@ -723,7 +740,7 @@ export default function AdminDynamicCategories() {
                                 </div>
 
                                 {/* Required Checkbox */}
-                                <div className="flex items-center gap-2 p-2 bg-slate-700 rounded">
+                                <div className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
                                   <input
                                     type="checkbox"
                                     checked={newAttribute[category._id]?.required || false}
@@ -736,16 +753,16 @@ export default function AdminDynamicCategories() {
                                         },
                                       }))
                                     }
-                                    className="w-4 h-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+                                    className="w-4 h-4 text-primary-600 rounded focus:ring-2 focus:ring-primary-500"
                                   />
-                                  <label className="text-sm font-medium text-slate-300">Required Field</label>
+                                  <label className="text-sm font-medium text-gray-700">Required Field</label>
                                 </div>
 
                                 {/* Add Attribute Button */}
                                 <button
                                   type="button"
                                   onClick={() => handleAddAttribute(category._id)}
-                                  className="w-full px-3 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 font-bold transition-all text-sm flex items-center justify-center gap-2"
+                                  className="w-full px-3 py-2.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-bold transition-all text-sm flex items-center justify-center gap-2"
                                 >
                                   <Plus className="w-4 h-4" />
                                   Add Attribute
@@ -756,7 +773,7 @@ export default function AdminDynamicCategories() {
                             {/* Save Attributes Button */}
                             <button
                               onClick={() => handleSaveAttributes(category)}
-                              className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-bold transition-all text-sm flex items-center justify-center gap-2"
+                              className="w-full px-4 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-bold transition-all text-sm flex items-center justify-center gap-2"
                             >
                               <Check className="w-4 h-4" />
                               Save All Attributes
