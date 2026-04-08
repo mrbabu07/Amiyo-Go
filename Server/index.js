@@ -54,6 +54,10 @@ const CampaignAnalytics = require("./models/CampaignAnalytics");
 const CampaignAuditLog = require("./models/CampaignAuditLog");
 const CampaignNotification = require("./models/CampaignNotification");
 
+// Dynamic Category & Product models
+const DynamicCategory = require("./models/DynamicCategory");
+const DynamicProduct = require("./models/DynamicProduct");
+
 // Import routes
 const productRoutes = require("./routes/productRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
@@ -92,6 +96,10 @@ const storeLocationRoutes = require("./routes/storeLocationRoutes");
 
 // Campaign Manager routes
 const campaignRoutes = require("./routes/campaignRoutes");
+
+// Dynamic Category & Product routes
+const dynamicCategoryRoutes = require("./routes/dynamicCategoryRoutes");
+const dynamicProductRoutes = require("./routes/dynamicProductRoutes");
 
 // Import middleware and controllers for direct routes
 const { verifyToken, verifyAdmin } = require("./middleware/auth");
@@ -314,6 +322,13 @@ async function run() {
 
     app.use("/api/store-locations", storeLocationRoutes);
     console.log("✅ Store Locations routes registered");
+
+    // Dynamic Category & Product routes
+    app.use("/api/dynamic-categories", dynamicCategoryRoutes);
+    console.log("✅ Dynamic Category routes registered");
+
+    app.use("/api/dynamic-products", dynamicProductRoutes);
+    console.log("✅ Dynamic Product routes registered");
 
     // Campaign Manager routes
     app.use("/api/campaigns", campaignRoutes);
