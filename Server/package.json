@@ -29,6 +29,8 @@
     "test:performance": "node scripts/testPerformance.js",
     "seed": "node scripts/seed.js",
     "seed:all": "node scripts/seedAll.js",
+    "seed:categories": "node scripts/seedDynamicCategories.js",
+    "seed:attributes": "node scripts/addAttributesToOldCategories.js",
     "seed:flash": "node scripts/seedFlashSales.js",
     "seed:flash:now": "node scripts/seedActiveFlashSales.js",
     "check:flash": "node scripts/checkFlashSales.js",

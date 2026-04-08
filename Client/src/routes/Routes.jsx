@@ -17,7 +17,9 @@ import Checkout from "../pages/Checkout";
 import Orders from "../pages/Orders";
 import Profile from "../pages/Profile";
 import Messages from "../pages/Messages";
+import AdminDashboard from "../pages/admin/AdminDashboard";
 import AdminDynamicCategories from "../pages/admin/AdminDynamicCategories";
+import AdminCategoryManagement from "../pages/admin/AdminCategoryManagement";
 import AdminEditCategoryAttributes from "../pages/admin/AdminEditCategoryAttributes";
 import AdminProducts from "../pages/admin/AdminProducts";
 import AdminCategoryRequests from "../pages/admin/AdminCategoryRequests";
@@ -271,6 +273,7 @@ const router = createBrowserRouter([
       
       // Marketplace Settings
       { path: "categories", element: <AdminDynamicCategories /> },
+      { path: "categories/manage", element: <AdminCategoryManagement /> },
       { path: "categories/:categoryId/attributes", element: <AdminEditCategoryAttributes /> },
       { path: "category-requests", element: <AdminCategoryRequests /> },
       { path: "coupons", element: <AdminCoupons /> },

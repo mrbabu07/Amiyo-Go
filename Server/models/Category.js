@@ -25,7 +25,12 @@ class Category {
     if (filter.parentId !== undefined) {
       query.parentId = filter.parentId === null ? null : new ObjectId(filter.parentId);
     }
-    return await this.collection.find(query).sort({ name: 1 }).toArray();
+    const categories = await this.collection.find(query).sort({ name: 1 }).toArray();
+    // Ensure attributes field exists
+    return categories.map(cat => ({
+      ...cat,
+      attributes: cat.attributes || []
+    }));
   }
 
   async findActive() {
@@ -33,7 +38,14 @@ class Category {
   }
 
   async findById(id) {
-    return await this.collection.findOne({ _id: new ObjectId(id) });
+    const category = await this.collection.findOne({ _id: new ObjectId(id) });
+    if (category) {
+      return {
+        ...category,
+        attributes: category.attributes || []
+      };
+    }
+    return category;
   }
 
   async findByIds(ids) {
@@ -68,6 +80,7 @@ class Category {
       parentId: categoryData.parentId ? new ObjectId(categoryData.parentId) : null,
       isActive: categoryData.isActive !== undefined ? categoryData.isActive : true,
       commissionRate: Math.round(commissionRate * 100) / 100, // Round to 2 decimals
+      attributes: categoryData.attributes || [], // Add attributes support
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -157,7 +170,7 @@ class Category {
    * Get categories with their commission rates
    */
   async getCategoriesWithCommission() {
-    return await this.collection
+    const categories = await this.collection
       .find({ isActive: true })
       .project({
         _id: 1,
@@ -165,10 +178,17 @@ class Category {
         slug: 1,
         parentId: 1,
         commissionRate: 1,
+        attributes: 1,
         icon: 1,
       })
       .sort({ name: 1 })
       .toArray();
+    
+    // Ensure attributes field exists
+    return categories.map(cat => ({
+      ...cat,
+      attributes: cat.attributes || []
+    }));
   }
 }
 

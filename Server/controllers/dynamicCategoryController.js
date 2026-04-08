@@ -53,7 +53,7 @@ exports.getAllCategories = async (req, res) => {
     }
 
     const categories = await DynamicCategory.find(filter)
-      .select("name slug description image attributes isActive createdAt updatedAt")
+      .select("_id name slug description image attributes isActive createdAt updatedAt")
       .sort({ createdAt: -1 });
 
     res.status(200).json({
