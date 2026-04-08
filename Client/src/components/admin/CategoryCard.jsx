@@ -93,6 +93,13 @@ export default function CategoryCard({
             Edit
           </button>
           <button
+            onClick={() => window.location.href = `/admin/categories/${category._id}/attributes`}
+            className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors text-sm"
+            title="Edit attributes for this category"
+          >
+            Attributes
+          </button>
+          <button
             onClick={() => onDelete(category._id)}
             className="px-4 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 font-medium transition-colors text-sm"
           >
