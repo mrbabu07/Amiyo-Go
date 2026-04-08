@@ -45,6 +45,15 @@ const SellerProfile = require("./models/SellerProfile");
 const StockAlert = require("./models/StockAlert");
 const StoreLocation = require("./models/StoreLocation");
 
+// Campaign Manager models
+const Campaign = require("./models/Campaign");
+const CampaignProduct = require("./models/CampaignProduct");
+const CampaignView = require("./models/CampaignView");
+const CampaignOrder = require("./models/CampaignOrder");
+const CampaignAnalytics = require("./models/CampaignAnalytics");
+const CampaignAuditLog = require("./models/CampaignAuditLog");
+const CampaignNotification = require("./models/CampaignNotification");
+
 // Import routes
 const productRoutes = require("./routes/productRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
@@ -81,6 +90,9 @@ const adminVendorChatRoutes = require("./routes/chatRoutes");
 const categoryFieldRoutes = require("./routes/categoryFieldRoutes");
 const storeLocationRoutes = require("./routes/storeLocationRoutes");
 
+// Campaign Manager routes
+const campaignRoutes = require("./routes/campaignRoutes");
+
 // Import middleware and controllers for direct routes
 const { verifyToken, verifyAdmin } = require("./middleware/auth");
 const {
@@ -89,6 +101,10 @@ const {
   getAllReturns,
   updateReturnStatus,
 } = require("./controllers/returnController");
+
+// Campaign Manager services
+const CampaignCacheService = require("./services/CampaignCacheService");
+const campaignScheduler = require("./jobs/campaignScheduler");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -298,6 +314,17 @@ async function run() {
 
     app.use("/api/store-locations", storeLocationRoutes);
     console.log("✅ Store Locations routes registered");
+
+    // Campaign Manager routes
+    app.use("/api/campaigns", campaignRoutes);
+    console.log("✅ Campaign Manager routes registered");
+
+    // Initialize Campaign Manager services
+    await CampaignCacheService.initialize();
+    console.log("✅ Campaign Cache Service initialized");
+
+    campaignScheduler.initializeJobs();
+    console.log("✅ Campaign Scheduler initialized");
 
     // Returns routes
     app.post("/api/returns", verifyToken, createReturnRequest);
