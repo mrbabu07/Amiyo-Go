@@ -488,8 +488,8 @@ The Campaign Manager implementation follows a layered architecture with database
     - Invalidate on status transitions
     - _Requirements: 7.2, 7.3_
 
-- [ ] 26. Testing - Unit Tests for Services
-  - [ ] 26.1 Write unit tests for CampaignService
+- [-] 26. Testing - Unit Tests for Services
+  - [x] 26.1 Write unit tests for CampaignService
     - Test campaign creation, update, deletion
     - Test status transitions and validation
     - _Requirements: 1.2, 2.5, 7.1, 7.3_
@@ -499,7 +499,7 @@ The Campaign Manager implementation follows a layered architecture with database
     - Test order recording and metrics calculation
     - _Requirements: 5.1, 5.2, 6.1, 6.2_
   
-  - [ ] 26.3 Write unit tests for DiscountCalculatorService
+  - [x] 26.3 Write unit tests for DiscountCalculatorService
     - Test discount calculation formula
     - Test highest discount selection
     - _Requirements: 13.1, 13.4_
@@ -582,7 +582,7 @@ The Campaign Manager implementation follows a layered architecture with database
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 30. Documentation - API Documentation
-  - [ ] 30.1 Create API documentation for campaign endpoints
+  - [x] 30.1 Create API documentation for campaign endpoints
     - Document all campaign management endpoints with examples
     - Include request/response schemas
     - _Requirements: 1.2, 7.1, 7.3, 7.4_
