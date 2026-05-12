@@ -1,5 +1,11 @@
 const { ObjectId } = require("mongodb");
 
+const toArrayParam = (value) => {
+  if (!value) return undefined;
+  if (Array.isArray(value)) return value;
+  return String(value).split(",").filter(Boolean);
+};
+
 const getAllProducts = async (req, res) => {
   try {
     const Product = req.app.locals.models.Product;
@@ -9,6 +15,7 @@ const getAllProducts = async (req, res) => {
       maxPrice,
       minRating,
       sizes,
+      brands,
       colors,
       inStock,
       search,
@@ -28,8 +35,9 @@ const getAllProducts = async (req, res) => {
       minPrice,
       maxPrice,
       minRating,
-      sizes: sizes ? sizes.split(",") : undefined,
-      colors: colors ? colors.split(",") : undefined,
+      sizes: toArrayParam(sizes || req.query["sizes[]"]),
+      brands: toArrayParam(brands || req.query["brands[]"]),
+      colors: toArrayParam(colors || req.query["colors[]"]),
       inStock: inStock === "true",
       search,
       sortBy,

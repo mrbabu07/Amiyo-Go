@@ -1,187 +1,174 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { getVendorReports } from "../../services/api";
 import { useCurrency } from "../../hooks/useCurrency";
 
 const tabs = [
-  { id: "sales", label: "💰 Sales Report", path: "/vendor/reports/sales" },
-  { id: "products", label: "📦 Product Report", path: "/vendor/reports/products" },
-  { id: "traffic", label: "📊 Traffic Report", path: "/vendor/reports/traffic" },
-];
-
-// Mock data for charts
-const salesData = [
-  { day: "Mon", amount: 3200, orders: 5 },
-  { day: "Tue", amount: 1800, orders: 3 },
-  { day: "Wed", amount: 5400, orders: 8 },
-  { day: "Thu", amount: 2100, orders: 4 },
-  { day: "Fri", amount: 6800, orders: 11 },
-  { day: "Sat", amount: 9200, orders: 15 },
-  { day: "Sun", amount: 7400, orders: 12 },
-];
-
-const monthlyData = [
-  { month: "Sep", amount: 28000 },
-  { month: "Oct", amount: 35000 },
-  { month: "Nov", amount: 42000 },
-  { month: "Dec", amount: 68000 },
-  { month: "Jan", amount: 31000 },
-  { month: "Feb", amount: 38000 },
-  { month: "Mar", amount: 28500 },
-];
-
-const topProducts = [
-  { name: "Men's Casual Shirt", sold: 47, revenue: 28200, views: 1234, rating: 4.8, trend: "up" },
-  { name: "Women's Kurti Set", sold: 38, revenue: 41800, views: 980, rating: 4.6, trend: "up" },
-  { name: "Kids Sneakers", sold: 29, revenue: 17400, views: 756, rating: 4.5, trend: "stable" },
-  { name: "Leather Handbag", sold: 21, revenue: 52500, views: 645, rating: 4.9, trend: "up" },
-  { name: "Sports Cap", sold: 18, revenue: 6300, views: 432, rating: 4.2, trend: "down" },
-];
-
-const trafficSources = [
-  { source: "Search", visits: 3241, percentage: 42, color: "bg-orange-400" },
-  { source: "Homepage Banner", visits: 1876, percentage: 24, color: "bg-blue-400" },
-  { source: "Category Page", visits: 1234, percentage: 16, color: "bg-purple-400" },
-  { source: "Flash Sale", visits: 876, percentage: 11, color: "bg-green-400" },
-  { source: "Direct Link", visits: 543, percentage: 7, color: "bg-yellow-400" },
+  { id: "sales", label: "Sales Report", path: "/vendor/reports/sales" },
+  { id: "products", label: "Product Report", path: "/vendor/reports/products" },
+  { id: "traffic", label: "Traffic Report", path: "/vendor/reports/traffic" },
 ];
 
 export default function VendorReports() {
   const { formatPrice } = useCurrency();
   const location = useLocation();
   const [period, setPeriod] = useState("week");
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const activeTab = tabs.find((t) => location.pathname.includes(t.id))?.id || "sales";
-  const chartData = period === "week" ? salesData : monthlyData;
-  const maxVal = Math.max(...(period === "week" ? salesData.map(d => d.amount) : monthlyData.map(d => d.amount)));
+  const activeTab = tabs.find((tab) => location.pathname.includes(tab.id))?.id || "sales";
 
-  const totalSales = salesData.reduce((s, d) => s + d.amount, 0);
-  const totalOrders = salesData.reduce((s, d) => s + d.orders, 0);
+  useEffect(() => {
+    let active = true;
+
+    const loadReport = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const response = await getVendorReports({ period });
+        if (!active) return;
+        setReport(response.data.data);
+      } catch (err) {
+        if (!active) return;
+        setError(err.response?.data?.error || "Failed to load reports");
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadReport();
+    return () => {
+      active = false;
+    };
+  }, [period]);
+
+  const chartData = useMemo(() => {
+    if (!report) return [];
+    return period === "week" ? report.salesData || [] : report.monthlyData || [];
+  }, [period, report]);
+  const maxValue = Math.max(...chartData.map((row) => row.amount || 0), 1);
 
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
-            <Link to="/vendor/dashboard" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <Link to="/vendor/dashboard" className="rounded-lg p-2 transition-colors hover:bg-gray-100">
+              <svg className="h-6 w-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
-              <p className="text-sm text-gray-500">Track your sales performance and growth</p>
+              <p className="text-sm text-gray-500">Real sales, product, and traffic data from your store</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {[
-            { label: "This Week Sales", value: formatPrice(totalSales), sub: "+12.4% vs last week", color: "text-orange-600", icon: "💰" },
-            { label: "Total Orders", value: totalOrders, sub: "+3 vs last week", color: "text-blue-600", icon: "📦" },
-            { label: "Avg. Order Value", value: formatPrice(Math.round(totalSales / totalOrders)), sub: "Per order this week", color: "text-green-600", icon: "📊" },
-            { label: "Conversion Rate", value: "3.2%", sub: "+0.4% vs last week", color: "text-purple-600", icon: "🎯" },
-          ].map((s) => (
-            <div key={s.label} className="bg-white rounded-xl shadow-sm p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-500 text-xs font-medium">{s.label}</span>
-                <span className="text-xl">{s.icon}</span>
-              </div>
-              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-              <p className="text-xs text-green-600 mt-1">{s.sub}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Tabs */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="flex border-b border-gray-200">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-6 rounded-xl bg-white p-2 shadow-sm">
+          <div className="flex flex-wrap gap-2">
             {tabs.map((tab) => (
               <Link
                 key={tab.id}
                 to={tab.path}
-                className={`flex-1 py-4 text-sm font-medium text-center transition border-b-2 ${
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   activeTab === tab.id
-                    ? "border-orange-500 text-orange-600 bg-orange-50"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                    ? "bg-orange-600 text-white"
+                    : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
                 {tab.label}
               </Link>
             ))}
           </div>
+        </div>
 
-          <div className="p-6">
-            {/* ── Sales Report ─────────────────────────────────────── */}
+        {loading ? (
+          <div className="rounded-xl bg-white p-10 text-center shadow-sm">
+            <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-4 border-orange-500 border-t-transparent" />
+            <p className="text-gray-600">Loading reports...</p>
+          </div>
+        ) : error ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
+            {error}
+          </div>
+        ) : (
+          <>
+            <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">
+              <SummaryCard label="Total Sales" value={formatPrice(report?.summary?.totalSales || 0)} tone="green" />
+              <SummaryCard label="Total Orders" value={report?.summary?.totalOrders || 0} tone="blue" />
+              <SummaryCard label="Delivered Orders" value={report?.summary?.deliveredOrders || 0} tone="orange" />
+              <SummaryCard label="Average Order" value={formatPrice(report?.summary?.averageOrderValue || 0)} tone="purple" />
+            </div>
+
             {activeTab === "sales" && (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-semibold text-gray-900">Sales Overview</h3>
-                  <div className="flex gap-2">
-                    {["week", "month"].map((p) => (
-                      <button key={p} onClick={() => setPeriod(p)}
-                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${period === p ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
-                      >
-                        {p === "week" ? "Weekly" : "Monthly"}
-                      </button>
+              <div className="rounded-xl bg-white p-6 shadow-sm">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Sales Trend</h2>
+                    <p className="text-sm text-gray-500">Delivered order earnings for the selected period</p>
+                  </div>
+                  <select
+                    value={period}
+                    onChange={(e) => setPeriod(e.target.value)}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  >
+                    <option value="week">Last 7 days</option>
+                    <option value="month">Monthly view</option>
+                  </select>
+                </div>
+
+                {chartData.length === 0 ? (
+                  <EmptyState title="No sales data yet" text="Delivered orders will appear here." />
+                ) : (
+                  <div className="flex h-72 items-end gap-3">
+                    {chartData.map((row) => (
+                      <div key={row.key || row.month || row.label} className="flex flex-1 flex-col items-center">
+                        <div className="mb-2 text-xs font-medium text-gray-700">
+                          {formatPrice(row.amount || 0)}
+                        </div>
+                        <div
+                          className="w-full rounded-t-lg bg-gradient-to-t from-orange-500 to-orange-300 transition-all"
+                          style={{ height: `${Math.max(((row.amount || 0) / maxValue) * 220, row.amount ? 12 : 3)}px` }}
+                        />
+                        <div className="mt-2 text-xs text-gray-600">{row.label || row.month}</div>
+                      </div>
                     ))}
                   </div>
-                </div>
+                )}
+              </div>
+            )}
 
-                {/* Bar Chart */}
-                <div className="mb-8">
-                  <div className="flex items-end gap-3 h-48 mb-2">
-                    {chartData.map((d, i) => {
-                      const h = Math.max((d.amount / maxVal) * 100, 4);
-                      return (
-                        <div key={i} className="flex-1 flex flex-col items-center group">
-                          <div className="relative w-full flex items-end justify-center" style={{ height: "180px" }}>
-                            <div
-                              className="w-full bg-orange-400 hover:bg-orange-500 rounded-t-lg transition-all cursor-pointer group-hover:shadow-lg"
-                              style={{ height: `${h}%` }}
-                            >
-                              <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap transition">
-                                {formatPrice(d.amount)}
-                              </div>
-                            </div>
-                          </div>
-                          <span className="text-xs text-gray-500 mt-2">{d.day || d.month}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Weekly breakdown table */}
-                {period === "week" && (
+            {activeTab === "products" && (
+              <div className="rounded-xl bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-lg font-semibold text-gray-900">Top Products</h2>
+                {(report?.topProducts || []).length === 0 ? (
+                  <EmptyState title="No product sales yet" text="Products will rank here after orders are delivered." />
+                ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-gray-200 text-left">
-                          <th className="pb-3 text-xs text-gray-500 uppercase font-semibold">Day</th>
-                          <th className="pb-3 text-xs text-gray-500 uppercase font-semibold text-right">Orders</th>
-                          <th className="pb-3 text-xs text-gray-500 uppercase font-semibold text-right">Revenue</th>
-                          <th className="pb-3 text-xs text-gray-500 uppercase font-semibold text-right">Avg. Order</th>
+                    <table className="w-full text-left text-sm">
+                      <thead className="border-b text-xs uppercase text-gray-500">
+                        <tr>
+                          <th className="py-3">Product</th>
+                          <th className="py-3">Sold</th>
+                          <th className="py-3">Revenue</th>
+                          <th className="py-3">Views</th>
+                          <th className="py-3">Rating</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {salesData.map((d, i) => (
-                          <tr key={i} className="hover:bg-gray-50">
-                            <td className="py-3 font-medium text-gray-900">{d.day}</td>
-                            <td className="py-3 text-right text-gray-600">{d.orders}</td>
-                            <td className="py-3 text-right font-semibold text-gray-900">{formatPrice(d.amount)}</td>
-                            <td className="py-3 text-right text-gray-600">{formatPrice(Math.round(d.amount / d.orders))}</td>
+                        {report.topProducts.map((product) => (
+                          <tr key={product.productId}>
+                            <td className="py-3 font-medium text-gray-900">{product.name}</td>
+                            <td className="py-3 text-gray-700">{product.sold}</td>
+                            <td className="py-3 text-gray-700">{formatPrice(product.revenue || 0)}</td>
+                            <td className="py-3 text-gray-700">{product.views || 0}</td>
+                            <td className="py-3 text-gray-700">{product.rating || 0}</td>
                           </tr>
                         ))}
-                        <tr className="border-t-2 border-orange-200 bg-orange-50">
-                          <td className="py-3 font-bold text-gray-900">Total</td>
-                          <td className="py-3 text-right font-bold text-gray-900">{totalOrders}</td>
-                          <td className="py-3 text-right font-bold text-orange-600">{formatPrice(totalSales)}</td>
-                          <td className="py-3 text-right font-bold text-gray-900">{formatPrice(Math.round(totalSales / totalOrders))}</td>
-                        </tr>
                       </tbody>
                     </table>
                   </div>
@@ -189,97 +176,47 @@ export default function VendorReports() {
               </div>
             )}
 
-            {/* ── Product Report ────────────────────────────────────── */}
-            {activeTab === "products" && (
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-6">Top Selling Products</h3>
-                <div className="space-y-3">
-                  {topProducts.map((p, i) => (
-                    <div key={i} className="flex items-center gap-4 border border-gray-100 rounded-xl p-4 hover:bg-gray-50 transition">
-                      {/* Rank */}
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
-                        i === 0 ? "bg-yellow-100 text-yellow-700" :
-                        i === 1 ? "bg-gray-200 text-gray-600" :
-                        i === 2 ? "bg-orange-100 text-orange-700" :
-                        "bg-gray-100 text-gray-500"
-                      }`}>
-                        {i + 1}
-                      </div>
-                      {/* Product info */}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{p.name}</p>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                          <span>⭐ {p.rating}</span>
-                          <span>👁️ {p.views} views</span>
-                        </div>
-                      </div>
-                      {/* Stats */}
-                      <div className="text-right flex-shrink-0">
-                        <p className="font-bold text-gray-900">{p.sold} sold</p>
-                        <p className="text-sm text-green-600 font-medium">{formatPrice(p.revenue)}</p>
-                      </div>
-                      {/* Trend */}
-                      <div className={`px-2 py-1 rounded-lg text-xs font-medium flex-shrink-0 ${
-                        p.trend === "up" ? "bg-green-100 text-green-700" :
-                        p.trend === "down" ? "bg-red-100 text-red-600" :
-                        "bg-gray-100 text-gray-500"
-                      }`}>
-                        {p.trend === "up" ? "↑" : p.trend === "down" ? "↓" : "→"}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ── Traffic Report ────────────────────────────────────── */}
             {activeTab === "traffic" && (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-semibold text-gray-900">Traffic Sources</h3>
-                  <div className="text-sm text-gray-500">Total: <span className="font-bold text-gray-900">7,770 visits</span> this week</div>
-                </div>
-
-                <div className="space-y-4 mb-8">
-                  {trafficSources.map((t, i) => (
-                    <div key={i}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2.5 h-2.5 rounded-full ${t.color}`} />
-                          <span className="text-sm font-medium text-gray-700">{t.source}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-gray-500">{t.visits.toLocaleString()}</span>
-                          <span className="text-sm font-semibold text-gray-900 w-10 text-right">{t.percentage}%</span>
-                        </div>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full">
-                        <div className={`h-full rounded-full ${t.color} transition-all`} style={{ width: `${t.percentage}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Visitor metrics */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {[
-                    { label: "Page Views", value: "24,850", icon: "👁️" },
-                    { label: "Unique Visitors", value: "7,770", icon: "👥" },
-                    { label: "Avg. Session Time", value: "2m 34s", icon: "⏱️" },
-                    { label: "Bounce Rate", value: "38%", icon: "↩️" },
-                  ].map((m) => (
-                    <div key={m.label} className="bg-gray-50 rounded-xl p-4 text-center">
-                      <div className="text-2xl mb-1">{m.icon}</div>
-                      <p className="text-xl font-bold text-gray-900">{m.value}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{m.label}</p>
-                    </div>
-                  ))}
-                </div>
+              <div className="rounded-xl bg-white p-6 shadow-sm">
+                <h2 className="mb-4 text-lg font-semibold text-gray-900">Traffic Sources</h2>
+                {(report?.trafficSources || []).length === 0 ? (
+                  <EmptyState
+                    title="Traffic tracking is not configured"
+                    text={report?.trafficMessage || "Once source tracking is connected, visits by source will appear here."}
+                  />
+                ) : null}
               </div>
             )}
-          </div>
-        </div>
+          </>
+        )}
       </div>
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, tone }) {
+  const tones = {
+    green: "bg-green-50 text-green-700",
+    blue: "bg-blue-50 text-blue-700",
+    orange: "bg-orange-50 text-orange-700",
+    purple: "bg-purple-50 text-purple-700",
+  };
+
+  return (
+    <div className="rounded-xl bg-white p-6 shadow-sm">
+      <div className={`mb-3 inline-flex rounded-lg px-3 py-1 text-xs font-semibold ${tones[tone]}`}>
+        {label}
+      </div>
+      <div className="text-2xl font-bold text-gray-900">{value}</div>
+    </div>
+  );
+}
+
+function EmptyState({ title, text }) {
+  return (
+    <div className="rounded-lg border border-dashed border-gray-300 p-10 text-center">
+      <p className="font-semibold text-gray-900">{title}</p>
+      <p className="mt-1 text-sm text-gray-500">{text}</p>
     </div>
   );
 }

@@ -95,6 +95,8 @@ const vendorChatRoutes = require("./routes/vendorChatRoutes");
 const adminVendorChatRoutes = require("./routes/chatRoutes");
 const categoryFieldRoutes = require("./routes/categoryFieldRoutes");
 const storeLocationRoutes = require("./routes/storeLocationRoutes");
+const newsletterRoutes = require("./routes/newsletterRoutes");
+const rewardRoutes = require("./routes/rewardRoutes");
 
 // Campaign Manager routes
 const campaignRoutes = require("./routes/campaignRoutes");
@@ -318,6 +320,8 @@ async function run() {
     console.log("✅ Category Fields routes registered");
 
     app.use("/api/store-locations", storeLocationRoutes);
+    app.use("/api/newsletter", newsletterRoutes);
+    app.use("/api/rewards", rewardRoutes);
     console.log("✅ Store Locations routes registered");
 
     // Dynamic Category & Product routes

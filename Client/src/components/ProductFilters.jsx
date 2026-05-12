@@ -10,6 +10,7 @@ export default function ProductFilters({
     priceRange: { min: 0, max: 1000 },
     sizes: [],
     colors: [],
+    brands: [],
     categories: [],
   });
   const [isOpen, setIsOpen] = useState(false);
@@ -157,6 +158,31 @@ export default function ProductFilters({
             ))}
           </div>
         </div>
+
+        {/* Sizes */}
+        {filterOptions.brands?.length > 0 && (
+          <div>
+            <h3 className="font-medium text-gray-900 mb-3">Brands</h3>
+            <div className="space-y-2">
+              {filterOptions.brands.map((brand) => (
+                <label
+                  key={brand}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={(filters.brands || []).includes(brand)}
+                    onChange={(e) =>
+                      handleArrayFilterChange("brands", brand, e.target.checked)
+                    }
+                    className="text-primary-600 focus:ring-primary-500"
+                  />
+                  <span className="text-sm text-gray-700">{brand}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Sizes */}
         {filterOptions.sizes.length > 0 && (

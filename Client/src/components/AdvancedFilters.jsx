@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getFilterOptions } from "../services/api";
 
 export default function AdvancedFilters({
   categories = [],
@@ -19,6 +20,12 @@ export default function AdvancedFilters({
   });
 
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [filterOptions, setFilterOptions] = useState({
+    brands: [],
+    sizes: [],
+    colors: [],
+    priceRange: { min: 0, max: 10000 },
+  });
   const [expandedSections, setExpandedSections] = useState({
     category: true,
     price: true,
@@ -29,26 +36,35 @@ export default function AdvancedFilters({
     availability: false,
   });
 
-  // Available options (can be fetched from API)
-  const brands = [
-    "Nike",
-    "Adidas",
-    "Puma",
-    "Reebok",
-    "New Balance",
-    "Under Armour",
-  ];
-  const sizes = ["XS", "S", "M", "L", "XL", "XXL"];
-  const colors = [
-    { name: "Black", hex: "#000000" },
-    { name: "White", hex: "#FFFFFF" },
-    { name: "Red", hex: "#EF4444" },
-    { name: "Blue", hex: "#3B82F6" },
-    { name: "Green", hex: "#10B981" },
-    { name: "Yellow", hex: "#F59E0B" },
-    { name: "Purple", hex: "#8B5CF6" },
-    { name: "Pink", hex: "#EC4899" },
-  ];
+  useEffect(() => {
+    let active = true;
+    getFilterOptions()
+      .then((response) => {
+        if (!active) return;
+        const data = response.data.data || {};
+        setFilterOptions({
+          brands: data.brands || [],
+          sizes: data.sizes || [],
+          colors: (data.colors || []).map((color) =>
+            typeof color === "string" ? { name: color, hex: "" } : color,
+          ),
+          priceRange: data.priceRange || { min: 0, max: 10000 },
+        });
+      })
+      .catch(() => {
+        if (active) {
+          setFilterOptions({
+            brands: [],
+            sizes: [],
+            colors: [],
+            priceRange: { min: 0, max: 10000 },
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     onFilterChange(filters);
@@ -105,7 +121,10 @@ export default function AdvancedFilters({
   const activeFiltersCount = () => {
     let count = 0;
     if (filters.category) count++;
-    if (filters.priceRange[0] > 0 || filters.priceRange[1] < 10000) count++;
+    if (
+      filters.priceRange[0] > (filterOptions.priceRange.min || 0) ||
+      filters.priceRange[1] < (filterOptions.priceRange.max || 10000)
+    ) count++;
     if (filters.rating > 0) count++;
     if (filters.brands.length > 0) count++;
     if (filters.sizes.length > 0) count++;
@@ -301,7 +320,7 @@ export default function AdvancedFilters({
       {/* Brands */}
       <FilterSection title="Brands" section="brand">
         <div className="space-y-2 max-h-48 overflow-y-auto">
-          {brands.map((brand) => (
+          {filterOptions.brands.map((brand) => (
             <label
               key={brand}
               className="flex items-center cursor-pointer group"
@@ -323,7 +342,7 @@ export default function AdvancedFilters({
       {/* Sizes */}
       <FilterSection title="Sizes" section="size">
         <div className="flex flex-wrap gap-2">
-          {sizes.map((size) => (
+          {filterOptions.sizes.map((size) => (
             <button
               key={size}
               onClick={() => handleSizeToggle(size)}
@@ -342,7 +361,7 @@ export default function AdvancedFilters({
       {/* Colors */}
       <FilterSection title="Colors" section="color">
         <div className="flex flex-wrap gap-3">
-          {colors.map((color) => (
+          {filterOptions.colors.map((color) => (
             <button
               key={color.name}
               onClick={() => handleColorToggle(color.name)}

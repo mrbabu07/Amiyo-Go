@@ -26,7 +26,6 @@ router.use(verifyToken);
 // User routes
 router.get("/my-payments", getUserPayments);
 router.get("/order/:orderId", getOrderPayment);
-router.get("/:id", getPaymentById);
 router.post("/process", processPayment);
 
 // Admin routes
@@ -34,5 +33,8 @@ router.get("/", verifyAdmin, getAllPayments);
 router.get("/stats", verifyAdmin, getPaymentStats);
 router.patch("/:id/status", verifyAdmin, updatePaymentStatus);
 router.post("/:id/refund", verifyAdmin, processRefund);
+
+// Dynamic route must stay after static routes like /stats.
+router.get("/:id", getPaymentById);
 
 module.exports = router;

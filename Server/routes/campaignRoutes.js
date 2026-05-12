@@ -6,6 +6,7 @@ const { verifyToken, verifyAdmin } = require("../middleware/auth");
 // Campaign Management Routes (Admin only)
 router.post("/", verifyToken, verifyAdmin, campaignController.createCampaign);
 router.get("/", verifyToken, verifyAdmin, campaignController.listCampaigns);
+router.get("/vendor/available", verifyToken, campaignController.listVendorCampaigns);
 router.get("/:id", campaignController.getCampaign);
 router.put("/:id", verifyToken, verifyAdmin, campaignController.updateCampaign);
 router.post("/:id/publish", verifyToken, verifyAdmin, campaignController.publishCampaign);

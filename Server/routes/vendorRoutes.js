@@ -35,6 +35,7 @@ router.delete("/shop/vacation", verifyToken, requireRole("vendor"), vendorContro
 
 // Vendor dashboard
 router.get("/dashboard/stats", verifyToken, vendorDashboardController.getDashboardStats);
+router.get("/reports", verifyToken, requireRole("vendor"), vendorDashboardController.getVendorReports);
 router.get("/orders/stats",    verifyToken, vendorDashboardController.getVendorOrderStats);
 router.get("/orders",          verifyToken, vendorDashboardController.getVendorOrders);
 router.get("/orders/:orderId", verifyToken, vendorDashboardController.getVendorOrderDetail);

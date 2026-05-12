@@ -70,6 +70,13 @@ export const getUserReviews = () => api.get("/reviews/my-reviews");
 export const updateReview = (id, data) => api.put(`/reviews/${id}`, data);
 export const deleteReview = (id) => api.delete(`/reviews/${id}`);
 export const markReviewHelpful = (id) => api.post(`/reviews/${id}/helpful`);
+export const getVendorReviews = () => api.get("/reviews/vendor/my-reviews");
+export const addVendorReviewReply = (id, reply) =>
+  api.post(`/reviews/${id}/vendor-reply`, { reply });
+
+// Newsletter
+export const subscribeNewsletter = (email, source = "web") =>
+  api.post("/newsletter/subscribe", { email, source });
 
 // Coupons
 export const getActiveCoupons = () => api.get("/coupons/active");
@@ -281,6 +288,14 @@ export const setVacationMode = (data) =>
 
 export const cancelVacationMode = () =>
   api.delete("/vendors/shop/vacation");
+
+// Vendor Reports
+export const getVendorReports = (params = {}) =>
+  api.get("/vendors/reports", { params });
+
+// Rewards
+export const getSpinRewardStatus = () => api.get("/rewards/spin/status");
+export const spinRewardWheel = () => api.post("/rewards/spin");
 
 // Vendor Finance
 export const getVendorFinanceSummary = () =>

@@ -124,6 +124,28 @@ exports.listCampaigns = async (req, res) => {
   }
 };
 
+// List campaigns visible to vendors
+exports.listVendorCampaigns = async (req, res) => {
+  try {
+    const campaigns = await Campaign.find({
+      status: { $in: ["Scheduled", "Active"] },
+    })
+      .sort({ startDate: 1 })
+      .limit(100)
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: campaigns,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // Publish campaign
 exports.publishCampaign = async (req, res) => {
   try {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { getProducts, getCategories } from "../services/api";
+import { getProducts, getCategories, getFilterOptions } from "../services/api";
 import { useCurrency } from "../hooks/useCurrency";
 import ProductCard from "../components/ProductCard";
 import Loading from "../components/Loading";
@@ -18,10 +18,14 @@ export default function Products() {
   // Filters
   const [selectedCategory, setSelectedCategory] = useState("");
   const [priceRange, setPriceRange] = useState([0, 1000]);
+  const [filterOptions, setFilterOptions] = useState({
+    priceRange: { min: 0, max: 1000 },
+  });
   const [sortBy, setSortBy] = useState("newest");
 
   useEffect(() => {
     fetchCategories();
+    fetchFilterOptions();
   }, []);
 
   useEffect(() => {
@@ -34,6 +38,21 @@ export default function Products() {
       setCategories(response.data.data || []);
     } catch (error) {
       console.error("Failed to fetch categories:", error);
+    }
+  };
+
+  const fetchFilterOptions = async () => {
+    try {
+      const response = await getFilterOptions();
+      const options = response.data.data || {};
+      const maxPrice = Math.max(Number(options.priceRange?.max) || 1000, 1);
+      setFilterOptions({
+        ...options,
+        priceRange: { min: Number(options.priceRange?.min) || 0, max: maxPrice },
+      });
+      setPriceRange([Number(options.priceRange?.min) || 0, maxPrice]);
+    } catch (error) {
+      console.error("Failed to fetch filter options:", error);
     }
   };
 
@@ -51,7 +70,7 @@ export default function Products() {
         queryParams.minPrice = priceRange[0];
       }
 
-      if (priceRange[1] < 1000) {
+      if (priceRange[1] < filterOptions.priceRange.max) {
         queryParams.maxPrice = priceRange[1];
       }
 
@@ -309,8 +328,8 @@ export default function Products() {
                 <div className="space-y-3">
                   <input
                     type="range"
-                    min="0"
-                    max="1000"
+                    min={filterOptions.priceRange.min}
+                    max={filterOptions.priceRange.max}
                     value={priceRange[1]}
                     onChange={handlePriceChange}
                     className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary-500"

@@ -27,6 +27,7 @@ class Product {
       maxPrice,
       minRating,
       sizes,
+      brands,
       colors,
       inStock,
       search,
@@ -81,6 +82,18 @@ class Product {
     // Size filter
     if (sizes && sizes.length > 0) {
       query.sizes = { $in: sizes };
+    }
+
+    if (brands && brands.length > 0) {
+      query.$and = [
+        ...(query.$and || []),
+        {
+          $or: [
+            { brand: { $in: brands } },
+            { "attributes.brand": { $in: brands } },
+          ],
+        },
+      ];
     }
 
     // Color filter
@@ -217,12 +230,30 @@ class Product {
   async getFilterOptions() {
     const pipeline = [
       {
+        $match: {
+          isActive: { $ne: false },
+          $or: [
+            { approvalStatus: { $exists: false } },
+            { approvalStatus: null },
+            { approvalStatus: "approved" },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          normalizedBrand: {
+            $ifNull: ["$brand", "$attributes.brand"],
+          },
+        },
+      },
+      {
         $group: {
           _id: null,
           minPrice: { $min: "$price" },
           maxPrice: { $max: "$price" },
           allSizes: { $addToSet: "$sizes" },
           allColors: { $addToSet: "$colors" },
+          allBrands: { $addToSet: "$normalizedBrand" },
           categories: { $addToSet: "$categoryId" },
         },
       },
@@ -246,6 +277,10 @@ class Product {
     const colors = [
       ...new Set(data.allColors.flat().map((c) => c?.name)),
     ].filter(Boolean);
+    const brands = [...new Set((data.allBrands || []).filter(Boolean))]
+      .map((brand) => String(brand).trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
 
     return {
       priceRange: {
@@ -254,6 +289,7 @@ class Product {
       },
       sizes,
       colors,
+      brands,
       categories: data.categories.filter(Boolean),
     };
   }

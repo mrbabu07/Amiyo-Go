@@ -1,21 +1,145 @@
 const { ObjectId } = require("mongodb");
 
+const round2 = (value) => Math.round(((Number(value) || 0) + Number.EPSILON) * 100) / 100;
+
+const dateKey = (date) => date.toISOString().slice(0, 10);
+
+const getVendorForRequest = async (req) => {
+  const Vendor = req.app.locals.models.Vendor;
+  const User = req.app.locals.models.User;
+  const user = await User.findByFirebaseUid(req.user.uid);
+  if (!user) return { error: "User not found" };
+  const vendor = await Vendor.findByUserId(user._id);
+  if (!vendor) return { error: "Vendor not found" };
+  return { user, vendor };
+};
+
+const getVendorOrderRows = async (db, vendorId) => {
+  const orders = await db.collection("orders")
+    .find({
+      $or: [
+        { "products.vendorId": vendorId },
+        { "products.vendorId": new ObjectId(vendorId) },
+      ],
+    })
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  return orders.map((order) => {
+    const products = (order.products || []).filter(
+      (product) => product.vendorId && product.vendorId.toString() === vendorId,
+    );
+    if (products.length === 0) return null;
+
+    const gross = products.reduce(
+      (sum, product) => sum + ((Number(product.price) || 0) * (Number(product.quantity) || 0)),
+      0,
+    );
+    const commission = products.reduce(
+      (sum, product) => sum + (Number(product.adminCommissionAmount) || 0),
+      0,
+    );
+    const earnings = products.reduce(
+      (sum, product) => sum + (
+        Number(product.vendorEarningAmount) ||
+        ((Number(product.price) || 0) * (Number(product.quantity) || 0))
+      ),
+      0,
+    );
+    const deliveredEarnings = products.reduce((sum, product) => {
+      if ((product.itemStatus || order.status) !== "delivered") return sum;
+      return sum + (
+        Number(product.vendorEarningAmount) ||
+        ((Number(product.price) || 0) * (Number(product.quantity) || 0))
+      );
+    }, 0);
+    const statuses = products.map((product) => product.itemStatus || order.status || "pending");
+    const status = statuses.every((value) => value === "delivered")
+      ? "delivered"
+      : statuses.every((value) => value === "cancelled")
+        ? "cancelled"
+        : statuses.includes("shipped")
+          ? "shipped"
+          : statuses.some((value) => ["processing", "packed"].includes(value))
+            ? "processing"
+            : "pending";
+
+    return {
+      order,
+      products,
+      status,
+      gross: round2(gross),
+      commission: round2(commission),
+      earnings: round2(earnings),
+      deliveredEarnings: round2(deliveredEarnings),
+      createdAt: new Date(order.createdAt || Date.now()),
+    };
+  }).filter(Boolean);
+};
+
+const buildDailySales = (rows, days = 7) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const buckets = [];
+
+  for (let index = days - 1; index >= 0; index -= 1) {
+    const day = new Date(today);
+    day.setDate(today.getDate() - index);
+    buckets.push({
+      key: dateKey(day),
+      label: day.toLocaleDateString("en-US", { weekday: "short" }),
+      amount: 0,
+      orders: 0,
+    });
+  }
+
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  rows.forEach((row) => {
+    if (row.status !== "delivered") return;
+    const key = dateKey(row.createdAt);
+    const bucket = byKey.get(key);
+    if (!bucket) return;
+    bucket.amount += row.deliveredEarnings;
+    bucket.orders += 1;
+  });
+
+  return buckets.map((bucket) => ({
+    ...bucket,
+    amount: round2(bucket.amount),
+  }));
+};
+
+const getVendorRatingStats = async (db, vendorId) => {
+  const productIds = await db.collection("products")
+    .find({ vendorId }, { projection: { _id: 1 } })
+    .toArray();
+  const ids = productIds.map((product) => product._id);
+  if (ids.length === 0) {
+    return { avgRating: 0, totalReviews: 0 };
+  }
+
+  const [stats] = await db.collection("reviews").aggregate([
+    { $match: { productId: { $in: ids } } },
+    {
+      $group: {
+        _id: null,
+        avgRating: { $avg: "$rating" },
+        totalReviews: { $sum: 1 },
+      },
+    },
+  ]).toArray();
+
+  return {
+    avgRating: round2(stats?.avgRating || 0),
+    totalReviews: stats?.totalReviews || 0,
+  };
+};
+
 // Get vendor dashboard statistics
 exports.getDashboardStats = async (req, res) => {
   try {
-    const Vendor = req.app.locals.models.Vendor;
-    const Product = req.app.locals.models.Product;
-    const User = req.app.locals.models.User;
-
-    const user = await User.findByFirebaseUid(req.user.uid);
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const vendor = await Vendor.findByUserId(user._id);
-    if (!vendor) {
-      return res.status(404).json({ error: "Vendor not found" });
-    }
+    const { vendor, error } = await getVendorForRequest(req);
+    if (error) return res.status(404).json({ error });
 
     if (vendor.status !== "approved") {
       return res.status(403).json({ error: "Vendor not approved" });
@@ -36,51 +160,38 @@ exports.getDashboardStats = async (req, res) => {
     });
 
     const vendorId = vendor._id.toString();
-    const orders = await db.collection("orders")
-      .find({
-        $or: [
-          { "products.vendorId": vendorId },
-          { "products.vendorId": vendor._id },
-        ],
-      })
-      .toArray();
+    const orderRows = await getVendorOrderRows(db, vendorId);
     
-    let totalOrders = 0;
-    let pendingOrders = 0;
-    let totalRevenue = 0;
+    const totalOrders = orderRows.length;
+    const pendingOrders = orderRows.filter((row) => row.status === "pending").length;
+    const totalRevenue = orderRows.reduce((sum, row) => sum + row.deliveredEarnings, 0);
 
-    orders.forEach((order) => {
-      const vendorProducts = (order.products || []).filter(
-        (product) => product.vendorId && product.vendorId.toString() === vendorId,
-      );
-      if (vendorProducts.length === 0) return;
+    const now = new Date();
+    const currentStart = new Date(now);
+    currentStart.setDate(now.getDate() - 7);
+    const previousStart = new Date(now);
+    previousStart.setDate(now.getDate() - 14);
+    const currentRevenue = orderRows
+      .filter((row) => row.status === "delivered" && row.createdAt >= currentStart)
+      .reduce((sum, row) => sum + row.deliveredEarnings, 0);
+    const previousRevenue = orderRows
+      .filter((row) => row.status === "delivered" && row.createdAt >= previousStart && row.createdAt < currentStart)
+      .reduce((sum, row) => sum + row.deliveredEarnings, 0);
+    const revenueGrowth = previousRevenue > 0
+      ? round2(((currentRevenue - previousRevenue) / previousRevenue) * 100)
+      : (currentRevenue > 0 ? 100 : 0);
 
-      totalOrders++;
-      const statuses = vendorProducts.map((product) => product.itemStatus || "pending");
-      if (statuses.some((status) => status === "pending")) pendingOrders++;
+    const { avgRating, totalReviews } = await getVendorRatingStats(db, vendorId);
 
-      vendorProducts.forEach((product) => {
-        if ((product.itemStatus || "pending") === "delivered") {
-          totalRevenue += product.vendorEarningAmount || ((product.price || 0) * (product.quantity || 0));
-        }
-      });
-    });
-
-    // Calculate revenue growth (mock for now - would need historical data)
-    const revenueGrowth = 0;
-
-    // Get average rating (mock data for now)
-    const avgRating = 4.5;
-    const totalReviews = 0;
-
-    // Sales chart data (last 7 days)
+    const dailySales = buildDailySales(orderRows, 7);
     const salesChart = {
-      labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-      data: [0, 0, 0, 0, 0, 0, 0], // Mock data
+      labels: dailySales.map((day) => day.label),
+      data: dailySales.map((day) => day.amount),
+      orders: dailySales.map((day) => day.orders),
     };
 
     const stats = {
-      totalRevenue,
+      totalRevenue: round2(totalRevenue),
       revenueGrowth,
       totalOrders,
       pendingOrders,
@@ -409,6 +520,107 @@ exports.getTopProducts = async (req, res) => {
   } catch (error) {
     console.error("Error fetching top products:", error);
     res.status(500).json({ error: "Failed to fetch top products" });
+  }
+};
+
+exports.getVendorReports = async (req, res) => {
+  try {
+    const { period = "week" } = req.query;
+    const { vendor, error } = await getVendorForRequest(req);
+    if (error) return res.status(404).json({ error });
+
+    const db = req.app.locals.db;
+    const vendorId = vendor._id.toString();
+    const orderRows = await getVendorOrderRows(db, vendorId);
+    const salesData = buildDailySales(orderRows, period === "month" ? 30 : 7);
+
+    const monthlyMap = new Map();
+    orderRows
+      .filter((row) => row.status === "delivered")
+      .forEach((row) => {
+        const key = row.createdAt.toISOString().slice(0, 7);
+        const label = row.createdAt.toLocaleDateString("en-US", { month: "short" });
+        const item = monthlyMap.get(key) || { key, month: label, amount: 0, orders: 0 };
+        item.amount += row.deliveredEarnings;
+        item.orders += 1;
+        monthlyMap.set(key, item);
+      });
+
+    const productStats = new Map();
+    orderRows.forEach((row) => {
+      row.products.forEach((product) => {
+        const key = (product.productId || product._id || product.title || product.name || "").toString();
+        if (!key) return;
+        const current = productStats.get(key) || {
+          productId: key,
+          name: product.title || product.name || "Product",
+          sold: 0,
+          revenue: 0,
+          views: 0,
+          rating: 0,
+        };
+        current.sold += Number(product.quantity) || 0;
+        current.revenue += (Number(product.vendorEarningAmount) || ((Number(product.price) || 0) * (Number(product.quantity) || 0)));
+        productStats.set(key, current);
+      });
+    });
+
+    const productIds = [...productStats.keys()]
+      .filter((id) => ObjectId.isValid(id))
+      .map((id) => new ObjectId(id));
+    const [products, reviewRows] = await Promise.all([
+      productIds.length
+        ? db.collection("products").find({ _id: { $in: productIds } }).toArray()
+        : [],
+      productIds.length
+        ? db.collection("reviews").aggregate([
+            { $match: { productId: { $in: productIds } } },
+            { $group: { _id: "$productId", avgRating: { $avg: "$rating" } } },
+          ]).toArray()
+        : [],
+    ]);
+    const productMeta = new Map(products.map((product) => [product._id.toString(), product]));
+    const reviewMeta = new Map(reviewRows.map((row) => [row._id.toString(), round2(row.avgRating)]));
+
+    const topProducts = [...productStats.values()]
+      .map((product) => {
+        const meta = productMeta.get(product.productId);
+        return {
+          ...product,
+          name: meta?.title || product.name,
+          views: meta?.views || 0,
+          rating: reviewMeta.get(product.productId) || 0,
+          revenue: round2(product.revenue),
+        };
+      })
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+
+    const summary = {
+      totalSales: round2(orderRows.reduce((sum, row) => sum + row.deliveredEarnings, 0)),
+      totalOrders: orderRows.length,
+      deliveredOrders: orderRows.filter((row) => row.status === "delivered").length,
+      averageOrderValue: round2(
+        orderRows.length
+          ? orderRows.reduce((sum, row) => sum + row.gross, 0) / orderRows.length
+          : 0,
+      ),
+    };
+
+    res.json({
+      success: true,
+      data: {
+        summary,
+        salesData,
+        monthlyData: [...monthlyMap.values()].map((row) => ({ ...row, amount: round2(row.amount) })),
+        topProducts,
+        trafficSources: [],
+        trafficMessage: "Traffic source tracking is not configured yet.",
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching vendor reports:", error);
+    res.status(500).json({ error: "Failed to fetch vendor reports" });
   }
 };
 

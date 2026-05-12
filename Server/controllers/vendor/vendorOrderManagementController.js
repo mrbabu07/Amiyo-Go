@@ -5,6 +5,35 @@ const { ObjectId } = require("mongodb");
  * Handles: Accept, Reject, Ready to Ship, Ship, Deliver
  */
 
+const notifyCustomer = async (req, order, payload) => {
+  const Notification = req.app.locals.models.Notification;
+  if (!Notification || !order?.userId) return;
+
+  await Notification.create({
+    userId: order.userId,
+    orderId: order._id?.toString(),
+    link: `/orders`,
+    ...payload,
+  }).catch((error) => {
+    console.error("Failed to create customer order notification:", error);
+  });
+};
+
+const updateVendorOrderSnapshot = async (db, orderId, vendorId, update) => {
+  await db.collection("vendorOrders").updateOne(
+    {
+      parentOrderId: orderId.toString(),
+      vendorId: vendorId.toString(),
+    },
+    {
+      $set: {
+        ...update,
+        updatedAt: new Date(),
+      },
+    },
+  );
+};
+
 // ─── Accept Order ──────────────────────────────────────────────
 exports.acceptOrder = async (req, res) => {
   try {
@@ -66,7 +95,17 @@ exports.acceptOrder = async (req, res) => {
     // Sync overall order status
     await Order.syncOrderStatus(orderId);
 
-    // TODO: Send notification to customer
+    await updateVendorOrderSnapshot(db, orderId, vendorId, {
+      status: "accepted",
+      acceptedAt: new Date(),
+      estimatedReadyTime: estimatedReadyTime || null,
+    });
+
+    await notifyCustomer(req, order, {
+      type: "order_accepted",
+      title: "Order accepted",
+      message: `${vendor.shopName || "Vendor"} accepted your order items.`,
+    });
 
     res.json({
       success: true,
@@ -135,8 +174,21 @@ exports.rejectOrder = async (req, res) => {
 
     await Order.syncOrderStatus(orderId);
 
-    // TODO: Initiate refund for cancelled items
-    // TODO: Send notification to customer
+    await updateVendorOrderSnapshot(db, orderId, vendorId, {
+      status: "cancelled",
+      paymentStatus: order.paymentStatus === "paid" ? "refund_pending" : "cancelled",
+      cancellationSource: "vendor",
+      cancellationMessage: `Vendor rejected these items: ${reason}`,
+      cancelledAt: new Date(),
+      rejectionReason: reason,
+      rejectionNotes: notes || null,
+    });
+
+    await notifyCustomer(req, order, {
+      type: "order_rejected",
+      title: "Order item cancelled",
+      message: `${vendor.shopName || "Vendor"} cancelled items in your order. Reason: ${reason}`,
+    });
 
     res.json({
       success: true,
@@ -206,8 +258,17 @@ exports.markReadyToShip = async (req, res) => {
 
     await Order.syncOrderStatus(orderId);
 
-    // TODO: Notify courier for pickup
-    // TODO: Send notification to customer
+    await updateVendorOrderSnapshot(db, orderId, vendorId, {
+      status: "ready_to_ship",
+      readyToShipAt: new Date(),
+      courierPickupStatus: "pending",
+    });
+
+    await notifyCustomer(req, order, {
+      type: "order_ready_to_ship",
+      title: "Order ready to ship",
+      message: `${vendor.shopName || "Vendor"} marked your order items ready for shipment.`,
+    });
 
     res.json({
       success: true,
@@ -287,8 +348,22 @@ exports.shipOrder = async (req, res) => {
 
     await Order.syncOrderStatus(orderId);
 
-    // TODO: Send tracking info to customer
-    // TODO: Update courier API
+    await updateVendorOrderSnapshot(db, orderId, vendorId, {
+      status: "shipped",
+      shippedAt: new Date(),
+      trackingNumber: trackingNumber.trim(),
+      courierName: courierName.trim(),
+      estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : null,
+      courierSyncStatus: "manual_tracking",
+    });
+
+    await notifyCustomer(req, order, {
+      type: "order_shipped",
+      title: "Order shipped",
+      message: `${vendor.shopName || "Vendor"} shipped your order items via ${courierName.trim()}. Tracking: ${trackingNumber.trim()}`,
+      trackingNumber: trackingNumber.trim(),
+      courierName: courierName.trim(),
+    });
 
     res.json({
       success: true,
@@ -361,9 +436,19 @@ exports.markDelivered = async (req, res) => {
 
     await Order.syncOrderStatus(orderId);
 
-    // TODO: Release payment to vendor
-    // TODO: Request customer review
-    // TODO: Send delivery confirmation
+    await updateVendorOrderSnapshot(db, orderId, vendorId, {
+      status: "delivered",
+      deliveredAt: new Date(),
+      deliveryNotes: deliveryNotes || null,
+      payoutEligibilityStatus: "eligible",
+      payoutEligibleAt: new Date(),
+    });
+
+    await notifyCustomer(req, order, {
+      type: "order_delivered",
+      title: "Order delivered",
+      message: `${vendor.shopName || "Vendor"} marked your order items as delivered. Please review your purchase when you can.`,
+    });
 
     res.json({
       success: true,
