@@ -45,6 +45,20 @@ export default function AdminOrders() {
       .filter(Boolean)
       .join("\n");
 
+  const getCancellationMessage = (order) => {
+    if (order?.status !== "cancelled") return "";
+    if (order.cancellationMessage) return order.cancellationMessage;
+    if (order.cancelledByRole === "user" || order.cancellationSource === "customer") {
+      return "User cancelled this order.";
+    }
+    const userCancelHistory = order.statusHistory?.find(
+      (entry) =>
+        entry.status === "cancelled" &&
+        /customer|user/i.test(`${entry.changedBy || ""} ${entry.note || ""}`),
+    );
+    return userCancelHistory ? "User cancelled this order." : "";
+  };
+
   useEffect(() => {
     fetchOrders();
   }, []);
@@ -820,6 +834,11 @@ export default function AdminOrders() {
                           <p className="font-semibold text-gray-900">
                             Order #{order._id.slice(-8).toUpperCase()}
                           </p>
+                          {getCancellationMessage(order) && (
+                            <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
+                              User cancelled
+                            </span>
+                          )}
                           {order.paymentMethod && (
                             <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
                               {order.paymentMethod.toUpperCase()}
@@ -911,9 +930,11 @@ export default function AdminOrders() {
                           handleStatusChange(order._id, e.target.value);
                         }}
                         onClick={(e) => e.stopPropagation()}
+                        disabled={Boolean(getCancellationMessage(order))}
                         className={`px-3 py-2 rounded-lg text-sm font-semibold border ${
                           statusConfig[order.status]?.color
-                        } cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                        } cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-60`}
+                        title={getCancellationMessage(order) ? "This order was cancelled by the user" : "Update order status"}
                       >
                         <option value="pending">Pending</option>
                         <option value="processing">Processing</option>
@@ -943,6 +964,15 @@ export default function AdminOrders() {
                 {/* Expanded Order Details */}
                 {expandedOrder === order._id && (
                   <div className="border-t bg-gray-50 p-6">
+                    {getCancellationMessage(order) && (
+                      <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                        <p className="font-bold">User cancelled this order</p>
+                        <p className="mt-1">
+                          {getCancellationMessage(order)}
+                          {order.cancelledAt && ` Cancelled at ${new Date(order.cancelledAt).toLocaleString()}.`}
+                        </p>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                       {/* Order Items with Details */}
                       <div className="lg:col-span-2">

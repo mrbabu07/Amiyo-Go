@@ -351,22 +351,47 @@ class Order {
 
     // Check if within 30 minutes
     const now = new Date();
-    const canCancelUntil = order.canCancelUntil || order.createdAt;
+    const canCancelUntil = order.canCancelUntil
+      ? new Date(order.canCancelUntil)
+      : new Date(new Date(order.createdAt).getTime() + 30 * 60 * 1000);
 
     if (now > canCancelUntil) {
       throw new Error("Cancellation period has expired (30 minutes)");
     }
 
-    return await this.collection.updateOne(
+    const cancelledProducts = (order.products || []).map((product) => ({
+      ...product,
+      itemStatus: "cancelled",
+      statusUpdatedAt: now,
+      cancelledAt: now,
+    }));
+
+    await this.collection.updateOne(
       { _id: new ObjectId(id) },
       {
         $set: {
           status: "cancelled",
-          cancelledAt: new Date(),
-          updatedAt: new Date(),
+          products: cancelledProducts,
+          paymentStatus: order.paymentStatus === "paid" ? "refund_pending" : "cancelled",
+          cancelledBy: userId,
+          cancelledByRole: "user",
+          cancellationSource: "customer",
+          cancellationMessage: "User cancelled this order within 30 minutes.",
+          cancelledAt: now,
+          updatedAt: now,
+        },
+        $push: {
+          statusHistory: {
+            status: "cancelled",
+            changedAt: now,
+            changedBy: userId,
+            note: "Customer cancelled within the 30-minute cancellation window",
+          },
         },
       },
     );
+
+    return { ...order, status: "cancelled", products: cancelledProducts, cancelledAt: now, updatedAt: now };
   }
 
   /**

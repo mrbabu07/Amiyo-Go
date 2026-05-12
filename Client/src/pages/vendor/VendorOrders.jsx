@@ -41,6 +41,20 @@ const renderColor = (color) => {
   return "Unknown";
 };
 
+const getCancellationMessage = (order) => {
+  if (order?.status !== "cancelled") return "";
+  if (order.cancellationMessage) return order.cancellationMessage;
+  if (order.cancelledByRole === "user" || order.cancellationSource === "customer") {
+    return "User cancelled this order.";
+  }
+  const userCancelHistory = order.statusHistory?.find(
+    (entry) =>
+      entry.status === "cancelled" &&
+      /customer|user/i.test(`${entry.changedBy || ""} ${entry.note || ""}`),
+  );
+  return userCancelHistory ? "User cancelled this order." : "";
+};
+
 export default function VendorOrders() {
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
@@ -398,6 +412,11 @@ export default function VendorOrders() {
                             <p className="font-semibold text-gray-900">
                               Order #{order._id?.slice(-8).toUpperCase()}
                             </p>
+                            {getCancellationMessage(order) && (
+                              <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
+                                User cancelled
+                              </span>
+                            )}
                             {order.paymentMethod && (
                               <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
                                 {order.paymentMethod.toUpperCase()}
@@ -456,11 +475,12 @@ export default function VendorOrders() {
                         {/* Status dropdown */}
                         <select
                           value={order.status}
-                          disabled={updatingStatus === order._id}
+                          disabled={updatingStatus === order._id || Boolean(getCancellationMessage(order))}
                           onChange={(e) =>
                             handleStatusChange(order._id, e.target.value)
                           }
                           className={`px-3 py-2 rounded-lg text-sm font-semibold border cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60 ${sc.color}`}
+                          title={getCancellationMessage(order) ? "This order was cancelled by the user" : "Update order status"}
                         >
                           <option value="pending">⏳ Pending</option>
                           <option value="processing">🔄 Processing</option>
@@ -486,6 +506,15 @@ export default function VendorOrders() {
                   {/* ── Expanded detail ───────────────────────── */}
                   {isExpanded && (
                     <div className="border-t bg-gray-50 p-6">
+                      {getCancellationMessage(order) && (
+                        <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                          <p className="font-bold">User cancelled this order</p>
+                          <p className="mt-1">
+                            {getCancellationMessage(order)}
+                            {order.cancelledAt && ` Cancelled at ${new Date(order.cancelledAt).toLocaleString()}.`}
+                          </p>
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                         {/* Products + order summary */}

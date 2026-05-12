@@ -161,6 +161,92 @@ const syncVendorFulfillmentForAdminStatus = async ({
   );
 };
 
+const syncVendorOrdersForCustomerCancellation = async ({ db, order }) => {
+  if (!order?._id) return;
+
+  const now = order.cancelledAt ? new Date(order.cancelledAt) : new Date();
+  const parentOrderId = order._id.toString();
+  const vendorGroups = (order.products || []).reduce((groups, product) => {
+    const vendorId = normalizeId(product.vendorId) || "platform";
+    if (!groups[vendorId]) groups[vendorId] = [];
+    groups[vendorId].push({
+      ...product,
+      itemStatus: "cancelled",
+      statusUpdatedAt: now,
+      cancelledAt: product.cancelledAt || now,
+    });
+    return groups;
+  }, {});
+
+  await Promise.all(
+    Object.entries(vendorGroups).map(([vendorId, products]) => {
+      const subtotal = products.reduce(
+        (sum, product) => sum + Number(product.price || 0) * Number(product.quantity || 0),
+        0,
+      );
+      const totalCommission = products.reduce(
+        (sum, product) => sum + Number(product.adminCommissionAmount || 0),
+        0,
+      );
+      const vendorEarnings = products.reduce(
+        (sum, product) => sum + Number(product.vendorEarningAmount || 0),
+        0,
+      );
+
+      return db.collection("vendorOrders").updateOne(
+        {
+          parentOrderId,
+          vendorId: vendorId === "platform" ? null : vendorId,
+        },
+        {
+          $set: {
+            products,
+            status: "cancelled",
+            paymentStatus: order.paymentStatus === "paid" ? "refund_pending" : "cancelled",
+            cancelledBy: order.cancelledBy || order.userId || null,
+            cancelledByRole: order.cancelledByRole || "user",
+            cancellationSource: order.cancellationSource || "customer",
+            cancellationMessage: order.cancellationMessage || "User cancelled this order within 30 minutes.",
+            subtotal: Math.round(subtotal * 100) / 100,
+            totalAmount: Math.round(subtotal * 100) / 100,
+            totalCommission: Math.round(totalCommission * 100) / 100,
+            vendorEarnings: Math.round(vendorEarnings * 100) / 100,
+            cancelledAt: now,
+            updatedAt: now,
+          },
+          $setOnInsert: {
+            parentOrderId,
+            vendorId: vendorId === "platform" ? null : vendorId,
+            userId: order.userId || null,
+            shippingInfo: order.shippingInfo || {},
+            paymentMethod: order.paymentMethod || "",
+            specialInstructions: order.specialInstructions || "",
+            createdAt: order.createdAt || now,
+          },
+        },
+        { upsert: true },
+      );
+    }),
+  );
+};
+
+const restoreStockForCancelledOrder = async ({ Product, products = [] }) => {
+  await Promise.all(
+    products
+      .map((product) => ({
+        productId: safeObjectId(product.productId),
+        quantity: Number(product.quantity || 0),
+      }))
+      .filter((product) => product.productId && product.quantity > 0)
+      .map((product) =>
+        Product.collection.updateOne(
+          { _id: safeObjectId(product.productId) },
+          { $inc: { stock: product.quantity }, $set: { updatedAt: new Date() } },
+        ),
+      ),
+  );
+};
+
 const getAllOrders = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
@@ -811,13 +897,51 @@ const updateOrderStatus = async (req, res) => {
 const cancelOrder = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
+    const Product = req.app.locals.models.Product;
+    const Notification = req.app.locals.models.Notification;
+    const Vendor = req.app.locals.models.Vendor;
+    const User = req.app.locals.models.User;
+    const db = req.app.locals.db || Order.collection.db;
     const { id } = req.params;
     const userId = req.user.uid;
 
     // Get order details before cancelling
     const order = await Order.findById(id);
 
-    await Order.cancelOrder(id, userId);
+    const cancelledOrder = await Order.cancelOrder(id, userId);
+
+    await Promise.all([
+      syncVendorOrdersForCustomerCancellation({ db, order: cancelledOrder }),
+      restoreStockForCancelledOrder({ Product, products: order?.products || [] }),
+    ]);
+
+    if (Notification) {
+      const vendorIds = [
+        ...new Set(
+          (cancelledOrder.products || [])
+            .map((product) => normalizeId(product.vendorId))
+            .filter(Boolean),
+        ),
+      ];
+
+      await Promise.all(
+        vendorIds.map(async (vendorId) => {
+          const vendor = await Vendor.findById(vendorId).catch(() => null);
+          if (!vendor?.userId) return;
+          const vendorUser = await User.findById(vendor.userId.toString()).catch(() => null);
+          if (!vendorUser?.firebaseUid) return;
+
+          return Notification.create({
+            userId: vendorUser.firebaseUid,
+            type: "order_cancelled",
+            title: "Order cancelled by customer",
+            message: `Order #${id.toString().slice(-8)} was cancelled within 30 minutes.`,
+            link: "/vendor/orders",
+            orderId: id.toString(),
+          }).catch((error) => console.error("Failed to create vendor cancellation notification:", error));
+        }),
+      );
+    }
 
     // Send cancellation email
     try {
@@ -843,7 +967,9 @@ const cancelOrder = async (req, res) => {
         ? 403
         : error.message.includes("expired")
           ? 400
-          : 500;
+          : error.message.includes("Only pending")
+            ? 400
+            : 500;
     res.status(statusCode).json({ success: false, error: error.message });
   }
 };

@@ -217,6 +217,12 @@ exports.getVendorOrders = async (req, res) => {
         paymentStatus: order.paymentStatus,
         status: vendorOrderStatus, // Vendor-specific status
         overallOrderStatus: order.status, // Full order status
+        cancelledAt: order.cancelledAt,
+        cancelledBy: order.cancelledBy,
+        cancelledByRole: order.cancelledByRole,
+        cancellationSource: order.cancellationSource,
+        cancellationMessage: order.cancellationMessage,
+        statusHistory: order.statusHistory || [],
         vendorSubtotal,
         vendorCommission,
         vendorEarnings,

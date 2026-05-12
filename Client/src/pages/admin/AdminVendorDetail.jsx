@@ -42,6 +42,20 @@ const StatusBadge = ({ status }) => {
   );
 };
 
+const getCancellationMessage = (order) => {
+  if (order?.status !== 'cancelled') return '';
+  if (order.cancellationMessage) return order.cancellationMessage;
+  if (order.cancelledByRole === 'user' || order.cancellationSource === 'customer') {
+    return 'User cancelled this order.';
+  }
+  const userCancelHistory = order.statusHistory?.find(
+    (entry) =>
+      entry.status === 'cancelled' &&
+      /customer|user/i.test(`${entry.changedBy || ''} ${entry.note || ''}`),
+  );
+  return userCancelHistory ? 'User cancelled this order.' : '';
+};
+
 // Helper function to get bank info from either new or old schema
 const getBankInfo = (vendor) => {
   // New schema (direct fields)
@@ -925,6 +939,11 @@ export default function AdminVendorDetail() {
                       <td className="px-4 py-3 text-gray-700">{order.products?.length ?? 1}</td>
                       <td className="px-4 py-3">
                         <StatusBadge status={order.status} />
+                        {getCancellationMessage(order) && (
+                          <div className="mt-1 rounded-md border border-red-100 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
+                            User cancelled this order
+                          </div>
+                        )}
                         {order.overallOrderStatus && order.overallOrderStatus !== order.status && (
                           <div className="mt-1 text-xs text-gray-500">
                             Parent: {order.overallOrderStatus}
@@ -935,8 +954,9 @@ export default function AdminVendorDetail() {
                         <select
                           value={order.status || 'pending'}
                           onChange={(event) => handleAdminOrderStatusChange(order, event.target.value)}
-                          disabled={updatingOrderId === (order.parentOrderId || order._id)}
-                          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+                          disabled={updatingOrderId === (order.parentOrderId || order._id) || Boolean(getCancellationMessage(order))}
+                          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          title={getCancellationMessage(order) ? 'This order was cancelled by the user' : 'Update order status'}
                         >
                           {ORDER_STATUS_OPTIONS.map((status) => (
                             <option key={status} value={status}>
