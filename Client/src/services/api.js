@@ -186,13 +186,19 @@ export const getAdminVendorFinanceSummary = (vendorId, params = {}) =>
 export const getAdminVendorFinanceTransactions = (vendorId, params = {}) =>
   api.get(`/admin/vendors/${vendorId}/finance/transactions`, { params });
 
+export const getAdminCommissionSummary = (params = {}) =>
+  api.get("/admin/finance/commission-summary", { params });
+
 // ── Admin: Vendor orders ──────────────────────────────────────
 export const getAdminVendorOrders = (vendorId, params = {}) =>
   api.get(`/admin/vendors/${vendorId}/orders`, { params });
 
 // ── Admin: Category commission ────────────────────────────────
-export const updateCategoryCommission = (id, commissionRate) =>
-  api.patch(`/categories/${id}/commission`, { commissionRate });
+export const updateCategoryCommission = (id, rates) =>
+  api.patch(
+    `/categories/${id}/commission`,
+    typeof rates === "object" ? rates : { commissionRate: rates },
+  );
 
 // ── Admin: Vendor status actions ─────────────────────────────
 export const approveVendor = (vendorId) =>

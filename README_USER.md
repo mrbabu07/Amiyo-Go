@@ -830,23 +830,6 @@
 
 ---
 
-## 📱 Mobile App
-
-### Features
-- Browse products
-- Shop on the go
-- Track orders
-- Get notifications
-- Chat with vendors
-- Manage account
-
-### Download
-- Available on App Store (iOS)
-- Available on Google Play (Android)
-- Or use web version
-
----
-
 ## 🎯 Tips & Tricks
 
 ### Save Money

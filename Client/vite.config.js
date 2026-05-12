@@ -55,13 +55,7 @@ export default defineConfig(({ mode }) => {
     build: {
       // Optimize build
       target: "esnext",
-      minify: "terser",
-      terserOptions: {
-        compress: {
-          drop_console: mode === "production",
-          drop_debugger: mode === "production",
-        },
-      },
+      minify: "esbuild",
       // Code splitting
       rollupOptions: {
         input: {
@@ -75,7 +69,7 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             vendor: ["react", "react-dom", "react-router-dom"],
             charts: ["chart.js", "react-chartjs-2", "recharts"],
-            firebase: ["firebase"],
+            firebase: ["firebase/app", "firebase/auth"],
             utils: ["axios", "framer-motion"],
           },
         },

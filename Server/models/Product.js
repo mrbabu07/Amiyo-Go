@@ -53,9 +53,17 @@ class Product {
       query.vendorId = new ObjectId(vendorId);
     }
 
+    const normalizeCategoryId = (value) => (
+      value instanceof ObjectId ? value : new ObjectId(value)
+    );
+
     // Category filter
     if (category) {
-      query.categoryId = category;
+      if (Array.isArray(category)) {
+        query.categoryId = { $in: category.map(normalizeCategoryId) };
+      } else {
+        query.categoryId = normalizeCategoryId(category);
+      }
     }
 
     // Price range filter

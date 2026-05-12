@@ -184,7 +184,7 @@ const VendorProducts = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {products.map((product) => {
                   const category = categories[product.categoryId];
-                  const commissionRate = category?.commissionRate || 0;
+                  const commissionRate = category?.effectiveCommissionRate ?? category?.commissionRate ?? 0;
                   const price = product.price || 0;
                   const commission = (price * commissionRate) / 100;
                   const earning = price - commission;

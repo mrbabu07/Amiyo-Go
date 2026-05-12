@@ -15,6 +15,33 @@ async function migrateOrderCommissions() {
     const ordersCollection = db.collection("orders");
     const categoriesCollection = db.collection("categories");
     const productsCollection = db.collection("products");
+    const categories = await categoriesCollection.find({}).toArray();
+    const categoryMap = new Map(
+      categories.map((category) => [category._id.toString(), category])
+    );
+    const getEffectiveCommissionRate = (categoryId) => {
+      if (!categoryId) return 0;
+
+      const category = categoryMap.get(categoryId.toString());
+
+      if (!category) return 0;
+
+      let effectiveRate = Math.max(
+        Number(category.commissionRate || 0),
+        Number(category.minimumCommissionRate || 0)
+      );
+      let parentId = category.parentId ? category.parentId.toString() : null;
+      const seen = new Set();
+
+      while (parentId && categoryMap.has(parentId) && !seen.has(parentId)) {
+        seen.add(parentId);
+        const parent = categoryMap.get(parentId);
+        effectiveRate = Math.max(effectiveRate, Number(parent.minimumCommissionRate || 0));
+        parentId = parent.parentId ? parent.parentId.toString() : null;
+      }
+
+      return Math.round(effectiveRate * 100) / 100;
+    };
 
     // Get all orders
     const orders = await ordersCollection.find({}).toArray();
@@ -57,8 +84,8 @@ async function migrateOrderCommissions() {
           }
         }
 
-        // Fetch category commission rate
-        let commissionRate = 0;
+        const commissionRate = getEffectiveCommissionRate(categoryId);
+        /*
         if (categoryId) {
           try {
             const category = await categoriesCollection.findOne({
@@ -74,6 +101,7 @@ async function migrateOrderCommissions() {
             );
           }
         }
+        */
 
         // Calculate commission
         const itemSubtotal = product.price * product.quantity;

@@ -21,6 +21,30 @@ export default function AdminOrders() {
     return "Unknown Color";
   };
 
+  const getItemVendorName = (item) =>
+    item?.shopName ||
+    item?.vendorName ||
+    item?.storeName ||
+    item?.vendor?.shopName ||
+    item?.vendor?.name ||
+    "HnilaBazar";
+
+  const getFullShippingAddress = (shippingInfo = {}) =>
+    [
+      shippingInfo.name,
+      shippingInfo.phone,
+      shippingInfo.address,
+      shippingInfo.area,
+      shippingInfo.wardNo ? `Ward: ${shippingInfo.wardNo}` : "",
+      shippingInfo.union,
+      shippingInfo.upazila,
+      shippingInfo.district || shippingInfo.city,
+      shippingInfo.division,
+      shippingInfo.zipCode,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
   useEffect(() => {
     fetchOrders();
   }, []);
@@ -977,7 +1001,31 @@ export default function AdminOrders() {
                                   <h5 className="font-medium text-gray-900 mb-2">
                                     {item.title}
                                   </h5>
+                                  <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-cyan-100 bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-800">
+                                    <svg
+                                      className="h-3.5 w-3.5"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M3 9.75L12 4l9 5.75M5 10.75V20h14v-9.25M9 20v-5h6v5"
+                                      />
+                                    </svg>
+                                    Store: {getItemVendorName(item)}
+                                  </div>
                                   <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                      <span className="text-gray-500">
+                                        Vendor ID:
+                                      </span>
+                                      <span className="ml-2 font-mono text-xs text-gray-700">
+                                        {item.vendorId || "Platform"}
+                                      </span>
+                                    </div>
                                     <div>
                                       <span className="text-gray-500">
                                         Quantity:
@@ -1036,11 +1084,158 @@ export default function AdminOrders() {
                                         )}
                                       </span>
                                     </div>
+                                    {item.commissionRateSnapshot !==
+                                      undefined && (
+                                      <div>
+                                        <span className="text-gray-500">
+                                          Commission:
+                                        </span>
+                                        <span className="ml-2 font-medium text-orange-700">
+                                          {item.commissionRateSnapshot}% (
+                                          {formatPrice(
+                                            item.adminCommissionAmount || 0,
+                                          )}
+                                          )
+                                        </span>
+                                      </div>
+                                    )}
+                                    {item.vendorEarningAmount !== undefined && (
+                                      <div>
+                                        <span className="text-gray-500">
+                                          Vendor Earning:
+                                        </span>
+                                        <span className="ml-2 font-medium text-green-700">
+                                          {formatPrice(
+                                            item.vendorEarningAmount || 0,
+                                          )}
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </div>
                             </div>
                           ))}
+
+                          {order.perVendorBreakdown?.length > 0 && (
+                            <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                              <h5 className="font-medium text-gray-900 mb-3">
+                                Vendor Breakdown
+                              </h5>
+                              <div className="space-y-3">
+                                {order.perVendorBreakdown.map(
+                                  (vendor, index) => (
+                                    <div
+                                      key={`${vendor.vendorId || "platform"}-${index}`}
+                                      className="rounded-lg border border-gray-100 bg-gray-50 p-3"
+                                    >
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <p className="font-semibold text-gray-900">
+                                            {vendor.shopName ||
+                                              vendor.vendorName ||
+                                              "HnilaBazar"}
+                                          </p>
+                                          <p className="font-mono text-xs text-gray-500">
+                                            {vendor.vendorId || "Platform"}
+                                          </p>
+                                        </div>
+                                        <p className="text-sm font-semibold text-primary-700">
+                                          {formatPrice(vendor.grossSales || 0)}
+                                        </p>
+                                      </div>
+                                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                        <div>
+                                          <span className="text-gray-500">
+                                            Commission
+                                          </span>
+                                          <p className="font-semibold text-orange-700">
+                                            {formatPrice(
+                                              vendor.totalCommission || 0,
+                                            )}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-500">
+                                            Net Earning
+                                          </span>
+                                          <p className="font-semibold text-green-700">
+                                            {formatPrice(
+                                              vendor.netEarnings || 0,
+                                            )}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ),
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {order.vendorOrders?.length > 0 && (
+                            <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                              <h5 className="font-medium text-gray-900 mb-3">
+                                Vendor Fulfillment Orders
+                              </h5>
+                              <div className="overflow-hidden rounded-lg border border-gray-100">
+                                <table className="min-w-full divide-y divide-gray-100 text-sm">
+                                  <thead className="bg-gray-50">
+                                    <tr>
+                                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Vendor Order
+                                      </th>
+                                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Store
+                                      </th>
+                                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Status
+                                      </th>
+                                      <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Total
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100 bg-white">
+                                    {order.vendorOrders.map((vendorOrder) => {
+                                      const firstProduct =
+                                        vendorOrder.products?.[0] || {};
+                                      return (
+                                        <tr key={vendorOrder._id}>
+                                          <td className="px-3 py-2 font-mono text-xs text-gray-700">
+                                            {vendorOrder._id
+                                              ?.slice(-8)
+                                              .toUpperCase()}
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            <p className="font-semibold text-gray-900">
+                                              {firstProduct.shopName ||
+                                                firstProduct.vendorName ||
+                                                "HnilaBazar"}
+                                            </p>
+                                            <p className="font-mono text-xs text-gray-500">
+                                              {vendorOrder.vendorId ||
+                                                "Platform"}
+                                            </p>
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold capitalize text-gray-700">
+                                              {vendorOrder.status || "pending"}
+                                            </span>
+                                          </td>
+                                          <td className="px-3 py-2 text-right font-semibold text-gray-900">
+                                            {formatPrice(
+                                              vendorOrder.totalAmount || 0,
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Order Total Breakdown */}
                           <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
@@ -1226,10 +1421,65 @@ export default function AdminOrders() {
                                   {order.shippingInfo.area && (
                                     <div>
                                       <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                        Area/Thana
+                                        Area
                                       </span>
                                       <p className="text-sm font-medium text-gray-900 mt-1">
                                         {order.shippingInfo.area}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {order.shippingInfo.wardNo && (
+                                    <div>
+                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                        Ward No
+                                      </span>
+                                      <p className="text-sm font-medium text-gray-900 mt-1">
+                                        {order.shippingInfo.wardNo}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {order.shippingInfo.union && (
+                                    <div>
+                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                        Union
+                                      </span>
+                                      <p className="text-sm font-medium text-gray-900 mt-1">
+                                        {order.shippingInfo.union}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {order.shippingInfo.upazila && (
+                                    <div>
+                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                        Upazila
+                                      </span>
+                                      <p className="text-sm font-medium text-gray-900 mt-1">
+                                        {order.shippingInfo.upazila}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {order.shippingInfo.district && (
+                                    <div>
+                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                        District
+                                      </span>
+                                      <p className="text-sm font-medium text-gray-900 mt-1">
+                                        {order.shippingInfo.district}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {order.shippingInfo.division && (
+                                    <div>
+                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                        Division
+                                      </span>
+                                      <p className="text-sm font-medium text-gray-900 mt-1">
+                                        {order.shippingInfo.division}
                                       </p>
                                     </div>
                                   )}
@@ -1265,16 +1515,10 @@ export default function AdminOrders() {
                                     </span>
                                     <button
                                       onClick={() => {
-                                        const fullAddress = [
-                                          order.shippingInfo.name,
-                                          order.shippingInfo.phone,
-                                          order.shippingInfo.address,
-                                          order.shippingInfo.area,
-                                          order.shippingInfo.city,
-                                          order.shippingInfo.zipCode,
-                                        ]
-                                          .filter(Boolean)
-                                          .join("\n");
+                                        const fullAddress =
+                                          getFullShippingAddress(
+                                            order.shippingInfo,
+                                          );
                                         navigator.clipboard.writeText(
                                           fullAddress,
                                         );
@@ -1301,18 +1545,9 @@ export default function AdminOrders() {
                                     </button>
                                   </div>
                                   <div className="text-sm text-gray-900 leading-relaxed whitespace-pre-line font-mono bg-white p-3 rounded border">
-                                    {[
-                                      order.shippingInfo.name,
-                                      order.shippingInfo.phone,
-                                      order.shippingInfo.address,
-                                      order.shippingInfo.area +
-                                        (order.shippingInfo.city
-                                          ? `, ${order.shippingInfo.city}`
-                                          : ""),
-                                      order.shippingInfo.zipCode,
-                                    ]
-                                      .filter(Boolean)
-                                      .join("\n")}
+                                    {getFullShippingAddress(
+                                      order.shippingInfo,
+                                    )}
                                   </div>
                                 </div>
                               </div>

@@ -1,13 +1,18 @@
 const CampaignService = require("../../services/CampaignService");
 const Campaign = require("../../models/Campaign");
 const CampaignAuditLog = require("../../models/CampaignAuditLog");
+const CampaignNotification = require("../../models/CampaignNotification");
 
 jest.mock("../../models/Campaign");
 jest.mock("../../models/CampaignAuditLog");
+jest.mock("../../models/CampaignNotification");
 
 describe("CampaignService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    CampaignNotification.mockImplementation(() => ({
+      save: jest.fn().mockResolvedValue(true),
+    }));
   });
 
   describe("createCampaign", () => {

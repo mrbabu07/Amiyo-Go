@@ -139,7 +139,7 @@ Think of it as a combination of **Amazon, Facebook Marketplace, and Daraz** - al
 - **Vite** - Lightning-fast build tool
 - **Tailwind CSS** - Utility-first styling
 - **Firebase Auth** - User authentication
-- **PWA** - Installable as mobile app
+- **PWA** - Installable web experience
 
 ### Backend
 - **Node.js + Express 5** - Server framework

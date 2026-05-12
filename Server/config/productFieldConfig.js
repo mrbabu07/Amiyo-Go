@@ -57,7 +57,9 @@ const categoryFieldGroups = {
   groceries: {
     slugPatterns: [
       'groceries', 'super-shop', 'fresh-produce', 'dairy', 'eggs', 
-      'snacks', 'beverages', 'personal-care'
+      'snacks', 'beverages', 'personal-care', 'vegetables', 'fruits',
+      'farm-fresh', 'leafy', 'root', 'gourd', 'pumpkin', 'brinjal',
+      'okra', 'village-fresh', 'herbs', 'spices'
     ],
     fields: [
       {
@@ -97,6 +99,133 @@ const categoryFieldGroups = {
         label: 'Nutritional Information',
         type: 'textarea',
         required: false,
+      },
+    ],
+  },
+
+  freshFish: {
+    slugPatterns: [
+      'fish', 'seafood', 'prawns', 'shrimp', 'crab', 'dried-fish',
+      'river-fish', 'pond-fish', 'sea-fish', 'live-fish', 'fish-fillet'
+    ],
+    fields: [
+      {
+        name: 'weight',
+        label: 'Weight',
+        type: 'text',
+        required: true,
+        placeholder: 'e.g., 1kg, 500g',
+      },
+      {
+        name: 'fishSource',
+        label: 'Source',
+        type: 'select',
+        required: true,
+        options: ['River', 'Pond', 'Sea', 'Farm', 'Imported'],
+      },
+      {
+        name: 'cutType',
+        label: 'Cut/Cleaning',
+        type: 'select',
+        required: false,
+        options: ['Whole', 'Cleaned', 'Sliced', 'Fillet', 'Live'],
+      },
+      {
+        name: 'deliveryCondition',
+        label: 'Delivery Condition',
+        type: 'select',
+        required: true,
+        options: ['Fresh', 'Chilled', 'Frozen', 'Dried'],
+      },
+      {
+        name: 'catchDate',
+        label: 'Catch/Collection Date',
+        type: 'date',
+        required: false,
+      },
+    ],
+  },
+
+  homemade: {
+    slugPatterns: [
+      'homemade', 'handmade', 'pitha', 'sweets', 'pickles', 'chutney',
+      'ready-meals', 'crafts', 'gift-items', 'natural-oils', 'spice-mixes',
+      'organic-soap'
+    ],
+    fields: [
+      {
+        name: 'makerName',
+        label: 'Maker/Brand Name',
+        type: 'text',
+        required: false,
+      },
+      {
+        name: 'madeToOrder',
+        label: 'Made to Order',
+        type: 'select',
+        required: true,
+        options: ['Yes', 'No'],
+      },
+      {
+        name: 'preparationTime',
+        label: 'Preparation Time',
+        type: 'text',
+        required: false,
+        placeholder: 'e.g., 1 day, 3 hours',
+      },
+      {
+        name: 'ingredientsOrMaterials',
+        label: 'Ingredients/Materials',
+        type: 'textarea',
+        required: false,
+      },
+      {
+        name: 'shelfLife',
+        label: 'Shelf Life',
+        type: 'text',
+        required: false,
+        placeholder: 'For food items, e.g., 3 days',
+      },
+    ],
+  },
+
+  resell: {
+    slugPatterns: [
+      'resell', 'used', 'pre-owned', 'resale', 'second-hand'
+    ],
+    fields: [
+      {
+        name: 'condition',
+        label: 'Condition',
+        type: 'select',
+        required: true,
+        options: ['Like New', 'Good', 'Fair', 'Needs Repair'],
+      },
+      {
+        name: 'usedDuration',
+        label: 'Used Duration',
+        type: 'text',
+        required: false,
+        placeholder: 'e.g., 6 months, 2 years',
+      },
+      {
+        name: 'originalBrand',
+        label: 'Original Brand',
+        type: 'text',
+        required: false,
+      },
+      {
+        name: 'defects',
+        label: 'Known Defects',
+        type: 'textarea',
+        required: false,
+      },
+      {
+        name: 'warrantyOrReceipt',
+        label: 'Warranty/Receipt Available',
+        type: 'select',
+        required: false,
+        options: ['Yes', 'No'],
       },
     ],
   },

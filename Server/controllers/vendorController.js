@@ -310,8 +310,12 @@ exports.updateVendorProfile = async (req, res) => {
   try {
     const { 
       shopName, 
-      phone, 
+      phone,
+      email,
+      description,
       address, 
+      logo,
+      banner,
       payoutMethod,
       // Bank transfer fields
       bankName,
@@ -332,8 +336,12 @@ exports.updateVendorProfile = async (req, res) => {
     // Vendors cannot change their allowed categories after registration
     const updateData = {};
     if (shopName) updateData.shopName = shopName;
-    if (phone) updateData.phone = phone;
-    if (address) updateData.address = address;
+    if (phone !== undefined) updateData.phone = phone;
+    if (email !== undefined) updateData.email = email;
+    if (description !== undefined) updateData.description = description;
+    if (address !== undefined) updateData.address = address;
+    if (logo !== undefined) updateData.logo = logo;
+    if (banner !== undefined) updateData.banner = banner;
     if (payoutMethod) updateData.payoutMethod = payoutMethod;
     
     // Bank transfer fields

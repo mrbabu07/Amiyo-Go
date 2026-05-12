@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
 import SocialLogin from "../components/SocialLogin";
+import AddressLocationFields from "../components/AddressLocationFields";
+import { createAddress } from "../services/api";
 
 export default function Register() {
   const { register, googleLogin } = useAuth();
@@ -12,6 +14,19 @@ export default function Register() {
     email: "",
     password: "",
     confirmPassword: "",
+    phone: "",
+    divisionId: "",
+    division: "",
+    districtId: "",
+    district: "",
+    city: "",
+    upazilaId: "",
+    upazila: "",
+    unionId: "",
+    union: "",
+    wardNo: "",
+    area: "",
+    address: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -55,6 +70,24 @@ export default function Register() {
         console.error('Error creating user in database:', error);
         // Continue anyway - the user will be created on first login
       }
+
+      await createAddress({
+        name: formData.name,
+        phone: formData.phone,
+        divisionId: formData.divisionId,
+        division: formData.division,
+        districtId: formData.districtId,
+        district: formData.district,
+        city: formData.district,
+        upazilaId: formData.upazilaId,
+        upazila: formData.upazila,
+        unionId: formData.unionId,
+        union: formData.union,
+        wardNo: formData.wardNo,
+        area: formData.area,
+        address: formData.address,
+        isDefault: true,
+      });
       
       navigate("/");
     } catch (error) {
@@ -100,7 +133,7 @@ export default function Register() {
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 py-12 bg-gray-50">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-3xl">
         {/* Header */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center space-x-2 mb-6">
@@ -136,6 +169,7 @@ export default function Register() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="grid gap-5 md:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Full Name
@@ -164,6 +198,69 @@ export default function Register() {
                 placeholder="you@example.com"
                 className="input-field"
               />
+            </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <h2 className="text-base font-bold text-gray-900">Default Delivery Address</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                This address will be saved as your default and used automatically at checkout.
+              </p>
+              <AddressLocationFields
+                value={formData}
+                onChange={setFormData}
+                className="mt-4"
+              />
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="block text-sm font-semibold text-gray-700 mb-2">Phone Number *</span>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    required
+                    placeholder="01XXXXXXXXX"
+                    className="input-field"
+                  />
+                </label>
+                <label className="block">
+                  <span className="block text-sm font-semibold text-gray-700 mb-2">Ward No *</span>
+                  <input
+                    type="text"
+                    name="wardNo"
+                    value={formData.wardNo}
+                    onChange={handleChange}
+                    required
+                    placeholder="Ward no"
+                    className="input-field"
+                  />
+                </label>
+                <label className="block">
+                  <span className="block text-sm font-semibold text-gray-700 mb-2">Area Name *</span>
+                  <input
+                    type="text"
+                    name="area"
+                    value={formData.area}
+                    onChange={handleChange}
+                    required
+                    placeholder="Village/area/road"
+                    className="input-field"
+                  />
+                </label>
+                <label className="block">
+                  <span className="block text-sm font-semibold text-gray-700 mb-2">House Name / No *</span>
+                  <input
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    required
+                    placeholder="House name/no, flat, road"
+                    className="input-field"
+                  />
+                </label>
+              </div>
             </div>
 
             <div>

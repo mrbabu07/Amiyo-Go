@@ -3,6 +3,45 @@ import { useNavigate, useParams } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 import { getFieldsForCategory } from '../../utils/productFieldConfig';
 
+const buildVendorCategoryOptions = (allCategories, allowedIds) => {
+  const allowedSet = new Set(allowedIds.map((id) => id.toString()));
+  const byId = new Map(allCategories.map((category) => [category._id.toString(), category]));
+
+  const isAllowed = (category) => {
+    if (allowedSet.has(category._id.toString())) return true;
+    let parentId = category.parentId ? category.parentId.toString() : null;
+
+    while (parentId) {
+      if (allowedSet.has(parentId)) return true;
+      parentId = byId.get(parentId)?.parentId?.toString() || null;
+    }
+
+    return false;
+  };
+
+  return allCategories
+    .filter(isAllowed)
+    .sort(
+      (a, b) =>
+        (a.displayOrder || 0) - (b.displayOrder || 0) ||
+        a.name.localeCompare(b.name),
+    );
+};
+
+const getCategoryOptionLabel = (category, categories) => {
+  const byId = new Map(categories.map((item) => [item._id.toString(), item]));
+  const path = [category.name];
+  let parentId = category.parentId ? category.parentId.toString() : null;
+
+  while (parentId && byId.has(parentId)) {
+    const parent = byId.get(parentId);
+    path.unshift(parent.name);
+    parentId = parent.parentId ? parent.parentId.toString() : null;
+  }
+
+  return path.join(' > ');
+};
+
 const VendorEditProduct = () => {
   const { id } = useParams();
   const { user } = useAuth();
@@ -65,10 +104,8 @@ const VendorEditProduct = () => {
         const categoriesResponse = await fetch(`${import.meta.env.VITE_API_URL}/categories?active=true`);
         const categoriesData = await categoriesResponse.json();
         if (categoriesData.success) {
-          const allowedCats = categoriesData.data.filter(cat => 
-            vendorData.vendor.allowedCategoryIds.some(id => id === cat._id)
-          );
-          setCategories(allowedCats);
+          const allowedIds = (vendorData.vendor.allowedCategoryIds || []).map((id) => id.toString());
+          setCategories(buildVendorCategoryOptions(categoriesData.data, allowedIds));
         }
 
         // Fetch product
@@ -338,7 +375,7 @@ const VendorEditProduct = () => {
               >
                 <option value="">Select Category</option>
                 {categories.map(cat => (
-                  <option key={cat._id} value={cat._id}>{cat.name}</option>
+                  <option key={cat._id} value={cat._id}>{getCategoryOptionLabel(cat, categories)}</option>
                 ))}
               </select>
             </div>

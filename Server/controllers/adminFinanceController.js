@@ -81,6 +81,94 @@ exports.getFinanceOverview = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 // GET /api/admin/vendors/:vendorId/finance/summary
 // ─────────────────────────────────────────────────────────────
+/**
+ * GET /api/admin/finance/commission-summary?days=7
+ *
+ * Shows admin commission earned for recent windows. Used by category control
+ * so admins can tune category commission floors against real marketplace data.
+ */
+exports.getCommissionSummary = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const ordersCol = db.collection("orders");
+    const days = Math.max(1, Math.min(Number(req.query.days) || 7, 365));
+    const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+    const [summaryRows, categoryRows] = await Promise.all([
+      ordersCol.aggregate([
+        { $match: { createdAt: { $gte: from }, status: { $nin: ["cancelled"] } } },
+        { $unwind: "$products" },
+        {
+          $group: {
+            _id: null,
+            grossSales: { $sum: { $multiply: ["$products.price", "$products.quantity"] } },
+            totalCommission: { $sum: "$products.adminCommissionAmount" },
+            vendorEarnings: { $sum: "$products.vendorEarningAmount" },
+            orderIds: { $addToSet: "$_id" },
+            items: { $sum: "$products.quantity" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            grossSales: 1,
+            totalCommission: 1,
+            vendorEarnings: 1,
+            orders: { $size: "$orderIds" },
+            items: 1,
+          },
+        },
+      ]).toArray(),
+
+      ordersCol.aggregate([
+        { $match: { createdAt: { $gte: from }, status: { $nin: ["cancelled"] } } },
+        { $unwind: "$products" },
+        {
+          $group: {
+            _id: "$products.categoryId",
+            grossSales: { $sum: { $multiply: ["$products.price", "$products.quantity"] } },
+            totalCommission: { $sum: "$products.adminCommissionAmount" },
+            items: { $sum: "$products.quantity" },
+          },
+        },
+        { $sort: { totalCommission: -1 } },
+        { $limit: 6 },
+      ]).toArray(),
+    ]);
+
+    const summary = summaryRows[0] || {
+      grossSales: 0,
+      totalCommission: 0,
+      vendorEarnings: 0,
+      orders: 0,
+      items: 0,
+    };
+
+    res.json({
+      success: true,
+      data: {
+        days,
+        from,
+        grossSales: round2(summary.grossSales || 0),
+        totalCommission: round2(summary.totalCommission || 0),
+        vendorEarnings: round2(summary.vendorEarnings || 0),
+        orders: summary.orders || 0,
+        items: summary.items || 0,
+        topCategories: categoryRows.map((row) => ({
+          categoryId: row._id,
+          grossSales: round2(row.grossSales || 0),
+          totalCommission: round2(row.totalCommission || 0),
+          items: row.items || 0,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("Error in getCommissionSummary:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 exports.getVendorFinanceSummary = async (req, res) => {
   try {
     const db = req.app.locals.db;

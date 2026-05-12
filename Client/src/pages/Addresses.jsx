@@ -9,6 +9,7 @@ import {
 } from "../services/api";
 import Loading from "../components/Loading";
 import Modal from "../components/Modal";
+import AddressLocationFields from "../components/AddressLocationFields";
 
 export default function Addresses() {
   const [addresses, setAddresses] = useState([]);
@@ -20,6 +21,15 @@ export default function Addresses() {
     phone: "",
     address: "",
     city: "",
+    divisionId: "",
+    division: "",
+    districtId: "",
+    district: "",
+    upazilaId: "",
+    upazila: "",
+    unionId: "",
+    union: "",
+    wardNo: "",
     area: "",
     zipCode: "",
     isDefault: false,
@@ -48,10 +58,14 @@ export default function Addresses() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...formData,
+        city: formData.district,
+      };
       if (editingAddress) {
-        await updateAddress(editingAddress._id, formData);
+        await updateAddress(editingAddress._id, payload);
       } else {
-        await createAddress(formData);
+        await createAddress(payload);
       }
       await fetchAddresses();
       handleCloseModal();
@@ -71,7 +85,16 @@ export default function Addresses() {
       name: address.name,
       phone: address.phone,
       address: address.address,
-      city: address.city,
+      city: address.city || address.district || "",
+      divisionId: address.divisionId || "",
+      division: address.division || "",
+      districtId: address.districtId || "",
+      district: address.district || address.city || "",
+      upazilaId: address.upazilaId || "",
+      upazila: address.upazila || "",
+      unionId: address.unionId || "",
+      union: address.union || "",
+      wardNo: address.wardNo || "",
       area: address.area,
       zipCode: address.zipCode || "",
       isDefault: address.isDefault,
@@ -108,6 +131,15 @@ export default function Addresses() {
       phone: "",
       address: "",
       city: "",
+      divisionId: "",
+      division: "",
+      districtId: "",
+      district: "",
+      upazilaId: "",
+      upazila: "",
+      unionId: "",
+      union: "",
+      wardNo: "",
       area: "",
       zipCode: "",
       isDefault: false,
@@ -237,7 +269,9 @@ export default function Addresses() {
                   <p className="text-gray-700 text-sm leading-relaxed">
                     {address.address}
                     <br />
-                    {address.area}, {address.city}
+                    Ward {address.wardNo}, {address.area}
+                    <br />
+                    {address.union}, {address.upazila}, {address.district || address.city}
                     {address.zipCode && ` - ${address.zipCode}`}
                   </p>
                 </div>
@@ -316,7 +350,7 @@ export default function Addresses() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Street Address *
+              House Name / No *
             </label>
             <textarea
               value={formData.address}
@@ -326,14 +360,31 @@ export default function Addresses() {
               required
               rows="2"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-              placeholder="House/Flat number, Street name"
+              placeholder="House name/no, flat, road"
             />
           </div>
+
+          <AddressLocationFields value={formData} onChange={setFormData} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Area/District *
+                Ward No *
+              </label>
+              <input
+                type="text"
+                value={formData.wardNo}
+                onChange={(e) =>
+                  setFormData({ ...formData, wardNo: e.target.value })
+                }
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                placeholder="Ward no"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Area Name *
               </label>
               <input
                 type="text"
@@ -343,34 +394,8 @@ export default function Addresses() {
                 }
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-                placeholder="e.g., Dhanmondi, Gulshan"
+                placeholder="Village/area/road"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                City *
-              </label>
-              <select
-                value={formData.city}
-                onChange={(e) =>
-                  setFormData({ ...formData, city: e.target.value })
-                }
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-              >
-                <option value="">Select City</option>
-                <option value="Dhaka">Dhaka</option>
-                <option value="Chittagong">Chittagong</option>
-                <option value="Sylhet">Sylhet</option>
-                <option value="Rajshahi">Rajshahi</option>
-                <option value="Khulna">Khulna</option>
-                <option value="Barisal">Barisal</option>
-                <option value="Rangpur">Rangpur</option>
-                <option value="Mymensingh">Mymensingh</option>
-                <option value="Comilla">Comilla</option>
-                <option value="Gazipur">Gazipur</option>
-              </select>
             </div>
           </div>
 

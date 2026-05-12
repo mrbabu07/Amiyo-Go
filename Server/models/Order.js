@@ -119,6 +119,34 @@ class Order {
 
     // Fetch categories to get commission rates
     const categoriesCollection = this.collection.db.collection("categories");
+    const categoryDocs = await categoriesCollection.find({}).toArray();
+    const categoryMap = new Map(
+      categoryDocs.map((category) => [category._id.toString(), category]),
+    );
+    const getEffectiveCommissionRate = (categoryId) => {
+      if (!categoryId) return 0;
+
+      const categoryKey = categoryId.toString();
+      const category = categoryMap.get(categoryKey);
+
+      if (!category) return 0;
+
+      let effectiveRate = Math.max(
+        Number(category.commissionRate || 0),
+        Number(category.minimumCommissionRate || 0),
+      );
+      let parentId = category.parentId ? category.parentId.toString() : null;
+      const seen = new Set();
+
+      while (parentId && categoryMap.has(parentId) && !seen.has(parentId)) {
+        seen.add(parentId);
+        const parent = categoryMap.get(parentId);
+        effectiveRate = Math.max(effectiveRate, Number(parent.minimumCommissionRate || 0));
+        parentId = parent.parentId ? parent.parentId.toString() : null;
+      }
+
+      return round2(effectiveRate);
+    };
     
     // ALWAYS calculate subtotal from products (don't trust frontend)
     let calculatedSubtotal = 0;
@@ -128,10 +156,7 @@ class Order {
         let commissionRate = 0;
         if (product.categoryId) {
           try {
-            const category = await categoriesCollection.findOne({ _id: new ObjectId(product.categoryId) });
-            if (category && category.commissionRate !== undefined) {
-              commissionRate = category.commissionRate;
-            }
+            commissionRate = getEffectiveCommissionRate(product.categoryId);
           } catch (err) {
             console.error("Error fetching category for commission:", err);
           }

@@ -1,35 +1,79 @@
-// Minimized Professional E-commerce Invoice Template (One Page)
-// Using Tailwind CSS for styling
+// Professional e-commerce invoice template.
 
 export const generateProfessionalInvoice = (order) => {
-  const orderDate = new Date(order.createdAt).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  const shortOrderId = order?._id ? order._id.slice(-8).toUpperCase() : "N/A";
+  const orderDate = order?.createdAt
+    ? new Date(order.createdAt).toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "N/A";
 
-  const subtotal = order.subtotal || order.total || 0;
-  const deliveryCharge = order.deliveryCharge || 0;
-  const tax = order.tax || 0;
-  const total = order.total || 0;
+  const subtotal = order?.subtotal || order?.total || 0;
+  const deliveryCharge = order?.deliveryCharge || 0;
+  const couponDiscount = order?.couponDiscount || 0;
+  const pointsDiscount = order?.pointsDiscount || 0;
+  const totalDiscount = order?.totalDiscount || couponDiscount + pointsDiscount;
+  const tax = order?.tax || 0;
+  const total = order?.total || order?.totalAmount || 0;
+  const shipping = order?.shippingInfo || {};
+  const products = Array.isArray(order?.products) ? order.products : [];
 
-  // Prices are already in BDT
-  const BDT_SYMBOL = "৳";
+  const escapeHtml = (value) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
 
-  // Format price in BDT (prices are already in BDT)
   const formatPrice = (price) => {
-    if (!price && price !== 0) return `${BDT_SYMBOL}0`;
-    // Format with comma separators for BDT (no decimals)
-    return `${BDT_SYMBOL}${Math.round(price).toLocaleString()}`;
+    const amount = Number(price || 0);
+    return `Tk ${Math.round(amount).toLocaleString()}`;
   };
 
-  // Utility function to safely render color
   const renderColor = (color) => {
-    if (!color) return null;
+    if (!color) return "";
     if (typeof color === "string") return color;
     if (typeof color === "object" && color.name) return color.name;
     return "Unknown";
   };
+
+  const getStoreName = (item) =>
+    item?.shopName ||
+    item?.vendorName ||
+    item?.storeName ||
+    item?.vendor?.shopName ||
+    item?.vendor?.name ||
+    "HnilaBazar";
+
+  const addressLines = [
+    shipping.name,
+    shipping.phone,
+    shipping.address,
+    shipping.area,
+    shipping.wardNo ? `Ward: ${shipping.wardNo}` : "",
+    shipping.union,
+    shipping.upazila,
+    shipping.district || shipping.city,
+    shipping.division,
+    shipping.zipCode ? `Postal: ${shipping.zipCode}` : "",
+  ].filter(Boolean);
+
+  const uniqueStores = [
+    ...new Set(products.map((item) => getStoreName(item)).filter(Boolean)),
+  ];
+
+  const status = (order?.status || "pending").toUpperCase();
+  const paymentMethod = order?.paymentMethod
+    ? order.paymentMethod.toUpperCase()
+    : "N/A";
+  const paymentStatus =
+    order?.paymentStatus ||
+    (order?.paymentMethod === "cod" ? "Cash on delivery" : "Pending/paid");
 
   return `
     <!DOCTYPE html>
@@ -37,243 +81,360 @@ export const generateProfessionalInvoice = (order) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Invoice #${order._id.slice(-8).toUpperCase()}</title>
-      <script src="https://cdn.tailwindcss.com"></script>
+      <title>Invoice #${escapeHtml(shortOrderId)}</title>
       <style>
+        * { box-sizing: border-box; }
+        body {
+          margin: 0;
+          background: #f4f6f8;
+          color: #172033;
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 13px;
+          line-height: 1.45;
+        }
+        .page {
+          max-width: 920px;
+          margin: 18px auto;
+          background: #fff;
+          border: 1px solid #d9e1ea;
+          box-shadow: 0 16px 42px rgba(15, 23, 42, 0.12);
+        }
+        .header {
+          display: flex;
+          justify-content: space-between;
+          gap: 24px;
+          padding: 28px 32px;
+          color: #fff;
+          background: #155e75;
+        }
+        .brand { font-size: 28px; font-weight: 800; letter-spacing: 0; }
+        .tagline { margin-top: 4px; color: #cffafe; font-size: 12px; }
+        .invoice-title { text-align: right; }
+        .invoice-title .label { color: #cffafe; font-size: 12px; font-weight: 700; }
+        .invoice-title .number { margin-top: 4px; font-size: 24px; font-weight: 800; }
+        .content { padding: 28px 32px 24px; }
+        .grid-3 {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 14px;
+          margin-bottom: 22px;
+        }
+        .card {
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 14px;
+          background: #f8fafc;
+          min-height: 112px;
+        }
+        .card-title {
+          color: #475569;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          margin-bottom: 8px;
+        }
+        .strong { font-weight: 700; color: #0f172a; }
+        .muted { color: #64748b; }
+        .tiny { font-size: 11px; }
+        .status {
+          display: inline-block;
+          padding: 3px 8px;
+          border-radius: 999px;
+          background: #ecfeff;
+          color: #155e75;
+          font-weight: 800;
+          font-size: 11px;
+        }
+        .section-title {
+          color: #0f172a;
+          font-size: 13px;
+          font-weight: 800;
+          margin: 22px 0 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        th {
+          background: #f1f5f9;
+          color: #475569;
+          font-size: 11px;
+          text-align: left;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          padding: 10px;
+          border-bottom: 1px solid #dbe4ee;
+        }
+        td {
+          padding: 11px 10px;
+          border-bottom: 1px solid #edf2f7;
+          vertical-align: top;
+        }
+        tr:last-child td { border-bottom: 0; }
+        .product-cell {
+          display: flex;
+          gap: 10px;
+          align-items: flex-start;
+        }
+        .product-image {
+          width: 46px;
+          height: 46px;
+          object-fit: cover;
+          border-radius: 6px;
+          border: 1px solid #dbe4ee;
+          background: #f8fafc;
+          flex-shrink: 0;
+        }
+        .placeholder {
+          width: 46px;
+          height: 46px;
+          border-radius: 6px;
+          border: 1px solid #dbe4ee;
+          background: #f8fafc;
+          color: #94a3b8;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 10px;
+          flex-shrink: 0;
+        }
+        .item-meta { margin-top: 4px; color: #64748b; font-size: 11px; }
+        .store-name {
+          margin-top: 5px;
+          color: #155e75;
+          font-size: 11px;
+          font-weight: 800;
+        }
+        .right { text-align: right; }
+        .center { text-align: center; }
+        .summary-wrap {
+          display: grid;
+          grid-template-columns: 1fr 280px;
+          gap: 18px;
+          margin-top: 18px;
+        }
+        .note-box {
+          border: 1px solid #fde68a;
+          border-radius: 8px;
+          padding: 12px;
+          background: #fffbeb;
+          color: #92400e;
+        }
+        .summary {
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 14px;
+          background: #f8fafc;
+        }
+        .summary-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 6px 0;
+          color: #475569;
+        }
+        .summary-row.total {
+          margin-top: 8px;
+          padding-top: 12px;
+          border-top: 1px solid #cbd5e1;
+          color: #0f172a;
+          font-size: 16px;
+          font-weight: 800;
+        }
+        .footer {
+          padding: 16px 32px;
+          border-top: 1px solid #e2e8f0;
+          background: #f8fafc;
+          color: #64748b;
+          text-align: center;
+          font-size: 11px;
+        }
+        .print-actions {
+          max-width: 920px;
+          margin: 0 auto 18px;
+          text-align: center;
+        }
+        .print-actions button {
+          border: 0;
+          border-radius: 8px;
+          background: #155e75;
+          color: white;
+          padding: 10px 22px;
+          font-weight: 800;
+          cursor: pointer;
+        }
         @media print {
-          body { margin: 0; padding: 0; }
-          .no-print { display: none; }
+          body { background: #fff; }
+          .page { margin: 0; border: 0; box-shadow: none; max-width: none; }
+          .print-actions { display: none; }
         }
       </style>
     </head>
-    <body class="bg-gray-50 p-4">
-      <div class="max-w-4xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
-        
-        <!-- Header -->
-        <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-6">
-          <div class="flex justify-between items-start">
+    <body>
+      <main class="page">
+        <header class="header">
+          <div>
+            <div class="brand">HnilaBazar</div>
+            <div class="tagline">Customer invoice and delivery document</div>
+          </div>
+          <div class="invoice-title">
+            <div class="label">INVOICE</div>
+            <div class="number">#${escapeHtml(shortOrderId)}</div>
+            <div class="tagline">${escapeHtml(orderDate)}</div>
+          </div>
+        </header>
+
+        <section class="content">
+          <div class="grid-3">
+            <div class="card">
+              <div class="card-title">Customer</div>
+              <div class="strong">${escapeHtml(shipping.name || "N/A")}</div>
+              <div class="muted">${escapeHtml(shipping.phone || "N/A")}</div>
+              <div class="muted tiny">${escapeHtml(shipping.email || "N/A")}</div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">Delivery Address</div>
+              ${
+                addressLines.length
+                  ? addressLines
+                      .map((line, index) =>
+                        index === 0
+                          ? `<div class="strong">${escapeHtml(line)}</div>`
+                          : `<div class="muted tiny">${escapeHtml(line)}</div>`,
+                      )
+                      .join("")
+                  : `<div class="muted">No delivery address found</div>`
+              }
+            </div>
+
+            <div class="card">
+              <div class="card-title">Order</div>
+              <div><span class="muted">Status:</span> <span class="status">${escapeHtml(status)}</span></div>
+              <div class="tiny muted" style="margin-top: 7px;">Payment: <span class="strong">${escapeHtml(paymentMethod)}</span></div>
+              <div class="tiny muted">Payment status: <span class="strong">${escapeHtml(paymentStatus)}</span></div>
+              ${
+                order?.transactionId
+                  ? `<div class="tiny muted">Transaction: <span class="strong">${escapeHtml(order.transactionId)}</span></div>`
+                  : ""
+              }
+              <div class="tiny muted">Stores: <span class="strong">${escapeHtml(uniqueStores.length || 1)}</span></div>
+            </div>
+          </div>
+
+          <div class="section-title">Order Items (${products.length})</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Product and Store</th>
+                <th style="width: 70px;" class="center">Qty</th>
+                <th style="width: 110px;" class="right">Unit Price</th>
+                <th style="width: 110px;" class="right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                products.length
+                  ? products
+                      .map((item) => {
+                        const meta = [
+                          item.selectedSize ? `Size: ${item.selectedSize}` : "",
+                          item.selectedColor
+                            ? `Color: ${renderColor(item.selectedColor)}`
+                            : "",
+                          item.trackingNumber
+                            ? `Tracking: ${item.trackingNumber}`
+                            : "",
+                        ].filter(Boolean);
+                        return `
+                          <tr>
+                            <td>
+                              <div class="product-cell">
+                                ${
+                                  item.image
+                                    ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title || "Product")}" class="product-image" />`
+                                    : `<div class="placeholder">No img</div>`
+                                }
+                                <div>
+                                  <div class="strong">${escapeHtml(item.title || "Product")}</div>
+                                  <div class="store-name">Store: ${escapeHtml(getStoreName(item))}</div>
+                                  ${meta.length ? `<div class="item-meta">${escapeHtml(meta.join(" | "))}</div>` : ""}
+                                  ${
+                                    item.itemStatus
+                                      ? `<div class="item-meta">Item status: ${escapeHtml(item.itemStatus)}</div>`
+                                      : ""
+                                  }
+                                </div>
+                              </div>
+                            </td>
+                            <td class="center strong">${escapeHtml(item.quantity || 1)}</td>
+                            <td class="right">${escapeHtml(formatPrice(item.price || 0))}</td>
+                            <td class="right strong">${escapeHtml(formatPrice((item.price || 0) * (item.quantity || 1)))}</td>
+                          </tr>
+                        `;
+                      })
+                      .join("")
+                  : `<tr><td colspan="4" class="center muted">No items in this order</td></tr>`
+              }
+            </tbody>
+          </table>
+
+          <div class="summary-wrap">
             <div>
-              <h1 class="text-3xl font-bold mb-1">HnilaBazar</h1>
-              <p class="text-blue-100 text-sm">Your Trusted E-commerce Partner</p>
-            </div>
-            <div class="text-right">
-              <div class="text-xs text-blue-200 mb-1">INVOICE</div>
-              <div class="text-2xl font-bold">#${order._id.slice(-8).toUpperCase()}</div>
-              <div class="text-xs text-blue-100 mt-2">${orderDate}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="px-8 py-6">
-          <!-- Addresses & Status Row -->
-          <div class="grid grid-cols-3 gap-4 mb-6">
-            <!-- Bill To -->
-            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <div class="text-xs font-bold text-gray-600 mb-2 uppercase">Bill To</div>
               ${
-                order.shippingInfo
+                uniqueStores.length
                   ? `
-                <div class="text-sm space-y-1">
-                  <div class="font-semibold text-gray-900">${order.shippingInfo.name || "N/A"}</div>
-                  <div class="text-gray-600">${order.shippingInfo.phone || "N/A"}</div>
-                  <div class="text-gray-600 text-xs">${order.shippingInfo.email || "N/A"}</div>
-                </div>
-              `
-                  : `<div class="text-xs text-gray-500">No information</div>`
-              }
-            </div>
-
-            <!-- Ship To -->
-            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <div class="text-xs font-bold text-gray-600 mb-2 uppercase">Ship To</div>
-              ${
-                order.shippingInfo
-                  ? `
-                <div class="text-sm space-y-1">
-                  <div class="font-semibold text-gray-900">${order.shippingInfo.name || "N/A"}</div>
-                  <div class="text-gray-600 text-xs">${order.shippingInfo.address || "N/A"}</div>
-                  <div class="text-gray-600 text-xs">${order.shippingInfo.city || "N/A"} ${order.shippingInfo.zipCode || ""}</div>
-                </div>
-              `
-                  : `<div class="text-xs text-gray-500">No information</div>`
-              }
-            </div>
-
-            <!-- Order Info -->
-            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <div class="text-xs font-bold text-gray-600 mb-2 uppercase">Order Info</div>
-              <div class="text-sm space-y-1">
-                <div class="flex justify-between">
-                  <span class="text-gray-600 text-xs">Status:</span>
-                  <span class="px-2 py-0.5 rounded text-xs font-semibold ${
-                    order.status === "delivered"
-                      ? "bg-green-100 text-green-800"
-                      : order.status === "shipped"
-                        ? "bg-purple-100 text-purple-800"
-                        : order.status === "processing"
-                          ? "bg-blue-100 text-blue-800"
-                          : order.status === "cancelled"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-yellow-100 text-yellow-800"
-                  }">${order.status.toUpperCase()}</span>
-                </div>
-                <div class="flex justify-between text-xs">
-                  <span class="text-gray-600">Payment:</span>
-                  <span class="font-semibold text-gray-900">${order.paymentMethod ? order.paymentMethod.toUpperCase() : "N/A"}</span>
-                </div>
-                ${
-                  order.transactionId
-                    ? `
-                <div class="flex justify-between text-xs mt-2 pt-2 border-t border-gray-200">
-                  <span class="text-gray-600">Transaction ID:</span>
-                  <span class="font-mono font-bold text-green-700">${order.transactionId}</span>
-                </div>
-                `
-                    : ""
-                }
-              </div>
-            </div>
-          </div>
-
-          <!-- Products Table -->
-          <div class="mb-6">
-            <div class="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Order Items</div>
-            <div class="border border-gray-200 rounded-lg overflow-hidden">
-              <table class="w-full text-sm">
-                <thead class="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th class="text-left py-2 px-3 text-xs font-semibold text-gray-600 uppercase">Product</th>
-                    <th class="text-center py-2 px-3 text-xs font-semibold text-gray-600 uppercase w-16">Qty</th>
-                    <th class="text-right py-2 px-3 text-xs font-semibold text-gray-600 uppercase w-24">Price</th>
-                    <th class="text-right py-2 px-3 text-xs font-semibold text-gray-600 uppercase w-24">Total</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  ${
-                    order.products && order.products.length > 0
-                      ? order.products
-                          .map(
-                            (item) => `
-                    <tr class="hover:bg-gray-50">
-                      <td class="py-3 px-3">
-                        <div class="flex items-center gap-3">
-                          ${
-                            item.image
-                              ? `<img src="${item.image}" alt="${item.title}" class="w-12 h-12 object-cover rounded border border-gray-200" />`
-                              : '<div class="w-12 h-12 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-xs text-gray-400">No img</div>'
-                          }
-                          <div class="flex-1">
-                            <div class="font-medium text-gray-900 text-sm">${item.title || "Product"}</div>
-                            <div class="flex gap-1 mt-1">
-                              ${item.selectedSize ? `<span class="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">Size: ${item.selectedSize}</span>` : ""}
-                              ${item.selectedColor ? `<span class="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">Color: ${renderColor(item.selectedColor)}</span>` : ""}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td class="py-3 px-3 text-center font-semibold text-gray-900">${item.quantity || 1}</td>
-                      <td class="py-3 px-3 text-right text-gray-900">${formatPrice(item.price || 0)}</td>
-                      <td class="py-3 px-3 text-right font-semibold text-gray-900">${formatPrice((item.price || 0) * (item.quantity || 1))}</td>
-                    </tr>
-                  `,
-                          )
-                          .join("")
-                      : `
-                    <tr>
-                      <td colspan="4" class="py-8 text-center text-gray-500 text-sm">No items in this order</td>
-                    </tr>
+                    <div class="section-title" style="margin-top: 0;">Seller Stores</div>
+                    <div class="card" style="min-height: 0;">
+                      ${uniqueStores.map((store) => `<div class="strong">${escapeHtml(store)}</div>`).join("")}
+                    </div>
                   `
-                  }
-                </tbody>
-              </table>
+                  : ""
+              }
+              ${
+                order?.specialInstructions
+                  ? `
+                    <div class="section-title">Customer Notes</div>
+                    <div class="note-box">${escapeHtml(order.specialInstructions)}</div>
+                  `
+                  : ""
+              }
+            </div>
+
+            <div class="summary">
+              <div class="card-title">Invoice Summary</div>
+              <div class="summary-row"><span>Subtotal</span><span>${escapeHtml(formatPrice(subtotal))}</span></div>
+              <div class="summary-row"><span>Delivery charge</span><span>${deliveryCharge > 0 ? escapeHtml(formatPrice(deliveryCharge)) : "FREE"}</span></div>
+              ${
+                totalDiscount > 0
+                  ? `<div class="summary-row"><span>Discount</span><span>- ${escapeHtml(formatPrice(totalDiscount))}</span></div>`
+                  : ""
+              }
+              ${
+                tax > 0
+                  ? `<div class="summary-row"><span>Tax</span><span>${escapeHtml(formatPrice(tax))}</span></div>`
+                  : ""
+              }
+              <div class="summary-row total"><span>Total</span><span>${escapeHtml(formatPrice(total))}</span></div>
             </div>
           </div>
+        </section>
 
-          <!-- Summary and Additional Info -->
-          <div class="grid grid-cols-3 gap-6">
-            <!-- Payment Details -->
-            <div>
-              <div class="text-xs font-bold text-gray-600 mb-2 uppercase">Payment Details</div>
-              <div class="text-sm space-y-1.5">
-                <div class="flex justify-between text-xs">
-                  <span class="text-gray-600">Method:</span>
-                  <span class="font-semibold text-gray-900">${order.paymentMethod ? order.paymentMethod.toUpperCase() : "N/A"}</span>
-                </div>
-                <div class="flex justify-between text-xs">
-                  <span class="text-gray-600">Status:</span>
-                  <span class="font-semibold text-green-600">PAID</span>
-                </div>
-                <div class="flex justify-between text-xs">
-                  <span class="text-gray-600">Transaction:</span>
-                  <span class="font-mono text-xs text-gray-900">${order._id.slice(-8)}</span>
-                </div>
-              </div>
-            </div>
+        <footer class="footer">
+          <div>This is a computer-generated invoice. No signature required.</div>
+          <div>Support: +880 1521-721946 | mdjahedulislamjaved@gmail.com</div>
+          <div>Generated: ${escapeHtml(new Date().toLocaleString())} | Invoice #${escapeHtml(shortOrderId)}</div>
+        </footer>
+      </main>
 
-            <!-- Company Info -->
-            <div>
-              <div class="text-xs font-bold text-gray-600 mb-2 uppercase">Contact Us</div>
-              <div class="text-xs text-gray-600 space-y-1">
-                <div>📞 +880 1521-721946</div>
-                <div>📧 mdjahedulislamjaved@gmail.com</div>
-                <div>🌐 www.hnilabazar.com</div>
-                <div class="text-gray-500">Dhaka, Bangladesh</div>
-              </div>
-            </div>
-
-            <!-- Order Summary -->
-            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <div class="text-xs font-bold text-gray-600 mb-3 uppercase">Summary</div>
-              <div class="space-y-2 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Subtotal:</span>
-                  <span class="text-gray-900 font-medium">${formatPrice(subtotal)}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Shipping:</span>
-                  <span class="${deliveryCharge === 0 ? "text-green-600 font-semibold" : "text-gray-900 font-medium"}">${deliveryCharge > 0 ? formatPrice(deliveryCharge) : "FREE"}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">Tax:</span>
-                  <span class="text-gray-900 font-medium">${formatPrice(tax)}</span>
-                </div>
-                <div class="border-t border-gray-300 pt-2 flex justify-between text-base">
-                  <span class="font-bold text-gray-900">Total:</span>
-                  <span class="font-bold text-blue-600">${formatPrice(total)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          ${
-            order.specialInstructions
-              ? `
-            <!-- Special Instructions -->
-            <div class="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div class="text-xs font-bold text-yellow-800 mb-1 uppercase">Special Instructions</div>
-              <div class="text-sm text-yellow-900">${order.specialInstructions}</div>
-            </div>
-          `
-              : ""
-          }
-        </div>
-
-        <!-- Footer -->
-        <div class="bg-gray-50 px-8 py-4 border-t border-gray-200">
-          <div class="text-center text-xs text-gray-500">
-            <div class="mb-1">This is a computer-generated invoice. No signature required.</div>
-            <div>Thank you for shopping with HnilaBazar!</div>
-            <div class="mt-2 text-gray-400">Generated: ${new Date().toLocaleString()} | Invoice #${order._id.slice(-8).toUpperCase()}</div>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- Print Button (No Print) -->
-      <div class="max-w-4xl mx-auto mt-4 text-center no-print">
-        <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">
-          Print Invoice
-        </button>
+      <div class="print-actions">
+        <button onclick="window.print()">Print Invoice</button>
       </div>
     </body>
     </html>

@@ -962,22 +962,6 @@
 
 ---
 
-## 📱 Mobile App
-
-### Features
-- Manage products
-- View orders
-- Chat with customers
-- Track sales
-- Get notifications
-- Manage inventory
-
-### Download
-- Available on App Store (iOS)
-- Available on Google Play (Android)
-
----
-
 ## 📞 Contact Support
 
 ### Support Channels

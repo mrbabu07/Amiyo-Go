@@ -77,7 +77,19 @@ const getCategoryChildren = async (req, res) => {
 const createCategory = async (req, res) => {
   try {
     const Category = req.app.locals.models.Category;
-    const { name, slug, parentId, isActive } = req.body;
+    const {
+      name,
+      slug,
+      parentId,
+      isActive,
+      description,
+      icon,
+      image,
+      displayOrder,
+      commissionRate,
+      minimumCommissionRate,
+      attributes,
+    } = req.body;
 
     if (!name || !slug) {
       return res
@@ -107,7 +119,14 @@ const createCategory = async (req, res) => {
       name, 
       slug, 
       parentId: parentId || null,
-      isActive: isActive !== undefined ? isActive : true
+      isActive: isActive !== undefined ? isActive : true,
+      description,
+      icon,
+      image,
+      displayOrder: Number(displayOrder) || 0,
+      commissionRate: Number(commissionRate) || 0,
+      minimumCommissionRate: Number(minimumCommissionRate) || 0,
+      attributes: attributes || [],
     });
 
     res.status(201).json({ success: true, data: category });
@@ -183,21 +202,23 @@ const deleteCategory = async (req, res) => {
 const updateCommissionRate = async (req, res) => {
   try {
     const Category = req.app.locals.models.Category;
-    const { commissionRate } = req.body;
+    const { commissionRate, minimumCommissionRate } = req.body;
 
-    if (commissionRate === undefined) {
+    if (commissionRate === undefined && minimumCommissionRate === undefined) {
       return res
         .status(400)
-        .json({ success: false, error: "Commission rate is required" });
+        .json({ success: false, error: "Commission rate or minimum commission rate is required" });
     }
 
-    if (typeof commissionRate !== 'number' || commissionRate < 0 || commissionRate > 100) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Commission rate must be a number between 0 and 100" });
+    const updates = {};
+    if (commissionRate !== undefined) {
+      updates.commissionRate = Number(commissionRate);
+    }
+    if (minimumCommissionRate !== undefined) {
+      updates.minimumCommissionRate = Number(minimumCommissionRate);
     }
 
-    const result = await Category.update(req.params.id, { commissionRate });
+    const result = await Category.update(req.params.id, updates);
 
     if (result.matchedCount === 0) {
       return res

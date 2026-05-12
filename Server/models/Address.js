@@ -91,7 +91,17 @@ class Address {
   }
 
   async validateAddress(addressData) {
-    const required = ["name", "phone", "address", "city", "area"];
+    const required = [
+      "name",
+      "phone",
+      "division",
+      "district",
+      "upazila",
+      "union",
+      "wardNo",
+      "area",
+      "address",
+    ];
     const missing = required.filter((field) => !addressData[field]);
 
     if (missing.length > 0) {

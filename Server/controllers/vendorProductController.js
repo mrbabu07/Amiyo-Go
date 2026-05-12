@@ -3,6 +3,23 @@ const { ObjectId } = require("mongodb");
 // Critical fields — editing any of these on an approved product requires re-approval
 const CRITICAL_FIELDS = ["title", "price", "categoryId", "images"];
 
+const vendorCanUseCategory = async (categoryId, allowedCategoryIds, Category) => {
+  const allowedSet = new Set((allowedCategoryIds || []).map((id) => id.toString()));
+  let currentId = categoryId ? categoryId.toString() : null;
+  const seen = new Set();
+
+  while (currentId && !seen.has(currentId)) {
+    if (allowedSet.has(currentId)) return true;
+    seen.add(currentId);
+
+    const category = await Category.findById(currentId);
+    if (!category) return false;
+    currentId = category.parentId ? category.parentId.toString() : null;
+  }
+
+  return false;
+};
+
 // ─── Get vendor's products (paginated, filterable by status) ───
 exports.getVendorProducts = async (req, res) => {
   try {
@@ -49,9 +66,9 @@ exports.createProduct = async (req, res) => {
 
     // Check if category is in vendor's allowed categories
     const vendor = await Vendor.findById(req.vendor._id);
-    const allowedCategoryIds = vendor.allowedCategoryIds.map((id) => id.toString());
+    const allowedCategoryIds = vendor.allowedCategoryIds || [];
 
-    if (!allowedCategoryIds.includes(categoryId)) {
+    if (!(await vendorCanUseCategory(categoryId, allowedCategoryIds, Category))) {
       return res.status(403).json({
         error: "You are not allowed to add products in this category",
       });
@@ -157,9 +174,9 @@ exports.updateProduct = async (req, res) => {
     // If changing category, verify it's allowed
     if (categoryId && categoryId !== product.categoryId.toString()) {
       const vendor = await Vendor.findById(req.vendor._id);
-      const allowedCategoryIds = vendor.allowedCategoryIds.map((id) => id.toString());
+      const allowedCategoryIds = vendor.allowedCategoryIds || [];
 
-      if (!allowedCategoryIds.includes(categoryId)) {
+      if (!(await vendorCanUseCategory(categoryId, allowedCategoryIds, Category))) {
         return res.status(403).json({
           error: "You are not allowed to move products to this category",
         });

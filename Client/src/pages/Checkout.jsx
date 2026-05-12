@@ -13,6 +13,7 @@ import { useNotifications } from "../context/NotificationContext";
 import { useCurrency } from "../hooks/useCurrency";
 import BackButton from "../components/BackButton";
 import Breadcrumb from "../components/Breadcrumb";
+import AddressLocationFields from "../components/AddressLocationFields";
 
 export default function Checkout() {
   const { cart, cartTotal, clearCart } = useCart();
@@ -29,12 +30,22 @@ export default function Checkout() {
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [addressLoaded, setAddressLoaded] = useState(false);
   const [deliverySettings, setDeliverySettings] = useState(null);
+  const [deliveryFor, setDeliveryFor] = useState("self");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
     address: "",
     city: "",
+    divisionId: "",
+    division: "",
+    districtId: "",
+    district: "",
+    upazilaId: "",
+    upazila: "",
+    unionId: "",
+    union: "",
+    wardNo: "",
     area: "",
     zipCode: "",
     paymentMethod: "cod",
@@ -134,6 +145,7 @@ export default function Checkout() {
           const response = await getDefaultAddress();
           if (response.data.success && response.data.data) {
             setDefaultAddress(response.data.data);
+            loadAddress(response.data.data);
           }
         } catch (error) {
           // If no default address, fetch all addresses
@@ -154,17 +166,54 @@ export default function Checkout() {
 
   // Auto-fill form with default address
   const loadAddress = (address) => {
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       name: address.name,
       phone: address.phone,
       address: address.address,
-      city: address.city,
+      city: address.city || address.district,
+      divisionId: address.divisionId || "",
+      division: address.division || "",
+      districtId: address.districtId || "",
+      district: address.district || address.city || "",
+      upazilaId: address.upazilaId || "",
+      upazila: address.upazila || "",
+      unionId: address.unionId || "",
+      union: address.union || "",
+      wardNo: address.wardNo || "",
       area: address.area,
       zipCode: address.zipCode || "",
-    });
+    }));
     setAddressLoaded(true);
     setShowAddressSelector(false);
+  };
+
+  const startOtherDelivery = () => {
+    setDeliveryFor("other");
+    setAddressLoaded(false);
+    setFormData((prev) => ({
+      ...prev,
+      name: "",
+      phone: "",
+      address: "",
+      city: "",
+      divisionId: "",
+      division: "",
+      districtId: "",
+      district: "",
+      upazilaId: "",
+      upazila: "",
+      unionId: "",
+      union: "",
+      wardNo: "",
+      area: "",
+      zipCode: "",
+    }));
+  };
+
+  const useDefaultDelivery = () => {
+    setDeliveryFor("self");
+    if (defaultAddress) loadAddress(defaultAddress);
   };
 
   // Load all saved addresses
@@ -215,6 +264,12 @@ export default function Checkout() {
       if (
         !formData.name ||
         !formData.phone ||
+        !formData.division ||
+        !formData.district ||
+        !formData.upazila ||
+        !formData.union ||
+        !formData.wardNo ||
+        !formData.area ||
         !formData.address ||
         !formData.city
       ) {
@@ -261,7 +316,16 @@ export default function Checkout() {
           email: user.email || formData.email,
           phone: formData.phone,
           address: formData.address,
-          city: formData.city,
+          city: formData.district || formData.city,
+          divisionId: formData.divisionId,
+          division: formData.division,
+          districtId: formData.districtId,
+          district: formData.district || formData.city,
+          upazilaId: formData.upazilaId,
+          upazila: formData.upazila,
+          unionId: formData.unionId,
+          union: formData.union,
+          wardNo: formData.wardNo,
           area: formData.area,
           zipCode: formData.zipCode,
         },
@@ -500,8 +564,39 @@ export default function Checkout() {
                   </button>
                 </div>
 
+                <div className="mb-4 grid gap-3 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={useDefaultDelivery}
+                    className={`rounded-xl border-2 p-4 text-left transition ${
+                      deliveryFor === "self"
+                        ? "border-primary-500 bg-primary-50"
+                        : "border-gray-200 bg-white hover:border-primary-200"
+                    }`}
+                  >
+                    <p className="font-bold text-gray-900">Use my default address</p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Your saved address loads automatically when available.
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={startOtherDelivery}
+                    className={`rounded-xl border-2 p-4 text-left transition ${
+                      deliveryFor === "other"
+                        ? "border-primary-500 bg-primary-50"
+                        : "border-gray-200 bg-white hover:border-primary-200"
+                    }`}
+                  >
+                    <p className="font-bold text-gray-900">Order for someone else</p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Add recipient and delivery location manually.
+                    </p>
+                  </button>
+                </div>
+
                 {/* Default Address Suggestion */}
-                {defaultAddress && !addressLoaded && (
+                {defaultAddress && deliveryFor === "self" && (
                   <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-primary-50 border border-blue-200 rounded-xl">
                     <div className="flex items-start gap-3">
                       <svg
@@ -524,15 +619,16 @@ export default function Checkout() {
                         <p className="text-xs text-blue-700 mb-2">
                           {defaultAddress.name} • {defaultAddress.phone}
                           <br />
-                          {defaultAddress.address}, {defaultAddress.area},{" "}
-                          {defaultAddress.city}
+                          {defaultAddress.address}, Ward {defaultAddress.wardNo},{" "}
+                          {defaultAddress.area}, {defaultAddress.union},{" "}
+                          {defaultAddress.upazila}, {defaultAddress.district || defaultAddress.city}
                         </p>
                         <button
                           type="button"
                           onClick={() => loadAddress(defaultAddress)}
                           className="text-xs font-semibold text-primary-600 hover:text-primary-700 bg-white px-3 py-1.5 rounded-lg border border-primary-200 hover:border-primary-300 transition-colors"
                         >
-                          Use This Address
+                          Reload Default Address
                         </button>
                       </div>
                     </div>
@@ -610,7 +706,8 @@ export default function Checkout() {
                                 {addr.phone}
                               </p>
                               <p className="text-xs text-gray-500 mt-1">
-                                {addr.address}, {addr.area}, {addr.city}
+                                {addr.address}, Ward {addr.wardNo}, {addr.area},{" "}
+                                {addr.union}, {addr.upazila}, {addr.district || addr.city}
                               </p>
                             </div>
                             <svg
@@ -644,9 +741,13 @@ export default function Checkout() {
                         name="name"
                         value={formData.name}
                         onChange={handleChange}
-                        readOnly
                         required
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-700 cursor-not-allowed focus:outline-none"
+                        readOnly={deliveryFor === "self"}
+                        className={`w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none ${
+                          deliveryFor === "self"
+                            ? "bg-gray-50 text-gray-700 cursor-not-allowed"
+                            : "focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        }`}
                       />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
                         <svg
@@ -665,7 +766,7 @@ export default function Checkout() {
                       </div>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      Name from your account (read-only)
+                      {deliveryFor === "self" ? "Name from your account/default address" : "Recipient name"}
                     </p>
                   </div>
                   <div>
@@ -715,31 +816,26 @@ export default function Checkout() {
                       Email from your account (read-only)
                     </p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      City *
-                    </label>
-                    <select
-                      name="city"
-                      value={formData.city}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                    >
-                      <option value="">Select City</option>
-                      <option value="Dhaka">Dhaka</option>
-                      <option value="Chittagong">Chittagong</option>
-                      <option value="Sylhet">Sylhet</option>
-                      <option value="Rajshahi">Rajshahi</option>
-                      <option value="Khulna">Khulna</option>
-                      <option value="Barisal">Barisal</option>
-                      <option value="Rangpur">Rangpur</option>
-                      <option value="Mymensingh">Mymensingh</option>
-                    </select>
+                  <div className="md:col-span-2">
+                    <AddressLocationFields value={formData} onChange={setFormData} />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Area/Thana *
+                      Ward No *
+                    </label>
+                    <input
+                      type="text"
+                      name="wardNo"
+                      value={formData.wardNo}
+                      onChange={handleChange}
+                      required
+                      placeholder="Ward no"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Area Name *
                     </label>
                     <input
                       type="text"
@@ -747,26 +843,13 @@ export default function Checkout() {
                       value={formData.area}
                       onChange={handleChange}
                       required
-                      placeholder="e.g., Dhanmondi, Gulshan"
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Postal Code
-                    </label>
-                    <input
-                      type="text"
-                      name="zipCode"
-                      value={formData.zipCode}
-                      onChange={handleChange}
-                      placeholder="1000"
+                      placeholder="Village/area/road"
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                     />
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Complete Address *
+                      House Name / No *
                     </label>
                     <textarea
                       name="address"
@@ -774,7 +857,7 @@ export default function Checkout() {
                       onChange={handleChange}
                       required
                       rows="3"
-                      placeholder="House/Flat no, Road no, Block, etc."
+                      placeholder="House name/no, flat, road, landmark"
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all resize-none"
                     />
                   </div>

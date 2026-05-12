@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import useAuth from "../hooks/useAuth";
@@ -22,6 +22,7 @@ export default function Navbar() {
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [categories, setCategories] = useState([]);
+  const [activeCategoryId, setActiveCategoryId] = useState("");
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -56,6 +57,44 @@ export default function Navbar() {
     { name: "⚡ Flash Sales", path: "/flash-sales" },
     { name: t("navbar.support"), path: "/support" },
   ];
+
+  const categoryGroups = useMemo(() => {
+    const activeCategories = categories.filter((category) => category.isActive !== false);
+    const byParent = activeCategories.reduce((acc, category) => {
+      const parentKey = category.parentId ? category.parentId.toString() : "root";
+      acc[parentKey] = [...(acc[parentKey] || []), category];
+      return acc;
+    }, {});
+
+    Object.values(byParent).forEach((items) =>
+      items.sort(
+        (a, b) =>
+          (a.displayOrder || 0) - (b.displayOrder || 0) ||
+          a.name.localeCompare(b.name),
+      ),
+    );
+
+    return (byParent.root || []).map((root) => ({
+      ...root,
+      children: byParent[root._id.toString()] || [],
+      grandchildrenByChild: (byParent[root._id.toString()] || []).reduce(
+        (acc, child) => ({
+          ...acc,
+          [child._id.toString()]: byParent[child._id.toString()] || [],
+        }),
+        {},
+      ),
+    }));
+  }, [categories]);
+
+  const activeCategory =
+    categoryGroups.find((category) => category._id === activeCategoryId) || categoryGroups[0];
+
+  useEffect(() => {
+    if (!activeCategoryId && categoryGroups.length > 0) {
+      setActiveCategoryId(categoryGroups[0]._id);
+    }
+  }, [activeCategoryId, categoryGroups]);
 
   return (
     <>
@@ -109,7 +148,7 @@ export default function Navbar() {
 
       {/* Main Navbar */}
       <nav
-        className={`bg-white dark:bg-gray-900 sticky top-0 z-50 border-b border-gray-200 dark:border-gray-700 transition-shadow duration-300 ${
+        className={`isolate bg-white dark:bg-gray-900 sticky top-0 z-[200] border-b border-gray-200 dark:border-gray-700 transition-shadow duration-300 ${
           scrolled ? "shadow-md" : ""
         }`}
       >
@@ -626,26 +665,107 @@ export default function Navbar() {
                   </button>
 
                   {categoriesOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-50">
-                      {categories.length > 0 ? (
-                        categories.map((category) => (
-                          <Link
-                            key={category._id}
-                            to={`/category/${category.slug}`}
-                            onClick={() => setCategoriesOpen(false)}
-                            className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              {category.name}
-                            </span>
-                          </Link>
-                        ))
+                    <>
+                    <button
+                      type="button"
+                      aria-label="Close categories menu"
+                      onClick={() => setCategoriesOpen(false)}
+                      className="fixed inset-0 z-[250] cursor-default bg-black/20 backdrop-blur-[1px]"
+                    />
+                    <div className="absolute top-full left-0 z-[300] mt-2 w-[min(960px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-800">
+                      {categoryGroups.length > 0 ? (
+                        <div className="grid max-h-[calc(100vh-11rem)] min-h-[420px] grid-cols-[270px_1fr] overflow-hidden">
+                          <div className="border-r border-gray-200 bg-gray-50 py-3 dark:border-gray-700 dark:bg-gray-900">
+                            <Link
+                              to="/categories"
+                              onClick={() => setCategoriesOpen(false)}
+                              className="mx-3 mb-2 flex items-center justify-between rounded-md px-3 py-2 text-sm font-bold text-[#1e7098] hover:bg-white dark:hover:bg-gray-800"
+                            >
+                              <span>All Categories</span>
+                              <span>›</span>
+                            </Link>
+                            <div className="max-h-[calc(100vh-15rem)] overflow-y-auto">
+                            {categoryGroups.map((root) => (
+                              <button
+                                key={root._id}
+                                type="button"
+                                onMouseEnter={() => setActiveCategoryId(root._id)}
+                                onFocus={() => setActiveCategoryId(root._id)}
+                                onClick={() => setActiveCategoryId(root._id)}
+                                className={`flex w-full items-center justify-between px-5 py-3 text-left text-sm font-semibold transition ${
+                                  activeCategory?._id === root._id
+                                    ? "bg-white text-[#1e7098] shadow-sm dark:bg-gray-800"
+                                    : "text-gray-700 hover:bg-white hover:text-[#1e7098] dark:text-gray-300 dark:hover:bg-gray-800"
+                                }`}
+                              >
+                                <span className="line-clamp-1">{root.name}</span>
+                                <span className="text-lg leading-none">›</span>
+                              </button>
+                            ))}
+                            </div>
+                          </div>
+
+                          <div className="overflow-y-auto p-6">
+                            {activeCategory && (
+                              <>
+                                <div className="mb-5 flex items-start justify-between gap-4 border-b border-gray-100 pb-4 dark:border-gray-700">
+                                  <div>
+                                    <Link
+                                      to={`/category/${activeCategory.slug}`}
+                                      onClick={() => setCategoriesOpen(false)}
+                                      className="text-xl font-black text-gray-900 hover:text-[#1e7098] dark:text-white"
+                                    >
+                                      {activeCategory.name}
+                                    </Link>
+                                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                      {activeCategory.description || "Browse sections and product types"}
+                                    </p>
+                                  </div>
+                                  <Link
+                                    to={`/category/${activeCategory.slug}`}
+                                    onClick={() => setCategoriesOpen(false)}
+                                    className="rounded-md border border-[#1e7098]/30 px-3 py-2 text-xs font-bold text-[#1e7098] hover:bg-[#1e7098] hover:text-white"
+                                  >
+                                    Shop all
+                                  </Link>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-x-8 gap-y-6">
+                                  {(activeCategory.children.length > 0 ? activeCategory.children : [activeCategory]).map((section) => (
+                                    <div key={section._id} className="min-w-0">
+                                      <Link
+                                        to={`/category/${section.slug}`}
+                                        onClick={() => setCategoriesOpen(false)}
+                                        className="line-clamp-2 text-sm font-bold text-gray-900 hover:text-[#1e7098] dark:text-white"
+                                      >
+                                        {section.name}
+                                      </Link>
+                                      <div className="mt-3 space-y-2">
+                                        {(activeCategory.grandchildrenByChild[section._id.toString()] || []).slice(0, 8).map((leaf) => (
+                                          <Link
+                                            key={leaf._id}
+                                            to={`/category/${leaf.slug}`}
+                                            onClick={() => setCategoriesOpen(false)}
+                                            className="block truncate text-sm text-gray-500 hover:text-[#1e7098] dark:text-gray-400"
+                                          >
+                                            {leaf.name}
+                                          </Link>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
                       ) : (
-                        <div className="px-4 py-3 text-center text-sm text-gray-500 dark:text-gray-400">
+                        <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                           {t("navbar.no_categories")}
                         </div>
                       )}
                     </div>
+                    </>
                   )}
                 </div>
 
@@ -822,16 +942,29 @@ export default function Navbar() {
                 <p className="px-4 py-2 text-sm font-bold text-gray-900 dark:text-white">
                   {t("navbar.categories")}
                 </p>
-                <div className="space-y-1">
-                  {categories.map((category) => (
-                    <Link
-                      key={category._id}
-                      to={`/category/${category.slug}`}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="block px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-[#1e7098] dark:hover:text-[#1e7098] hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                    >
-                      {category.name}
-                    </Link>
+                <div className="space-y-3">
+                  {categoryGroups.map((root) => (
+                    <div key={root._id} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
+                      <Link
+                        to={`/category/${root.slug}`}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="block text-sm font-bold text-gray-900 hover:text-[#1e7098] dark:text-white"
+                      >
+                        {root.name}
+                      </Link>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {root.children.slice(0, 6).map((section) => (
+                          <Link
+                            key={section._id}
+                            to={`/category/${section.slug}`}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="rounded-md bg-white px-3 py-2 text-xs font-semibold text-gray-600 hover:text-[#1e7098] dark:bg-gray-900 dark:text-gray-300"
+                          >
+                            {section.name}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>

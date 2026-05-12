@@ -46,6 +46,25 @@ const getAllProducts = async (req, res) => {
       }
     });
 
+    const countQuery = {};
+    if (category) {
+      const categoryObjectId = new ObjectId(category);
+      countQuery.categoryId = categoryObjectId;
+
+      try {
+        const Category = req.app.locals.models.Category;
+        const descendants = await Category.getDescendantIds(category);
+        if (descendants.length > 0) {
+          filters.category = [categoryObjectId, ...descendants];
+          countQuery.categoryId = { $in: filters.category };
+        }
+      } catch (error) {
+        console.error("Failed to resolve category descendants:", error);
+      }
+    }
+
+    if (vendorId) countQuery.vendorId = new ObjectId(vendorId);
+
     const products = await Product.findWithFilters(filters);
 
     // Debug logging
@@ -59,10 +78,6 @@ const getAllProducts = async (req, res) => {
     }
 
     // Get total count for pagination
-    const countQuery = {};
-    if (category) countQuery.categoryId = category;
-    if (vendorId) countQuery.vendorId = new ObjectId(vendorId);
-    
     const totalProducts = await Product.collection.countDocuments(countQuery);
     const totalCount = totalProducts;
     const totalPages = Math.ceil(totalCount / parseInt(limit));

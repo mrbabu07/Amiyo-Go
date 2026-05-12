@@ -101,15 +101,6 @@ const campaignRoutes = require("./routes/campaignRoutes");
 const dynamicCategoryRoutes = require("./routes/dynamicCategoryRoutes");
 const dynamicProductRoutes = require("./routes/dynamicProductRoutes");
 
-// Import middleware and controllers for direct routes
-const { verifyToken, verifyAdmin } = require("./middleware/auth");
-const {
-  createReturnRequest,
-  getUserReturns,
-  getAllReturns,
-  updateReturnStatus,
-} = require("./controllers/returnController");
-
 // Campaign Manager services
 const CampaignCacheService = require("./services/CampaignCacheService");
 const campaignScheduler = require("./jobs/campaignScheduler");
@@ -153,8 +144,8 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect MongoDB client (for existing models)
-    // await client.connect();
-    // await client.db(DB_NAME).command({ ping: 1 });
+    await client.connect();
+    await client.db(DB_NAME).command({ ping: 1 });
     console.log(`✅ MongoDB connected successfully (${DB_NAME})`);
 
     // Connect Mongoose (for Offer model and future Mongoose models)
@@ -340,17 +331,6 @@ async function run() {
 
     campaignScheduler.initializeJobs();
     console.log("✅ Campaign Scheduler initialized");
-
-    // Returns routes
-    app.post("/api/returns", verifyToken, createReturnRequest);
-    app.get("/api/returns/my-returns", verifyToken, getUserReturns);
-    app.get("/api/returns/admin", verifyToken, verifyAdmin, getAllReturns);
-    app.patch(
-      "/api/returns/:id/status",
-      verifyToken,
-      verifyAdmin,
-      updateReturnStatus,
-    );
 
     // Error handling middleware
     app.use((err, req, res, next) => {

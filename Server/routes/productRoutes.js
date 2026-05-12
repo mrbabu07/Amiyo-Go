@@ -21,9 +21,6 @@ const {
 router.get("/", getAllProducts);
 router.get("/search", searchProducts);
 router.get("/filter-options", getFilterOptions);
-router.get("/:id", getProductById);
-router.get("/:id/variants", getProductVariants);
-router.post("/:id/view", incrementProductView);
 
 // Admin routes
 router.get("/admin/low-stock", verifyToken, verifyAdmin, getLowStockProducts);
@@ -34,9 +31,14 @@ router.get(
   getOutOfStockProducts,
 );
 router.post("/", verifyToken, verifyAdmin, createProduct);
+router.patch("/bulk-stock-update", verifyToken, verifyAdmin, updateStockBulk);
+
+// ID-based routes must stay after static routes such as /admin/low-stock.
+router.get("/:id", getProductById);
+router.get("/:id/variants", getProductVariants);
+router.post("/:id/view", incrementProductView);
 router.put("/:id", verifyToken, verifyAdmin, updateProduct);
 router.put("/:id/variants", verifyToken, verifyAdmin, updateProductVariants);
 router.delete("/:id", verifyToken, verifyAdmin, deleteProduct);
-router.patch("/bulk-stock-update", verifyToken, verifyAdmin, updateStockBulk);
 
 module.exports = router;

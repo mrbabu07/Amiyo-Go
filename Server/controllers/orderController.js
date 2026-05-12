@@ -1,12 +1,88 @@
 const emailService = require("../services/emailService");
 const invoiceService = require("../services/invoiceService");
+const { ObjectId } = require("mongodb");
+
+const normalizeId = (id) => {
+  if (!id) return null;
+  return id.toString ? id.toString() : String(id);
+};
+
+const getVendorLabel = (vendor) =>
+  vendor?.shopName ||
+  vendor?.businessName ||
+  vendor?.storeName ||
+  vendor?.name ||
+  "HnilaBazar";
+
+const buildVendorSnapshot = (vendorId, vendor) => {
+  if (!vendorId) {
+    return {
+      vendorId: null,
+      vendorName: "HnilaBazar",
+      shopName: "HnilaBazar",
+      vendorType: "platform",
+    };
+  }
+
+  const label = getVendorLabel(vendor);
+  return {
+    vendorId,
+    vendorName: label,
+    shopName: label,
+    vendorType: "vendor",
+    vendorPhone: vendor?.phone || "",
+    vendorEmail: vendor?.email || "",
+    vendorAddress: vendor?.address || "",
+    vendorSlug: vendor?.slug || "",
+  };
+};
+
+const safeObjectId = (id) => {
+  const value = normalizeId(id);
+  return value && ObjectId.isValid(value) ? new ObjectId(value) : null;
+};
 
 const getAllOrders = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
+    const db = req.app.locals.db || Order.collection.db;
     const orders = await Order.findAll();
 
     const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+    const vendorIds = [
+      ...new Set(
+        orders.flatMap((order) =>
+          (order.products || [])
+            .map((product) => normalizeId(product.vendorId))
+            .filter((id) => id && id !== "platform" && ObjectId.isValid(id)),
+        ),
+      ),
+    ];
+
+    const vendors = vendorIds.length
+      ? await db
+          .collection("vendors")
+          .find({ _id: { $in: vendorIds.map((id) => new ObjectId(id)) } })
+          .toArray()
+      : [];
+    const vendorMapById = new Map(
+      vendors.map((vendor) => [vendor._id.toString(), vendor]),
+    );
+    const parentOrderIds = orders.map((order) => order._id.toString());
+    const vendorOrders = parentOrderIds.length
+      ? await db
+          .collection("vendorOrders")
+          .find({ parentOrderId: { $in: parentOrderIds } })
+          .sort({ createdAt: -1 })
+          .toArray()
+      : [];
+    const vendorOrdersByParentId = vendorOrders.reduce((map, vendorOrder) => {
+      if (!map[vendorOrder.parentOrderId]) {
+        map[vendorOrder.parentOrderId] = [];
+      }
+      map[vendorOrder.parentOrderId].push(vendorOrder);
+      return map;
+    }, {});
 
     const extendedOrders = orders.map(order => {
       let totalCommission = 0;
@@ -17,7 +93,18 @@ const getAllOrders = async (req, res) => {
         for (const product of order.products) {
           const adminComm = product.adminCommissionAmount || 0;
           const vendorEarn = product.vendorEarningAmount || 0;
-          const vId = product.vendorId || 'platform';
+          const vId = normalizeId(product.vendorId) || 'platform';
+          const vendorDoc = vId === "platform" ? null : vendorMapById.get(vId);
+          const vendorSnapshot = buildVendorSnapshot(
+            vId === "platform" ? null : vId,
+            vendorDoc,
+          );
+
+          product.vendorId = vendorSnapshot.vendorId;
+          product.vendorName = product.vendorName || product.shopName || vendorSnapshot.vendorName;
+          product.shopName = product.shopName || product.vendorName || vendorSnapshot.shopName;
+          product.vendorPhone = product.vendorPhone || vendorSnapshot.vendorPhone || "";
+          product.vendorEmail = product.vendorEmail || vendorSnapshot.vendorEmail || "";
           
           totalCommission += adminComm;
           totalVendorEarnings += vendorEarn;
@@ -25,6 +112,8 @@ const getAllOrders = async (req, res) => {
           if (!vendorMap[vId]) {
             vendorMap[vId] = {
               vendorId: vId === 'platform' ? null : vId,
+              vendorName: product.vendorName,
+              shopName: product.shopName,
               grossSales: 0,
               totalCommission: 0,
               netEarnings: 0
@@ -39,6 +128,7 @@ const getAllOrders = async (req, res) => {
 
       return {
         ...order,
+        vendorOrders: vendorOrdersByParentId[order._id.toString()] || [],
         totalCommission: round2(totalCommission),
         totalVendorEarnings: round2(totalVendorEarnings),
         perVendorBreakdown: Object.values(vendorMap).map(v => ({
@@ -109,7 +199,11 @@ const createOrder = async (req, res) => {
       !shippingInfo.email ||
       !shippingInfo.phone ||
       !shippingInfo.address ||
-      !shippingInfo.city
+      !shippingInfo.city ||
+      !shippingInfo.district ||
+      !shippingInfo.upazila ||
+      !shippingInfo.union ||
+      !shippingInfo.area
     ) {
       console.error(
         "❌ Order creation failed: Missing shipping info",
@@ -123,6 +217,25 @@ const createOrder = async (req, res) => {
 
     // Validate product availability and fetch product details with vendorId
     const productsWithVendor = [];
+    const vendorCollection = Product.collection.db.collection("vendors");
+    const vendorSnapshotCache = new Map();
+
+    const getVendorSnapshotForProduct = async (vendorId) => {
+      const normalizedVendorId = normalizeId(vendorId);
+      if (!normalizedVendorId) return buildVendorSnapshot(null, null);
+      if (vendorSnapshotCache.has(normalizedVendorId)) {
+        return vendorSnapshotCache.get(normalizedVendorId);
+      }
+
+      const vendorObjectId = safeObjectId(normalizedVendorId);
+      const vendor = vendorObjectId
+        ? await vendorCollection.findOne({ _id: vendorObjectId })
+        : null;
+      const snapshot = buildVendorSnapshot(normalizedVendorId, vendor);
+      vendorSnapshotCache.set(normalizedVendorId, snapshot);
+      return snapshot;
+    };
+
     for (const item of products) {
       if (!item.productId) {
         console.error(
@@ -159,11 +272,23 @@ const createOrder = async (req, res) => {
         });
       }
 
-      // Add vendorId and categoryId to product item (categoryId needed for commission calculation)
+      const vendorSnapshot = await getVendorSnapshotForProduct(product.vendorId);
+
+      // Add vendor/store snapshot and categoryId to product item.
+      // categoryId is needed for commission calculation and vendor data is needed for invoices/admin order views.
       productsWithVendor.push({
         ...item,
-        vendorId: product.vendorId || null,
-        categoryId: product.categoryId || null,
+        title: item.title || product.title,
+        image: item.image || product.image || product.images?.[0] || "",
+        vendorId: vendorSnapshot.vendorId,
+        vendorName: vendorSnapshot.vendorName,
+        shopName: vendorSnapshot.shopName,
+        vendorType: vendorSnapshot.vendorType,
+        vendorPhone: vendorSnapshot.vendorPhone || "",
+        vendorEmail: vendorSnapshot.vendorEmail || "",
+        vendorAddress: vendorSnapshot.vendorAddress || "",
+        vendorSlug: vendorSnapshot.vendorSlug || "",
+        categoryId: normalizeId(product.categoryId),
       });
     }
 
@@ -245,6 +370,18 @@ const createOrder = async (req, res) => {
 
     console.log(`✅ Created ${vendorOrderIds.length} vendor orders`);
     console.log("📦 Order split completed successfully");
+
+    if (vendorOrderIds.length > 0) {
+      await Order.collection.updateOne(
+        { _id: safeObjectId(orderId) },
+        {
+          $set: {
+            vendorOrderIds: vendorOrderIds.map((id) => normalizeId(id)),
+            updatedAt: new Date(),
+          },
+        },
+      );
+    }
 
     // Update product stock
     console.log("📦 Updating product stock...");

@@ -3,6 +3,45 @@ import { useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 import { getFieldsForCategory } from '../../utils/productFieldConfig';
 
+const buildVendorCategoryOptions = (allCategories, allowedIds) => {
+  const allowedSet = new Set(allowedIds.map((id) => id.toString()));
+  const byId = new Map(allCategories.map((category) => [category._id.toString(), category]));
+
+  const isAllowed = (category) => {
+    if (allowedSet.has(category._id.toString())) return true;
+    let parentId = category.parentId ? category.parentId.toString() : null;
+
+    while (parentId) {
+      if (allowedSet.has(parentId)) return true;
+      parentId = byId.get(parentId)?.parentId?.toString() || null;
+    }
+
+    return false;
+  };
+
+  return allCategories
+    .filter(isAllowed)
+    .sort(
+      (a, b) =>
+        (a.displayOrder || 0) - (b.displayOrder || 0) ||
+        a.name.localeCompare(b.name),
+    );
+};
+
+const getCategoryOptionLabel = (category, categories) => {
+  const byId = new Map(categories.map((item) => [item._id.toString(), item]));
+  const path = [category.name];
+  let parentId = category.parentId ? category.parentId.toString() : null;
+
+  while (parentId && byId.has(parentId)) {
+    const parent = byId.get(parentId);
+    path.unshift(parent.name);
+    parentId = parent.parentId ? parent.parentId.toString() : null;
+  }
+
+  return path.join(' > ');
+};
+
 const VendorAddProduct = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -60,10 +99,8 @@ const VendorAddProduct = () => {
         const categoriesData = await categoriesResponse.json();
         if (categoriesData.success) {
           // Filter only allowed categories
-          const allowedCats = categoriesData.data.filter(cat => 
-            vendorData.vendor.allowedCategoryIds.some(id => id === cat._id)
-          );
-          setCategories(allowedCats);
+          const allowedIds = (vendorData.vendor.allowedCategoryIds || []).map((id) => id.toString());
+          setCategories(buildVendorCategoryOptions(categoriesData.data, allowedIds));
         }
       }
     } catch (error) {
@@ -262,6 +299,9 @@ const VendorAddProduct = () => {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
+  const selectedCommissionRate =
+    selectedCategory?.effectiveCommissionRate ?? selectedCategory?.commissionRate ?? 0;
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-3xl mx-auto">
@@ -289,19 +329,19 @@ const VendorAddProduct = () => {
                 <option value="">Select Category</option>
                 {categories.map(cat => (
                   <option key={cat._id} value={cat._id}>
-                    {cat.name} {cat.commissionRate ? `(${cat.commissionRate}% commission)` : ''}
+                    {getCategoryOptionLabel(cat, categories)} {(cat.effectiveCommissionRate ?? cat.commissionRate) ? `(${cat.effectiveCommissionRate ?? cat.commissionRate}% commission)` : ''}
                   </option>
                 ))}
               </select>
               
               {/* Commission Info */}
-              {selectedCategory && selectedCategory.commissionRate > 0 && (
+              {selectedCategory && selectedCommissionRate > 0 && (
                 <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                   <div className="flex items-start gap-2">
                     <span className="text-orange-600 text-lg">ℹ️</span>
                     <div className="flex-1">
                       <p className="text-sm font-medium text-orange-900">
-                        Commission: {selectedCategory.commissionRate}%
+                        Commission: {selectedCommissionRate}%
                       </p>
                       <p className="text-xs text-orange-700 mt-1">
                         Platform commission will be deducted from your earnings for this category
@@ -354,7 +394,7 @@ const VendorAddProduct = () => {
                 />
                 
                 {/* Earnings Calculator */}
-                {formData.price && selectedCategory && selectedCategory.commissionRate > 0 && (
+                {formData.price && selectedCategory && selectedCommissionRate > 0 && (
                   <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
                     <div className="text-xs space-y-1">
                       <div className="flex justify-between text-gray-600">
@@ -362,15 +402,15 @@ const VendorAddProduct = () => {
                         <span className="font-medium">৳{parseFloat(formData.price).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between text-red-600">
-                        <span>Commission ({selectedCategory.commissionRate}%):</span>
+                        <span>Commission ({selectedCommissionRate}%):</span>
                         <span className="font-medium">
-                          -৳{((parseFloat(formData.price) * selectedCategory.commissionRate) / 100).toFixed(2)}
+                          -৳{((parseFloat(formData.price) * selectedCommissionRate) / 100).toFixed(2)}
                         </span>
                       </div>
                       <div className="flex justify-between text-green-700 font-semibold pt-1 border-t border-green-300">
                         <span>Your Earning:</span>
                         <span>
-                          ৳{(parseFloat(formData.price) - (parseFloat(formData.price) * selectedCategory.commissionRate) / 100).toFixed(2)}
+                          ৳{(parseFloat(formData.price) - (parseFloat(formData.price) * selectedCommissionRate) / 100).toFixed(2)}
                         </span>
                       </div>
                     </div>
