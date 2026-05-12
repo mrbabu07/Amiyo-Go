@@ -88,7 +88,7 @@ export const generateProfessionalInvoice = (order) => {
           margin: 0;
           background: #f4f6f8;
           color: #172033;
-          font-family: Arial, Helvetica, sans-serif;
+          font-family: "Plus Jakarta Sans", "Noto Sans Bengali", Arial, Helvetica, sans-serif;
           font-size: 13px;
           line-height: 1.45;
         }

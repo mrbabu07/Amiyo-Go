@@ -199,7 +199,7 @@ export default function AdminOrders() {
           }
           
           body {
-            font-family: 'Arial', sans-serif;
+            font-family: "Plus Jakarta Sans", "Noto Sans Bengali", Arial, sans-serif;
             line-height: 1.6;
             color: #333;
             max-width: 800px;
@@ -330,7 +330,7 @@ export default function AdminOrders() {
             padding: 15px;
             border-radius: 8px;
             margin-top: 10px;
-            font-family: 'Courier New', monospace;
+            font-family: "Plus Jakarta Sans", "Noto Sans Bengali", Arial, sans-serif;
             white-space: pre-line;
             line-height: 1.8;
           }

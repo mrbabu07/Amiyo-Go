@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
 @import "./mobile-optimizations.css";
 
 @tailwind base;
@@ -42,16 +42,24 @@
   }
 
   body {
-    @apply m-0 font-sans antialiased bg-gray-50 text-gray-900;
+    @apply m-0 font-sans antialiased bg-gray-50 text-gray-900 text-base leading-relaxed;
     /* Prevent horizontal scroll on mobile */
     overflow-x: hidden;
     width: 100%;
+    font-feature-settings:
+      "cv02" 1,
+      "cv03" 1,
+      "cv04" 1,
+      "kern" 1;
+    text-rendering: optimizeLegibility;
+    letter-spacing: 0;
   }
 
   html {
     /* Prevent horizontal scroll */
     overflow-x: hidden;
     width: 100%;
+    font-size: 16px;
   }
 
   h1,
@@ -60,24 +68,51 @@
   h4,
   h5,
   h6 {
-    @apply font-semibold;
+    @apply font-display font-semibold text-gray-950;
+    letter-spacing: 0;
+    line-height: 1.18;
   }
 
-  /* Mobile-first responsive typography */
+  /* Professional default type scale. Page-specific utilities can still override this. */
   h1 {
-    @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl;
+    @apply text-2xl sm:text-3xl lg:text-4xl;
   }
 
   h2 {
-    @apply text-xl sm:text-2xl md:text-3xl lg:text-4xl;
+    @apply text-xl sm:text-2xl lg:text-3xl;
   }
 
   h3 {
-    @apply text-lg sm:text-xl md:text-2xl lg:text-3xl;
+    @apply text-lg sm:text-xl lg:text-2xl;
   }
 
   h4 {
-    @apply text-base sm:text-lg md:text-xl lg:text-2xl;
+    @apply text-base sm:text-lg;
+  }
+
+  h5 {
+    @apply text-sm sm:text-base;
+  }
+
+  h6 {
+    @apply text-xs sm:text-sm;
+  }
+
+  p {
+    @apply text-gray-700;
+    line-height: 1.65;
+  }
+
+  small {
+    @apply text-xs leading-5;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    letter-spacing: 0;
   }
 
   /* Ensure images are responsive */
@@ -357,7 +392,7 @@
 @media (max-width: 639px) {
   /* Reduce font sizes on very small screens */
   html {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   /* Stack elements vertically */
@@ -399,7 +434,7 @@
 /* Tablet - 640px to 1023px */
 @media (min-width: 640px) and (max-width: 1023px) {
   html {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   /* 2-column grid on tablets */
