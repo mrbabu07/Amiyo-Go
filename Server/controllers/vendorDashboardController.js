@@ -5,7 +5,6 @@ exports.getDashboardStats = async (req, res) => {
   try {
     const Vendor = req.app.locals.models.Vendor;
     const Product = req.app.locals.models.Product;
-    const VendorOrder = req.app.locals.models.VendorOrder;
     const User = req.app.locals.models.User;
 
     const user = await User.findByFirebaseUid(req.user.uid);
@@ -36,21 +35,35 @@ exports.getDashboardStats = async (req, res) => {
       stock: { $lt: 10 },
     });
 
-    // Get vendor order stats
-    const orderStats = await VendorOrder.getVendorStats(vendor._id.toString());
+    const vendorId = vendor._id.toString();
+    const orders = await db.collection("orders")
+      .find({
+        $or: [
+          { "products.vendorId": vendorId },
+          { "products.vendorId": vendor._id },
+        ],
+      })
+      .toArray();
     
     let totalOrders = 0;
     let pendingOrders = 0;
     let totalRevenue = 0;
 
-    orderStats.forEach(stat => {
-      totalOrders += stat.count;
-      if (stat._id === 'pending') {
-        pendingOrders = stat.count;
-      }
-      if (stat._id === 'delivered') {
-        totalRevenue += stat.totalAmount || 0;
-      }
+    orders.forEach((order) => {
+      const vendorProducts = (order.products || []).filter(
+        (product) => product.vendorId && product.vendorId.toString() === vendorId,
+      );
+      if (vendorProducts.length === 0) return;
+
+      totalOrders++;
+      const statuses = vendorProducts.map((product) => product.itemStatus || "pending");
+      if (statuses.some((status) => status === "pending")) pendingOrders++;
+
+      vendorProducts.forEach((product) => {
+        if ((product.itemStatus || "pending") === "delivered") {
+          totalRevenue += product.vendorEarningAmount || ((product.price || 0) * (product.quantity || 0));
+        }
+      });
     });
 
     // Calculate revenue growth (mock for now - would need historical data)
@@ -88,17 +101,23 @@ exports.getDashboardStats = async (req, res) => {
 // Get vendor orders (from parent orders collection, filtered by vendor items)
 exports.getVendorOrders = async (req, res) => {
   try {
-    const { limit = 100, page = 1, status } = req.query;
+    const { limit = 100, page = 1, status, vendorId: requestedVendorId } = req.query;
     const Vendor = req.app.locals.models.Vendor;
     const Order = req.app.locals.models.Order;
+    const VendorOrder = req.app.locals.models.VendorOrder;
     const User = req.app.locals.models.User;
 
-    const user = await User.findByFirebaseUid(req.user.uid);
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+    let vendor = null;
+    if (req.user?.role === "admin" && requestedVendorId) {
+      vendor = await Vendor.findById(requestedVendorId);
+    } else {
+      const user = await User.findByFirebaseUid(req.user.uid);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      vendor = await Vendor.findByUserId(user._id);
     }
 
-    const vendor = await Vendor.findByUserId(user._id);
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
     }
@@ -259,8 +278,14 @@ exports.updateOrderStatus = async (req, res) => {
     const { status } = req.body;
     const Vendor = req.app.locals.models.Vendor;
     const Order = req.app.locals.models.Order;
+    const VendorOrder = req.app.locals.models.VendorOrder;
     const User = req.app.locals.models.User;
     const db = req.app.locals.db;
+
+    const validStatuses = ["pending", "processing", "packed", "shipped", "delivered", "cancelled"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Status must be one of: ${validStatuses.join(", ")}` });
+    }
 
     const user = await User.findByFirebaseUid(req.user.uid);
     if (!user) {
@@ -291,12 +316,22 @@ exports.updateOrderStatus = async (req, res) => {
 
     // Update item statuses for vendor's products
     const ordersCollection = db.collection("orders");
+    const now = new Date();
+    const timestampFields = {
+      ...(status === "processing" ? { "products.$[elem].processingAt": now } : {}),
+      ...(status === "packed" ? { "products.$[elem].packedAt": now } : {}),
+      ...(status === "shipped" ? { "products.$[elem].shippedAt": now } : {}),
+      ...(status === "delivered" ? { "products.$[elem].deliveredAt": now } : {}),
+      ...(status === "cancelled" ? { "products.$[elem].cancelledAt": now } : {}),
+    };
+
     await ordersCollection.updateOne(
       { _id: typeof orderId === 'string' ? new ObjectId(orderId) : orderId },
       {
         $set: {
           "products.$[elem].itemStatus": status,
-          "products.$[elem].statusUpdatedAt": new Date(),
+          "products.$[elem].statusUpdatedAt": now,
+          ...timestampFields,
         }
       },
       {
@@ -308,6 +343,24 @@ exports.updateOrderStatus = async (req, res) => {
         }]
       }
     );
+
+    const updatedOrder = await Order.findById(orderId);
+    const updatedVendorProducts = (updatedOrder?.products || []).filter(
+      (p) => p.vendorId && p.vendorId.toString() === vendorId,
+    );
+    const vendorOrder = (await VendorOrder.findByParentOrderId(orderId)).find(
+      (vo) => vo.vendorId === vendorId,
+    );
+    if (vendorOrder) {
+      await VendorOrder.updateStatus(vendorOrder._id.toString(), status, {
+        products: updatedVendorProducts,
+        ...(status === "processing" ? { processingAt: now } : {}),
+        ...(status === "packed" ? { packedAt: now } : {}),
+        ...(status === "shipped" ? { shippedAt: now } : {}),
+        ...(status === "delivered" ? { deliveredAt: now } : {}),
+        ...(status === "cancelled" ? { cancelledAt: now } : {}),
+      });
+    }
 
     // Sync overall order status
     await Order.syncOrderStatus(orderId);

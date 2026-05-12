@@ -413,7 +413,7 @@ const AdminFlashSales = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">
-                Flash Price (USD - displays as BDT)
+                Flash Price (BDT)
               </label>
               <input
                 type="number"
@@ -424,7 +424,7 @@ const AdminFlashSales = () => {
                 }
                 className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
                 required
-                placeholder="e.g., 10 (will show as ৳1,100)"
+                placeholder="e.g., 1100"
               />
             </div>
 

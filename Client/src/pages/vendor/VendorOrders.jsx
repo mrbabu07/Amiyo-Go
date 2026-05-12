@@ -51,6 +51,7 @@ export default function VendorOrders() {
   const [search, setSearch] = useState("");
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [updatingStatus, setUpdatingStatus] = useState(null);
+  const [vendorProfile, setVendorProfile] = useState(null);
 
   // ── derived stats ──────────────────────────────────────
   const stats = {
@@ -80,15 +81,23 @@ export default function VendorOrders() {
     if (!user) return;
     try {
       const token = await user.getIdToken();
-      const url = `${import.meta.env.VITE_API_URL}/vendors/orders?limit=100`;
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (res.ok) {
+      const [ordersRes, vendorRes] = await Promise.all([
+        fetch(`${import.meta.env.VITE_API_URL}/vendors/orders?limit=100`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${import.meta.env.VITE_API_URL}/vendors/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+      const data = await ordersRes.json();
+      if (ordersRes.ok) {
         setOrders(data.orders || []);
       } else {
         toast.error(data.error || "Failed to load orders");
+      }
+      if (vendorRes.ok) {
+        const vendorData = await vendorRes.json();
+        setVendorProfile(vendorData.vendor || vendorData.data || null);
       }
     } catch {
       toast.error("Failed to load orders");
@@ -142,8 +151,10 @@ export default function VendorOrders() {
     try {
       // Use vendor packing slip template
       const printContent = generateVendorPackingSlip(order, {
-        businessName: "Your Business", // TODO: Get from vendor profile
-        phone: "", // TODO: Get from vendor profile
+        businessName: vendorProfile?.shopName || order.products?.[0]?.shopName,
+        shopName: vendorProfile?.shopName || order.products?.[0]?.shopName,
+        phone: vendorProfile?.phone || order.products?.[0]?.vendorPhone || "",
+        email: vendorProfile?.email || order.products?.[0]?.vendorEmail || "",
       });
 
       // Create a new window for printing
@@ -176,7 +187,12 @@ export default function VendorOrders() {
       shippingInfo.name,
       shippingInfo.phone,
       shippingInfo.address,
-      shippingInfo.area + (shippingInfo.city ? `, ${shippingInfo.city}` : ""),
+      shippingInfo.area,
+      shippingInfo.wardNo ? `Ward: ${shippingInfo.wardNo}` : "",
+      shippingInfo.union,
+      shippingInfo.upazila,
+      shippingInfo.district || shippingInfo.city,
+      shippingInfo.division,
       shippingInfo.zipCode,
     ]
       .filter(Boolean)

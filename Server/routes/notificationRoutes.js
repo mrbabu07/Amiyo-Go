@@ -8,6 +8,9 @@ const {
   sendTestNotification,
   sendTestNotificationPublic,
   getVapidPublicKey,
+  getMyNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
 } = require("../controllers/notificationController");
 const { verifyToken } = require("../middleware/auth");
 
@@ -22,6 +25,9 @@ router.use(verifyToken);
 
 router.get("/preferences", getPreferences);
 router.post("/preferences", updatePreferences);
+router.get("/", getMyNotifications);
+router.patch("/read-all", markAllNotificationsRead);
+router.patch("/:id/read", markNotificationRead);
 router.post("/test-auth", sendTestNotification); // Authenticated test endpoint
 
 module.exports = router;

@@ -31,6 +31,8 @@
     "seed:all": "node scripts/seedAll.js",
     "seed:categories": "node scripts/seedCategories.js",
     "sync:categories": "node scripts/syncCategoryTree.js",
+    "sync:vendor-orders": "node scripts/syncVendorOrdersFromOrders.js",
+    "seed:test-marketplace": "node scripts/seedTestMarketplace.js",
     "seed:dynamic-categories": "node scripts/seedDynamicCategories.js",
     "seed:attributes": "node scripts/addAttributesToOldCategories.js",
     "seed:flash": "node scripts/seedFlashSales.js",

@@ -157,9 +157,14 @@ const getPayments = async (req, res) => {
       return res.status(403).json({ success: false, error: "Not a vendor" });
     }
 
+    const vendorIdValues = [vendorId.toString()];
+    if (ObjectId.isValid(vendorId.toString())) {
+      vendorIdValues.push(new ObjectId(vendorId.toString()));
+    }
+
     // Payouts collection logic
-    const payouts = await db.collection("vendorPayouts")
-      .find({ vendorId: vendorId.toString() })
+    const payouts = await db.collection("vendor_payouts")
+      .find({ vendorId: { $in: vendorIdValues } })
       .sort({ createdAt: -1 })
       .toArray();
 

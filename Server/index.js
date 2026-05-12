@@ -28,6 +28,7 @@ const SupportTicket = require("./models/SupportTicket");
 const LiveChat = require("./models/LiveChat");
 const CustomerInsight = require("./models/CustomerInsight");
 const Offer = require("./models/Offer");
+const Notification = require("./models/Notification");
 const NotificationSubscription = require("./models/NotificationSubscription");
 const Question = require("./models/Question");
 const Vendor = require("./models/Vendor");
@@ -88,6 +89,7 @@ const adminProductRoutes = require("./routes/adminProductRoutes");
 const adminFinanceRoutes = require("./routes/adminFinanceRoutes");
 const adminPayoutRoutes  = require("./routes/adminPayoutRoutes");
 const adminVendorRoutes = require("./routes/adminVendorRoutes");
+const adminAlertRoutes = require("./routes/adminAlertRoutes");
 const categoryRequestRoutes = require("./routes/categoryRequestRoutes");
 const vendorChatRoutes = require("./routes/vendorChatRoutes");
 const adminVendorChatRoutes = require("./routes/chatRoutes");
@@ -170,6 +172,7 @@ async function run() {
       LiveChat: new LiveChat(db),
       CustomerInsight: new CustomerInsight(db),
       Offer: new Offer(db),
+      Notification: new Notification(db),
       NotificationSubscription: new NotificationSubscription(db),
       Question: new Question(db),
       Vendor: new Vendor(db),
@@ -298,6 +301,9 @@ async function run() {
 
     app.use("/api/admin/payouts",  adminPayoutRoutes);
     console.log("✅ Admin Payout routes registered");
+
+    app.use("/api/admin/alerts", adminAlertRoutes);
+    console.log("✅ Admin Alert routes registered");
 
     app.use("/api/category-requests", categoryRequestRoutes);
     console.log("✅ Category Request routes registered");

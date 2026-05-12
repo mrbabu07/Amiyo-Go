@@ -176,9 +176,11 @@ exports.getVendorFinanceSummary = async (req, res) => {
     const { from, to } = req.query;
     const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
     const { ObjectId } = require("mongodb");
+    const vendorIdValues = [vendorId.toString()];
+    if (ObjectId.isValid(vendorId)) vendorIdValues.push(new ObjectId(vendorId));
 
     const match = {
-      "products.vendorId": new ObjectId(vendorId),
+      "products.vendorId": { $in: vendorIdValues },
       status: { $ne: "cancelled" },
     };
     if (from || to) {
@@ -190,7 +192,7 @@ exports.getVendorFinanceSummary = async (req, res) => {
     const pipeline = [
       { $match: match },
       { $unwind: "$products" },
-      { $match: { "products.vendorId": new ObjectId(vendorId) } },
+      { $match: { "products.vendorId": { $in: vendorIdValues } } },
       {
         $group: {
           _id: null,
@@ -240,8 +242,10 @@ exports.getVendorFinanceTransactions = async (req, res) => {
     const pageNum  = parseInt(page);
     const limitNum = parseInt(limit);
     const { ObjectId } = require("mongodb");
+    const vendorIdValues = [vendorId.toString()];
+    if (ObjectId.isValid(vendorId)) vendorIdValues.push(new ObjectId(vendorId));
 
-    const match = { "products.vendorId": new ObjectId(vendorId) };
+    const match = { "products.vendorId": { $in: vendorIdValues } };
     if (from || to) {
       match.createdAt = {};
       if (from) match.createdAt.$gte = new Date(from);
@@ -251,7 +255,7 @@ exports.getVendorFinanceTransactions = async (req, res) => {
     const pipeline = [
       { $match: match },
       { $unwind: "$products" },
-      { $match: { "products.vendorId": new ObjectId(vendorId) } },
+      { $match: { "products.vendorId": { $in: vendorIdValues } } },
       { $sort: { createdAt: -1 } },
       { $skip: (pageNum - 1) * limitNum },
       { $limit: limitNum },
@@ -274,7 +278,7 @@ exports.getVendorFinanceTransactions = async (req, res) => {
     const countPipeline = [
       { $match: match },
       { $unwind: "$products" },
-      { $match: { "products.vendorId": new ObjectId(vendorId) } },
+      { $match: { "products.vendorId": { $in: vendorIdValues } } },
       { $count: "total" },
     ];
 

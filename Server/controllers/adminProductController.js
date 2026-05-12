@@ -9,7 +9,11 @@ exports.getAllAdminProducts = async (req, res) => {
     const query = {};
     if (approvalStatus) query.approvalStatus = approvalStatus;
     if (vendorId) {
-      try { query.vendorId = new ObjectId(vendorId); } catch (_) {}
+      try {
+        query.$or = [{ vendorId: new ObjectId(vendorId) }, { vendorId: vendorId.toString() }];
+      } catch (_) {
+        query.vendorId = vendorId.toString();
+      }
     }
     if (search) {
       query.$or = [
@@ -32,9 +36,12 @@ exports.getAllAdminProducts = async (req, res) => {
     const vendorIds = [...new Set(
       products.map(p => p.vendorId?.toString()).filter(Boolean)
     )];
-    const vendors = vendorIds.length
+    const validVendorObjectIds = vendorIds
+      .filter((id) => ObjectId.isValid(id))
+      .map((id) => new ObjectId(id));
+    const vendors = validVendorObjectIds.length
       ? await db.collection("vendors").find({
-          _id: { $in: vendorIds.map(id => new ObjectId(id)) }
+          _id: { $in: validVendorObjectIds }
         }).toArray()
       : [];
     const vendorMap = Object.fromEntries(vendors.map(v => [v._id.toString(), v.shopName]));
@@ -171,13 +178,20 @@ exports.getVendorProductsAdmin = async (req, res) => {
       return res.status(400).json({ success: false, error: "Invalid vendorId" });
     }
 
-    const query = { vendorId: vendorObjectId };
+    const vendorMatch = { $or: [{ vendorId: vendorObjectId }, { vendorId: vendorId.toString() }] };
+    const query = { ...vendorMatch };
     if (status && status !== "all") query.approvalStatus = status;
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
+      query.$and = [
+        vendorMatch,
+        {
+          $or: [
+            { title: { $regex: search, $options: "i" } },
+            { description: { $regex: search, $options: "i" } },
+          ],
+        },
       ];
+      delete query.$or;
     }
 
     const pageNum  = parseInt(page);

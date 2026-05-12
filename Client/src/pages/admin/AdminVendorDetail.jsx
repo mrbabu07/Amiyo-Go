@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuth from '../../hooks/useAuth';
+import useCurrency from '../../hooks/useCurrency';
 import {
   getAdminVendorById,
   getAdminVendorProducts,
+  getAdminVendorOrders,
   approveAdminProduct,
   rejectAdminProduct,
   disableAdminProduct,
@@ -18,10 +20,12 @@ import {
   getAllPayouts,
   markPayoutPaid,
   cancelPayout,
+  updateOrderStatus,
 } from '../../services/api';
 
 const TABS = ['Overview', 'Products', 'Orders', 'Returns', 'Earnings', 'Payouts', 'Actions'];
-const PRODUCT_STATUS_FILTERS = ['pending', 'approved', 'rejected'];
+const PRODUCT_STATUS_FILTERS = ['all', 'pending', 'approved', 'rejected'];
+const ORDER_STATUS_OPTIONS = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
 
 const StatusBadge = ({ status }) => {
   const colors = {
@@ -74,6 +78,7 @@ const getBankInfo = (vendor) => {
 export default function AdminVendorDetail() {
   const { vendorId } = useParams();
   const { user } = useAuth();
+  const { formatPrice } = useCurrency();
   const [activeTab, setActiveTab] = useState('Overview');
 
   // vendor
@@ -81,17 +86,20 @@ export default function AdminVendorDetail() {
   const [vendorLoading, setVendorLoading] = useState(true);
 
   // products tab
-  const [productFilter, setProductFilter] = useState('pending');
+  const [productFilter, setProductFilter] = useState('all');
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productPage, setProductPage] = useState(1);
   const [productTotal, setProductTotal] = useState(0);
+  const [allProductTotal, setAllProductTotal] = useState(0);
   const [rejectModal, setRejectModal] = useState(null); // productId
   const [rejectReason, setRejectReason] = useState('');
 
   // orders tab
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [orderTotal, setOrderTotal] = useState(0);
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
 
   // earnings tab
   const [financeSummary, setFinanceSummary] = useState(null);
@@ -125,8 +133,18 @@ export default function AdminVendorDetail() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await getAdminVendorById(vendorId);
-        setVendor(res.data);
+        const [vendorRes, productsRes, ordersRes, financeRes] = await Promise.all([
+          getAdminVendorById(vendorId),
+          getAdminVendorProducts(vendorId, { status: 'all', page: 1, limit: 5 }),
+          getAdminVendorOrders(vendorId, { page: 1, limit: 5 }),
+          getAdminVendorFinanceSummary(vendorId),
+        ]);
+
+        setVendor(vendorRes.data);
+        setAllProductTotal(productsRes.data.total || 0);
+        setOrders(ordersRes.data.vendorOrders || ordersRes.data.orders || []);
+        setOrderTotal(ordersRes.data.total || ordersRes.data.vendorOrders?.length || ordersRes.data.orders?.length || 0);
+        setFinanceSummary(financeRes.data.data);
       } catch {
         toast.error('Failed to load vendor');
       } finally {
@@ -143,6 +161,7 @@ export default function AdminVendorDetail() {
       const res = await getAdminVendorProducts(vendorId, { status: productFilter, page: productPage, limit: 20 });
       setProducts(res.data.data || []);
       setProductTotal(res.data.total || 0);
+      if (productFilter === 'all') setAllProductTotal(res.data.total || 0);
     } catch {
       toast.error('Failed to load products');
     } finally {
@@ -160,13 +179,10 @@ export default function AdminVendorDetail() {
     const load = async () => {
       setOrdersLoading(true);
       try {
-        const token = await user.getIdToken();
-        const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/vendors/orders?vendorId=${vendorId}&limit=20`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const data = await res.json();
+        const res = await getAdminVendorOrders(vendorId, { page: 1, limit: 20 });
+        const data = res.data;
         setOrders(data.vendorOrders || data.orders || []);
+        setOrderTotal(data.total || data.vendorOrders?.length || data.orders?.length || 0);
       } catch {
         toast.error('Failed to load orders');
       } finally {
@@ -174,7 +190,45 @@ export default function AdminVendorDetail() {
       }
     };
     load();
-  }, [activeTab, vendorId, user]);
+  }, [activeTab, vendorId]);
+
+  const handleAdminOrderStatusChange = async (order, newStatus) => {
+    const orderId = order.parentOrderId || order._id;
+    if (!orderId || !newStatus || newStatus === order.status) return;
+
+    let trackingNumber = "";
+    if (newStatus === "shipped") {
+      trackingNumber = window.prompt("Tracking number (optional):", order.trackingNumber || "") || "";
+    }
+
+    setUpdatingOrderId(orderId);
+    try {
+      await updateOrderStatus(orderId, newStatus, trackingNumber);
+      setOrders((prev) =>
+        prev.map((item) =>
+          (item.parentOrderId || item._id)?.toString() === orderId.toString()
+            ? {
+                ...item,
+                status: newStatus,
+                overallOrderStatus: newStatus,
+                trackingNumber: trackingNumber || item.trackingNumber,
+                products: (item.products || []).map((product) => ({
+                  ...product,
+                  itemStatus: newStatus,
+                })),
+              }
+            : item,
+        ),
+      );
+      toast.success(`Order marked as ${newStatus}`);
+      loadFinance();
+      if (activeTab === 'Payouts') loadPayouts();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to update order status');
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
 
   // ─── fetch finance ────────────────────────────────────────────
   const loadFinance = useCallback(async () => {
@@ -492,7 +546,7 @@ export default function AdminVendorDetail() {
               <span className="text-sm text-gray-500">Total Products</span>
               <span className="text-2xl">📦</span>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{productTotal || 0}</p>
+            <p className="text-2xl font-bold text-gray-900">{allProductTotal || productTotal || 0}</p>
             <p className="text-xs text-gray-400 mt-1">All products</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4">
@@ -500,7 +554,7 @@ export default function AdminVendorDetail() {
               <span className="text-sm text-gray-500">Total Orders</span>
               <span className="text-2xl">🛒</span>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{orders.length || 0}</p>
+            <p className="text-2xl font-bold text-gray-900">{orderTotal || orders.length || financeSummary?.ordersCount || 0}</p>
             <p className="text-xs text-gray-400 mt-1">Lifetime orders</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4">
@@ -509,7 +563,7 @@ export default function AdminVendorDetail() {
               <span className="text-2xl">💵</span>
             </div>
             <p className="text-2xl font-bold text-green-600">
-              ${financeSummary?.netEarnings?.toFixed(2) || '0.00'}
+              {formatPrice(financeSummary?.netEarnings || 0)}
             </p>
             <p className="text-xs text-gray-400 mt-1">Net earnings</p>
           </div>
@@ -783,13 +837,16 @@ export default function AdminVendorDetail() {
                             )}
                             <div>
                               <div className="font-medium text-gray-900 line-clamp-1">{product.title}</div>
+                              <div className="text-xs text-gray-500 mt-0.5">
+                                Admin can edit this vendor product
+                              </div>
                               {product.rejectionReason && (
                                 <div className="text-xs text-red-500 mt-0.5">Reason: {product.rejectionReason}</div>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-gray-700">৳{product.price?.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-gray-700">{formatPrice(product.price || 0)}</td>
                         <td className="px-4 py-3 text-gray-600">{product.stock ?? '—'}</td>
                         <td className="px-4 py-3">
                           <StatusBadge status={product.approvalStatus} />
@@ -800,6 +857,12 @@ export default function AdminVendorDetail() {
                         <td className="px-4 py-3 text-gray-500">{new Date(product.createdAt).toLocaleDateString()}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex justify-end gap-2">
+                            <Link
+                              to={`/admin/products/edit/${product._id}?returnTo=${encodeURIComponent(`/admin/vendors/${vendorId}`)}&vendorId=${vendorId}`}
+                              className="text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                              Edit
+                            </Link>
                             {product.approvalStatus === 'pending' && (
                               <>
                                 <button
@@ -850,6 +913,7 @@ export default function AdminVendorDetail() {
                     <th className="px-4 py-3 text-left">Date</th>
                     <th className="px-4 py-3 text-left">Items</th>
                     <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-left">Manage</th>
                     <th className="px-4 py-3 text-left">Total</th>
                   </tr>
                 </thead>
@@ -859,8 +923,34 @@ export default function AdminVendorDetail() {
                       <td className="px-4 py-3 font-mono text-xs text-gray-600">{order._id?.toString().slice(-8)}</td>
                       <td className="px-4 py-3 text-gray-600">{new Date(order.createdAt).toLocaleDateString()}</td>
                       <td className="px-4 py-3 text-gray-700">{order.products?.length ?? 1}</td>
-                      <td className="px-4 py-3"><StatusBadge status={order.status} /></td>
-                      <td className="px-4 py-3 font-medium">৳{order.total?.toLocaleString() ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={order.status} />
+                        {order.overallOrderStatus && order.overallOrderStatus !== order.status && (
+                          <div className="mt-1 text-xs text-gray-500">
+                            Parent: {order.overallOrderStatus}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={order.status || 'pending'}
+                          onChange={(event) => handleAdminOrderStatusChange(order, event.target.value)}
+                          disabled={updatingOrderId === (order.parentOrderId || order._id)}
+                          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+                        >
+                          {ORDER_STATUS_OPTIONS.map((status) => (
+                            <option key={status} value={status}>
+                              {status.charAt(0).toUpperCase() + status.slice(1)}
+                            </option>
+                          ))}
+                        </select>
+                        {updatingOrderId === (order.parentOrderId || order._id) && (
+                          <div className="mt-1 text-xs text-blue-600">Updating...</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-medium">
+                        {formatPrice(order.vendorSubtotal ?? order.totalAmount ?? order.total ?? 0)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -899,10 +989,10 @@ export default function AdminVendorDetail() {
                     <div>
                       <p className="text-xs text-gray-600 mb-1">Total Deductions</p>
                       <p className="text-2xl font-bold text-red-600">
-                        ৳{returns
+                        {formatPrice(returns
                           .filter(r => ['approved', 'completed', 'refunded'].includes(r.status))
                           .reduce((sum, r) => sum + (r.vendorDeduction || 0), 0)
-                          .toLocaleString()}
+                        )}
                       </p>
                     </div>
                   </div>
@@ -949,7 +1039,7 @@ export default function AdminVendorDetail() {
                                   {ret.productTitle}
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                  Qty: {ret.quantity} × ৳{ret.productPrice?.toLocaleString()}
+                                  Qty: {ret.quantity} × {formatPrice(ret.productPrice || 0)}
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-gray-600 max-w-xs truncate">
@@ -957,7 +1047,7 @@ export default function AdminVendorDetail() {
                               </td>
                               <td className="px-4 py-3 text-right">
                                 <div className="font-semibold text-gray-900">
-                                  ৳{ret.refundAmount?.toLocaleString()}
+                                  {formatPrice(ret.refundAmount || 0)}
                                 </div>
                                 <div className="text-xs text-gray-500">
                                   To customer
@@ -965,7 +1055,7 @@ export default function AdminVendorDetail() {
                               </td>
                               <td className="px-4 py-3 text-right">
                                 <div className="font-semibold text-red-600">
-                                  -৳{ret.vendorDeduction?.toLocaleString() || '0'}
+                                  -{formatPrice(ret.vendorDeduction || 0)}
                                 </div>
                                 <div className="text-xs text-gray-500">
                                   From vendor
@@ -1021,9 +1111,9 @@ export default function AdminVendorDetail() {
                 {financeSummary && (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
-                      { label: 'Gross Sales', val: `৳${financeSummary.grossSales?.toLocaleString()}`, color: 'text-blue-600' },
-                      { label: 'Total Commission', val: `৳${financeSummary.totalCommission?.toLocaleString()}`, color: 'text-red-500' },
-                      { label: 'Net Earnings', val: `৳${financeSummary.netEarnings?.toLocaleString()}`, color: 'text-green-600' },
+                      { label: 'Gross Sales', val: formatPrice(financeSummary.grossSales || 0), color: 'text-blue-600' },
+                      { label: 'Total Commission', val: formatPrice(financeSummary.totalCommission || 0), color: 'text-red-500' },
+                      { label: 'Net Earnings', val: formatPrice(financeSummary.netEarnings || 0), color: 'text-green-600' },
                       { label: 'Orders', val: financeSummary.ordersCount, color: 'text-gray-700' },
                     ].map(({ label, val, color }) => (
                       <div key={label} className="bg-white rounded-xl shadow-sm p-4">
@@ -1063,10 +1153,10 @@ export default function AdminVendorDetail() {
                               <td className="px-4 py-3 text-gray-600">{new Date(tx.date).toLocaleDateString()}</td>
                               <td className="px-4 py-3 text-gray-800 max-w-32 truncate">{tx.product}</td>
                               <td className="px-4 py-3 text-right text-gray-600">{tx.qty}</td>
-                              <td className="px-4 py-3 text-right text-gray-800">৳{tx.subtotal?.toFixed(2)}</td>
+                              <td className="px-4 py-3 text-right text-gray-800">{formatPrice(tx.subtotal || 0)}</td>
                               <td className="px-4 py-3 text-right text-gray-500">{tx.commissionRateSnapshot ?? '—'}%</td>
-                              <td className="px-4 py-3 text-right text-red-500">৳{tx.adminCommissionAmount?.toFixed(2) ?? '—'}</td>
-                              <td className="px-4 py-3 text-right text-green-600 font-medium">৳{tx.vendorEarningAmount?.toFixed(2) ?? '—'}</td>
+                              <td className="px-4 py-3 text-right text-red-500">{tx.adminCommissionAmount != null ? formatPrice(tx.adminCommissionAmount) : '—'}</td>
+                              <td className="px-4 py-3 text-right text-green-600 font-medium">{tx.vendorEarningAmount != null ? formatPrice(tx.vendorEarningAmount) : '—'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1124,26 +1214,26 @@ export default function AdminVendorDetail() {
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                       <div>
                         <p className="text-xs text-gray-600 mb-1">Total Delivered Earnings</p>
-                        <p className="text-xl font-bold text-gray-900">৳{eligiblePayout.totalDeliveredEarnings?.toLocaleString()}</p>
+                        <p className="text-xl font-bold text-gray-900">{formatPrice(eligiblePayout.totalDeliveredEarnings || 0)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-600 mb-1">Already Paid</p>
-                        <p className="text-xl font-bold text-red-600">৳{eligiblePayout.alreadyPaid?.toLocaleString()}</p>
+                        <p className="text-xl font-bold text-red-600">{formatPrice(eligiblePayout.alreadyPaid || 0)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-600 mb-1">Pending Payouts</p>
-                        <p className="text-xl font-bold text-yellow-600">৳{eligiblePayout.pendingPayouts?.toLocaleString()}</p>
+                        <p className="text-xl font-bold text-yellow-600">{formatPrice(eligiblePayout.pendingPayouts || 0)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-600 mb-1">Return Deductions</p>
-                        <p className="text-xl font-bold text-red-600">৳{eligiblePayout.returnDeductions?.toLocaleString() || '0'}</p>
+                        <p className="text-xl font-bold text-red-600">{formatPrice(eligiblePayout.returnDeductions || 0)}</p>
                         {eligiblePayout.returnsCount > 0 && (
                           <p className="text-xs text-gray-500 mt-0.5">{eligiblePayout.returnsCount} returns</p>
                         )}
                       </div>
                       <div>
                         <p className="text-xs text-gray-600 mb-1">Available Now</p>
-                        <p className="text-2xl font-bold text-green-600">৳{eligiblePayout.eligibleAmount?.toLocaleString()}</p>
+                        <p className="text-2xl font-bold text-green-600">{formatPrice(eligiblePayout.eligibleAmount || 0)}</p>
                       </div>
                     </div>
                     <div className="mt-3 text-xs text-gray-600">
@@ -1185,7 +1275,7 @@ export default function AdminVendorDetail() {
                                 {new Date(payout.createdAt).toLocaleDateString()}
                               </td>
                               <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                ৳{payout.amount?.toLocaleString()}
+                                {formatPrice(payout.amount || 0)}
                               </td>
                               <td className="px-4 py-3">
                                 <StatusBadge status={payout.status} />
@@ -1328,7 +1418,7 @@ export default function AdminVendorDetail() {
                 />
                 {eligiblePayout && (
                   <p className="text-xs text-gray-500 mt-1">
-                    Eligible: ৳{eligiblePayout.eligibleAmount?.toLocaleString()}
+                    Eligible: {formatPrice(eligiblePayout.eligibleAmount || 0)}
                   </p>
                 )}
               </div>

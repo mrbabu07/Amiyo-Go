@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import useCurrency from "../../hooks/useCurrency";
 
 export default function MetricCard({
   title,
@@ -10,6 +11,7 @@ export default function MetricCard({
   loading = false,
   trend = true,
 }) {
+  const { formatPrice } = useCurrency();
   const [displayValue, setDisplayValue] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -44,7 +46,7 @@ export default function MetricCard({
 
   const formatValue = (val) => {
     if (format === "currency") {
-      return `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      return formatPrice(val);
     } else if (format === "percentage") {
       return `${val.toFixed(1)}%`;
     } else {

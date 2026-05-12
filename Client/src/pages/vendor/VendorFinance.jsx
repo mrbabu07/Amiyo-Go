@@ -109,21 +109,21 @@ export default function VendorFinance() {
           {/* Available Balance */}
           <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-orange-100 text-sm font-medium">Available Balance</span>
+              <span className="text-orange-100 text-sm font-medium">Total Due Amount</span>
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">💰</div>
             </div>
             <div className="text-3xl font-bold mb-1">{formatPrice(stats?.pendingBalance || 0)}</div>
-            <div className="text-orange-100 text-sm">Ready for payout request</div>
+            <div className="text-orange-100 text-sm">Delivered earnings not paid or scheduled</div>
           </div>
 
           {/* Paid Balance */}
           <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-green-100 text-sm font-medium">Paid Balance</span>
+              <span className="text-green-100 text-sm font-medium">Paid to You</span>
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">✅</div>
             </div>
             <div className="text-3xl font-bold mb-1">{formatPrice(stats?.paidBalance || 0)}</div>
-            <div className="text-green-100 text-sm">Already received</div>
+            <div className="text-green-100 text-sm">Completed payout transfers</div>
           </div>
 
           {/* Gross Sales */}
@@ -239,6 +239,43 @@ export default function VendorFinance() {
           </div>
         </div>
 
+        {/* Finance Health */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Delivered Earnings
+            </p>
+            <p className="mt-2 text-2xl font-bold text-green-700">
+              {formatPrice(stats?.deliveredNetEarnings || 0)}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              From {stats?.deliveredCount || 0} delivered item(s)
+            </p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              In Progress Sales
+            </p>
+            <p className="mt-2 text-2xl font-bold text-blue-700">
+              {formatPrice(stats?.inProgressGrossSales || 0)}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Pending, processing, packed, or shipped items
+            </p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Payout Status
+            </p>
+            <p className={`mt-2 text-2xl font-bold ${stats?.payoutEligible ? "text-green-700" : "text-gray-900"}`}>
+              {stats?.payoutEligible ? "Eligible" : "Building"}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Minimum payout {formatPrice(stats?.minimumPayout || 1000)}
+            </p>
+          </div>
+        </div>
+
         {/* Commission Info Banner */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-center gap-4">
           <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-xl flex-shrink-0">ℹ️</div>
@@ -308,10 +345,10 @@ export default function VendorFinance() {
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-5 border border-blue-200">
                     <div className="flex items-center gap-3 mb-2">
                       <span className="text-2xl">🕐</span>
-                      <p className="text-sm text-blue-700 font-medium">Pending Payouts</p>
+                    <p className="text-sm text-blue-700 font-medium">Approved/Pending Payouts</p>
                     </div>
                     <p className="text-3xl font-bold text-blue-900">{formatPrice(stats?.pendingPayouts || 0)}</p>
-                    <p className="text-xs text-blue-600 mt-1">Requested, awaiting admin approval</p>
+                    <p className="text-xs text-blue-600 mt-1">Requested or approved, not marked paid yet</p>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-5 border border-green-200">
                     <div className="flex items-center gap-3 mb-2">

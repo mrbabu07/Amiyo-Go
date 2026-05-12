@@ -1,13 +1,71 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { getAdminAlertSummary } from '../services/api';
+
+const AlertBadge = ({ count }) => {
+  if (!count) return null;
+  return (
+    <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white">
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+};
 
 const AdminLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [alertCounts, setAlertCounts] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAlerts = async () => {
+      try {
+        const response = await getAdminAlertSummary();
+        if (!cancelled) {
+          setAlertCounts(response.data.data?.sectionCounts || {});
+        }
+      } catch {
+        if (!cancelled) setAlertCounts({});
+      }
+    };
+
+    if (user) {
+      loadAlerts();
+      const interval = setInterval(loadAlerts, 30000);
+      return () => {
+        cancelled = true;
+        clearInterval(interval);
+      };
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const getAlertCount = (path) => {
+    const keyByPath = {
+      '/admin': 'dashboard',
+      '/admin/vendor-activity': 'vendorActivity',
+      '/admin/vendors': 'vendors',
+      '/admin/chats': 'vendorChats',
+      '/admin/products': 'products',
+      '/admin/inventory': 'products',
+      '/admin/orders': 'orders',
+      '/admin/returns': 'returns',
+      '/admin/payouts': 'payouts',
+      '/admin/payout-requests': 'payoutRequests',
+      '/admin/categories': 'categories',
+      '/admin/category-requests': 'categories',
+      '/admin/support': 'support',
+      '/admin/users': 'users',
+    };
+    return alertCounts[keyByPath[path]] || 0;
+  };
 
   const navigation = [
     {
@@ -163,6 +221,11 @@ const AdminLayout = () => {
     return location.pathname.startsWith(path);
   };
 
+  const getSectionAlertCount = (item) => {
+    if (!item.children) return getAlertCount(item.path);
+    return item.children.reduce((sum, child) => sum + getAlertCount(child.path), 0);
+  };
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -248,14 +311,17 @@ const AdminLayout = () => {
                       {item.icon}
                       <span>{item.name}</span>
                     </div>
-                    <svg
-                      className={`w-4 h-4 transition-transform ${expandedSections[item.name] ? 'rotate-180' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                    <div className="flex items-center gap-2">
+                      <AlertBadge count={getSectionAlertCount(item)} />
+                      <svg
+                        className={`w-4 h-4 transition-transform ${expandedSections[item.name] ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
                   </button>
                   {expandedSections[item.name] && (
                     <div className="ml-4 mt-1 space-y-1">
@@ -263,13 +329,14 @@ const AdminLayout = () => {
                         <Link
                           key={child.path}
                           to={child.path}
-                          className={`block px-3 py-2 rounded-lg text-sm transition ${
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${
                             isActive(child.path)
                               ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 font-medium'
                               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                           }`}
                         >
-                          {child.name}
+                          <span>{child.name}</span>
+                          <AlertBadge count={getAlertCount(child.path)} />
                         </Link>
                       ))}
                     </div>
@@ -286,6 +353,7 @@ const AdminLayout = () => {
                 >
                   {item.icon}
                   <span>{item.name}</span>
+                  <AlertBadge count={getAlertCount(item.path)} />
                 </Link>
               )}
             </div>

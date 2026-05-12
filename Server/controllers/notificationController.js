@@ -446,6 +446,52 @@ const getVapidPublicKey = async (req, res) => {
   }
 };
 
+const getMyNotifications = async (req, res) => {
+  try {
+    const Notification = req.app.locals.models.Notification;
+    if (!Notification) {
+      return res.json({ success: true, data: [], unreadCount: 0 });
+    }
+
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const skip = parseInt(req.query.skip) || 0;
+    const unreadOnly = req.query.unreadOnly === "true";
+    const notifications = await Notification.findByUserId(req.user.uid, {
+      limit,
+      skip,
+      unreadOnly,
+    });
+    const unreadCount = await Notification.getUnreadCount(req.user.uid);
+
+    res.json({ success: true, data: notifications, unreadCount });
+  } catch (error) {
+    console.error("Failed to load notifications:", error);
+    res.status(500).json({ success: false, error: "Failed to load notifications" });
+  }
+};
+
+const markNotificationRead = async (req, res) => {
+  try {
+    const Notification = req.app.locals.models.Notification;
+    await Notification.markAsRead(req.params.id, req.user.uid);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to mark notification read:", error);
+    res.status(500).json({ success: false, error: "Failed to mark notification read" });
+  }
+};
+
+const markAllNotificationsRead = async (req, res) => {
+  try {
+    const Notification = req.app.locals.models.Notification;
+    await Notification.markAllAsRead(req.user.uid);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to mark notifications read:", error);
+    res.status(500).json({ success: false, error: "Failed to mark notifications read" });
+  }
+};
+
 module.exports = {
   subscribe,
   unsubscribe,
@@ -456,4 +502,7 @@ module.exports = {
   sendTestNotification,
   sendTestNotificationPublic,
   getVapidPublicKey,
+  getMyNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
 };

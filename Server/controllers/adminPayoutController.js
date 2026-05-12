@@ -10,11 +10,13 @@ exports.calculateEligiblePayout = async (req, res) => {
     const Order = req.app.locals.models.Order;
     const VendorPayout = req.app.locals.models.VendorPayout;
     const Return = req.app.locals.models.Return;
+    const vendorIdValues = [vendorId.toString()];
+    if (ObjectId.isValid(vendorId)) vendorIdValues.push(new ObjectId(vendorId));
 
     // Get all orders with delivered items for this vendor
     const orders = await Order.collection
       .find({
-        "products.vendorId": new ObjectId(vendorId),
+        "products.vendorId": { $in: vendorIdValues },
         "products.itemStatus": "delivered",
       })
       .toArray();
@@ -50,13 +52,13 @@ exports.calculateEligiblePayout = async (req, res) => {
 
     // Get already paid amount
     const paidPayouts = await VendorPayout.collection
-      .find({ vendorId: new ObjectId(vendorId), status: "paid" })
+      .find({ vendorId: { $in: vendorIdValues }, status: { $in: ["approved", "paid", "completed"] } })
       .toArray();
     const alreadyPaid = paidPayouts.reduce((sum, p) => sum + (p.amount || 0), 0);
 
     // Get pending payouts
     const pendingPayouts = await VendorPayout.collection
-      .find({ vendorId: new ObjectId(vendorId), status: "pending" })
+      .find({ vendorId: { $in: vendorIdValues }, status: "pending" })
       .toArray();
     const pendingAmount = pendingPayouts.reduce((sum, p) => sum + (p.amount || 0), 0);
 

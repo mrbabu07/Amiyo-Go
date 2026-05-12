@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams, Link, useSearchParams } from "react-router-dom";
 import {
   createProduct,
   updateProduct,
@@ -13,14 +13,18 @@ import ProductVariantManager from "../../components/admin/ProductVariantManager"
 export default function ProductForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isEdit = Boolean(id);
   const fileInputRef = useRef(null);
+  const returnTo = searchParams.get("returnTo") || "/admin/products";
+  const vendorId = searchParams.get("vendorId");
 
   const [loading, setLoading] = useState(isEdit);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [categories, setCategories] = useState([]);
+  const [vendorProductInfo, setVendorProductInfo] = useState(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -71,6 +75,10 @@ export default function ProductForm() {
     try {
       const response = await getProductById(id);
       const product = response.data.data;
+      setVendorProductInfo({
+        vendorId: product.vendorId?.toString?.() || product.vendorId || vendorId || "",
+        shopName: product.vendorShopName || product.shopName || product.vendorName || "",
+      });
       setFormData({
         ...product,
         images: product.images || [],
@@ -192,7 +200,7 @@ export default function ProductForm() {
       } else {
         await createProduct(data);
       }
-      navigate("/admin/products");
+      navigate(returnTo);
     } catch (error) {
       console.error("Failed to save:", error);
       alert("Failed to save product");
@@ -210,7 +218,7 @@ export default function ProductForm() {
         <div className="max-w-5xl mx-auto px-4 py-6">
           <div className="flex items-center gap-4 mb-4">
             <Link
-              to="/admin/products"
+              to={returnTo}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               title="Back to Products"
             >
@@ -234,7 +242,7 @@ export default function ProductForm() {
                   Dashboard
                 </Link>
                 <span>→</span>
-                <Link to="/admin/products" className="hover:text-gray-700">
+                <Link to={returnTo} className="hover:text-gray-700">
                   Products
                 </Link>
                 <span>→</span>
@@ -243,6 +251,12 @@ export default function ProductForm() {
               <h1 className="text-2xl font-bold text-gray-900">
                 {isEdit ? "Edit Product" : "Add New Product"}
               </h1>
+              {isEdit && vendorProductInfo?.vendorId && (
+                <p className="mt-2 text-sm text-blue-700">
+                  Editing vendor product
+                  {vendorProductInfo.shopName ? ` for ${vendorProductInfo.shopName}` : ""}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -436,7 +450,7 @@ export default function ProductForm() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Price ($) *
+                  Price (BDT) *
                 </label>
                 <input
                   type="number"
@@ -655,7 +669,7 @@ export default function ProductForm() {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/admin/products")}
+              onClick={() => navigate(returnTo)}
               className="px-8 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
             >
               Cancel

@@ -42,6 +42,125 @@ const safeObjectId = (id) => {
   return value && ObjectId.isValid(value) ? new ObjectId(value) : null;
 };
 
+const itemStatusFromOrderStatus = (status) => {
+  const map = {
+    pending: "pending",
+    processing: "processing",
+    packed: "packed",
+    shipped: "shipped",
+    delivered: "delivered",
+    cancelled: "cancelled",
+    returned: "returned",
+  };
+  return map[status] || null;
+};
+
+const syncVendorFulfillmentForAdminStatus = async ({
+  db,
+  Order,
+  orderId,
+  status,
+  changedBy = "admin",
+  note = "",
+  trackingNumber = null,
+}) => {
+  const itemStatus = itemStatusFromOrderStatus(status);
+  if (!itemStatus) return;
+
+  const orderObjectId = safeObjectId(orderId);
+  if (!orderObjectId) return;
+
+  const order = await Order.findById(orderId);
+  if (!order) return;
+
+  const now = new Date();
+  const updatedProducts = (order.products || []).map((product) => {
+    const updated = {
+      ...product,
+      itemStatus,
+      statusUpdatedAt: now,
+    };
+
+    if (itemStatus === "processing") updated.processingAt = now;
+    if (itemStatus === "packed") updated.packedAt = now;
+    if (itemStatus === "shipped") {
+      updated.shippedAt = now;
+      if (trackingNumber) updated.trackingNumber = trackingNumber;
+    }
+    if (itemStatus === "delivered") updated.deliveredAt = now;
+    if (itemStatus === "cancelled") updated.cancelledAt = now;
+    if (itemStatus === "returned") updated.returnedAt = now;
+
+    return updated;
+  });
+
+  await Order.collection.updateOne(
+    { _id: orderObjectId },
+    {
+      $set: {
+        products: updatedProducts,
+        status,
+        updatedAt: now,
+        ...(status === "delivered" ? { deliveredAt: now } : {}),
+        ...(status === "cancelled" ? { cancelledAt: now } : {}),
+      },
+      $push: {
+        statusHistory: {
+          status,
+          changedAt: now,
+          changedBy,
+          note: note || `Admin marked order as ${status}`,
+        },
+      },
+    },
+  );
+
+  const vendorGroups = updatedProducts.reduce((groups, product) => {
+    const vendorId = normalizeId(product.vendorId) || "platform";
+    if (!groups[vendorId]) groups[vendorId] = [];
+    groups[vendorId].push(product);
+    return groups;
+  }, {});
+
+  await Promise.all(
+    Object.entries(vendorGroups).map(([vendorId, products]) => {
+      const vendorSubtotal = products.reduce(
+        (sum, product) => sum + (Number(product.price || 0) * Number(product.quantity || 0)),
+        0,
+      );
+      return db.collection("vendorOrders").updateOne(
+        {
+          parentOrderId: orderId.toString(),
+          vendorId: vendorId === "platform" ? null : vendorId,
+        },
+        {
+          $set: {
+            products,
+            status,
+            subtotal: Math.round(vendorSubtotal * 100) / 100,
+            updatedAt: now,
+            ...(status === "processing" ? { processingAt: now } : {}),
+            ...(status === "packed" ? { packedAt: now } : {}),
+            ...(status === "shipped" ? { shippedAt: now, ...(trackingNumber ? { trackingNumber } : {}) } : {}),
+            ...(status === "delivered" ? { deliveredAt: now } : {}),
+            ...(status === "cancelled" ? { cancelledAt: now } : {}),
+          },
+          $setOnInsert: {
+            parentOrderId: orderId.toString(),
+            vendorId: vendorId === "platform" ? null : vendorId,
+            userId: order.userId || null,
+            shippingInfo: order.shippingInfo || {},
+            paymentMethod: order.paymentMethod || "",
+            paymentStatus: order.paymentStatus || "",
+            createdAt: now,
+          },
+        },
+        { upsert: true },
+      );
+    }),
+  );
+};
+
 const getAllOrders = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
@@ -161,6 +280,9 @@ const createOrder = async (req, res) => {
     const Order = req.app.locals.models.Order;
     const VendorOrder = req.app.locals.models.VendorOrder;
     const Product = req.app.locals.models.Product;
+    const Notification = req.app.locals.models.Notification;
+    const Vendor = req.app.locals.models.Vendor;
+    const User = req.app.locals.models.User;
     const {
       products,
       total,
@@ -371,6 +493,43 @@ const createOrder = async (req, res) => {
     console.log(`✅ Created ${vendorOrderIds.length} vendor orders`);
     console.log("📦 Order split completed successfully");
 
+    if (Notification) {
+      if (req.user?.uid) {
+        await Notification.create({
+          userId: req.user.uid,
+          type: "order_created",
+          title: "Order placed successfully",
+          message: `Your order #${orderId.toString().slice(-8)} has been placed.`,
+          link: `/orders/${orderId.toString()}`,
+          orderId: orderId.toString(),
+        }).catch((error) => console.error("Failed to create customer order notification:", error));
+      }
+
+      await Promise.all(
+        Object.entries(vendorGroups)
+          .filter(([vendorId]) => vendorId !== "platform")
+          .map(async ([vendorId, vendorProducts]) => {
+            try {
+              const vendor = await Vendor.findById(vendorId);
+              if (!vendor?.ownerUserId) return;
+              const owner = await User.findById(vendor.ownerUserId);
+              if (!owner?.firebaseUid) return;
+              await Notification.create({
+                userId: owner.firebaseUid,
+                type: "vendor_new_order",
+                title: "New vendor order",
+                message: `${vendor.shopName} received ${vendorProducts.length} item(s) in order #${orderId.toString().slice(-8)}.`,
+                link: "/vendor/orders",
+                orderId: orderId.toString(),
+                vendorId,
+              });
+            } catch (error) {
+              console.error("Failed to create vendor new order notification:", error);
+            }
+          }),
+      );
+    }
+
     if (vendorOrderIds.length > 0) {
       await Order.collection.updateOne(
         { _id: safeObjectId(orderId) },
@@ -468,6 +627,9 @@ const createOrder = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
+    const Notification = req.app.locals.models.Notification;
+    const Vendor = req.app.locals.models.Vendor;
+    const User = req.app.locals.models.User;
     const loyaltyService = require("../services/loyaltyService");
     const NotificationService = require("../services/notificationService");
     const { id } = req.params;
@@ -510,6 +672,52 @@ const updateOrderStatus = async (req, res) => {
         success: false,
         error: "Order not found",
       });
+    }
+
+    await syncVendorFulfillmentForAdminStatus({
+      db: req.app.locals.db || Order.collection.db,
+      Order,
+      orderId: id,
+      status,
+      changedBy: req.user?.uid || "admin",
+      note: req.body.note || "",
+      trackingNumber,
+    });
+
+    if (Notification) {
+      await Notification.create({
+        userId: order.userId,
+        type: "order_status",
+        title: "Order status updated",
+        message: `Your order #${id.slice(-8)} is now ${status}.`,
+        link: `/orders/${id}`,
+        orderId: id,
+      }).catch((error) => console.error("Failed to create user notification:", error));
+
+      const vendorIds = [
+        ...new Set((order.products || []).map((product) => product.vendorId?.toString()).filter(Boolean)),
+      ];
+      await Promise.all(
+        vendorIds.map(async (vendorId) => {
+          try {
+            const vendor = await Vendor.findById(vendorId);
+            if (!vendor?.ownerUserId) return;
+            const owner = await User.findById(vendor.ownerUserId);
+            if (!owner?.firebaseUid) return;
+            await Notification.create({
+              userId: owner.firebaseUid,
+              type: "vendor_order_status",
+              title: "Vendor order updated",
+              message: `Order #${id.slice(-8)} for ${vendor.shopName} is now ${status}.`,
+              link: "/vendor/orders",
+              orderId: id,
+              vendorId,
+            });
+          } catch (error) {
+            console.error("Failed to create vendor notification:", error);
+          }
+        }),
+      );
     }
 
     // Send push notification for order status update
@@ -884,7 +1092,17 @@ const bulkUpdateOrderStatus = async (req, res) => {
     }
 
     const results = await Promise.allSettled(
-      orderIds.map(id => Order.updateStatus(id, status, req.user?.uid, note || ''))
+      orderIds.map(async (id) => {
+        await Order.updateStatus(id, status, req.user?.uid, note || '');
+        await syncVendorFulfillmentForAdminStatus({
+          db: req.app.locals.db || Order.collection.db,
+          Order,
+          orderId: id,
+          status,
+          changedBy: req.user?.uid || "admin",
+          note: note || "",
+        });
+      })
     );
 
     const succeeded = results.filter(r => r.status === 'fulfilled').length;
@@ -1091,6 +1309,14 @@ const adminOverrideStatus = async (req, res) => {
     if (!order) return res.status(404).json({ success: false, error: "Order not found" });
 
     await Order.updateStatus(id, status, req.user?.uid || "admin", note || "Status overridden by admin");
+    await syncVendorFulfillmentForAdminStatus({
+      db: req.app.locals.db || Order.collection.db,
+      Order,
+      orderId: id,
+      status,
+      changedBy: req.user?.uid || "admin",
+      note: note || "Status overridden by admin",
+    });
 
     res.json({ success: true, message: `Order status overridden to "${status}"` });
   } catch (error) {

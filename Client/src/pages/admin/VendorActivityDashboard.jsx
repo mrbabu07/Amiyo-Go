@@ -2,13 +2,16 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuth from '../../hooks/useAuth';
+import useCurrency from '../../hooks/useCurrency';
 
 const VendorActivityDashboard = () => {
   const { user } = useAuth();
+  const { formatPrice } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('7d');
   const [vendors, setVendors] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [recentVendorOrders, setRecentVendorOrders] = useState([]);
   const [metrics, setMetrics] = useState({
     totalRevenue: 0,
     totalOrders: 0,
@@ -116,32 +119,62 @@ const VendorActivityDashboard = () => {
   const fetchRecentActivities = async () => {
     try {
       const token = await user.getIdToken();
-      // Fetch recent activities (orders, products, etc.)
-      const ordersRes = await fetch(`${import.meta.env.VITE_API_URL}/orders`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const [ordersRes, vendorsRes] = await Promise.all([
+        fetch(`${import.meta.env.VITE_API_URL}/orders`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${import.meta.env.VITE_API_URL}/vendors`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
       const ordersData = await ordersRes.json();
-      const recentOrders = (ordersData.data || []).slice(0, 10);
-      
-      const activities = recentOrders.map(order => ({
+      const vendorsData = await vendorsRes.json();
+      const vendorMap = new Map((vendorsData.vendors || []).map((vendor) => [vendor._id?.toString(), vendor]));
+      const recentOrders = (ordersData.data || []).slice(0, 20);
+
+      const vendorOrders = recentOrders.flatMap((order) => {
+        const grouped = new Map();
+        (order.products || []).forEach((product) => {
+          const vendorId = product.vendorId?.toString?.() || product.vendorId || 'platform';
+          if (!grouped.has(vendorId)) {
+            grouped.set(vendorId, {
+              orderId: order._id,
+              vendorId,
+              vendorName:
+                product.shopName ||
+                product.vendorName ||
+                vendorMap.get(vendorId)?.shopName ||
+                'HnilaBazar',
+              customerName: order.shippingInfo?.name || 'Customer',
+              status: product.itemStatus || order.status || 'pending',
+              overallStatus: order.status || 'pending',
+              items: 0,
+              amount: 0,
+              time: new Date(order.createdAt),
+            });
+          }
+          const entry = grouped.get(vendorId);
+          entry.items += product.quantity || 1;
+          entry.amount += (product.price || 0) * (product.quantity || 1);
+        });
+        return [...grouped.values()];
+      }).sort((a, b) => b.time - a.time).slice(0, 12);
+
+      setRecentVendorOrders(vendorOrders);
+
+      const activities = vendorOrders.slice(0, 10).map(order => ({
         type: 'order',
         vendor: order.vendorId,
-        description: `New order #${order._id.slice(-6)}`,
-        amount: order.total,
-        time: new Date(order.createdAt),
+        description: `${order.vendorName}: order #${order.orderId.slice(-6)} is ${order.status}`,
+        amount: order.amount,
+        time: order.time,
+        link: `/admin/vendors/${order.vendorId}`,
       }));
-      
+
       setActivities(activities);
     } catch (error) {
       console.error('Failed to fetch activities:', error);
     }
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
   };
 
   const getTimeAgo = (date) => {
@@ -153,6 +186,18 @@ const VendorActivityDashboard = () => {
     if (hours < 24) return `${hours}h ago`;
     const days = Math.floor(hours / 24);
     return `${days}d ago`;
+  };
+
+  const getStatusClass = (status) => {
+    const classes = {
+      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+      processing: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+      packed: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
+      shipped: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+      delivered: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+      cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+    };
+    return classes[status] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
   };
 
   if (loading) {
@@ -212,7 +257,7 @@ const VendorActivityDashboard = () => {
               </span>
             </div>
             <p className="text-white/80 text-sm mb-1">Total Revenue</p>
-            <p className="text-3xl font-bold">{formatCurrency(metrics.totalRevenue)}</p>
+            <p className="text-3xl font-bold">{formatPrice(metrics.totalRevenue)}</p>
           </div>
 
           <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white">
@@ -254,7 +299,7 @@ const VendorActivityDashboard = () => {
               </div>
             </div>
             <p className="text-white/80 text-sm mb-1">Avg Order Value</p>
-            <p className="text-3xl font-bold">{formatCurrency(metrics.avgOrderValue)}</p>
+            <p className="text-3xl font-bold">{formatPrice(metrics.avgOrderValue)}</p>
           </div>
         </div>
       </div>
@@ -262,6 +307,82 @@ const VendorActivityDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Top Performers & Vendor List */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Recent Vendor Orders */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Recent Vendor Orders
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Latest order activity grouped by vendor
+                </p>
+              </div>
+              <Link
+                to="/admin/orders"
+                className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+              >
+                Manage Orders →
+              </Link>
+            </div>
+            {recentVendorOrders.length === 0 ? (
+              <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                No recent vendor orders
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Order</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Vendor</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Customer</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Items</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Amount</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Status</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentVendorOrders.map((order) => (
+                      <tr key={`${order.orderId}-${order.vendorId}`} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td className="py-3 px-4 font-mono text-xs text-gray-600 dark:text-gray-400">
+                          #{order.orderId.slice(-8)}
+                          <div className="mt-1 font-sans text-xs text-gray-400">{getTimeAgo(order.time)}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          {order.vendorId === 'platform' ? (
+                            <span className="font-medium text-gray-900 dark:text-white">{order.vendorName}</span>
+                          ) : (
+                            <Link to={`/admin/vendors/${order.vendorId}`} className="font-medium text-gray-900 dark:text-white hover:text-orange-600">
+                              {order.vendorName}
+                            </Link>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{order.customerName}</td>
+                        <td className="py-3 px-4 text-right text-sm font-medium text-gray-900 dark:text-white">{order.items}</td>
+                        <td className="py-3 px-4 text-right text-sm font-medium text-gray-900 dark:text-white">{formatPrice(order.amount)}</td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize ${getStatusClass(order.status)}`}>
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <Link
+                            to={order.vendorId === 'platform' ? '/admin/orders' : `/admin/vendors/${order.vendorId}`}
+                            className="text-sm font-medium text-orange-600 hover:text-orange-700"
+                          >
+                            Check →
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           {/* Top Performing Vendors */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center justify-between mb-6">
@@ -299,10 +420,10 @@ const VendorActivityDashboard = () => {
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-gray-900 dark:text-white">
-                      {formatCurrency(vendor.revenue)}
+                      {formatPrice(vendor.revenue)}
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {formatCurrency(vendor.avgOrderValue)}/order
+                      {formatPrice(vendor.avgOrderValue)}/order
                     </p>
                   </div>
                   <Link
@@ -394,10 +515,10 @@ const VendorActivityDashboard = () => {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {formatCurrency(vendor.revenue)}
+                          {formatPrice(vendor.revenue)}
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatCurrency(vendor.avgOrderValue)}/order
+                          {formatPrice(vendor.avgOrderValue)}/order
                         </div>
                       </td>
                       <td className="py-3 px-4 text-right text-sm text-gray-600 dark:text-gray-400">
@@ -468,7 +589,7 @@ const VendorActivityDashboard = () => {
                         {activity.description}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {activity.amount && formatCurrency(activity.amount)} • {getTimeAgo(activity.time)}
+                        {activity.amount ? `${formatPrice(activity.amount)} • ` : ''}{getTimeAgo(activity.time)}
                       </p>
                     </div>
                   </div>

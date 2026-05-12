@@ -259,7 +259,16 @@ const updateProduct = async (req, res) => {
     }
 
     // Sanitize and validate data - exclude _id and other immutable fields
-    const { _id, __v, createdAt, ...bodyData } = req.body;
+    const {
+      _id,
+      __v,
+      createdAt,
+      vendorShopName,
+      vendorName,
+      vendorEmail,
+      vendorPhone,
+      ...bodyData
+    } = req.body;
     const updateData = {
       ...bodyData,
       price: parseFloat(req.body.price),

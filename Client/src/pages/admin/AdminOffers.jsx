@@ -6,8 +6,10 @@ import {
   toggleOfferStatus,
 } from "../../services/api";
 import toast from "react-hot-toast";
+import useCurrency from "../../hooks/useCurrency";
 
 export default function AdminOffers() {
+  const { formatPrice } = useCurrency();
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -229,9 +231,9 @@ export default function AdminOffers() {
                             Discount:
                           </span>
                           <span className="ml-2 font-semibold text-primary-600 dark:text-primary-400">
-                            {offer.discountType === "percentage"
-                              ? `${offer.discountValue}%`
-                              : `$${offer.discountValue}`}{" "}
+                              {offer.discountType === "percentage"
+                                ? `${offer.discountValue}%`
+                                : formatPrice(offer.discountValue || 0)}{" "}
                             OFF
                           </span>
                         </div>

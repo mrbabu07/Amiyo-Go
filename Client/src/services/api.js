@@ -189,9 +189,11 @@ export const getAdminVendorFinanceTransactions = (vendorId, params = {}) =>
 export const getAdminCommissionSummary = (params = {}) =>
   api.get("/admin/finance/commission-summary", { params });
 
+export const getAdminAlertSummary = () => api.get("/admin/alerts/summary");
+
 // ── Admin: Vendor orders ──────────────────────────────────────
 export const getAdminVendorOrders = (vendorId, params = {}) =>
-  api.get(`/admin/vendors/${vendorId}/orders`, { params });
+  api.get("/vendors/orders", { params: { ...params, vendorId } });
 
 // ── Admin: Category commission ────────────────────────────────
 export const updateCategoryCommission = (id, rates) =>

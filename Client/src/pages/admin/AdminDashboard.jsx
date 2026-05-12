@@ -28,6 +28,7 @@ import {
 import useAuth from "../../hooks/useAuth";
 import {
   getAllOrders,
+  getAdminAlertSummary,
   getCategories,
   getPayoutStats,
   getProducts,
@@ -37,6 +38,23 @@ import {
 import { useCurrency } from "../../hooks/useCurrency";
 
 const apiBase = import.meta.env.VITE_API_URL;
+
+const alertKeyByPath = {
+  "/admin": "dashboard",
+  "/admin/vendor-activity": "vendorActivity",
+  "/admin/vendors": "vendors",
+  "/admin/chats": "vendorChats",
+  "/admin/products": "products",
+  "/admin/inventory": "products",
+  "/admin/orders": "orders",
+  "/admin/returns": "returns",
+  "/admin/payouts": "payouts",
+  "/admin/payout-requests": "payoutRequests",
+  "/admin/categories": "categories",
+  "/admin/category-requests": "categories",
+  "/admin/support": "support",
+  "/admin/users": "users",
+};
 
 const controlSections = [
   {
@@ -116,7 +134,16 @@ function StatCard({ label, value, subtext, icon: Icon, tone = "blue", loading })
   );
 }
 
-function ControlCard({ item }) {
+function TinyAlertBadge({ count, className = "" }) {
+  if (!count) return null;
+  return (
+    <span className={`inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white ${className}`}>
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
+function ControlCard({ item, alertCount = 0 }) {
   const Icon = item.icon;
 
   return (
@@ -128,9 +155,12 @@ function ControlCard({ item }) {
         <div className="rounded-lg bg-[#1e7098]/10 p-2 text-[#1e7098]">
           <Icon className="h-5 w-5" />
         </div>
-        <h3 className="font-bold text-gray-900 group-hover:text-[#1e7098] dark:text-white">
-          {item.label}
-        </h3>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <h3 className="truncate font-bold text-gray-900 group-hover:text-[#1e7098] dark:text-white">
+            {item.label}
+          </h3>
+          <TinyAlertBadge count={alertCount} />
+        </div>
       </div>
       <p className="text-sm leading-5 text-gray-500 dark:text-gray-400">{item.text}</p>
     </Link>
@@ -151,6 +181,10 @@ export default function AdminDashboard() {
     pendingPayouts: 0,
     supportTickets: 0,
   });
+  const [alertCounts, setAlertCounts] = useState({});
+
+  const getAlertCount = (path) => alertCounts[alertKeyByPath[path]] || 0;
+  const totalAlerts = Object.values(alertCounts).reduce((sum, count) => sum + (Number(count) || 0), 0);
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -222,6 +256,35 @@ export default function AdminDashboard() {
     };
   }, [user]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchAlerts = async () => {
+      try {
+        const response = await getAdminAlertSummary();
+        if (mounted) {
+          setAlertCounts(response.data.data?.sectionCounts || {});
+        }
+      } catch (error) {
+        console.error("Failed to load admin alerts:", error);
+        if (mounted) setAlertCounts({});
+      }
+    };
+
+    if (user) {
+      fetchAlerts();
+      const interval = setInterval(fetchAlerts, 30000);
+      return () => {
+        mounted = false;
+        clearInterval(interval);
+      };
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-6 dark:bg-gray-900 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-8">
@@ -236,11 +299,19 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link to="/admin/categories" className="rounded-lg bg-[#1e7098] px-4 py-2 text-sm font-bold text-white hover:bg-[#15536f]">
+            {totalAlerts > 0 && (
+              <Link to="/admin/vendor-activity" className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                Needs Attention
+                <TinyAlertBadge count={totalAlerts} />
+              </Link>
+            )}
+            <Link to="/admin/categories" className="inline-flex items-center gap-2 rounded-lg bg-[#1e7098] px-4 py-2 text-sm font-bold text-white hover:bg-[#15536f]">
               Manage Categories
+              <TinyAlertBadge count={getAlertCount("/admin/categories")} />
             </Link>
-            <Link to="/admin/chats" className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+            <Link to="/admin/chats" className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
               Open Messages
+              <TinyAlertBadge count={getAlertCount("/admin/chats")} />
             </Link>
           </div>
         </div>
@@ -265,7 +336,11 @@ export default function AdminDashboard() {
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {section.items.map((item) => (
-                  <ControlCard key={`${section.title}-${item.label}`} item={item} />
+                  <ControlCard
+                    key={`${section.title}-${item.label}`}
+                    item={item}
+                    alertCount={getAlertCount(item.path)}
+                  />
                 ))}
               </div>
             </section>

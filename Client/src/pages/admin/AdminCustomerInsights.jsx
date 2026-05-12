@@ -13,8 +13,10 @@ import Modal from "../../components/Modal";
 import Button from "../../components/Button";
 import { getCurrentUserToken } from "../../utils/auth";
 import Loading from "../../components/Loading";
+import useCurrency from "../../hooks/useCurrency";
 
 const AdminCustomerInsights = () => {
+  const { formatPrice } = useCurrency();
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(true);
   const [segmentStats, setSegmentStats] = useState([]);
@@ -131,10 +133,7 @@ const AdminCustomerInsights = () => {
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
+    return formatPrice(amount || 0);
   };
 
   const formatDate = (date) => {

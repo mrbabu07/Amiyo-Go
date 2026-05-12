@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 import { getFieldsForCategory } from '../../utils/productFieldConfig';
+import VendorCategoryPicker from '../../components/vendor/VendorCategoryPicker';
+import { uploadVendorProductImages } from '../../services/vendorImageUpload';
 
 const buildVendorCategoryOptions = (allCategories, allowedIds) => {
   const allowedSet = new Set(allowedIds.map((id) => id.toString()));
@@ -26,20 +28,6 @@ const buildVendorCategoryOptions = (allCategories, allowedIds) => {
         (a.displayOrder || 0) - (b.displayOrder || 0) ||
         a.name.localeCompare(b.name),
     );
-};
-
-const getCategoryOptionLabel = (category, categories) => {
-  const byId = new Map(categories.map((item) => [item._id.toString(), item]));
-  const path = [category.name];
-  let parentId = category.parentId ? category.parentId.toString() : null;
-
-  while (parentId && byId.has(parentId)) {
-    const parent = byId.get(parentId);
-    path.unshift(parent.name);
-    parentId = parent.parentId ? parent.parentId.toString() : null;
-  }
-
-  return path.join(' > ');
 };
 
 const VendorEditProduct = () => {
@@ -175,34 +163,13 @@ const VendorEditProduct = () => {
     setExistingImages(newExisting);
   };
 
-  const uploadImagesToImgBB = async () => {
+  const uploadImages = async (token) => {
     if (imageFiles.length === 0) return [];
 
     setUploadingImages(true);
-    const uploadedUrls = [];
 
     try {
-      for (const file of imageFiles) {
-        const formData = new FormData();
-        formData.append('image', file);
-
-        const response = await fetch(
-          `https://api.imgbb.com/1/upload?key=${import.meta.env.VITE_IMGBB_API_KEY}`,
-          {
-            method: 'POST',
-            body: formData,
-          }
-        );
-
-        const data = await response.json();
-        if (data.success) {
-          uploadedUrls.push(data.data.url);
-        } else {
-          throw new Error('Failed to upload image');
-        }
-      }
-
-      return uploadedUrls;
+      return await uploadVendorProductImages(imageFiles, token);
     } catch (error) {
       console.error('Error uploading images:', error);
       throw error;
@@ -217,13 +184,18 @@ const VendorEditProduct = () => {
     setLoading(true);
 
     try {
-      // Upload new images
-      const newImageUrls = await uploadImagesToImgBB();
+      if (!formData.categoryId) {
+        setError('Please choose a product category before updating the product.');
+        setLoading(false);
+        return;
+      }
+
+      const token = await user.getIdToken();
+      const newImageUrls = await uploadImages(token);
       
       // Combine existing and new images
       const allImages = [...existingImages, ...newImageUrls];
 
-      const token = await user.getIdToken();
       const response = await fetch(`${import.meta.env.VITE_API_URL}/vendor/products/${id}`, {
         method: 'PATCH',
         headers: {
@@ -363,22 +335,13 @@ const VendorEditProduct = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Category Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Category *
-              </label>
-              <select
-                required
-                value={formData.categoryId}
-                onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select Category</option>
-                {categories.map(cat => (
-                  <option key={cat._id} value={cat._id}>{getCategoryOptionLabel(cat, categories)}</option>
-                ))}
-              </select>
-            </div>
+            <VendorCategoryPicker
+              categories={categories}
+              value={formData.categoryId}
+              onChange={(categoryId) => setFormData({ ...formData, categoryId })}
+              selectedCategory={selectedCategory}
+              vendorName={vendor?.shopName}
+            />
 
             {/* Basic Fields */}
             <div>

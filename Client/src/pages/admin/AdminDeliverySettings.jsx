@@ -85,9 +85,9 @@ export default function AdminDeliverySettings() {
     return <Loading />;
   }
 
-  // Convert USD to BDT for display
-  const usdToBdt = (usd) => usd * 110;
-  const bdtToUsd = (bdt) => bdt / 110;
+  // Delivery settings are stored in BDT.
+  const storedToBdt = (value) => value || 0;
+  const bdtToStored = (value) => value || 0;
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -140,12 +140,12 @@ export default function AdminDeliverySettings() {
                   <input
                     type="number"
                     value={Math.round(
-                      usdToBdt(settings?.freeDeliveryThreshold || 0),
+                      storedToBdt(settings?.freeDeliveryThreshold || 0),
                     )}
                     onChange={(e) =>
                       handleChange(
                         "freeDeliveryThreshold",
-                        bdtToUsd(parseFloat(e.target.value) || 0),
+                        bdtToStored(parseFloat(e.target.value) || 0),
                       )
                     }
                     className="w-full pl-8 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
@@ -154,7 +154,7 @@ export default function AdminDeliverySettings() {
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Current: {formatPrice(settings?.freeDeliveryThreshold || 0)} (
-                  {Math.round(usdToBdt(settings?.freeDeliveryThreshold || 0))}{" "}
+                  {Math.round(storedToBdt(settings?.freeDeliveryThreshold || 0))}{" "}
                   BDT)
                 </p>
               </div>
@@ -210,12 +210,12 @@ export default function AdminDeliverySettings() {
                 <input
                   type="number"
                   value={Math.round(
-                    usdToBdt(settings?.standardDeliveryCharge || 0),
+                    storedToBdt(settings?.standardDeliveryCharge || 0),
                   )}
                   onChange={(e) =>
                     handleChange(
                       "standardDeliveryCharge",
-                      bdtToUsd(parseFloat(e.target.value) || 0),
+                      bdtToStored(parseFloat(e.target.value) || 0),
                     )
                   }
                   className="w-full pl-8 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
@@ -224,7 +224,7 @@ export default function AdminDeliverySettings() {
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Current: {formatPrice(settings?.standardDeliveryCharge || 0)} (
-                {Math.round(usdToBdt(settings?.standardDeliveryCharge || 0))}{" "}
+                {Math.round(storedToBdt(settings?.standardDeliveryCharge || 0))}{" "}
                 BDT)
               </p>
             </div>
@@ -267,12 +267,12 @@ export default function AdminDeliverySettings() {
                 <input
                   type="number"
                   value={Math.round(
-                    usdToBdt(settings?.expressDeliveryCharge || 0),
+                    storedToBdt(settings?.expressDeliveryCharge || 0),
                   )}
                   onChange={(e) =>
                     handleChange(
                       "expressDeliveryCharge",
-                      bdtToUsd(parseFloat(e.target.value) || 0),
+                      bdtToStored(parseFloat(e.target.value) || 0),
                     )
                   }
                   className="w-full pl-8 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
@@ -281,7 +281,7 @@ export default function AdminDeliverySettings() {
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Current: {formatPrice(settings?.expressDeliveryCharge || 0)} (
-                {Math.round(usdToBdt(settings?.expressDeliveryCharge || 0))}{" "}
+                {Math.round(storedToBdt(settings?.expressDeliveryCharge || 0))}{" "}
                 BDT)
               </p>
             </div>

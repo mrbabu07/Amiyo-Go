@@ -1,33 +1,79 @@
-// Vendor Packing Slip Template - Daraz Style (One Page)
-// Compact, professional layout for easy printing
-
 export const generateVendorPackingSlip = (order, vendorInfo = {}) => {
-  const orderDate = new Date(order.createdAt).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  const shortOrderId = order?._id ? order._id.toString().slice(-8).toUpperCase() : "N/A";
+  const products = Array.isArray(order?.products) ? order.products : [];
+  const shipping = order?.shippingInfo || {};
+  const storeName =
+    vendorInfo.businessName ||
+    vendorInfo.shopName ||
+    products[0]?.shopName ||
+    products[0]?.vendorName ||
+    "Vendor Store";
 
-  const BDT_SYMBOL = "৳";
+  const orderDate = order?.createdAt
+    ? new Date(order.createdAt).toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "N/A";
 
-  // Format price in BDT
-  const formatPrice = (price) => {
-    if (!price && price !== 0) return `${BDT_SYMBOL}0`;
-    return `${BDT_SYMBOL}${Math.round(price).toLocaleString()}`;
-  };
+  const escapeHtml = (value) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
 
-  // Utility function to safely render color
+  const formatPrice = (price) =>
+    `Tk ${Math.round(Number(price || 0)).toLocaleString()}`;
+
   const renderColor = (color) => {
-    if (!color) return '';
+    if (!color) return "";
     if (typeof color === "string") return color;
     if (typeof color === "object" && color.name) return color.name;
     return "";
   };
 
-  // Get vendor's products only
-  const vendorProducts = order.products || [];
-  const totalItems = vendorProducts.reduce((sum, p) => sum + (p.quantity || 0), 0);
-  const subtotal = vendorProducts.reduce((sum, p) => sum + ((p.price || 0) * (p.quantity || 0)), 0);
+  const totalItems = products.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const subtotal = products.reduce(
+    (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
+    0,
+  );
+  const commission = products.reduce(
+    (sum, item) => sum + Number(item.adminCommissionAmount || 0),
+    0,
+  );
+  const vendorEarnings = products.reduce(
+    (sum, item) =>
+      sum +
+      Number(
+        item.vendorEarningAmount ??
+          Number(item.price || 0) * Number(item.quantity || 0) -
+            Number(item.adminCommissionAmount || 0),
+      ),
+    0,
+  );
+  const deliveryCharge = Number(order?.deliveryCharge || 0);
+  const trackingNumber =
+    order?.trackingNumber ||
+    products.find((item) => item.trackingNumber)?.trackingNumber ||
+    "";
+
+  const addressLines = [
+    shipping.name,
+    shipping.phone,
+    shipping.address,
+    shipping.area,
+    shipping.wardNo ? `Ward: ${shipping.wardNo}` : "",
+    shipping.union,
+    shipping.upazila,
+    shipping.district || shipping.city,
+    shipping.division,
+    shipping.zipCode ? `Postal: ${shipping.zipCode}` : "",
+  ].filter(Boolean);
 
   return `
     <!DOCTYPE html>
@@ -35,260 +81,283 @@ export const generateVendorPackingSlip = (order, vendorInfo = {}) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Packing Slip - #${order._id.slice(-8).toUpperCase()}</title>
+      <title>Vendor Invoice #${escapeHtml(shortOrderId)}</title>
       <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-          font-family: Arial, sans-serif; 
-          font-size: 11px;
-          line-height: 1.3;
-          color: #000;
+        * { box-sizing: border-box; }
+        body {
+          margin: 0;
+          background: #f4f6f8;
+          color: #172033;
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 12px;
+          line-height: 1.45;
+        }
+        .page {
+          max-width: 900px;
+          margin: 18px auto;
           background: #fff;
+          border: 1px solid #dbe4ee;
+          box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
         }
-        .container { 
-          max-width: 210mm; 
-          margin: 0 auto; 
-          padding: 10mm;
-        }
-        @media print {
-          body { margin: 0; padding: 0; }
-          .container { padding: 5mm; }
-          .no-print { display: none !important; }
-          @page { margin: 0; size: A4 portrait; }
-        }
-        .header { 
-          border-bottom: 3px solid #f57224; 
-          padding-bottom: 8px; 
-          margin-bottom: 10px;
+        .header {
           display: flex;
           justify-content: space-between;
-          align-items: center;
+          gap: 20px;
+          padding: 24px 28px;
+          color: #fff;
+          background: #0f766e;
         }
-        .header h1 { 
-          font-size: 20px; 
-          font-weight: bold; 
-          color: #f57224;
-          margin: 0;
+        .brand { font-size: 24px; font-weight: 800; }
+        .muted-light { color: #ccfbf1; font-size: 12px; margin-top: 3px; }
+        .right { text-align: right; }
+        .invoice-no { font-size: 22px; font-weight: 800; margin-top: 4px; }
+        .content { padding: 24px 28px; }
+        .grid-3 {
+          display: grid;
+          grid-template-columns: 1.1fr 1.2fr 0.9fr;
+          gap: 12px;
+          margin-bottom: 18px;
         }
-        .order-id { 
-          font-size: 16px; 
-          font-weight: bold; 
-          color: #333;
+        .card {
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          background: #f8fafc;
+          padding: 13px;
+          min-height: 110px;
         }
-        .section { 
-          margin-bottom: 10px; 
-          padding: 8px;
-          border: 1px solid #ddd;
-        }
-        .section-title { 
-          font-size: 10px; 
-          font-weight: bold; 
-          color: #666; 
+        .label {
+          color: #64748b;
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 0.05em;
           text-transform: uppercase;
-          margin-bottom: 4px;
+          margin-bottom: 7px;
         }
-        .grid-2 { 
-          display: grid; 
-          grid-template-columns: 1fr 1fr; 
-          gap: 10px;
+        .strong { font-weight: 700; color: #0f172a; }
+        .muted { color: #64748b; }
+        .tiny { font-size: 11px; }
+        .status {
+          display: inline-block;
+          border-radius: 999px;
+          padding: 3px 8px;
+          background: #ecfdf5;
+          color: #047857;
+          font-size: 11px;
+          font-weight: 800;
+          text-transform: uppercase;
         }
-        .grid-3 { 
-          display: grid; 
-          grid-template-columns: 1fr 1fr 1fr; 
-          gap: 8px;
-          text-align: center;
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          border: 1px solid #e2e8f0;
+          overflow: hidden;
+          border-radius: 8px;
         }
-        table { 
-          width: 100%; 
-          border-collapse: collapse; 
-          margin: 8px 0;
-        }
-        th { 
-          background: #f5f5f5; 
-          padding: 6px 4px; 
-          text-align: left; 
+        th {
+          background: #f1f5f9;
+          color: #475569;
+          padding: 9px;
+          text-align: left;
           font-size: 10px;
-          font-weight: bold;
-          border: 1px solid #ddd;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          border-bottom: 1px solid #dbe4ee;
         }
-        td { 
-          padding: 6px 4px; 
-          border: 1px solid #ddd;
-          font-size: 10px;
+        td {
+          padding: 10px 9px;
+          border-bottom: 1px solid #edf2f7;
+          vertical-align: top;
         }
+        tr:last-child td { border-bottom: 0; }
         .text-right { text-align: right; }
         .text-center { text-align: center; }
-        .font-bold { font-weight: bold; }
-        .text-orange { color: #f57224; }
-        .bg-gray { background: #f9f9f9; }
-        .status-badge {
-          display: inline-block;
-          padding: 2px 6px;
-          border-radius: 3px;
-          font-size: 9px;
-          font-weight: bold;
+        .summary {
+          display: grid;
+          grid-template-columns: 1fr 280px;
+          gap: 16px;
+          margin-top: 16px;
         }
-        .status-pending { background: #fef3c7; color: #92400e; }
-        .status-processing { background: #dbeafe; color: #1e40af; }
-        .status-packed { background: #e9d5ff; color: #6b21a8; }
-        .status-shipped { background: #bfdbfe; color: #1e3a8a; }
-        .status-delivered { background: #d1fae5; color: #065f46; }
-        .tracking-box {
-          border: 2px dashed #999;
-          padding: 12px;
+        .summary-box {
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          background: #f8fafc;
+          padding: 13px;
+        }
+        .row {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 5px 0;
+        }
+        .row.total {
+          border-top: 1px solid #cbd5e1;
+          margin-top: 8px;
+          padding-top: 10px;
+          font-size: 15px;
+          font-weight: 800;
+        }
+        .checklist {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 8px;
+          margin-top: 8px;
+        }
+        .check {
+          border: 1px solid #dbe4ee;
+          border-radius: 6px;
+          padding: 8px;
+          background: #fff;
+        }
+        .footer {
+          border-top: 1px solid #e2e8f0;
+          background: #f8fafc;
+          color: #64748b;
           text-align: center;
-          font-family: 'Courier New', monospace;
-          font-size: 16px;
-          font-weight: bold;
-          letter-spacing: 2px;
-          background: #fafafa;
+          padding: 14px 28px;
+          font-size: 11px;
         }
-        .info-row { 
-          display: flex; 
-          justify-content: space-between; 
-          margin: 3px 0;
+        .print-actions {
+          max-width: 900px;
+          margin: 0 auto 18px;
+          text-align: center;
         }
-        .checklist { 
-          display: grid; 
-          grid-template-columns: 1fr 1fr; 
-          gap: 4px;
-          font-size: 9px;
+        .print-actions button {
+          border: 0;
+          border-radius: 8px;
+          background: #0f766e;
+          color: white;
+          padding: 10px 22px;
+          font-weight: 800;
+          cursor: pointer;
         }
-        .checkbox { 
-          display: flex; 
-          align-items: center; 
-          gap: 4px;
-        }
-        .checkbox input { 
-          width: 12px; 
-          height: 12px;
+        @media print {
+          body { background: #fff; }
+          .page { margin: 0; max-width: none; border: 0; box-shadow: none; }
+          .print-actions { display: none; }
         }
       </style>
     </head>
     <body>
-      <div class="container">
-        
-        <!-- Header -->
-        <div class="header">
+      <main class="page">
+        <header class="header">
           <div>
-            <h1>PACKING SLIP</h1>
-            <div style="font-size: 9px; color: #666; margin-top: 2px;">${orderDate}</div>
+            <div class="brand">${escapeHtml(storeName)}</div>
+            <div class="muted-light">Vendor invoice and packing slip</div>
+            ${vendorInfo.phone ? `<div class="muted-light">${escapeHtml(vendorInfo.phone)}</div>` : ""}
           </div>
-          <div class="order-id">Order #${order._id.slice(-8).toUpperCase()}</div>
-        </div>
+          <div class="right">
+            <div class="muted-light">ORDER</div>
+            <div class="invoice-no">#${escapeHtml(shortOrderId)}</div>
+            <div class="muted-light">${escapeHtml(orderDate)}</div>
+          </div>
+        </header>
 
-        <!-- Quick Info Bar -->
-        <div class="grid-3 bg-gray" style="padding: 8px; margin-bottom: 10px; border: 1px solid #ddd;">
-          <div>
-            <div style="font-size: 9px; color: #666;">ITEMS</div>
-            <div class="font-bold" style="font-size: 16px;">${totalItems}</div>
-          </div>
-          <div>
-            <div style="font-size: 9px; color: #666;">PRODUCTS</div>
-            <div class="font-bold" style="font-size: 16px;">${vendorProducts.length}</div>
-          </div>
-          <div>
-            <div style="font-size: 9px; color: #666;">PAYMENT</div>
-            <div class="font-bold" style="font-size: 12px;">${order.paymentMethod?.toUpperCase() || 'COD'}</div>
-          </div>
-        </div>
+        <section class="content">
+          <div class="grid-3">
+            <div class="card">
+              <div class="label">Customer</div>
+              <div class="strong">${escapeHtml(shipping.name || "N/A")}</div>
+              <div class="muted">${escapeHtml(shipping.phone || "N/A")}</div>
+              <div class="muted tiny">${escapeHtml(shipping.email || "N/A")}</div>
+            </div>
 
-        <!-- Shipping & Tracking -->
-        <div class="grid-2">
-          <div class="section">
-            <div class="section-title">Ship To</div>
-            ${order.shippingInfo ? `
-              <div class="font-bold" style="font-size: 12px; margin-bottom: 3px;">${order.shippingInfo.name || "N/A"}</div>
-              <div style="margin-bottom: 2px;">${order.shippingInfo.address || "N/A"}</div>
-              <div style="margin-bottom: 2px;">${order.shippingInfo.city || "N/A"} ${order.shippingInfo.zipCode || ""}</div>
-              <div class="font-bold" style="margin-top: 4px;">📞 ${order.shippingInfo.phone || "N/A"}</div>
-            ` : `<div>No shipping information</div>`}
-          </div>
-          <div class="section">
-            <div class="section-title">Tracking Number</div>
-            <div class="tracking-box">
-              ${vendorProducts[0]?.trackingNumber || '_______________'}
+            <div class="card">
+              <div class="label">Delivery Address</div>
+              ${
+                addressLines.length
+                  ? addressLines
+                      .map((line, index) =>
+                        index === 0
+                          ? `<div class="strong">${escapeHtml(line)}</div>`
+                          : `<div class="muted tiny">${escapeHtml(line)}</div>`,
+                      )
+                      .join("")
+                  : `<div class="muted">No delivery address found</div>`
+              }
+            </div>
+
+            <div class="card">
+              <div class="label">Fulfillment</div>
+              <div><span class="muted">Status:</span> <span class="status">${escapeHtml(order?.status || "pending")}</span></div>
+              <div class="tiny muted" style="margin-top: 7px;">Payment: <span class="strong">${escapeHtml(order?.paymentMethod?.toUpperCase() || "COD")}</span></div>
+              <div class="tiny muted">Items: <span class="strong">${escapeHtml(totalItems)}</span></div>
+              <div class="tiny muted">Tracking: <span class="strong">${escapeHtml(trackingNumber || "Not added")}</span></div>
             </div>
           </div>
-        </div>
 
-        ${vendorInfo.businessName ? `
-        <div class="section" style="background: #fff8f0; border-color: #f57224;">
-          <div class="section-title">Vendor</div>
-          <div class="font-bold">${vendorInfo.businessName}</div>
-          ${vendorInfo.phone ? `<div style="font-size: 10px; margin-top: 2px;">${vendorInfo.phone}</div>` : ''}
-        </div>
-        ` : ''}
-
-        <!-- Products Table -->
-        <div style="margin: 10px 0;">
-          <div class="section-title" style="margin-bottom: 6px;">Items to Pack</div>
+          <div class="label">Items To Pack</div>
           <table>
             <thead>
               <tr>
-                <th style="width: 30px;">#</th>
-                <th>Product Details</th>
-                <th style="width: 50px;" class="text-center">Qty</th>
-                <th style="width: 70px;" class="text-center">Status</th>
-                <th style="width: 80px;" class="text-right">Amount</th>
+                <th>Product</th>
+                <th class="text-center" style="width: 60px;">Qty</th>
+                <th class="text-right" style="width: 95px;">Unit</th>
+                <th class="text-right" style="width: 95px;">Subtotal</th>
+                <th class="text-right" style="width: 95px;">Earning</th>
               </tr>
             </thead>
             <tbody>
-              ${vendorProducts.map((product, index) => `
-                <tr>
-                  <td class="text-center font-bold">${index + 1}</td>
-                  <td>
-                    <div class="font-bold">${product.title || product.name || "Unknown"}</div>
-                    ${product.selectedColor ? `<div style="font-size: 9px; color: #666;">Color: ${renderColor(product.selectedColor)}</div>` : ""}
-                    ${product.selectedSize ? `<div style="font-size: 9px; color: #666;">Size: ${product.selectedSize}</div>` : ""}
-                  </td>
-                  <td class="text-center font-bold" style="font-size: 14px;">${product.quantity || 0}</td>
-                  <td class="text-center">
-                    <span class="status-badge status-${product.itemStatus || 'pending'}">
-                      ${(product.itemStatus || 'pending').toUpperCase()}
-                    </span>
-                  </td>
-                  <td class="text-right font-bold">${formatPrice((product.price || 0) * (product.quantity || 0))}</td>
-                </tr>
-              `).join("")}
-              <tr class="bg-gray">
-                <td colspan="4" class="text-right font-bold">TOTAL:</td>
-                <td class="text-right font-bold text-orange" style="font-size: 13px;">${formatPrice(subtotal)}</td>
-              </tr>
+              ${
+                products.length
+                  ? products
+                      .map((product) => {
+                        const meta = [
+                          product.selectedSize ? `Size: ${product.selectedSize}` : "",
+                          product.selectedColor ? `Color: ${renderColor(product.selectedColor)}` : "",
+                          product.itemStatus ? `Status: ${product.itemStatus}` : "",
+                        ].filter(Boolean);
+                        const itemSubtotal = Number(product.price || 0) * Number(product.quantity || 0);
+                        const earning = Number(product.vendorEarningAmount ?? itemSubtotal - Number(product.adminCommissionAmount || 0));
+                        return `
+                          <tr>
+                            <td>
+                              <div class="strong">${escapeHtml(product.title || product.name || product.productDetails?.title || "Product")}</div>
+                              ${meta.length ? `<div class="muted tiny">${escapeHtml(meta.join(" | "))}</div>` : ""}
+                            </td>
+                            <td class="text-center strong">${escapeHtml(product.quantity || 0)}</td>
+                            <td class="text-right">${escapeHtml(formatPrice(product.price || 0))}</td>
+                            <td class="text-right strong">${escapeHtml(formatPrice(itemSubtotal))}</td>
+                            <td class="text-right strong">${escapeHtml(formatPrice(earning))}</td>
+                          </tr>
+                        `;
+                      })
+                      .join("")
+                  : `<tr><td colspan="5" class="text-center muted">No vendor items found</td></tr>`
+              }
             </tbody>
           </table>
-        </div>
 
-        <!-- Packing Checklist -->
-        <div class="section">
-          <div class="section-title" style="margin-bottom: 6px;">Packing Checklist</div>
-          <div class="checklist">
-            <div class="checkbox"><input type="checkbox"> Items verified</div>
-            <div class="checkbox"><input type="checkbox"> Properly packaged</div>
-            <div class="checkbox"><input type="checkbox"> Label attached</div>
-            <div class="checkbox"><input type="checkbox"> Tracking recorded</div>
+          <div class="summary">
+            <div class="summary-box">
+              <div class="label">Packing Checklist</div>
+              <div class="checklist">
+                <div class="check">[ ] Items verified</div>
+                <div class="check">[ ] Product condition checked</div>
+                <div class="check">[ ] Invoice included</div>
+                <div class="check">[ ] Package sealed</div>
+                <div class="check">[ ] Label attached</div>
+                <div class="check">[ ] Tracking recorded</div>
+              </div>
+            </div>
+
+            <div class="summary-box">
+              <div class="label">Vendor Summary</div>
+              <div class="row"><span>Gross subtotal</span><span>${escapeHtml(formatPrice(subtotal))}</span></div>
+              <div class="row"><span>Delivery share</span><span>${deliveryCharge ? escapeHtml(formatPrice(deliveryCharge)) : "FREE"}</span></div>
+              <div class="row"><span>Platform commission</span><span>- ${escapeHtml(formatPrice(commission))}</span></div>
+              <div class="row total"><span>Vendor earning</span><span>${escapeHtml(formatPrice(vendorEarnings))}</span></div>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <!-- Signature -->
-        <div class="grid-2" style="margin-top: 10px;">
-          <div>
-            <div style="font-size: 9px; color: #666; margin-bottom: 3px;">PACKED BY</div>
-            <div style="border-bottom: 1px solid #999; height: 30px;"></div>
-          </div>
-          <div>
-            <div style="font-size: 9px; color: #666; margin-bottom: 3px;">DATE</div>
-            <div style="border-bottom: 1px solid #999; height: 30px;"></div>
-          </div>
-        </div>
+        <footer class="footer">
+          <div>Keep this invoice with the packed order. Customer payment and payout are handled by HnilaBazar.</div>
+          <div>Generated: ${escapeHtml(new Date().toLocaleString())}</div>
+        </footer>
+      </main>
 
-        <!-- Print Button -->
-        <div class="no-print" style="text-align: center; margin-top: 15px;">
-          <button onclick="window.print()" style="background: #f57224; color: white; border: none; padding: 12px 30px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer;">
-            🖨️ Print Packing Slip
-          </button>
-        </div>
-
+      <div class="print-actions">
+        <button onclick="window.print()">Print Vendor Invoice</button>
       </div>
     </body>
     </html>

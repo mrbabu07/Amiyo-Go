@@ -1,5 +1,24 @@
 const { ObjectId } = require("mongodb");
 
+const getVendorIdValues = (vendorId) => {
+  const id = vendorId?.toString();
+  const values = [id];
+  if (id && ObjectId.isValid(id)) values.push(new ObjectId(id));
+  return values.filter(Boolean);
+};
+
+const matchesVendor = (product, vendorId) =>
+  product?.vendorId && product.vendorId.toString() === vendorId.toString();
+
+const getVendorOrderQuery = (vendorId, extraProductMatch = {}) => ({
+  products: {
+    $elemMatch: {
+      vendorId: { $in: getVendorIdValues(vendorId) },
+      ...extraProductMatch,
+    },
+  },
+});
+
 /**
  * Get vendor finance summary
  */
@@ -20,12 +39,7 @@ exports.getFinanceSummary = async (req, res) => {
     // Get all orders with vendor's products using proper query
     const ordersCollection = db.collection("orders");
     const orders = await ordersCollection
-      .find({
-        $or: [
-          { "products.vendorId": vendorId.toString() },
-          { "products.vendorId": vendorId }
-        ]
-      })
+      .find(getVendorOrderQuery(vendorId))
       .toArray();
 
     console.log('   Total orders found:', orders.length);
@@ -35,22 +49,33 @@ exports.getFinanceSummary = async (req, res) => {
     let netEarnings = 0;
     let pendingBalance = 0;
     let deliveredCount = 0;
+    let totalItems = 0;
+    let deliveredGrossSales = 0;
+    let deliveredNetEarnings = 0;
+    let inProgressGrossSales = 0;
+    let cancelledGrossSales = 0;
 
     orders.forEach((order) => {
-      const vendorProducts = order.products.filter(
-        (p) => p.vendorId && p.vendorId.toString() === vendorId.toString()
-      );
+      const vendorProducts = order.products.filter((p) => matchesVendor(p, vendorId));
 
       vendorProducts.forEach((product) => {
         const itemTotal = (product.price || 0) * (product.quantity || 0);
+        const earning = product.vendorEarningAmount || 0;
+        totalItems++;
         grossSales += itemTotal;
         totalCommission += product.adminCommissionAmount || 0;
-        netEarnings += product.vendorEarningAmount || 0;
+        netEarnings += earning;
 
         // Only count delivered items as pending if not yet paid
         if (product.itemStatus === "delivered") {
-          pendingBalance += product.vendorEarningAmount || 0;
+          pendingBalance += earning;
+          deliveredGrossSales += itemTotal;
+          deliveredNetEarnings += earning;
           deliveredCount++;
+        } else if (product.itemStatus === "cancelled" || product.itemStatus === "returned") {
+          cancelledGrossSales += itemTotal;
+        } else {
+          inProgressGrossSales += itemTotal;
         }
       });
     });
@@ -61,7 +86,7 @@ exports.getFinanceSummary = async (req, res) => {
     console.log('   Pending balance (before payouts):', pendingBalance);
 
     // Get all payouts (paid, pending, approved)
-    const payoutsCollection = db.collection("vendorPayouts");
+    const payoutsCollection = VendorPayout.collection;
     console.log('   Querying payouts for vendorId:', vendorId, '(type:', typeof vendorId, ')');
     
     const allPayouts = await payoutsCollection
@@ -106,6 +131,14 @@ exports.getFinanceSummary = async (req, res) => {
         pendingPayouts: Math.round(pendingPayouts * 100) / 100,
         returnDeductions: Math.round(totalReturnDeductions * 100) / 100,
         deliveredCount,
+        totalOrders: orders.length,
+        totalItems,
+        deliveredGrossSales: Math.round(deliveredGrossSales * 100) / 100,
+        deliveredNetEarnings: Math.round(deliveredNetEarnings * 100) / 100,
+        inProgressGrossSales: Math.round(inProgressGrossSales * 100) / 100,
+        cancelledGrossSales: Math.round(cancelledGrossSales * 100) / 100,
+        payoutEligible: pendingBalance >= 1000,
+        minimumPayout: 1000,
       },
     });
   } catch (error) {
@@ -127,9 +160,9 @@ exports.getTransactions = async (req, res) => {
     const { page = 1, limit = 20, status } = req.query;
     const Order = req.app.locals.models.Order;
 
-    const query = { "products.vendorId": new ObjectId(vendorId) };
+    const query = getVendorOrderQuery(vendorId);
     if (status && status !== "all") {
-      query["products.itemStatus"] = status;
+      query.products.$elemMatch.itemStatus = status;
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -145,14 +178,14 @@ exports.getTransactions = async (req, res) => {
     const transactions = [];
     orders.forEach((order) => {
       const vendorProducts = order.products.filter(
-        (p) => p.vendorId && p.vendorId.toString() === vendorId.toString()
+        (p) => matchesVendor(p, vendorId) && (!status || status === "all" || (p.itemStatus || "pending") === status)
       );
 
       vendorProducts.forEach((product) => {
         transactions.push({
           orderId: order._id,
           orderDate: order.createdAt,
-          productName: product.name,
+          productName: product.title || product.name || product.productName || "Product",
           quantity: product.quantity,
           price: product.price,
           itemTotal: product.price * product.quantity,
@@ -243,18 +276,14 @@ exports.requestPayout = async (req, res) => {
 
     // Calculate available balance
     const orders = await Order.collection
-      .find({
-        "products.vendorId": new ObjectId(vendorId),
-        "products.itemStatus": "delivered",
-      })
+      .find(getVendorOrderQuery(vendorId, { itemStatus: "delivered" }))
       .toArray();
 
     let deliveredEarnings = 0;
     orders.forEach((order) => {
       const deliveredProducts = order.products.filter(
         (p) =>
-          p.vendorId &&
-          p.vendorId.toString() === vendorId.toString() &&
+          matchesVendor(p, vendorId) &&
           p.itemStatus === "delivered"
       );
 
@@ -440,10 +469,7 @@ exports.getAvailableBalance = async (req, res) => {
 
     // Get delivered earnings
     const orders = await Order.collection
-      .find({
-        "products.vendorId": new ObjectId(vendorId),
-        "products.itemStatus": "delivered",
-      })
+      .find(getVendorOrderQuery(vendorId, { itemStatus: "delivered" }))
       .toArray();
 
     let deliveredEarnings = 0;
@@ -452,8 +478,7 @@ exports.getAvailableBalance = async (req, res) => {
     orders.forEach((order) => {
       const deliveredProducts = order.products.filter(
         (p) =>
-          p.vendorId &&
-          p.vendorId.toString() === vendorId.toString() &&
+          matchesVendor(p, vendorId) &&
           p.itemStatus === "delivered"
       );
 

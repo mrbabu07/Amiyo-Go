@@ -8,8 +8,10 @@ import {
 } from "../../services/api";
 import Loading from "../../components/Loading";
 import Modal from "../../components/Modal";
+import useCurrency from "../../hooks/useCurrency";
 
 export default function AdminCoupons() {
+  const { formatPrice } = useCurrency();
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -46,20 +48,14 @@ export default function AdminCoupons() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Convert BDT values to USD before sending to backend
       const dataToSend = {
         ...formData,
-        // For fixed discount type, convert BDT to USD
-        discountValue:
-          formData.discountType === "fixed"
-            ? parseFloat(formData.discountValue) / 110
-            : parseFloat(formData.discountValue),
-        // Convert min/max amounts from BDT to USD
+        discountValue: parseFloat(formData.discountValue),
         minOrderAmount: formData.minOrderAmount
-          ? parseFloat(formData.minOrderAmount) / 110
+          ? parseFloat(formData.minOrderAmount)
           : null,
         maxDiscountAmount: formData.maxDiscountAmount
-          ? parseFloat(formData.maxDiscountAmount) / 110
+          ? parseFloat(formData.maxDiscountAmount)
           : null,
       };
 
@@ -82,17 +78,12 @@ export default function AdminCoupons() {
       name: coupon.name,
       description: coupon.description || "",
       discountType: coupon.discountType,
-      // For fixed discount, convert USD to BDT for display
-      discountValue:
-        coupon.discountType === "fixed"
-          ? Math.round(coupon.discountValue * 110).toString()
-          : coupon.discountValue.toString(),
-      // Convert USD to BDT for display
+      discountValue: coupon.discountValue.toString(),
       maxDiscountAmount: coupon.maxDiscountAmount
-        ? Math.round(coupon.maxDiscountAmount * 110).toString()
+        ? coupon.maxDiscountAmount.toString()
         : "",
       minOrderAmount: coupon.minOrderAmount
-        ? Math.round(coupon.minOrderAmount * 110).toString()
+        ? coupon.minOrderAmount.toString()
         : "",
       usageLimit: coupon.usageLimit?.toString() || "",
       userUsageLimit: coupon.userUsageLimit?.toString() || "",
@@ -254,11 +245,11 @@ export default function AdminCoupons() {
                       <div className="text-sm text-gray-900">
                         {coupon.discountType === "percentage"
                           ? `${coupon.discountValue}%`
-                          : `৳${Math.round(coupon.discountValue * 110)}`}
+                          : formatPrice(coupon.discountValue || 0)}
                       </div>
                       {coupon.maxDiscountAmount && (
                         <div className="text-xs text-gray-500">
-                          Max: ৳{Math.round(coupon.maxDiscountAmount * 110)}
+                          Max: {formatPrice(coupon.maxDiscountAmount)}
                         </div>
                       )}
                     </td>
