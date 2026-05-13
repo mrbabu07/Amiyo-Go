@@ -1,3 +1,110 @@
+const COUPON_CODE_PATTERN = /^[A-Z0-9_-]{3,30}$/;
+
+const parseOptionalNumber = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? Number.NaN : parsed;
+};
+
+const parseOptionalInteger = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? Number.NaN : parsed;
+};
+
+const validateCouponPayload = (payload, { partial = false } = {}) => {
+  const normalized = {
+    ...payload,
+    code: payload.code ? String(payload.code).trim().toUpperCase() : payload.code,
+    name: payload.name ? String(payload.name).trim() : payload.name,
+    description: payload.description ? String(payload.description).trim() : payload.description,
+  };
+  const errors = [];
+
+  const discountType = normalized.discountType;
+  const discountValue = parseOptionalNumber(normalized.discountValue);
+  const maxDiscountAmount = parseOptionalNumber(normalized.maxDiscountAmount);
+  const minOrderAmount = parseOptionalNumber(normalized.minOrderAmount);
+  const usageLimit = parseOptionalInteger(normalized.usageLimit);
+  const userUsageLimit = parseOptionalInteger(normalized.userUsageLimit);
+  const expiresAt = normalized.expiresAt ? new Date(normalized.expiresAt) : null;
+
+  if (!partial || normalized.code !== undefined) {
+    if (!normalized.code || !COUPON_CODE_PATTERN.test(normalized.code)) {
+      errors.push("Coupon code must be 3-30 characters and use only letters, numbers, dash, or underscore.");
+    }
+  }
+
+  if (!partial || normalized.name !== undefined) {
+    if (!normalized.name) {
+      errors.push("Coupon name is required.");
+    }
+  }
+
+  if (!partial || normalized.discountType !== undefined) {
+    if (!["percentage", "fixed"].includes(discountType)) {
+      errors.push('Discount type must be either "percentage" or "fixed".');
+    }
+  }
+
+  if (!partial || normalized.discountValue !== undefined) {
+    if (Number.isNaN(discountValue) || discountValue <= 0) {
+      errors.push("Discount value must be greater than zero.");
+    }
+  }
+
+  if (discountType === "percentage" && !Number.isNaN(discountValue) && discountValue > 100) {
+    errors.push("Percentage discount cannot be more than 100.");
+  }
+
+  if (maxDiscountAmount !== null && (Number.isNaN(maxDiscountAmount) || maxDiscountAmount < 0)) {
+    errors.push("Maximum discount amount must be zero or more.");
+  }
+
+  if (minOrderAmount !== null && (Number.isNaN(minOrderAmount) || minOrderAmount < 0)) {
+    errors.push("Minimum order amount must be zero or more.");
+  }
+
+  if (usageLimit !== null && (Number.isNaN(usageLimit) || usageLimit < 1)) {
+    errors.push("Usage limit must be at least 1.");
+  }
+
+  if (userUsageLimit !== null && (Number.isNaN(userUsageLimit) || userUsageLimit < 1)) {
+    errors.push("User usage limit must be at least 1.");
+  }
+
+  if (
+    usageLimit !== null &&
+    userUsageLimit !== null &&
+    !Number.isNaN(usageLimit) &&
+    !Number.isNaN(userUsageLimit) &&
+    userUsageLimit > usageLimit
+  ) {
+    errors.push("User usage limit cannot be greater than total usage limit.");
+  }
+
+  if (!partial || normalized.expiresAt !== undefined) {
+    if (!expiresAt || Number.isNaN(expiresAt.getTime())) {
+      errors.push("A valid expiry date is required.");
+    } else if (expiresAt <= new Date()) {
+      errors.push("Expiry date must be in the future.");
+    }
+  }
+
+  return {
+    errors,
+    normalized: {
+      ...normalized,
+      discountValue,
+      maxDiscountAmount,
+      minOrderAmount,
+      usageLimit,
+      userUsageLimit,
+      expiresAt,
+    },
+  };
+};
+
 const getAllCoupons = async (req, res) => {
   try {
     const Coupon = req.app.locals.models.Coupon;
@@ -157,48 +264,17 @@ const validateCoupon = async (req, res) => {
 const createCoupon = async (req, res) => {
   try {
     const Coupon = req.app.locals.models.Coupon;
-    const {
-      code,
-      name,
-      description,
-      discountType,
-      discountValue,
-      maxDiscountAmount,
-      minOrderAmount,
-      usageLimit,
-      userUsageLimit,
-      expiresAt,
-      isActive = true,
-    } = req.body;
+    const { errors, normalized } = validateCouponPayload(req.body);
 
-    // Validation
-    if (!code || !name || !discountType || !discountValue || !expiresAt) {
+    if (errors.length > 0) {
       return res.status(400).json({
         success: false,
-        error:
-          "Missing required fields: code, name, discountType, discountValue, expiresAt",
-      });
-    }
-
-    if (!["percentage", "fixed"].includes(discountType)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Discount type must be either "percentage" or "fixed"',
-      });
-    }
-
-    if (
-      discountType === "percentage" &&
-      (discountValue < 1 || discountValue > 100)
-    ) {
-      return res.status(400).json({
-        success: false,
-        error: "Percentage discount must be between 1 and 100",
+        error: errors[0],
       });
     }
 
     // Check if coupon code already exists
-    const existingCoupon = await Coupon.findByCode(code);
+    const existingCoupon = await Coupon.findByCode(normalized.code);
     if (existingCoupon) {
       return res.status(400).json({
         success: false,
@@ -207,19 +283,17 @@ const createCoupon = async (req, res) => {
     }
 
     const couponId = await Coupon.create({
-      code,
-      name,
-      description,
-      discountType,
-      discountValue: parseFloat(discountValue),
-      maxDiscountAmount: maxDiscountAmount
-        ? parseFloat(maxDiscountAmount)
-        : null,
-      minOrderAmount: minOrderAmount ? parseFloat(minOrderAmount) : null,
-      usageLimit: usageLimit ? parseInt(usageLimit) : null,
-      userUsageLimit: userUsageLimit ? parseInt(userUsageLimit) : null,
-      expiresAt: new Date(expiresAt),
-      isActive,
+      code: normalized.code,
+      name: normalized.name,
+      description: normalized.description || "",
+      discountType: normalized.discountType,
+      discountValue: normalized.discountValue,
+      maxDiscountAmount: normalized.maxDiscountAmount,
+      minOrderAmount: normalized.minOrderAmount,
+      usageLimit: normalized.usageLimit,
+      userUsageLimit: normalized.userUsageLimit,
+      expiresAt: normalized.expiresAt,
+      isActive: normalized.isActive ?? true,
       usedBy: [],
     });
 
@@ -238,41 +312,48 @@ const updateCoupon = async (req, res) => {
   try {
     const Coupon = req.app.locals.models.Coupon;
     const { id } = req.params;
-    const updateData = req.body;
+    const existingCoupon = await Coupon.findById(id);
 
-    // Validation for discount type and value
-    if (
-      updateData.discountType &&
-      !["percentage", "fixed"].includes(updateData.discountType)
-    ) {
-      return res.status(400).json({
+    if (!existingCoupon) {
+      return res.status(404).json({
         success: false,
-        error: 'Discount type must be either "percentage" or "fixed"',
+        error: "Coupon not found",
       });
     }
 
-    if (updateData.discountType === "percentage" && updateData.discountValue) {
-      if (updateData.discountValue < 1 || updateData.discountValue > 100) {
+    const mergedPayload = { ...existingCoupon, ...req.body };
+    const { errors, normalized } = validateCouponPayload(mergedPayload);
+
+    if (errors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: errors[0],
+      });
+    }
+
+    if (normalized.code !== existingCoupon.code) {
+      const duplicateCoupon = await Coupon.findByCode(normalized.code);
+      if (duplicateCoupon && String(duplicateCoupon._id) !== String(existingCoupon._id)) {
         return res.status(400).json({
           success: false,
-          error: "Percentage discount must be between 1 and 100",
+          error: "Coupon code already exists",
         });
       }
     }
 
-    // Convert string numbers to proper types
-    if (updateData.discountValue)
-      updateData.discountValue = parseFloat(updateData.discountValue);
-    if (updateData.maxDiscountAmount)
-      updateData.maxDiscountAmount = parseFloat(updateData.maxDiscountAmount);
-    if (updateData.minOrderAmount)
-      updateData.minOrderAmount = parseFloat(updateData.minOrderAmount);
-    if (updateData.usageLimit)
-      updateData.usageLimit = parseInt(updateData.usageLimit);
-    if (updateData.userUsageLimit)
-      updateData.userUsageLimit = parseInt(updateData.userUsageLimit);
-    if (updateData.expiresAt)
-      updateData.expiresAt = new Date(updateData.expiresAt);
+    const updateData = {
+      ...req.body,
+      code: normalized.code,
+      name: normalized.name,
+      description: normalized.description || "",
+      discountType: normalized.discountType,
+      discountValue: normalized.discountValue,
+      maxDiscountAmount: normalized.maxDiscountAmount,
+      minOrderAmount: normalized.minOrderAmount,
+      usageLimit: normalized.usageLimit,
+      userUsageLimit: normalized.userUsageLimit,
+      expiresAt: normalized.expiresAt,
+    };
 
     const result = await Coupon.update(id, updateData);
 

@@ -88,6 +88,75 @@ export default function VendorBulkUpload() {
     return map;
   }, [categories]);
 
+  const rowDiagnostics = useMemo(() => {
+    const titleCounts = new Map();
+    const skuCounts = new Map();
+
+    rows.forEach((row) => {
+      const titleKey = normalize(row.title);
+      const skuKey = normalize(row.sku);
+      if (titleKey) {
+        titleCounts.set(titleKey, (titleCounts.get(titleKey) || 0) + 1);
+      }
+      if (skuKey) {
+        skuCounts.set(skuKey, (skuCounts.get(skuKey) || 0) + 1);
+      }
+    });
+
+    return rows.map((row) => {
+      const issues = [];
+      const category = categoryMap.get(normalize(row.category));
+      const titleKey = normalize(row.title);
+      const skuKey = normalize(row.sku);
+
+      if (!row.title) issues.push("Title is required");
+      if (!row.price || Number.isNaN(Number(row.price)) || Number(row.price) <= 0) {
+        issues.push("Valid price is required");
+      }
+      if (row.stock === "" || Number.isNaN(Number(row.stock)) || Number(row.stock) < 0) {
+        issues.push("Valid stock is required");
+      }
+      if (!row.category) {
+        issues.push("Category is required");
+      } else if (!category) {
+        issues.push(`Category not allowed or not found: ${row.category}`);
+      }
+      if (titleKey && titleCounts.get(titleKey) > 1) {
+        issues.push("Duplicate product title in this CSV");
+      }
+      if (skuKey && skuCounts.get(skuKey) > 1) {
+        issues.push("Duplicate SKU in this CSV");
+      }
+
+      return {
+        rowNumber: row.rowNumber,
+        title: row.title || "Untitled",
+        issues,
+        isValid: issues.length === 0,
+      };
+    });
+  }, [categoryMap, rows]);
+
+  const rowDiagnosticsMap = useMemo(
+    () => new Map(rowDiagnostics.map((item) => [item.rowNumber, item])),
+    [rowDiagnostics],
+  );
+
+  const uploadSummary = useMemo(
+    () => ({
+      totalRows: rowDiagnostics.length,
+      validRows: rowDiagnostics.filter((row) => row.isValid).length,
+      invalidRows: rowDiagnostics.filter((row) => !row.isValid).length,
+      duplicateRows: rowDiagnostics.filter((row) =>
+        row.issues.some((issue) => issue.includes("Duplicate")),
+      ).length,
+      categoryErrors: rowDiagnostics.filter((row) =>
+        row.issues.some((issue) => issue.includes("Category")),
+      ).length,
+    }),
+    [rowDiagnostics],
+  );
+
   const loadCategories = useCallback(async () => {
     if (!user) return;
     try {
@@ -129,13 +198,7 @@ export default function VendorBulkUpload() {
   };
 
   const validateRow = (row) => {
-    if (!row.title) return "Title is required";
-    if (!row.price || Number.isNaN(Number(row.price)) || Number(row.price) <= 0) return "Valid price is required";
-    if (row.stock === "" || Number.isNaN(Number(row.stock)) || Number(row.stock) < 0) return "Valid stock is required";
-    if (!row.category) return "Category is required";
-    const category = categoryMap.get(normalize(row.category));
-    if (!category) return `Category not allowed or not found: ${row.category}`;
-    return "";
+    return rowDiagnosticsMap.get(row.rowNumber)?.issues?.[0] || "";
   };
 
   const uploadRows = async () => {
@@ -294,6 +357,72 @@ export default function VendorBulkUpload() {
                 <p className="mt-2 text-xs text-red-600">No assigned categories found. Ask admin to assign categories before bulk upload.</p>
               )}
             </div>
+
+            {rows.length > 0 && (
+              <div className="rounded-xl bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Step 3: Pre-upload Check</h3>
+                    <p className="text-sm text-gray-500">We validate every row before sending it. Invalid rows are skipped and listed in the result report.</p>
+                  </div>
+                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                    {uploadSummary.totalRows} rows
+                  </span>
+                </div>
+
+                <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {[
+                    { label: "Valid", value: uploadSummary.validRows, tone: "bg-green-50 text-green-700" },
+                    { label: "Needs Fix", value: uploadSummary.invalidRows, tone: "bg-red-50 text-red-700" },
+                    { label: "Duplicates", value: uploadSummary.duplicateRows, tone: "bg-amber-50 text-amber-700" },
+                    { label: "Category Issues", value: uploadSummary.categoryErrors, tone: "bg-blue-50 text-blue-700" },
+                  ].map((item) => (
+                    <div key={item.label} className={`rounded-xl px-4 py-3 ${item.tone}`}>
+                      <p className="text-xs uppercase tracking-wide">{item.label}</p>
+                      <p className="mt-1 text-2xl font-bold">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="overflow-hidden rounded-xl border border-gray-200">
+                  <div className="grid grid-cols-[90px_1fr_120px] gap-3 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <span>Row</span>
+                    <span>Product</span>
+                    <span>Status</span>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto">
+                    {rowDiagnostics.slice(0, 12).map((row) => (
+                      <div key={row.rowNumber} className="border-t border-gray-100 px-4 py-3">
+                        <div className="grid grid-cols-[90px_1fr_120px] gap-3">
+                          <span className="text-sm font-medium text-gray-900">{row.rowNumber}</span>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{row.title}</p>
+                            {!row.isValid && (
+                              <p className="mt-1 text-xs text-red-600">{row.issues.join(" | ")}</p>
+                            )}
+                          </div>
+                          <div>
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                row.isValid ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                              }`}
+                            >
+                              {row.isValid ? "Ready" : "Fix row"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {rowDiagnostics.length > 12 && (
+                  <p className="mt-3 text-xs text-gray-500">
+                    Showing the first 12 rows here. The upload result report will include every row after submission.
+                  </p>
+                )}
+              </div>
+            )}
 
             {results.length > 0 && (
               <div className="rounded-xl bg-white p-6 shadow-sm">

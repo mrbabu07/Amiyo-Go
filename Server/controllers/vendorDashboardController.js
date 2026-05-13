@@ -533,6 +533,10 @@ exports.getVendorReports = async (req, res) => {
     const vendorId = vendor._id.toString();
     const orderRows = await getVendorOrderRows(db, vendorId);
     const salesData = buildDailySales(orderRows, period === "month" ? 30 : 7);
+    const productDocs = await db.collection("products")
+      .find({ vendorId })
+      .project({ _id: 1, title: 1, name: 1, views: 1, stock: 1, isActive: 1, createdAt: 1 })
+      .toArray();
 
     const monthlyMap = new Map();
     orderRows
@@ -600,11 +604,40 @@ exports.getVendorReports = async (req, res) => {
       totalSales: round2(orderRows.reduce((sum, row) => sum + row.deliveredEarnings, 0)),
       totalOrders: orderRows.length,
       deliveredOrders: orderRows.filter((row) => row.status === "delivered").length,
+      cancelledOrders: orderRows.filter((row) => row.status === "cancelled").length,
       averageOrderValue: round2(
-        orderRows.length
-          ? orderRows.reduce((sum, row) => sum + row.gross, 0) / orderRows.length
+        orderRows.filter((row) => row.status === "delivered").length
+          ? orderRows
+              .filter((row) => row.status === "delivered")
+              .reduce((sum, row) => sum + row.deliveredEarnings, 0) /
+            orderRows.filter((row) => row.status === "delivered").length
           : 0,
       ),
+    };
+
+    const totalViews = productDocs.reduce((sum, product) => sum + Number(product.views || 0), 0);
+    const productsWithViews = productDocs.filter((product) => Number(product.views || 0) > 0);
+    const activeProducts = productDocs.filter((product) => product.isActive !== false);
+    const zeroViewProducts = productDocs.filter((product) => Number(product.views || 0) === 0);
+    const topViewedProducts = [...productDocs]
+      .sort((a, b) => Number(b.views || 0) - Number(a.views || 0))
+      .slice(0, 5)
+      .map((product) => ({
+        productId: product._id.toString(),
+        name: product.title || product.name || "Product",
+        views: Number(product.views || 0),
+        stock: Number(product.stock || 0),
+      }));
+
+    const visibilityStats = {
+      totalViews,
+      activeListings: activeProducts.length,
+      productsWithViews: productsWithViews.length,
+      zeroViewProducts: zeroViewProducts.length,
+      averageViewsPerProduct: round2(
+        productDocs.length ? totalViews / productDocs.length : 0,
+      ),
+      topViewedProducts,
     };
 
     res.json({
@@ -614,8 +647,16 @@ exports.getVendorReports = async (req, res) => {
         salesData,
         monthlyData: [...monthlyMap.values()].map((row) => ({ ...row, amount: round2(row.amount) })),
         topProducts,
-        trafficSources: [],
-        trafficMessage: "Traffic source tracking is not configured yet.",
+        trafficSources: [
+          { label: "Product Views", value: totalViews, unit: "views" },
+          { label: "Active Listings", value: activeProducts.length, unit: "products" },
+          { label: "Viewed Products", value: productsWithViews.length, unit: "products" },
+          { label: "Zero-View Products", value: zeroViewProducts.length, unit: "products" },
+        ],
+        visibilityStats,
+        trafficMessage: productDocs.length
+          ? "Visibility metrics are based on real product views and active listings."
+          : "Add products to start tracking visibility metrics.",
       },
     });
   } catch (error) {

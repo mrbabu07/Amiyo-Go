@@ -194,6 +194,34 @@ const AdminFlashSales = () => {
     return badges[status] || badges.expired;
   };
 
+  const selectedProduct = products.find((product) => product._id === formData.product);
+  const flashSaleValidationError = (() => {
+    if (!formData.title || !formData.product || !formData.flashPrice || !formData.startTime || !formData.endTime || !formData.totalStock) {
+      return "";
+    }
+
+    const flashPrice = Number(formData.flashPrice);
+    const totalStock = Number(formData.totalStock);
+    const maxPerUser = Number(formData.maxPerUser);
+
+    if (Number.isNaN(flashPrice) || flashPrice <= 0) {
+      return "Flash price must be greater than zero.";
+    }
+    if (selectedProduct?.price != null && flashPrice >= Number(selectedProduct.price)) {
+      return "Flash price must be lower than the product price.";
+    }
+    if (Number.isNaN(totalStock) || totalStock < 1) {
+      return "Total stock must be at least 1.";
+    }
+    if (Number.isNaN(maxPerUser) || maxPerUser < 1) {
+      return "Max per user must be at least 1.";
+    }
+    if (new Date(formData.startTime) >= new Date(formData.endTime)) {
+      return "End time must be after start time.";
+    }
+    return "";
+  })();
+
   if (loading) return <Loading />;
 
   return (
@@ -426,6 +454,11 @@ const AdminFlashSales = () => {
                 required
                 placeholder="e.g., 1100"
               />
+              {selectedProduct?.price != null && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Regular price: {formatPrice(selectedProduct.price)}
+                </p>
+              )}
             </div>
 
             <div>
@@ -491,9 +524,18 @@ const AdminFlashSales = () => {
           </div>
 
           <div className="flex gap-3 pt-4">
+            {flashSaleValidationError && (
+              <div className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {flashSaleValidationError}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 pt-1">
             <button
               type="submit"
-              className="flex-1 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white py-2.5 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+              disabled={Boolean(flashSaleValidationError)}
+              className="flex-1 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white py-2.5 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {editingSale ? "Update" : "Create"} Flash Sale
             </button>

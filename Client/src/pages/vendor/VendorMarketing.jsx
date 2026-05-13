@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
 import useAuth from "../../hooks/useAuth";
+import { getActiveCoupons, getActivePopupOffer } from "../../services/api";
 
 const tabs = [
   { id: "promotions", label: "Promotions", path: "/vendor/marketing/promotions" },
@@ -29,7 +30,10 @@ export default function VendorMarketing() {
   const { user } = useAuth();
   const location = useLocation();
   const [campaigns, setCampaigns] = useState([]);
+  const [coupons, setCoupons] = useState([]);
+  const [popupOffer, setPopupOffer] = useState(null);
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [loadingPromotions, setLoadingPromotions] = useState(false);
   const [enrolledCampaignIds, setEnrolledCampaignIds] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("vendorCampaignEnrollments") || "[]");
@@ -58,17 +62,36 @@ export default function VendorMarketing() {
     }
   }, [user]);
 
+  const fetchPromotions = useCallback(async () => {
+    try {
+      setLoadingPromotions(true);
+      const [couponResponse, popupResponse] = await Promise.all([
+        getActiveCoupons(),
+        getActivePopupOffer(),
+      ]);
+      setCoupons(couponResponse.data.data || []);
+      setPopupOffer(popupResponse.data.data || null);
+    } catch (error) {
+      toast.error(error.response?.data?.error || error.message || "Failed to load marketing data");
+    } finally {
+      setLoadingPromotions(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchCampaigns();
-  }, [fetchCampaigns]);
+    fetchPromotions();
+  }, [fetchCampaigns, fetchPromotions]);
 
   const campaignStats = useMemo(
     () => ({
       active: campaigns.filter((campaign) => campaign.status === "Active").length,
       scheduled: campaigns.filter((campaign) => campaign.status === "Scheduled").length,
       enrolled: enrolledCampaignIds.length,
+      coupons: coupons.length,
+      popupOffers: popupOffer ? 1 : 0,
     }),
-    [campaigns, enrolledCampaignIds],
+    [campaigns, coupons.length, enrolledCampaignIds, popupOffer],
   );
 
   const toggleCampaign = (campaignId) => {
@@ -79,6 +102,15 @@ export default function VendorMarketing() {
       toast.success(exists ? "Campaign removed from your shortlist" : "Campaign added to your shortlist");
       return next;
     });
+  };
+
+  const copyCouponCode = async (code) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      toast.success(`Copied ${code}`);
+    } catch {
+      toast.error("Unable to copy code");
+    }
   };
 
   return (
@@ -95,7 +127,7 @@ export default function VendorMarketing() {
             </Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Marketing Tools</h1>
-              <p className="text-sm text-gray-500">Campaigns are live from admin data. Promotion and voucher APIs are pending.</p>
+              <p className="text-sm text-gray-500">Review live platform campaigns, checkout vouchers, and current storefront promotions.</p>
             </div>
           </div>
         </div>
@@ -105,9 +137,9 @@ export default function VendorMarketing() {
         <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
           {[
             { label: "Active Campaigns", value: campaignStats.active, color: "text-green-600" },
-            { label: "Scheduled Campaigns", value: campaignStats.scheduled, color: "text-blue-600" },
+            { label: "Active Coupons", value: campaignStats.coupons, color: "text-blue-600" },
             { label: "Shortlisted", value: campaignStats.enrolled, color: "text-orange-600" },
-            { label: "Total Available", value: campaigns.length, color: "text-gray-900" },
+            { label: "Popup Offers", value: campaignStats.popupOffers, color: "text-gray-900" },
           ].map((item) => (
             <div key={item.label} className="rounded-xl bg-white p-4 shadow-sm">
               <p className="text-sm text-gray-500">{item.label}</p>
@@ -137,17 +169,153 @@ export default function VendorMarketing() {
 
           <div className="p-6">
             {activeTab === "promotions" && (
-              <EmptyState
-                title="Vendor promotions API is not implemented yet"
-                text="This section no longer shows fake promotions. Build a vendor promotions backend before enabling create/edit controls here."
-              />
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-semibold text-gray-900">Storefront Promotions</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Use these active platform promotions when you plan product launches, banners, and customer messaging.
+                  </p>
+                </div>
+
+                {loadingPromotions ? (
+                  <div className="rounded-xl bg-gray-50 p-8 text-center text-sm text-gray-500">Loading promotions...</div>
+                ) : !popupOffer ? (
+                  <EmptyState
+                    title="No popup promotion is active right now"
+                    text="When admin publishes a popup offer, its headline, discount, and target products will appear here for vendors."
+                  />
+                ) : (
+                  <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Live popup offer</p>
+                        <h4 className="mt-2 text-2xl font-bold text-gray-900">{popupOffer.title}</h4>
+                        <p className="mt-2 max-w-2xl text-sm text-gray-600">{popupOffer.description}</p>
+                      </div>
+                      <div className="rounded-xl bg-white px-4 py-3 text-right shadow-sm">
+                        <p className="text-xs uppercase text-gray-400">Discount</p>
+                        <p className="text-2xl font-bold text-orange-600">
+                          {popupOffer.discountType === "percentage"
+                            ? `${popupOffer.discountValue}%`
+                            : `BDT ${popupOffer.discountValue}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+                      <div className="rounded-xl bg-white p-4 shadow-sm">
+                        <p className="text-xs uppercase text-gray-400">Start</p>
+                        <p className="mt-1 font-semibold text-gray-900">
+                          {new Date(popupOffer.startDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-white p-4 shadow-sm">
+                        <p className="text-xs uppercase text-gray-400">End</p>
+                        <p className="mt-1 font-semibold text-gray-900">
+                          {new Date(popupOffer.endDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-white p-4 shadow-sm">
+                        <p className="text-xs uppercase text-gray-400">Targeting</p>
+                        <p className="mt-1 font-semibold text-gray-900">
+                          {popupOffer.targetProducts?.length ? `${popupOffer.targetProducts.length} products` : "All products"}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-white p-4 shadow-sm">
+                        <p className="text-xs uppercase text-gray-400">CTA</p>
+                        <p className="mt-1 font-semibold text-gray-900">
+                          {popupOffer.buttonText || "Shop Now"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                      <span className="rounded-full bg-white px-3 py-1 shadow-sm">
+                        Link: {popupOffer.buttonLink || "/products"}
+                      </span>
+                      {popupOffer.couponCode && (
+                        <span className="rounded-full bg-white px-3 py-1 shadow-sm">
+                          Coupon: {popupOffer.couponCode}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {activeTab === "vouchers" && (
-              <EmptyState
-                title="Vendor vouchers API is not implemented yet"
-                text="This section no longer shows fake vouchers. Add persistent voucher rules, usage limits, and checkout validation before enabling this workflow."
-              />
+              <div>
+                <div className="mb-6">
+                  <h3 className="font-semibold text-gray-900">Checkout Vouchers</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    These are the active coupon codes customers can use during checkout. Share them in livestreams, chat, and store banners.
+                  </p>
+                </div>
+
+                {loadingPromotions ? (
+                  <div className="rounded-xl bg-gray-50 p-8 text-center text-sm text-gray-500">Loading vouchers...</div>
+                ) : coupons.length === 0 ? (
+                  <EmptyState
+                    title="No active coupons available"
+                    text="Admin coupons will show up here automatically as soon as they are active and not expired."
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {coupons.map((coupon) => (
+                      <div key={coupon._id} className="rounded-xl border border-gray-200 bg-white p-5">
+                        <div className="mb-4 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Coupon</p>
+                            <h4 className="mt-1 text-lg font-semibold text-gray-900">{coupon.name}</h4>
+                            <p className="mt-1 text-sm text-gray-500">{coupon.description || "No description provided."}</p>
+                          </div>
+                          <div className="rounded-xl bg-primary-50 px-3 py-2 text-right">
+                            <p className="text-xs uppercase text-primary-500">Discount</p>
+                            <p className="font-bold text-primary-700">
+                              {coupon.discountType === "percentage"
+                                ? `${coupon.discountValue}%`
+                                : `BDT ${coupon.discountValue}`}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mb-4 grid grid-cols-2 gap-3 text-sm text-gray-600">
+                          <div>
+                            <p className="text-xs uppercase text-gray-400">Code</p>
+                            <p className="font-semibold text-gray-900">{coupon.code}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-gray-400">Expires</p>
+                            <p className="font-semibold text-gray-900">
+                              {coupon.expiresAt ? new Date(coupon.expiresAt).toLocaleDateString() : "N/A"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-gray-400">Min order</p>
+                            <p>{coupon.minOrderAmount ? `BDT ${coupon.minOrderAmount}` : "No minimum"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-gray-400">Usage</p>
+                            <p>
+                              {coupon.usageLimit
+                                ? `${coupon.usedCount || 0}/${coupon.usageLimit}`
+                                : `${coupon.usedCount || 0} used`}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => copyCouponCode(coupon.code)}
+                          className="w-full rounded-lg border border-primary-200 px-4 py-2 text-sm font-medium text-primary-600 transition hover:bg-primary-50"
+                        >
+                          Copy Coupon Code
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {activeTab === "campaigns" && (

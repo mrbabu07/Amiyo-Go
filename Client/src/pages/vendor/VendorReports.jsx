@@ -178,13 +178,70 @@ export default function VendorReports() {
 
             {activeTab === "traffic" && (
               <div className="rounded-xl bg-white p-6 shadow-sm">
-                <h2 className="mb-4 text-lg font-semibold text-gray-900">Traffic Sources</h2>
+                <h2 className="mb-2 text-lg font-semibold text-gray-900">Traffic & Visibility</h2>
+                <p className="mb-6 text-sm text-gray-500">{report?.trafficMessage}</p>
+
                 {(report?.trafficSources || []).length === 0 ? (
                   <EmptyState
                     title="Traffic tracking is not configured"
                     text={report?.trafficMessage || "Once source tracking is connected, visits by source will appear here."}
                   />
-                ) : null}
+                ) : (
+                  <>
+                    <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+                      {(report.trafficSources || []).map((metric) => (
+                        <div key={metric.label} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                          <p className="text-sm text-gray-500">{metric.label}</p>
+                          <p className="mt-2 text-2xl font-bold text-gray-900">{metric.value}</p>
+                          <p className="text-xs uppercase tracking-wide text-gray-400">{metric.unit}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                      <div className="rounded-xl border border-gray-100 p-5">
+                        <h3 className="mb-4 font-semibold text-gray-900">Visibility Summary</h3>
+                        <div className="space-y-3 text-sm text-gray-700">
+                          <div className="flex items-center justify-between">
+                            <span>Average views per product</span>
+                            <span className="font-semibold">{report?.visibilityStats?.averageViewsPerProduct || 0}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Products with at least one view</span>
+                            <span className="font-semibold">{report?.visibilityStats?.productsWithViews || 0}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Products still waiting for first view</span>
+                            <span className="font-semibold">{report?.visibilityStats?.zeroViewProducts || 0}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Cancelled orders</span>
+                            <span className="font-semibold">{report?.summary?.cancelledOrders || 0}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-gray-100 p-5">
+                        <h3 className="mb-4 font-semibold text-gray-900">Top Viewed Products</h3>
+                        {(report?.visibilityStats?.topViewedProducts || []).length === 0 ? (
+                          <p className="text-sm text-gray-500">No product views recorded yet.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {report.visibilityStats.topViewedProducts.map((product) => (
+                              <div key={product.productId} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-3 text-sm">
+                                <div>
+                                  <p className="font-medium text-gray-900">{product.name}</p>
+                                  <p className="text-xs text-gray-500">Stock: {product.stock}</p>
+                                </div>
+                                <span className="font-semibold text-orange-600">{product.views} views</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </>

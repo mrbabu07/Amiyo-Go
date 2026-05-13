@@ -97,7 +97,12 @@ export default function OfferForm() {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]:
+        type === "checkbox"
+          ? checked
+          : name === "couponCode"
+            ? value.toUpperCase()
+            : value,
     }));
   };
 
@@ -129,22 +134,44 @@ export default function OfferForm() {
     }));
   };
 
+  const validationError = (() => {
+    const title = formData.title.trim();
+    const description = formData.description.trim();
+    const discountValue = Number(formData.discountValue);
+    const priority = Number(formData.priority);
+
+    if (!title || !description || !formData.discountValue || !formData.startDate || !formData.endDate) {
+      return "";
+    }
+    if (Number.isNaN(discountValue) || discountValue <= 0) {
+      return "Discount value must be greater than zero.";
+    }
+    if (formData.discountType === "percentage" && discountValue > 100) {
+      return "Percentage discount cannot be more than 100%.";
+    }
+    if (!isEditMode && !formData.image) {
+      return "Please upload an image before saving the offer.";
+    }
+    if (Number.isNaN(priority) || priority < 0) {
+      return "Priority must be zero or more.";
+    }
+    if (new Date(formData.startDate) >= new Date(formData.endDate)) {
+      return "End date must be after start date.";
+    }
+    if (formData.couponCode && !/^[A-Z0-9_-]{3,30}$/.test(formData.couponCode.trim())) {
+      return "Coupon code must be 3-30 characters and use only letters, numbers, dash, or underscore.";
+    }
+    if (!formData.buttonLink.startsWith("/")) {
+      return "Button link must start with /.";
+    }
+    return "";
+  })();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validation
-    if (!formData.title || !formData.description || !formData.discountValue) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
-    if (!isEditMode && !formData.image) {
-      toast.error("Please upload an image");
-      return;
-    }
-
-    if (new Date(formData.startDate) >= new Date(formData.endDate)) {
-      toast.error("End date must be after start date");
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
@@ -511,6 +538,12 @@ export default function OfferForm() {
             </div>
           </div>
 
+          {validationError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {validationError}
+            </div>
+          )}
+
           {/* Submit Buttons */}
           <div className="flex gap-4">
             <button
@@ -522,7 +555,7 @@ export default function OfferForm() {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || Boolean(validationError)}
               className="flex-1 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
             >
               {loading ? (

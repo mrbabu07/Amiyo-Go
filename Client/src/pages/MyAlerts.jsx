@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
 import { useToast } from "../context/ToastContext";
@@ -12,6 +12,7 @@ export default function MyAlerts() {
   const { formatPrice } = useCurrency();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState("all");
 
   useEffect(() => {
     if (user) {
@@ -144,6 +145,22 @@ export default function MyAlerts() {
     }
   };
 
+  const filteredAlerts = useMemo(() => {
+    if (activeFilter === "all") return alerts;
+    if (activeFilter === "notified") return alerts.filter((alert) => alert.notified);
+    return alerts.filter((alert) => alert.alertType === activeFilter);
+  }, [activeFilter, alerts]);
+
+  const alertSummary = useMemo(
+    () => [
+      { id: "all", label: "All Alerts", value: alerts.length },
+      { id: "back_in_stock", label: "Back In Stock", value: alerts.filter((alert) => alert.alertType === "back_in_stock").length },
+      { id: "price_drop", label: "Price Drop", value: alerts.filter((alert) => alert.alertType === "price_drop").length },
+      { id: "notified", label: "Notified", value: alerts.filter((alert) => alert.notified).length },
+    ],
+    [alerts],
+  );
+
   if (loading) return <Loading />;
 
   return (
@@ -185,7 +202,30 @@ export default function MyAlerts() {
         </div>
       ) : (
         <div className="space-y-4">
-          {alerts.map((alert) => (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {alertSummary.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveFilter(item.id)}
+                className={`rounded-xl border px-4 py-3 text-left transition ${
+                  activeFilter === item.id
+                    ? "border-primary-500 bg-primary-50"
+                    : "border-gray-200 bg-white hover:border-primary-200"
+                }`}
+              >
+                <div className="text-xs uppercase tracking-wide text-gray-500">{item.label}</div>
+                <div className="mt-1 text-2xl font-bold text-gray-900">{item.value}</div>
+              </button>
+            ))}
+          </div>
+
+          {filteredAlerts.length === 0 && (
+            <div className="rounded-xl border border-dashed border-gray-200 bg-white px-6 py-10 text-center text-sm text-gray-500">
+              No alerts match this filter.
+            </div>
+          )}
+
+          {filteredAlerts.map((alert) => (
             <div
               key={alert._id}
               className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition"
@@ -248,7 +288,7 @@ export default function MyAlerts() {
 
                   <div className="flex items-center gap-3">
                     <Link
-                      to={`/products/${alert.productId?._id}`}
+                      to={`/product/${alert.productId?._id}`}
                       className="text-primary-500 hover:text-primary-600 font-medium text-sm"
                     >
                       View Product →
@@ -288,3 +328,4 @@ export default function MyAlerts() {
     </div>
   );
 }
+

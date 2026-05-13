@@ -44,6 +44,23 @@ class CustomerInsight {
     return insight;
   }
 
+  getOrderItems(order) {
+    const products = Array.isArray(order?.products) ? order.products : [];
+    return products.map((product) => ({
+      productId: product.productId || product._id || null,
+      quantity: Number(product.quantity || 0),
+      price: Number(product.price || 0),
+      category:
+        product.categoryName ||
+        product.category ||
+        product.categorySlug ||
+        product.categoryId ||
+        null,
+      brand: product.brand || null,
+      title: product.title || product.name || "Product",
+    }));
+  }
+
   async getOrderHistory(userId) {
     const orders = await this.ordersCollection
       .find({ userId })
@@ -54,10 +71,13 @@ class CustomerInsight {
     return {
       totalOrders: orders.length,
       orders: orders.map((order) => ({
-        orderId: order.orderId,
-        total: order.total,
-        status: order.status,
-        items: order.items.length,
+        orderId: order.orderId || order._id?.toString?.() || null,
+        total: Number(order.total || 0),
+        status: order.status || "pending",
+        items: this.getOrderItems(order).reduce(
+          (sum, item) => sum + Number(item.quantity || 0),
+          0,
+        ),
         createdAt: order.createdAt,
       })),
     };
@@ -109,35 +129,54 @@ class CustomerInsight {
   }
 
   async getCustomerPreferences(userId) {
-    // Analyze purchase patterns to determine preferences
     const orders = await this.ordersCollection.find({ userId }).toArray();
 
     const categoryPreferences = {};
     const brandPreferences = {};
     const priceRanges = [];
+    const productIds = [
+      ...new Set(
+        orders.flatMap((order) =>
+          this.getOrderItems(order)
+            .map((item) => item.productId?.toString?.() || item.productId)
+            .filter(Boolean),
+        ),
+      ),
+    ];
+
+    const validProductIds = productIds
+      .filter((id) => ObjectId.isValid(id))
+      .map((id) => new ObjectId(id));
+    const products = validProductIds.length
+      ? await this.productsCollection
+          .find({ _id: { $in: validProductIds } })
+          .toArray()
+      : [];
+    const productMap = new Map(products.map((product) => [product._id.toString(), product]));
 
     for (const order of orders) {
-      for (const item of order.items) {
-        // Get product details
-        const product = await this.productsCollection.findOne({
-          _id: new ObjectId(item.productId),
-        });
+      for (const item of this.getOrderItems(order)) {
+        const product = item.productId ? productMap.get(item.productId.toString()) : null;
+        const quantity = Number(item.quantity || 0) || 1;
+        const category =
+          product?.categoryName ||
+          product?.category ||
+          item.category?.toString?.() ||
+          item.category ||
+          "Uncategorized";
+        const brand = product?.brand || item.brand || null;
+        const price = Number(product?.price ?? item.price ?? 0);
 
-        if (product) {
-          // Category preferences
-          const category = product.category;
-          categoryPreferences[category] =
-            (categoryPreferences[category] || 0) + item.quantity;
+        categoryPreferences[category] =
+          (categoryPreferences[category] || 0) + quantity;
 
-          // Brand preferences
-          const brand = product.brand;
-          if (brand) {
-            brandPreferences[brand] =
-              (brandPreferences[brand] || 0) + item.quantity;
-          }
+        if (brand) {
+          brandPreferences[brand] =
+            (brandPreferences[brand] || 0) + quantity;
+        }
 
-          // Price range analysis
-          priceRanges.push(product.price);
+        if (price > 0) {
+          priceRanges.push(price);
         }
       }
     }
@@ -169,8 +208,11 @@ class CustomerInsight {
 
   async calculateAnalytics(userId, orderHistory) {
     const orders = orderHistory.orders;
+    const successfulOrders = orders.filter(
+      (order) => !["cancelled", "failed"].includes(order.status),
+    );
 
-    if (orders.length === 0) {
+    if (successfulOrders.length === 0) {
       return {
         totalSpent: 0,
         averageOrderValue: 0,
@@ -181,23 +223,26 @@ class CustomerInsight {
       };
     }
 
-    const totalSpent = orders.reduce((sum, order) => sum + order.total, 0);
-    const averageOrderValue = totalSpent / orders.length;
+    const totalSpent = successfulOrders.reduce(
+      (sum, order) => sum + Number(order.total || 0),
+      0,
+    );
+    const averageOrderValue = totalSpent / successfulOrders.length;
 
     // Calculate order frequency (orders per month)
-    const firstOrder = new Date(orders[orders.length - 1].createdAt);
-    const lastOrder = new Date(orders[0].createdAt);
+    const firstOrder = new Date(successfulOrders[successfulOrders.length - 1].createdAt);
+    const lastOrder = new Date(successfulOrders[0].createdAt);
     const monthsDiff = Math.max(
       1,
       (lastOrder - firstOrder) / (1000 * 60 * 60 * 24 * 30),
     );
-    const orderFrequency = orders.length / monthsDiff;
+    const orderFrequency = successfulOrders.length / monthsDiff;
 
     // Simple customer segmentation
     let customerSegment = "new";
-    if (totalSpent > 1000 && orders.length > 5) {
+    if (totalSpent > 1000 && successfulOrders.length > 5) {
       customerSegment = "vip";
-    } else if (totalSpent > 500 || orders.length > 3) {
+    } else if (totalSpent > 500 || successfulOrders.length > 3) {
       customerSegment = "regular";
     }
 
@@ -226,6 +271,8 @@ class CustomerInsight {
     const { page = 1, limit = 20, segment, sortBy = "lastUpdated" } = options;
     const query = {};
 
+    await this.ensureInsightCoverage();
+
     if (segment) {
       query["analytics.customerSegment"] = segment;
     }
@@ -248,6 +295,8 @@ class CustomerInsight {
   }
 
   async getCustomerSegmentStats() {
+    await this.ensureInsightCoverage();
+
     const stats = await this.collection
       .aggregate([
         {
@@ -262,6 +311,19 @@ class CustomerInsight {
       .toArray();
 
     return stats;
+  }
+
+  async ensureInsightCoverage(limit = 50) {
+    const existingCount = await this.collection.countDocuments();
+    if (existingCount > 0) return;
+
+    const recentUserIds = await this.ordersCollection.distinct("userId", {
+      userId: { $exists: true, $ne: null },
+    });
+
+    for (const userId of recentUserIds.slice(0, limit)) {
+      await this.generateInsight(userId);
+    }
   }
 }
 

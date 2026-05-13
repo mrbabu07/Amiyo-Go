@@ -58,6 +58,21 @@ export default function StockAlertButton({
       return;
     }
 
+    if (alertType === "price_drop") {
+      const threshold = Number(priceThreshold);
+      const currentPrice = Number(product.price || 0);
+
+      if (Number.isNaN(threshold) || threshold <= 0) {
+        error("Enter a valid target price");
+        return;
+      }
+
+      if (currentPrice > 0 && threshold >= currentPrice) {
+        error("Target price must be lower than the current product price");
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const token = await getCurrentUserToken();
@@ -73,7 +88,7 @@ export default function StockAlertButton({
             productId: product._id,
             alertType,
             priceThreshold:
-              alertType === "price_drop" ? parseFloat(priceThreshold) : null,
+              alertType === "price_drop" ? Number(priceThreshold) : null,
           }),
         },
       );
@@ -219,30 +234,33 @@ export default function StockAlertButton({
 
   if (showPriceInput) {
     return (
-      <div className="flex items-center gap-2">
-        <input
-          type="number"
-          value={priceThreshold}
-          onChange={(e) => setPriceThreshold(e.target.value)}
-          placeholder="Target price"
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          step="0.01"
-          min="0"
-          max={product.price}
-        />
-        <button
-          onClick={handleSubscribe}
-          disabled={loading || !priceThreshold}
-          className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Set Alert
-        </button>
-        <button
-          onClick={() => setShowPriceInput(false)}
-          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-        >
-          Cancel
-        </button>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            value={priceThreshold}
+            onChange={(e) => setPriceThreshold(e.target.value)}
+            placeholder="Target price"
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            step="0.01"
+            min="0"
+            max={product.price}
+          />
+          <button
+            onClick={handleSubscribe}
+            disabled={loading || !priceThreshold}
+            className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Set Alert
+          </button>
+          <button
+            onClick={() => setShowPriceInput(false)}
+            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+        </div>
+        <p className="text-xs text-gray-500">Choose a price lower than the current selling price.</p>
       </div>
     );
   }
@@ -262,3 +280,4 @@ export default function StockAlertButton({
     </button>
   );
 }
+

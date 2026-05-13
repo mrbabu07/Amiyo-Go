@@ -134,6 +134,48 @@ export default function AdminCoupons() {
     return new Date(dateString) < new Date();
   };
 
+  const validationError = (() => {
+    const code = formData.code.trim();
+    const name = formData.name.trim();
+    const discountValue = Number(formData.discountValue);
+    const maxDiscountAmount = formData.maxDiscountAmount === "" ? null : Number(formData.maxDiscountAmount);
+    const minOrderAmount = formData.minOrderAmount === "" ? null : Number(formData.minOrderAmount);
+    const usageLimit = formData.usageLimit === "" ? null : Number(formData.usageLimit);
+    const userUsageLimit = formData.userUsageLimit === "" ? null : Number(formData.userUsageLimit);
+
+    if (!code || !name || !formData.expiresAt || Number.isNaN(discountValue)) {
+      return "";
+    }
+    if (!/^[A-Z0-9_-]{3,30}$/.test(code)) {
+      return "Coupon code must be 3-30 characters and use only letters, numbers, dash, or underscore.";
+    }
+    if (discountValue <= 0) {
+      return "Discount value must be greater than zero.";
+    }
+    if (formData.discountType === "percentage" && discountValue > 100) {
+      return "Percentage discount cannot be more than 100%.";
+    }
+    if (maxDiscountAmount !== null && (Number.isNaN(maxDiscountAmount) || maxDiscountAmount < 0)) {
+      return "Maximum discount amount must be zero or more.";
+    }
+    if (minOrderAmount !== null && (Number.isNaN(minOrderAmount) || minOrderAmount < 0)) {
+      return "Minimum order amount must be zero or more.";
+    }
+    if (usageLimit !== null && (!Number.isInteger(usageLimit) || usageLimit < 1)) {
+      return "Usage limit must be a whole number greater than zero.";
+    }
+    if (userUsageLimit !== null && (!Number.isInteger(userUsageLimit) || userUsageLimit < 1)) {
+      return "Per-user limit must be a whole number greater than zero.";
+    }
+    if (usageLimit !== null && userUsageLimit !== null && userUsageLimit > usageLimit) {
+      return "Per-user limit cannot be greater than total usage limit.";
+    }
+    if (new Date(formData.expiresAt) < new Date(new Date().toDateString())) {
+      return "Expiry date cannot be in the past.";
+    }
+    return "";
+  })();
+
   if (loading) return <Loading />;
 
   return (
@@ -525,9 +567,18 @@ export default function AdminCoupons() {
           </div>
 
           <div className="flex gap-3 pt-4">
+            {validationError && (
+              <div className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {validationError}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 pt-1">
             <button
               type="submit"
-              className="flex-1 bg-primary-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-600 transition-colors"
+              disabled={Boolean(validationError)}
+              className="flex-1 bg-primary-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-600 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
             >
               {editingCoupon ? "Update Coupon" : "Create Coupon"}
             </button>
