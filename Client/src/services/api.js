@@ -80,8 +80,8 @@ export const subscribeNewsletter = (email, source = "web") =>
 
 // Coupons
 export const getActiveCoupons = () => api.get("/coupons/active");
-export const validateCoupon = (code, orderTotal) =>
-  api.post("/coupons/validate", { code, orderTotal });
+export const validateCoupon = (code, orderTotal, items = []) =>
+  api.post("/coupons/validate", { code, orderTotal, items });
 export const getAllCoupons = () => api.get("/coupons");
 export const createCoupon = (data) => api.post("/coupons", data);
 export const updateCoupon = (id, data) => api.put(`/coupons/${id}`, data);
@@ -303,6 +303,27 @@ export const getVendorFinanceSummary = () =>
 
 export const getVendorFinanceTransactions = (params = {}) =>
   api.get("/vendors/finance/transactions", { params });
+
+export const getVendorMarketingItems = (params = {}) =>
+  api.get("/vendors/marketing/items", { params });
+
+export const createVendorMarketingItem = (data) =>
+  api.post("/vendors/marketing/items", data);
+
+export const updateVendorMarketingItem = (id, data) =>
+  api.patch(`/vendors/marketing/items/${id}`, data);
+
+export const deleteVendorMarketingItem = (id) =>
+  api.delete(`/vendors/marketing/items/${id}`);
+
+export const getAdminVendorMarketingItems = (params = {}) =>
+  api.get("/admin/vendor-marketing", { params });
+
+export const reviewAdminVendorMarketingItem = (id, data) =>
+  api.patch(`/admin/vendor-marketing/${id}/review`, data);
+
+export const getPublicVendorMarketingItems = (vendorId, params = {}) =>
+  api.get(`/vendors/${vendorId}/public-marketing`, { params });
 
 
 // ── Vendor Order Management (Daraz-style) ─────────────────────

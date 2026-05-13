@@ -6,6 +6,7 @@ import { useCurrency } from "../hooks/useCurrency";
 import BackButton from "../components/BackButton";
 import useAuth from "../hooks/useAuth";
 import { auth } from "../firebase/firebase.config";
+import { getPublicVendorMarketingItems } from "../services/api";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -20,6 +21,8 @@ export default function VendorStore() {
   const [loading, setLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [storeMarketing, setStoreMarketing] = useState([]);
+  const [marketingLoading, setMarketingLoading] = useState(true);
   const [sortBy, setSortBy] = useState("newest");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
@@ -28,10 +31,12 @@ export default function VendorStore() {
   const [sending, setSending] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [copiedVoucherCode, setCopiedVoucherCode] = useState("");
 
   useEffect(() => {
     fetchVendorInfo();
     fetchVendorProducts();
+    fetchVendorMarketing();
     checkFollowStatus();
   }, [vendorId]);
 
@@ -118,6 +123,19 @@ export default function VendorStore() {
       console.error("Failed to fetch vendor products:", error);
     } finally {
       setProductsLoading(false);
+    }
+  };
+
+  const fetchVendorMarketing = async () => {
+    try {
+      setMarketingLoading(true);
+      const response = await getPublicVendorMarketingItems(vendorId);
+      setStoreMarketing(response.data.data || []);
+    } catch (error) {
+      console.error("Failed to fetch vendor marketing:", error);
+      setStoreMarketing([]);
+    } finally {
+      setMarketingLoading(false);
     }
   };
 
@@ -255,6 +273,19 @@ export default function VendorStore() {
       setSending(false);
     }
   };
+
+  const copyVoucherCode = async (code) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedVoucherCode(code);
+      window.setTimeout(() => setCopiedVoucherCode(""), 1800);
+    } catch (error) {
+      console.error("Failed to copy voucher code:", error);
+    }
+  };
+
+  const voucherItems = storeMarketing.filter((item) => item.type === "voucher");
+  const promotionItems = storeMarketing.filter((item) => item.type !== "voucher");
 
   if (loading) {
     return (
@@ -518,6 +549,131 @@ export default function VendorStore() {
                   </span>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Store Vouchers & Promotions */}
+      {(marketingLoading || storeMarketing.length > 0) && (
+        <div className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex flex-col gap-6 xl:flex-row">
+              <div className="xl:w-2/3">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                      Store Vouchers
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Collect seller vouchers here and apply them during checkout for this store.
+                    </p>
+                  </div>
+                </div>
+
+                {marketingLoading ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {[...Array(2)].map((_, index) => (
+                      <div key={index} className="h-32 animate-pulse rounded-2xl border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-700/40" />
+                    ))}
+                  </div>
+                ) : voucherItems.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-5 py-8 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
+                    This store does not have any approved vouchers live right now.
+                  </div>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {voucherItems.map((voucher) => (
+                      <div
+                        key={voucher._id}
+                        className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 via-white to-amber-50 p-5 shadow-sm dark:border-orange-900/40 dark:from-orange-950/20 dark:via-gray-900 dark:to-amber-950/10"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600 dark:text-orange-300">
+                              Seller voucher
+                            </p>
+                            <h3 className="mt-1 text-lg font-bold text-gray-900 dark:text-white">
+                              {voucher.title}
+                            </h3>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                              {voucher.description}
+                            </p>
+                          </div>
+                          <div className="rounded-xl bg-white px-3 py-2 text-right shadow-sm dark:bg-gray-800">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Save</p>
+                            <p className="text-lg font-black text-orange-600 dark:text-orange-300">
+                              {voucher.discountType === "percentage"
+                                ? `${voucher.discountValue}%`
+                                : formatPrice(voucher.discountValue || 0)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid gap-2 text-xs text-gray-600 dark:text-gray-400 sm:grid-cols-2">
+                          <p>
+                            Code: <span className="font-bold text-gray-900 dark:text-white">{voucher.code}</span>
+                          </p>
+                          <p>
+                            Min order: <span className="font-semibold text-gray-900 dark:text-white">{formatPrice(voucher.minOrderAmount || 0)}</span>
+                          </p>
+                          <p>
+                            Valid until: <span className="font-semibold text-gray-900 dark:text-white">{new Date(voucher.endDate).toLocaleDateString()}</span>
+                          </p>
+                          <p>
+                            Scope: <span className="font-semibold text-gray-900 dark:text-white">This store only</span>
+                          </p>
+                        </div>
+
+                        <div className="mt-4 flex items-center gap-3">
+                          <button
+                            onClick={() => copyVoucherCode(voucher.code)}
+                            className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700"
+                          >
+                            {copiedVoucherCode === voucher.code ? "Copied" : "Copy Code"}
+                          </button>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            Use this on checkout when your cart includes this seller&apos;s items.
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="xl:w-1/3">
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-900/30">
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                    Store Promotions
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Current promotional highlights from this seller.
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    {promotionItems.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        No active promotions or campaign announcements yet.
+                      </p>
+                    ) : (
+                      promotionItems.map((item) => (
+                        <div key={item._id} className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                              {item.type}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              Until {new Date(item.endDate).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <h4 className="mt-3 font-semibold text-gray-900 dark:text-white">{item.title}</h4>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{item.description}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

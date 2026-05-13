@@ -1,4 +1,10 @@
 const { ObjectId } = require("mongodb");
+const {
+  normalizeId,
+  round2,
+  getApprovedVendorVoucher,
+  calculateVendorVoucherDiscount,
+} = require("../utils/vendorMarketingVoucher");
 
 class Order {
   constructor(db) {
@@ -115,8 +121,6 @@ class Order {
   }
 
   async create(orderData) {
-    const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
-
     // Fetch categories to get commission rates
     const categoriesCollection = this.collection.db.collection("categories");
     const categoryDocs = await categoriesCollection.find({}).toArray();
@@ -183,8 +187,6 @@ class Order {
 
     // Use calculated subtotal (secure)
     const subtotal = calculatedSubtotal;
-    const totalDiscount = orderData.totalDiscount || 0;
-
     // Apply coupon discount if provided
     let couponDiscountAmount = 0;
     let couponApplied = null;
@@ -228,12 +230,59 @@ class Order {
             code: coupon.code,
             discountType: coupon.discountType,
             discountValue: coupon.discountValue,
-            discountAmount: Math.round(couponDiscountAmount * 100) / 100,
+            discountAmount: round2(couponDiscountAmount),
+            source: "admin_coupon",
           };
         }
       } catch (couponError) {
         console.error("Error processing coupon:", couponError);
         // Continue without coupon if there's an error
+      }
+
+      if (!couponApplied) {
+        try {
+          const vendorVoucher = await getApprovedVendorVoucher(this.collection.db, orderData.couponCode);
+          if (vendorVoucher) {
+            const voucherValidation = calculateVendorVoucherDiscount({
+              voucher: vendorVoucher,
+              items: orderData.products || [],
+            });
+
+            if (voucherValidation.valid) {
+              couponDiscountAmount = voucherValidation.discountAmount;
+
+              await this.collection.db.collection("vendorMarketingItems").updateOne(
+                { _id: vendorVoucher._id },
+                {
+                  $inc: { usedCount: 1 },
+                  $push: {
+                    usedBy: {
+                      userId: orderData.userId || null,
+                      usedAt: new Date(),
+                    },
+                  },
+                  $set: { updatedAt: new Date() },
+                },
+              );
+
+              couponApplied = {
+                couponId: vendorVoucher._id,
+                code: vendorVoucher.code,
+                name: vendorVoucher.title,
+                discountType: vendorVoucher.discountType,
+                discountValue: vendorVoucher.discountValue,
+                discountAmount: round2(couponDiscountAmount),
+                source: "vendor_voucher",
+                scopeVendorId: normalizeId(vendorVoucher.vendorId),
+                scopeVendorName: vendorVoucher.vendorName || "",
+                minOrderAmount: Number(vendorVoucher.minOrderAmount || 0),
+                vendorSubtotal: voucherValidation.vendorSubtotal,
+              };
+            }
+          }
+        } catch (voucherError) {
+          console.error("Error processing vendor voucher:", voucherError);
+        }
       }
     }
 
@@ -259,13 +308,13 @@ class Order {
     const result = await this.collection.insertOne({
       ...orderData,
       subtotal: Math.round(subtotal * 100) / 100,
-      couponDiscount: Math.round(couponDiscountAmount * 100) / 100,
-      pointsDiscount: Math.round(pointsDiscountAmount * 100) / 100,
-      totalDiscount: Math.round(totalDiscountAmount * 100) / 100,
-      deliveryCharge: Math.round(deliveryCharge * 100) / 100,
+      couponDiscount: round2(couponDiscountAmount),
+      pointsDiscount: round2(pointsDiscountAmount),
+      totalDiscount: round2(totalDiscountAmount),
+      deliveryCharge: round2(deliveryCharge),
       deliveryMethod: orderData.deliveryMethod || "standard",
       deliveryBreakdown: orderData.deliveryBreakdown || [],
-      total: Math.round(finalTotal * 100) / 100,
+      total: round2(finalTotal),
       couponApplied,
       redeemedPoints,
       transactionId: orderData.transactionId || null,

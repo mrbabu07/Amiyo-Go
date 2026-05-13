@@ -6,12 +6,14 @@ const vendorDashboardController = require("../controllers/vendorDashboardControl
 const vendorPerformanceController = require("../controllers/adminVendorPerformanceController");
 const adminFinanceController = require("../controllers/adminFinanceController");
 const vendorsFinanceController = require("../controllers/vendorsFinanceController");
+const vendorMarketingController = require("../controllers/vendorMarketingController");
 
 // Public vendor registration
 router.post("/register", verifyToken, vendorController.registerVendor);
 
 // Public vendor info (for product pages)
 router.get("/:id/public", vendorController.getVendorPublicInfo);
+router.get("/:id/public-marketing", vendorMarketingController.listPublicVendorMarketingItems);
 
 // Vendor follow/unfollow
 router.get("/:id/follow-status", verifyToken, vendorController.getFollowStatus);
@@ -26,6 +28,12 @@ router.post("/upload-banner", verifyToken, vendorController.uploadBanner);
 
 // Vendor allowed categories
 router.get("/my-categories", verifyToken, requireRole("vendor"), vendorController.getVendorAllowedCategories);
+
+// Vendor marketing workflow
+router.get("/marketing/items", verifyToken, requireRole("vendor"), vendorMarketingController.listVendorMarketingItems);
+router.post("/marketing/items", verifyToken, requireRole("vendor"), vendorMarketingController.createVendorMarketingItem);
+router.patch("/marketing/items/:id", verifyToken, requireRole("vendor"), vendorMarketingController.updateVendorMarketingItem);
+router.delete("/marketing/items/:id", verifyToken, requireRole("vendor"), vendorMarketingController.deleteVendorMarketingItem);
 
 // Vendor shop status management
 router.get("/shop/status", verifyToken, requireRole("vendor"), vendorController.getShopStatus);

@@ -1,17 +1,59 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
+import {
+  createVendorMarketingItem,
+  deleteVendorMarketingItem,
+  getActiveCoupons,
+  getActivePopupOffer,
+  getVendorMarketingItems,
+  updateVendorMarketingItem,
+} from "../../services/api";
 import useAuth from "../../hooks/useAuth";
-import { getActiveCoupons, getActivePopupOffer } from "../../services/api";
 
 const tabs = [
-  { id: "promotions", label: "Promotions", path: "/vendor/marketing/promotions" },
-  { id: "vouchers", label: "Vouchers", path: "/vendor/marketing/vouchers" },
-  { id: "campaigns", label: "Campaigns", path: "/vendor/marketing/campaigns" },
+  { id: "promotions", label: "Promotions", path: "/vendor/marketing/promotions", type: "promotion" },
+  { id: "vouchers", label: "Vouchers", path: "/vendor/marketing/vouchers", type: "voucher" },
+  { id: "campaigns", label: "Campaigns", path: "/vendor/marketing/campaigns", type: "campaign" },
 ];
+
+const initialFormByType = {
+  promotion: {
+    title: "",
+    description: "",
+    discountType: "percentage",
+    discountValue: "",
+    startDate: "",
+    endDate: "",
+    placement: "Homepage banner",
+  },
+  voucher: {
+    title: "",
+    description: "",
+    code: "",
+    discountType: "percentage",
+    discountValue: "",
+    minOrderAmount: "",
+    usageLimit: "",
+    startDate: "",
+    endDate: "",
+  },
+  campaign: {
+    campaignId: "",
+    title: "",
+    description: "",
+    requestedDiscountPercentage: "",
+    expectedProducts: "",
+    startDate: "",
+    endDate: "",
+  },
+};
 
 const statusBadge = (status) => {
   const map = {
+    pending: "bg-amber-100 text-amber-700",
+    approved: "bg-green-100 text-green-700",
+    rejected: "bg-red-100 text-red-700",
     Active: "bg-green-100 text-green-700",
     Scheduled: "bg-blue-100 text-blue-700",
     Ended: "bg-gray-100 text-gray-500",
@@ -26,23 +68,28 @@ const EmptyState = ({ title, text }) => (
   </div>
 );
 
+const toDateInput = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 16);
+};
+
 export default function VendorMarketing() {
   const { user } = useAuth();
   const location = useLocation();
+  const activeTab = tabs.find((tab) => location.pathname.includes(tab.id)) || tabs[0];
+
   const [campaigns, setCampaigns] = useState([]);
   const [coupons, setCoupons] = useState([]);
   const [popupOffer, setPopupOffer] = useState(null);
+  const [marketingItems, setMarketingItems] = useState([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
   const [loadingPromotions, setLoadingPromotions] = useState(false);
-  const [enrolledCampaignIds, setEnrolledCampaignIds] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("vendorCampaignEnrollments") || "[]");
-    } catch {
-      return [];
-    }
-  });
-
-  const activeTab = tabs.find((tab) => location.pathname.includes(tab.id))?.id || "promotions";
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [savingItem, setSavingItem] = useState(false);
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [formState, setFormState] = useState(initialFormByType);
 
   const fetchCampaigns = useCallback(async () => {
     if (!user) return;
@@ -78,30 +125,127 @@ export default function VendorMarketing() {
     }
   }, []);
 
+  const fetchVendorItems = useCallback(async () => {
+    try {
+      setLoadingItems(true);
+      const response = await getVendorMarketingItems();
+      setMarketingItems(response.data.data || []);
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to load your marketing submissions");
+    } finally {
+      setLoadingItems(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchCampaigns();
     fetchPromotions();
-  }, [fetchCampaigns, fetchPromotions]);
+    fetchVendorItems();
+  }, [fetchCampaigns, fetchPromotions, fetchVendorItems]);
+
+  useEffect(() => {
+    setEditingItemId(null);
+  }, [activeTab.id]);
+
+  const filteredVendorItems = useMemo(
+    () => marketingItems.filter((item) => item.type === activeTab.type),
+    [activeTab.type, marketingItems],
+  );
 
   const campaignStats = useMemo(
     () => ({
       active: campaigns.filter((campaign) => campaign.status === "Active").length,
-      scheduled: campaigns.filter((campaign) => campaign.status === "Scheduled").length,
-      enrolled: enrolledCampaignIds.length,
       coupons: coupons.length,
+      vendorSubmissions: marketingItems.filter((item) => item.status === "pending").length,
       popupOffers: popupOffer ? 1 : 0,
     }),
-    [campaigns, coupons.length, enrolledCampaignIds, popupOffer],
+    [campaigns, coupons.length, marketingItems, popupOffer],
   );
 
-  const toggleCampaign = (campaignId) => {
-    setEnrolledCampaignIds((prev) => {
-      const exists = prev.includes(campaignId);
-      const next = exists ? prev.filter((id) => id !== campaignId) : [...prev, campaignId];
-      localStorage.setItem("vendorCampaignEnrollments", JSON.stringify(next));
-      toast.success(exists ? "Campaign removed from your shortlist" : "Campaign added to your shortlist");
-      return next;
-    });
+  const currentForm = formState[activeTab.type];
+
+  const setCurrentForm = (updater) => {
+    setFormState((prev) => ({
+      ...prev,
+      [activeTab.type]:
+        typeof updater === "function" ? updater(prev[activeTab.type]) : updater,
+    }));
+  };
+
+  const resetCurrentForm = () => {
+    setCurrentForm(initialFormByType[activeTab.type]);
+    setEditingItemId(null);
+  };
+
+  const handleFieldChange = (field, value) => {
+    setCurrentForm((prev) => ({
+      ...prev,
+      [field]: field === "code" ? String(value).toUpperCase() : value,
+    }));
+  };
+
+  const submitForm = async () => {
+    const payload = {
+      ...currentForm,
+      type: activeTab.type,
+    };
+
+    try {
+      setSavingItem(true);
+      const response = editingItemId
+        ? await updateVendorMarketingItem(editingItemId, payload)
+        : await createVendorMarketingItem(payload);
+
+      const updatedItem = response.data.data;
+      setMarketingItems((prev) => {
+        if (editingItemId) {
+          return prev.map((item) => (item._id === editingItemId ? updatedItem : item));
+        }
+        return [updatedItem, ...prev];
+      });
+
+      toast.success(response.data.message || "Marketing submission saved");
+      resetCurrentForm();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to save marketing submission");
+    } finally {
+      setSavingItem(false);
+    }
+  };
+
+  const editItem = (item) => {
+    setEditingItemId(item._id);
+    setFormState((prev) => ({
+      ...prev,
+      [item.type]: {
+        title: item.title || "",
+        description: item.description || "",
+        discountType: item.discountType || "percentage",
+        discountValue: item.discountValue ?? "",
+        startDate: toDateInput(item.startDate),
+        endDate: toDateInput(item.endDate),
+        placement: item.placement || "Homepage banner",
+        code: item.code || "",
+        minOrderAmount: item.minOrderAmount ?? "",
+        usageLimit: item.usageLimit ?? "",
+        campaignId: item.campaignId || "",
+        requestedDiscountPercentage: item.requestedDiscountPercentage ?? "",
+        expectedProducts: item.expectedProducts ?? "",
+      },
+    }));
+  };
+
+  const removeItem = async (itemId) => {
+    try {
+      await deleteVendorMarketingItem(itemId);
+      setMarketingItems((prev) => prev.filter((item) => item._id !== itemId));
+      if (editingItemId === itemId) {
+        resetCurrentForm();
+      }
+      toast.success("Marketing submission deleted");
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to delete marketing submission");
+    }
   };
 
   const copyCouponCode = async (code) => {
@@ -111,6 +255,61 @@ export default function VendorMarketing() {
     } catch {
       toast.error("Unable to copy code");
     }
+  };
+
+  const renderComposer = () => {
+    if (activeTab.type === "promotion") {
+      return (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <input value={currentForm.title} onChange={(e) => handleFieldChange("title", e.target.value)} placeholder="Promotion title" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+          <select value={currentForm.discountType} onChange={(e) => handleFieldChange("discountType", e.target.value)} className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400">
+            <option value="percentage">Percentage discount</option>
+            <option value="fixed">Fixed discount</option>
+          </select>
+          <input value={currentForm.discountValue} onChange={(e) => handleFieldChange("discountValue", e.target.value)} placeholder="Discount value" type="number" min="0" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+          <input value={currentForm.placement} onChange={(e) => handleFieldChange("placement", e.target.value)} placeholder="Placement, e.g. Homepage banner" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+          <input value={currentForm.startDate} onChange={(e) => handleFieldChange("startDate", e.target.value)} type="datetime-local" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+          <input value={currentForm.endDate} onChange={(e) => handleFieldChange("endDate", e.target.value)} type="datetime-local" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+          <textarea value={currentForm.description} onChange={(e) => handleFieldChange("description", e.target.value)} placeholder="Promotion details for admin review" rows={4} className="md:col-span-2 rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+        </div>
+      );
+    }
+
+    if (activeTab.type === "voucher") {
+      return (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <input value={currentForm.title} onChange={(e) => handleFieldChange("title", e.target.value)} placeholder="Voucher title" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+          <input value={currentForm.code} onChange={(e) => handleFieldChange("code", e.target.value)} placeholder="Voucher code" className="rounded-lg border border-gray-300 px-4 py-3 text-sm uppercase focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+          <select value={currentForm.discountType} onChange={(e) => handleFieldChange("discountType", e.target.value)} className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400">
+            <option value="percentage">Percentage discount</option>
+            <option value="fixed">Fixed discount</option>
+          </select>
+          <input value={currentForm.discountValue} onChange={(e) => handleFieldChange("discountValue", e.target.value)} placeholder="Discount value" type="number" min="0" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+          <input value={currentForm.minOrderAmount} onChange={(e) => handleFieldChange("minOrderAmount", e.target.value)} placeholder="Minimum order amount" type="number" min="0" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+          <input value={currentForm.usageLimit} onChange={(e) => handleFieldChange("usageLimit", e.target.value)} placeholder="Usage limit" type="number" min="1" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+          <input value={currentForm.startDate} onChange={(e) => handleFieldChange("startDate", e.target.value)} type="datetime-local" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+          <input value={currentForm.endDate} onChange={(e) => handleFieldChange("endDate", e.target.value)} type="datetime-local" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+          <textarea value={currentForm.description} onChange={(e) => handleFieldChange("description", e.target.value)} placeholder="Voucher details for admin review" rows={4} className="md:col-span-2 rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <select value={currentForm.campaignId} onChange={(e) => handleFieldChange("campaignId", e.target.value)} className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400">
+          <option value="">Custom campaign request</option>
+          {campaigns.map((campaign) => (
+            <option key={campaign._id} value={campaign._id}>{campaign.name}</option>
+          ))}
+        </select>
+        <input value={currentForm.title} onChange={(e) => handleFieldChange("title", e.target.value)} placeholder="Campaign request title" disabled={Boolean(currentForm.campaignId)} className="rounded-lg border border-gray-300 px-4 py-3 text-sm disabled:bg-gray-100 focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+        <input value={currentForm.requestedDiscountPercentage} onChange={(e) => handleFieldChange("requestedDiscountPercentage", e.target.value)} placeholder="Requested discount %" type="number" min="1" max="100" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+        <input value={currentForm.expectedProducts} onChange={(e) => handleFieldChange("expectedProducts", e.target.value)} placeholder="Expected product count" type="number" min="1" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+        <input value={currentForm.startDate} onChange={(e) => handleFieldChange("startDate", e.target.value)} type="datetime-local" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+        <input value={currentForm.endDate} onChange={(e) => handleFieldChange("endDate", e.target.value)} type="datetime-local" className="rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+        <textarea value={currentForm.description} onChange={(e) => handleFieldChange("description", e.target.value)} placeholder="Explain why this campaign should run and how it helps your store" rows={4} className="md:col-span-2 rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-orange-400" />
+      </div>
+    );
   };
 
   return (
@@ -127,7 +326,7 @@ export default function VendorMarketing() {
             </Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Marketing Tools</h1>
-              <p className="text-sm text-gray-500">Review live platform campaigns, checkout vouchers, and current storefront promotions.</p>
+              <p className="text-sm text-gray-500">Create vendor marketing submissions, review platform opportunities, and track approval status.</p>
             </div>
           </div>
         </div>
@@ -138,7 +337,7 @@ export default function VendorMarketing() {
           {[
             { label: "Active Campaigns", value: campaignStats.active, color: "text-green-600" },
             { label: "Active Coupons", value: campaignStats.coupons, color: "text-blue-600" },
-            { label: "Shortlisted", value: campaignStats.enrolled, color: "text-orange-600" },
+            { label: "Pending Reviews", value: campaignStats.vendorSubmissions, color: "text-orange-600" },
             { label: "Popup Offers", value: campaignStats.popupOffers, color: "text-gray-900" },
           ].map((item) => (
             <div key={item.label} className="rounded-xl bg-white p-4 shadow-sm">
@@ -157,7 +356,7 @@ export default function VendorMarketing() {
                 key={tab.id}
                 to={tab.path}
                 className={`flex-1 border-b-2 py-4 text-center text-sm font-medium transition ${
-                  activeTab === tab.id
+                  activeTab.id === tab.id
                     ? "border-orange-500 bg-orange-50 text-orange-600"
                     : "border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-700"
                 }`}
@@ -167,119 +366,81 @@ export default function VendorMarketing() {
             ))}
           </div>
 
-          <div className="p-6">
-            {activeTab === "promotions" && (
-              <div className="space-y-6">
+          <div className="space-y-6 p-6">
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+              <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <h3 className="font-semibold text-gray-900">Storefront Promotions</h3>
+                  <h3 className="font-semibold text-gray-900">
+                    {editingItemId ? "Edit Submission" : `Create ${activeTab.label.slice(0, -1) || activeTab.label}`}
+                  </h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    Use these active platform promotions when you plan product launches, banners, and customer messaging.
+                    Vendor submissions stay pending until admin reviews and approves them.
                   </p>
                 </div>
-
-                {loadingPromotions ? (
-                  <div className="rounded-xl bg-gray-50 p-8 text-center text-sm text-gray-500">Loading promotions...</div>
-                ) : !popupOffer ? (
-                  <EmptyState
-                    title="No popup promotion is active right now"
-                    text="When admin publishes a popup offer, its headline, discount, and target products will appear here for vendors."
-                  />
-                ) : (
-                  <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Live popup offer</p>
-                        <h4 className="mt-2 text-2xl font-bold text-gray-900">{popupOffer.title}</h4>
-                        <p className="mt-2 max-w-2xl text-sm text-gray-600">{popupOffer.description}</p>
-                      </div>
-                      <div className="rounded-xl bg-white px-4 py-3 text-right shadow-sm">
-                        <p className="text-xs uppercase text-gray-400">Discount</p>
-                        <p className="text-2xl font-bold text-orange-600">
-                          {popupOffer.discountType === "percentage"
-                            ? `${popupOffer.discountValue}%`
-                            : `BDT ${popupOffer.discountValue}`}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
-                      <div className="rounded-xl bg-white p-4 shadow-sm">
-                        <p className="text-xs uppercase text-gray-400">Start</p>
-                        <p className="mt-1 font-semibold text-gray-900">
-                          {new Date(popupOffer.startDate).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="rounded-xl bg-white p-4 shadow-sm">
-                        <p className="text-xs uppercase text-gray-400">End</p>
-                        <p className="mt-1 font-semibold text-gray-900">
-                          {new Date(popupOffer.endDate).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="rounded-xl bg-white p-4 shadow-sm">
-                        <p className="text-xs uppercase text-gray-400">Targeting</p>
-                        <p className="mt-1 font-semibold text-gray-900">
-                          {popupOffer.targetProducts?.length ? `${popupOffer.targetProducts.length} products` : "All products"}
-                        </p>
-                      </div>
-                      <div className="rounded-xl bg-white p-4 shadow-sm">
-                        <p className="text-xs uppercase text-gray-400">CTA</p>
-                        <p className="mt-1 font-semibold text-gray-900">
-                          {popupOffer.buttonText || "Shop Now"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                      <span className="rounded-full bg-white px-3 py-1 shadow-sm">
-                        Link: {popupOffer.buttonLink || "/products"}
-                      </span>
-                      {popupOffer.couponCode && (
-                        <span className="rounded-full bg-white px-3 py-1 shadow-sm">
-                          Coupon: {popupOffer.couponCode}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                {editingItemId && (
+                  <button onClick={resetCurrentForm} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-white">
+                    Cancel Edit
+                  </button>
                 )}
+              </div>
+
+              {renderComposer()}
+
+              <div className="mt-4 flex justify-end gap-3">
+                <button onClick={resetCurrentForm} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-white">
+                  Reset
+                </button>
+                <button onClick={submitForm} disabled={savingItem} className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:opacity-60">
+                  {savingItem ? "Saving..." : editingItemId ? "Update Submission" : "Submit For Review"}
+                </button>
+              </div>
+            </div>
+
+            {activeTab.type === "promotion" && (
+              <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Live popup offer</p>
+                    <h4 className="mt-2 text-2xl font-bold text-gray-900">{popupOffer?.title || "No active popup promotion"}</h4>
+                    <p className="mt-2 max-w-2xl text-sm text-gray-600">
+                      {popupOffer?.description || "When admin publishes a popup offer, it appears here so vendors can align their product launches and pricing."}
+                    </p>
+                  </div>
+                  {popupOffer && (
+                    <div className="rounded-xl bg-white px-4 py-3 text-right shadow-sm">
+                      <p className="text-xs uppercase text-gray-400">Discount</p>
+                      <p className="text-2xl font-bold text-orange-600">
+                        {popupOffer.discountType === "percentage" ? `${popupOffer.discountValue}%` : `BDT ${popupOffer.discountValue}`}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-            {activeTab === "vouchers" && (
+            {activeTab.type === "voucher" && (
               <div>
-                <div className="mb-6">
-                  <h3 className="font-semibold text-gray-900">Checkout Vouchers</h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    These are the active coupon codes customers can use during checkout. Share them in livestreams, chat, and store banners.
-                  </p>
+                <div className="mb-4">
+                  <h3 className="font-semibold text-gray-900">Platform Vouchers</h3>
+                  <p className="mt-1 text-sm text-gray-500">These are admin-controlled checkout coupons your customers can already use.</p>
                 </div>
-
                 {loadingPromotions ? (
                   <div className="rounded-xl bg-gray-50 p-8 text-center text-sm text-gray-500">Loading vouchers...</div>
                 ) : coupons.length === 0 ? (
-                  <EmptyState
-                    title="No active coupons available"
-                    text="Admin coupons will show up here automatically as soon as they are active and not expired."
-                  />
+                  <EmptyState title="No active coupons available" text="Admin coupons will show here automatically." />
                 ) : (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     {coupons.map((coupon) => (
                       <div key={coupon._id} className="rounded-xl border border-gray-200 bg-white p-5">
-                        <div className="mb-4 flex items-start justify-between gap-3">
+                        <div className="mb-3 flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Coupon</p>
-                            <h4 className="mt-1 text-lg font-semibold text-gray-900">{coupon.name}</h4>
+                            <h4 className="font-semibold text-gray-900">{coupon.name}</h4>
                             <p className="mt-1 text-sm text-gray-500">{coupon.description || "No description provided."}</p>
                           </div>
-                          <div className="rounded-xl bg-primary-50 px-3 py-2 text-right">
-                            <p className="text-xs uppercase text-primary-500">Discount</p>
-                            <p className="font-bold text-primary-700">
-                              {coupon.discountType === "percentage"
-                                ? `${coupon.discountValue}%`
-                                : `BDT ${coupon.discountValue}`}
-                            </p>
-                          </div>
+                          <span className="rounded-full bg-primary-50 px-3 py-1 text-sm font-bold text-primary-700">
+                            {coupon.discountType === "percentage" ? `${coupon.discountValue}%` : `BDT ${coupon.discountValue}`}
+                          </span>
                         </div>
-
                         <div className="mb-4 grid grid-cols-2 gap-3 text-sm text-gray-600">
                           <div>
                             <p className="text-xs uppercase text-gray-400">Code</p>
@@ -287,28 +448,10 @@ export default function VendorMarketing() {
                           </div>
                           <div>
                             <p className="text-xs uppercase text-gray-400">Expires</p>
-                            <p className="font-semibold text-gray-900">
-                              {coupon.expiresAt ? new Date(coupon.expiresAt).toLocaleDateString() : "N/A"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs uppercase text-gray-400">Min order</p>
-                            <p>{coupon.minOrderAmount ? `BDT ${coupon.minOrderAmount}` : "No minimum"}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs uppercase text-gray-400">Usage</p>
-                            <p>
-                              {coupon.usageLimit
-                                ? `${coupon.usedCount || 0}/${coupon.usageLimit}`
-                                : `${coupon.usedCount || 0} used`}
-                            </p>
+                            <p>{coupon.expiresAt ? new Date(coupon.expiresAt).toLocaleDateString() : "N/A"}</p>
                           </div>
                         </div>
-
-                        <button
-                          onClick={() => copyCouponCode(coupon.code)}
-                          className="w-full rounded-lg border border-primary-200 px-4 py-2 text-sm font-medium text-primary-600 transition hover:bg-primary-50"
-                        >
+                        <button onClick={() => copyCouponCode(coupon.code)} className="w-full rounded-lg border border-primary-200 px-4 py-2 text-sm font-medium text-primary-600 transition hover:bg-primary-50">
                           Copy Coupon Code
                         </button>
                       </div>
@@ -318,66 +461,117 @@ export default function VendorMarketing() {
               </div>
             )}
 
-            {activeTab === "campaigns" && (
+            {activeTab.type === "campaign" && (
               <div>
-                <div className="mb-6">
+                <div className="mb-4">
                   <h3 className="font-semibold text-gray-900">Platform Campaigns</h3>
-                  <p className="mt-1 text-sm text-gray-500">These campaigns come from the admin campaign system.</p>
+                  <p className="mt-1 text-sm text-gray-500">Join existing platform campaigns or submit your own campaign request for admin review.</p>
                 </div>
-
                 {loadingCampaigns ? (
                   <div className="rounded-xl bg-gray-50 p-8 text-center text-sm text-gray-500">Loading campaigns...</div>
                 ) : campaigns.length === 0 ? (
                   <EmptyState title="No active or scheduled campaigns" text="Admin campaigns will appear here after they are published." />
                 ) : (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {campaigns.map((campaign) => {
-                      const campaignId = campaign._id || campaign.id;
-                      const shortlisted = enrolledCampaignIds.includes(campaignId);
-                      return (
-                        <div key={campaignId} className={`rounded-xl border p-5 transition ${shortlisted ? "border-orange-300 bg-orange-50" : "border-gray-200 bg-white hover:shadow-sm"}`}>
-                          <div className="mb-3 flex items-start justify-between gap-3">
-                            <div>
-                              <h4 className="font-semibold text-gray-900">{campaign.name}</h4>
-                              <p className="mt-1 line-clamp-2 text-sm text-gray-500">{campaign.description || "No description provided."}</p>
-                            </div>
-                            <span className={`rounded-full px-2 py-1 text-xs font-bold ${statusBadge(campaign.status)}`}>{campaign.status}</span>
+                    {campaigns.map((campaign) => (
+                      <div key={campaign._id} className="rounded-xl border border-gray-200 bg-white p-5">
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{campaign.name}</h4>
+                            <p className="mt-1 line-clamp-2 text-sm text-gray-500">{campaign.description || "No description provided."}</p>
                           </div>
-                          <div className="mb-4 grid grid-cols-2 gap-3 text-sm text-gray-600">
-                            <div>
-                              <p className="text-xs uppercase text-gray-400">Discount</p>
-                              <p className="font-semibold">{campaign.discountPercentage}%</p>
-                            </div>
-                            <div>
-                              <p className="text-xs uppercase text-gray-400">Max Products</p>
-                              <p className="font-semibold">{campaign.maxProductsPerVendor || 0}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs uppercase text-gray-400">Start</p>
-                              <p>{campaign.startDate ? new Date(campaign.startDate).toLocaleDateString() : "N/A"}</p>
-                            </div>
-                            <div>
-                              <p className="text-xs uppercase text-gray-400">End</p>
-                              <p>{campaign.endDate ? new Date(campaign.endDate).toLocaleDateString() : "N/A"}</p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => toggleCampaign(campaignId)}
-                            className={`w-full rounded-lg py-2 text-sm font-medium transition ${
-                              shortlisted
-                                ? "border border-red-200 text-red-600 hover:bg-red-50"
-                                : "bg-orange-500 text-white hover:bg-orange-600"
-                            }`}
-                          >
-                            {shortlisted ? "Remove From Shortlist" : "Shortlist Campaign"}
-                          </button>
+                          <span className={`rounded-full px-2 py-1 text-xs font-bold ${statusBadge(campaign.status)}`}>{campaign.status}</span>
                         </div>
-                      );
-                    })}
+                        <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
+                          <div>
+                            <p className="text-xs uppercase text-gray-400">Discount</p>
+                            <p className="font-semibold">{campaign.discountPercentage}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase text-gray-400">Max Products</p>
+                            <p className="font-semibold">{campaign.maxProductsPerVendor || 0}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
             )}
+
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-gray-900">Your Submissions</h3>
+                  <p className="mt-1 text-sm text-gray-500">Track which items are still pending review and which ones were approved or rejected.</p>
+                </div>
+              </div>
+
+              {loadingItems ? (
+                <div className="rounded-xl bg-gray-50 p-8 text-center text-sm text-gray-500">Loading your submissions...</div>
+              ) : filteredVendorItems.length === 0 ? (
+                <EmptyState
+                  title={`No ${activeTab.label.toLowerCase()} submitted yet`}
+                  text="Create your first submission above. It will appear here immediately with a review status."
+                />
+              ) : (
+                <div className="space-y-4">
+                  {filteredVendorItems.map((item) => (
+                    <div key={item._id} className="rounded-xl border border-gray-200 bg-white p-5">
+                      <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <h4 className="text-lg font-semibold text-gray-900">{item.title}</h4>
+                          <p className="mt-1 text-sm text-gray-500">{item.description}</p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold capitalize ${statusBadge(item.status)}`}>{item.status}</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 text-sm text-gray-600 md:grid-cols-4">
+                        {item.discountValue ? (
+                          <div>
+                            <p className="text-xs uppercase text-gray-400">Discount</p>
+                            <p>{item.discountType === "percentage" ? `${item.discountValue}%` : `BDT ${item.discountValue}`}</p>
+                          </div>
+                        ) : null}
+                        {item.code ? (
+                          <div>
+                            <p className="text-xs uppercase text-gray-400">Code</p>
+                            <p>{item.code}</p>
+                          </div>
+                        ) : null}
+                        {item.campaignName ? (
+                          <div>
+                            <p className="text-xs uppercase text-gray-400">Linked Campaign</p>
+                            <p>{item.campaignName}</p>
+                          </div>
+                        ) : null}
+                        <div>
+                          <p className="text-xs uppercase text-gray-400">Schedule</p>
+                          <p>
+                            {item.startDate ? new Date(item.startDate).toLocaleDateString() : "N/A"} - {item.endDate ? new Date(item.endDate).toLocaleDateString() : "N/A"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {item.adminNotes ? (
+                        <div className="mt-4 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                          <span className="font-medium text-gray-800">Admin note:</span> {item.adminNotes}
+                        </div>
+                      ) : null}
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button onClick={() => editItem(item)} disabled={item.status === "approved"} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
+                          Edit
+                        </button>
+                        <button onClick={() => removeItem(item._id)} disabled={item.status === "approved"} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

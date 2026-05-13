@@ -1,3 +1,5 @@
+const { ObjectId } = require("mongodb");
+
 const createReview = async (req, res) => {
   try {
     const Review = req.app.locals.models.Review;
@@ -556,31 +558,48 @@ const getVendorReviews = async (req, res) => {
       });
     }
 
-    // Get all vendor's products
+    const vendorIds = [vendorId?.toString?.() || vendorId].filter(Boolean);
+    if (ObjectId.isValid(vendorId)) {
+      vendorIds.push(new ObjectId(vendorId));
+    }
+
     const products = await Product.collection
-      .find({ vendorId: new ObjectId(vendorId) })
+      .find({ vendorId: { $in: vendorIds } })
       .toArray();
 
+    if (products.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+      });
+    }
+
     const productIds = products.map((p) => p._id);
+    const productIdVariants = [
+      ...productIds,
+      ...productIds.map((productId) => productId.toString()),
+    ];
 
     // Get all reviews for vendor's products
     const reviews = await Review.collection
-      .find({ productId: { $in: productIds } })
+      .find({ productId: { $in: productIdVariants } })
       .sort({ createdAt: -1 })
       .toArray();
 
     // Attach product info to each review
+    const productMap = new Map(
+      products.map((product) => [product._id.toString(), product]),
+    );
     const reviewsWithProduct = reviews.map((review) => {
-      const product = products.find(
-        (p) => p._id.toString() === review.productId.toString()
-      );
+      const reviewProductId = review.productId?.toString?.() || review.productId;
+      const product = productMap.get(reviewProductId);
       return {
         ...review,
         product: product
           ? {
               _id: product._id,
               title: product.title,
-              image: product.image,
+              image: product.image || product.images?.[0] || "",
             }
           : null,
       };

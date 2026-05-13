@@ -3,6 +3,7 @@ import { validateCoupon } from "../services/api";
 
 export default function CouponInput({
   orderTotal,
+  items = [],
   onCouponApplied,
   onCouponRemoved,
   appliedCoupon,
@@ -21,14 +22,16 @@ export default function CouponInput({
     setError("");
 
     try {
-      const response = await validateCoupon(couponCode.trim(), orderTotal);
-      const { coupon, discountAmount, finalTotal } = response.data.data;
+      const response = await validateCoupon(couponCode.trim(), orderTotal, items);
+      const { coupon, discountAmount, finalTotal, scopeVendorId, vendorSubtotal } = response.data.data;
 
       onCouponApplied({
         code: coupon.code,
         discountAmount,
         finalTotal,
         coupon,
+        scopeVendorId: scopeVendorId || coupon.vendorId || null,
+        vendorSubtotal: vendorSubtotal || null,
       });
 
       setCouponCode("");
@@ -75,6 +78,11 @@ export default function CouponInput({
               <p className="text-xs text-green-600">
                 You saved ৳{appliedCoupon.discountAmount}!
               </p>
+              {appliedCoupon.coupon?.type === "vendor_voucher" && (
+                <p className="text-xs text-green-700">
+                  Store voucher for {appliedCoupon.coupon.vendorName || "this store"}
+                </p>
+              )}
             </div>
           </div>
           <button

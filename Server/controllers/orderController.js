@@ -571,8 +571,17 @@ const createOrder = async (req, res) => {
       );
       const vendorDeliveryCharge = vendorDelivery?.deliveryFee || 0;
 
-      // Calculate proportional discounts
-      const vendorCouponDiscount = (vendorSubtotal / createdOrder.subtotal) * (createdOrder.couponDiscount || 0);
+      const couponScopeVendorId =
+        createdOrder.couponApplied?.source === "vendor_voucher"
+          ? (createdOrder.couponApplied.scopeVendorId || "platform")
+          : null;
+
+      // Calculate coupon discount
+      const vendorCouponDiscount = couponScopeVendorId
+        ? couponScopeVendorId === vendorId
+          ? Number(createdOrder.couponDiscount || 0)
+          : 0
+        : (vendorSubtotal / createdOrder.subtotal) * (createdOrder.couponDiscount || 0);
       const vendorPointsDiscount = (vendorSubtotal / createdOrder.subtotal) * (createdOrder.pointsDiscount || 0);
       const vendorTotalDiscount = vendorCouponDiscount + vendorPointsDiscount;
 

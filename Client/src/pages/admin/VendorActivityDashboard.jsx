@@ -16,8 +16,15 @@ const VendorActivityDashboard = () => {
   const [moderationProducts, setModerationProducts] = useState([]);
   const [loadingModerationProducts, setLoadingModerationProducts] = useState(false);
   const [moderatingProductId, setModeratingProductId] = useState(null);
+  const [marketingFilter, setMarketingFilter] = useState('pending');
+  const [marketingTypeFilter, setMarketingTypeFilter] = useState('all');
+  const [marketingItems, setMarketingItems] = useState([]);
+  const [loadingMarketingItems, setLoadingMarketingItems] = useState(false);
+  const [moderatingMarketingId, setModeratingMarketingId] = useState(null);
   const [rejectModal, setRejectModal] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [marketingRejectModal, setMarketingRejectModal] = useState(null);
+  const [marketingRejectReason, setMarketingRejectReason] = useState('');
   const [metrics, setMetrics] = useState({
     totalRevenue: 0,
     totalOrders: 0,
@@ -28,6 +35,7 @@ const VendorActivityDashboard = () => {
     vendorGrowth: 0,
     orderGrowth: 0,
     pendingProductApprovals: 0,
+    pendingMarketingRequests: 0,
   });
 
   useEffect(() => {
@@ -51,6 +59,17 @@ const VendorActivityDashboard = () => {
 
     return () => clearInterval(interval);
   }, [user, productFilter]);
+
+  useEffect(() => {
+    if (!user) return undefined;
+
+    fetchMarketingItems(marketingFilter, marketingTypeFilter);
+    const interval = setInterval(() => {
+      fetchMarketingItems(marketingFilter, marketingTypeFilter);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [user, marketingFilter, marketingTypeFilter]);
 
   const fetchVendorMetrics = async () => {
     setLoading(true);
@@ -149,6 +168,20 @@ const VendorActivityDashboard = () => {
     }));
   };
 
+  const fetchPendingMarketingCount = async (token) => {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL}/admin/vendor-marketing?status=pending&page=1&limit=1`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    const data = await response.json();
+    setMetrics((prev) => ({
+      ...prev,
+      pendingMarketingRequests: data.total ?? 0,
+    }));
+  };
+
   const fetchModerationProducts = async (filter = productFilter, existingToken = null) => {
     try {
       setLoadingModerationProducts(true);
@@ -179,10 +212,53 @@ const VendorActivityDashboard = () => {
     }
   };
 
+  const fetchMarketingItems = async (
+    status = marketingFilter,
+    type = marketingTypeFilter,
+    existingToken = null,
+  ) => {
+    try {
+      setLoadingMarketingItems(true);
+      const token = existingToken || await user.getIdToken();
+      const params = new URLSearchParams({
+        status,
+        page: '1',
+        limit: '8',
+      });
+
+      if (type && type !== 'all') {
+        params.set('type', type);
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/admin/vendor-marketing?${params.toString()}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await response.json();
+      const items = Array.isArray(data.data) ? data.data : [];
+      setMarketingItems(items);
+
+      if (status === 'pending') {
+        setMetrics((prev) => ({
+          ...prev,
+          pendingMarketingRequests: data.total ?? items.length,
+        }));
+      } else {
+        await fetchPendingMarketingCount(token);
+      }
+    } catch (error) {
+      console.error('Failed to fetch marketing items:', error);
+    } finally {
+      setLoadingMarketingItems(false);
+    }
+  };
+
   const fetchRecentActivities = async () => {
     try {
       const token = await user.getIdToken();
-      const [ordersRes, vendorsRes, productsRes] = await Promise.all([
+      const [ordersRes, vendorsRes, productsRes, marketingRes] = await Promise.all([
         fetch(`${import.meta.env.VITE_API_URL}/orders`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
@@ -192,13 +268,18 @@ const VendorActivityDashboard = () => {
         fetch(`${import.meta.env.VITE_API_URL}/admin/products?page=1&limit=6`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        fetch(`${import.meta.env.VITE_API_URL}/admin/vendor-marketing?status=all&page=1&limit=6`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
       const ordersData = await ordersRes.json();
       const vendorsData = await vendorsRes.json();
       const productsData = await productsRes.json();
+      const marketingData = await marketingRes.json();
       const vendorMap = new Map((vendorsData.vendors || []).map((vendor) => [vendor._id?.toString(), vendor]));
       const recentOrders = (ordersData.data || []).slice(0, 20);
       const recentProducts = Array.isArray(productsData.data) ? productsData.data : [];
+      const recentMarketing = Array.isArray(marketingData.data) ? marketingData.data : [];
 
       const vendorOrders = recentOrders.flatMap((order) => {
         const grouped = new Map();
@@ -263,8 +344,17 @@ const VendorActivityDashboard = () => {
         };
       });
 
+      const marketingActivities = recentMarketing.map((item) => ({
+        type: 'marketing',
+        vendor: item.vendorId || null,
+        description: `${item.vendorName || 'Vendor'} ${item.status} ${item.type} "${item.title || item.code || 'submission'}"`,
+        amount: item.discountValue || 0,
+        time: new Date(item.reviewedAt || item.updatedAt || item.createdAt || Date.now()),
+        link: '/admin/vendor-activity',
+      }));
+
       setActivities(
-        [...productActivities, ...orderActivities]
+        [...productActivities, ...marketingActivities, ...orderActivities]
           .sort((a, b) => new Date(b.time) - new Date(a.time))
           .slice(0, 10)
       );
@@ -373,6 +463,86 @@ const VendorActivityDashboard = () => {
     }
   };
 
+  const handleApproveMarketing = async (itemId) => {
+    try {
+      setModeratingMarketingId(itemId);
+      const token = await user.getIdToken();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/admin/vendor-marketing/${itemId}/review`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: 'approved', adminNotes: 'Approved for storefront use.' }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to approve request');
+      }
+      await Promise.all([
+        fetchMarketingItems(marketingFilter, marketingTypeFilter, token),
+        fetchPendingMarketingCount(token),
+        fetchRecentActivities(),
+      ]);
+      toast.success('Marketing request approved');
+    } catch (error) {
+      toast.error(error.message || 'Failed to approve request');
+    } finally {
+      setModeratingMarketingId(null);
+    }
+  };
+
+  const openRejectMarketingModal = (itemId) => {
+    setMarketingRejectModal(itemId);
+    setMarketingRejectReason('');
+  };
+
+  const handleRejectMarketing = async () => {
+    if (!marketingRejectModal) return;
+    if (!marketingRejectReason.trim()) {
+      toast.error('Please add a reason for rejection');
+      return;
+    }
+
+    try {
+      setModeratingMarketingId(marketingRejectModal);
+      const token = await user.getIdToken();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/admin/vendor-marketing/${marketingRejectModal}/review`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            status: 'rejected',
+            adminNotes: marketingRejectReason.trim(),
+          }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to reject request');
+      }
+      await Promise.all([
+        fetchMarketingItems(marketingFilter, marketingTypeFilter, token),
+        fetchPendingMarketingCount(token),
+        fetchRecentActivities(),
+      ]);
+      setMarketingRejectModal(null);
+      setMarketingRejectReason('');
+      toast.success('Marketing request rejected');
+    } catch (error) {
+      toast.error(error.message || 'Failed to reject request');
+    } finally {
+      setModeratingMarketingId(null);
+    }
+  };
+
   const getTimeAgo = (date) => {
     const seconds = Math.floor((new Date() - date) / 1000);
     if (seconds < 60) return `${seconds}s ago`;
@@ -410,6 +580,20 @@ const VendorActivityDashboard = () => {
     { value: 'approved', label: 'Approved' },
     { value: 'rejected', label: 'Rejected' },
     { value: 'all', label: 'All Products' },
+  ];
+
+  const marketingFilters = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' },
+    { value: 'all', label: 'All Requests' },
+  ];
+
+  const marketingTypeFilters = [
+    { value: 'all', label: 'All types' },
+    { value: 'voucher', label: 'Vouchers' },
+    { value: 'campaign', label: 'Campaigns' },
+    { value: 'promotion', label: 'Promotions' },
   ];
 
   if (loading) {
@@ -663,6 +847,133 @@ const VendorActivityDashboard = () => {
                             className="rounded-lg border border-amber-200 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/20"
                           >
                             {moderatingProductId === product._id ? 'Saving...' : 'Disable'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Vendor Voucher & Campaign Requests
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Approve seller vouchers, promotions, and campaign submissions before they reach the storefront.
+                </p>
+              </div>
+              <div className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                {metrics.pendingMarketingRequests || 0} waiting
+              </div>
+            </div>
+
+            <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-wrap gap-2">
+                {marketingFilters.map((filter) => (
+                  <button
+                    key={filter.value}
+                    onClick={() => setMarketingFilter(filter.value)}
+                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                      marketingFilter === filter.value
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+
+              <select
+                value={marketingTypeFilter}
+                onChange={(e) => setMarketingTypeFilter(e.target.value)}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              >
+                {marketingTypeFilters.map((filter) => (
+                  <option key={filter.value} value={filter.value}>
+                    {filter.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {loadingMarketingItems ? (
+              <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                Loading marketing requests...
+              </div>
+            ) : marketingItems.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50 px-6 py-10 text-center dark:border-blue-900/40 dark:bg-blue-900/10">
+                <p className="text-base font-semibold text-blue-800 dark:text-blue-300">
+                  No matching marketing requests found
+                </p>
+                <p className="mt-1 text-sm text-blue-700 dark:text-blue-400">
+                  Change the filters or wait for vendors to submit new storefront offers.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {marketingItems.map((item) => (
+                  <div
+                    key={item._id}
+                    className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-700/30"
+                  >
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                            {item.type}
+                          </span>
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize ${getApprovalClass(item.status || 'pending')}`}>
+                            {item.status || 'pending'}
+                          </span>
+                        </div>
+                        <h3 className="mt-3 text-base font-semibold text-gray-900 dark:text-white">
+                          {item.title || item.campaignName || item.code}
+                        </h3>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                          {item.description}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                          <span>Vendor: {item.vendorName || 'Vendor'}</span>
+                          {item.code && <span>Code: {item.code}</span>}
+                          {item.discountValue ? (
+                            <span>
+                              Discount: {item.discountType === 'percentage' ? `${item.discountValue}%` : formatPrice(item.discountValue)}
+                            </span>
+                          ) : null}
+                          {item.minOrderAmount ? <span>Min order: {formatPrice(item.minOrderAmount)}</span> : null}
+                          <span>Start: {new Date(item.startDate).toLocaleDateString()}</span>
+                          <span>End: {new Date(item.endDate).toLocaleDateString()}</span>
+                        </div>
+                        {item.adminNotes && (
+                          <p className="mt-3 rounded-lg bg-white px-3 py-2 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                            Admin note: {item.adminNotes}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                        {item.status !== 'rejected' && (
+                          <button
+                            onClick={() => openRejectMarketingModal(item._id)}
+                            disabled={moderatingMarketingId === item._id}
+                            className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-900/20"
+                          >
+                            Reject
+                          </button>
+                        )}
+                        {item.status !== 'approved' && (
+                          <button
+                            onClick={() => handleApproveMarketing(item._id)}
+                            disabled={moderatingMarketingId === item._id}
+                            className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {moderatingMarketingId === item._id ? 'Saving...' : 'Approve'}
                           </button>
                         )}
                       </div>
@@ -944,6 +1255,11 @@ const VendorActivityDashboard = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                         </svg>
                       )}
+                      {activity.type === 'marketing' && (
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5h2m-1 0v14m-7-7h14" />
+                        </svg>
+                      )}
                       {activity.type === 'payout' && (
                         <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1000,6 +1316,27 @@ const VendorActivityDashboard = () => {
                     fetchModerationProducts('pending');
                   }}
                   className="text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-sky-50 dark:bg-sky-900/20 rounded-lg">
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Pending Voucher & Campaign Requests</p>
+                  <p className="text-2xl font-bold text-sky-600 dark:text-sky-400">
+                    {metrics.pendingMarketingRequests || 0}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setMarketingFilter('pending');
+                    setMarketingTypeFilter('all');
+                    fetchMarketingItems('pending', 'all');
+                  }}
+                  className="text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -1077,6 +1414,44 @@ const VendorActivityDashboard = () => {
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {moderatingProductId === rejectModal ? 'Rejecting...' : 'Reject Product'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {marketingRejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Reject Marketing Request
+            </h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Let the vendor know what needs to change before this voucher, promotion, or campaign can go live.
+            </p>
+            <textarea
+              value={marketingRejectReason}
+              onChange={(e) => setMarketingRejectReason(e.target.value)}
+              rows={4}
+              className="mt-4 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+              placeholder="Explain what should be corrected before approval"
+            />
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setMarketingRejectModal(null);
+                  setMarketingRejectReason('');
+                }}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectMarketing}
+                disabled={moderatingMarketingId === marketingRejectModal}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {moderatingMarketingId === marketingRejectModal ? 'Rejecting...' : 'Reject Request'}
               </button>
             </div>
           </div>

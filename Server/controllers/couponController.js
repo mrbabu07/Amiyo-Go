@@ -1,4 +1,8 @@
 const COUPON_CODE_PATTERN = /^[A-Z0-9_-]{3,30}$/;
+const {
+  getApprovedVendorVoucher,
+  calculateVendorVoucherDiscount,
+} = require("../utils/vendorMarketingVoucher");
 
 const parseOptionalNumber = (value) => {
   if (value === undefined || value === null || value === "") return null;
@@ -150,12 +154,13 @@ const validateCoupon = async (req, res) => {
   try {
     const Coupon = req.app.locals.models.Coupon;
     const Offer = require("../models/Offer"); // Import Mongoose model directly
-    const { code, orderTotal } = req.body;
+    const { code, orderTotal, items = [] } = req.body;
     const userId = req.user?.uid;
 
     console.log("📋 Validating coupon/offer code:", {
       code,
       orderTotal,
+      itemsCount: Array.isArray(items) ? items.length : 0,
       userId: userId || "guest",
     });
 
@@ -195,6 +200,46 @@ const validateCoupon = async (req, res) => {
         "⚠️ Coupon validation failed, trying offer code:",
         couponError.message,
       );
+    }
+
+    try {
+      const vendorVoucher = await getApprovedVendorVoucher(req.app.locals.db, code);
+      if (vendorVoucher) {
+        const voucherValidation = calculateVendorVoucherDiscount({
+          voucher: vendorVoucher,
+          items: Array.isArray(items) ? items : [],
+        });
+
+        if (!voucherValidation.valid) {
+          return res.status(400).json({
+            success: false,
+            error: voucherValidation.error || "This store voucher cannot be applied.",
+          });
+        }
+
+        return res.json({
+          success: true,
+          data: {
+            coupon: {
+              code: vendorVoucher.code,
+              name: vendorVoucher.title,
+              description: vendorVoucher.description,
+              discountType: vendorVoucher.discountType,
+              discountValue: vendorVoucher.discountValue,
+              type: "vendor_voucher",
+              vendorId: vendorVoucher.vendorId,
+              vendorName: vendorVoucher.vendorName,
+              minOrderAmount: vendorVoucher.minOrderAmount || 0,
+            },
+            discountAmount: voucherValidation.discountAmount,
+            finalTotal: Number(orderTotal || 0) - voucherValidation.discountAmount,
+            scopeVendorId: voucherValidation.scopeVendorId,
+            vendorSubtotal: voucherValidation.vendorSubtotal,
+          },
+        });
+      }
+    } catch (voucherError) {
+      console.log("⚠️ Vendor voucher validation failed:", voucherError.message);
     }
 
     // If coupon validation fails, try to validate as an offer code

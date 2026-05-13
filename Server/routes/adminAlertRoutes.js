@@ -24,6 +24,7 @@ router.get("/summary", verifyToken, verifyAdmin, async (req, res) => {
     const supportTickets = db.collection("supportTickets");
     const adminVendorChats = db.collection("adminVendorChats");
     const categoryRequests = db.collection("category_requests");
+    const vendorMarketingItems = db.collection("vendorMarketingItems");
 
     const [
       newOrders,
@@ -37,6 +38,7 @@ router.get("/summary", verifyToken, verifyAdmin, async (req, res) => {
       openSupport,
       unreadVendorChats,
       pendingCategoryRequests,
+      pendingMarketingRequests,
     ] = await Promise.all([
       safeCount(orders, { createdAt: { $gte: since } }),
       safeCount(orders, { status: "pending" }),
@@ -49,11 +51,12 @@ router.get("/summary", verifyToken, verifyAdmin, async (req, res) => {
       safeCount(supportTickets, { status: { $in: ["open", "in_progress"] } }),
       safeCount(adminVendorChats, { hasUnreadAdmin: true }),
       safeCount(categoryRequests, { status: "pending" }),
+      safeCount(vendorMarketingItems, { status: "pending" }),
     ]);
 
     const sectionCounts = {
       dashboard: newOrders + pendingOrders + pendingProducts + pendingVendors,
-      vendorActivity: newOrders + unreadVendorChats,
+      vendorActivity: newOrders + unreadVendorChats + pendingMarketingRequests,
       vendors: pendingVendors,
       vendorChats: unreadVendorChats,
       products: pendingProducts,
@@ -83,6 +86,7 @@ router.get("/summary", verifyToken, verifyAdmin, async (req, res) => {
           openSupport,
           unreadVendorChats,
           pendingCategoryRequests,
+          pendingMarketingRequests,
         },
         sectionCounts,
         total: Object.values(sectionCounts).reduce((sum, count) => sum + count, 0),

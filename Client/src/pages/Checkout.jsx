@@ -1710,6 +1710,14 @@ export default function Checkout() {
               <div className="mb-6">
                 <CouponInput
                   orderTotal={cartTotal}
+                  items={cart.map((item) => ({
+                    productId: item._id,
+                    vendorId: item.vendorId,
+                    price: item.price,
+                    quantity: item.quantity,
+                    title: item.title,
+                    shopName: item.shopName || item.vendorName,
+                  }))}
                   onCouponApplied={handleCouponApplied}
                   onCouponRemoved={handleCouponRemoved}
                   appliedCoupon={appliedCoupon}

@@ -89,6 +89,7 @@ const adminProductRoutes = require("./routes/adminProductRoutes");
 const adminFinanceRoutes = require("./routes/adminFinanceRoutes");
 const adminPayoutRoutes  = require("./routes/adminPayoutRoutes");
 const adminVendorRoutes = require("./routes/adminVendorRoutes");
+const adminVendorMarketingRoutes = require("./routes/adminVendorMarketingRoutes");
 const adminAlertRoutes = require("./routes/adminAlertRoutes");
 const categoryRequestRoutes = require("./routes/categoryRequestRoutes");
 const vendorChatRoutes = require("./routes/vendorChatRoutes");
@@ -297,6 +298,9 @@ async function run() {
 
     app.use("/api/admin/vendors", adminVendorRoutes);
     console.log("✅ Admin Vendor routes registered");
+
+    app.use("/api/admin/vendor-marketing", adminVendorMarketingRoutes);
+    console.log("✅ Admin Vendor Marketing routes registered");
 
     app.use("/api/admin/finance",  adminFinanceRoutes);
     console.log("✅ Admin Finance routes registered");
