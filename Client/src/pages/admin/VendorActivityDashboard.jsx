@@ -12,6 +12,12 @@ const VendorActivityDashboard = () => {
   const [vendors, setVendors] = useState([]);
   const [activities, setActivities] = useState([]);
   const [recentVendorOrders, setRecentVendorOrders] = useState([]);
+  const [productFilter, setProductFilter] = useState('pending');
+  const [moderationProducts, setModerationProducts] = useState([]);
+  const [loadingModerationProducts, setLoadingModerationProducts] = useState(false);
+  const [moderatingProductId, setModeratingProductId] = useState(null);
+  const [rejectModal, setRejectModal] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
   const [metrics, setMetrics] = useState({
     totalRevenue: 0,
     totalOrders: 0,
@@ -21,6 +27,7 @@ const VendorActivityDashboard = () => {
     recentActivities: [],
     vendorGrowth: 0,
     orderGrowth: 0,
+    pendingProductApprovals: 0,
   });
 
   useEffect(() => {
@@ -33,6 +40,17 @@ const VendorActivityDashboard = () => {
       return () => clearInterval(interval);
     }
   }, [user, timeframe]);
+
+  useEffect(() => {
+    if (!user) return undefined;
+
+    fetchModerationProducts(productFilter);
+    const interval = setInterval(() => {
+      fetchModerationProducts(productFilter);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [user, productFilter]);
 
   const fetchVendorMetrics = async () => {
     setLoading(true);
@@ -100,7 +118,8 @@ const VendorActivityDashboard = () => {
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 5);
 
-      setMetrics({
+      setMetrics((prev) => ({
+        ...prev,
         totalRevenue,
         totalOrders,
         activeVendors,
@@ -108,7 +127,7 @@ const VendorActivityDashboard = () => {
         topPerformers,
         vendorGrowth: 12.5, // Calculate from historical data
         orderGrowth: 8.3,   // Calculate from historical data
-      });
+      }));
     } catch (error) {
       toast.error('Failed to load vendor metrics');
     } finally {
@@ -116,21 +135,70 @@ const VendorActivityDashboard = () => {
     }
   };
 
+  const fetchPendingApprovalsCount = async (token) => {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL}/admin/products/pending?page=1&limit=1`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    const data = await response.json();
+    setMetrics((prev) => ({
+      ...prev,
+      pendingProductApprovals: data.total ?? 0,
+    }));
+  };
+
+  const fetchModerationProducts = async (filter = productFilter, existingToken = null) => {
+    try {
+      setLoadingModerationProducts(true);
+      const token = existingToken || await user.getIdToken();
+      const statusQuery = filter === 'all' ? '' : `approvalStatus=${filter}&`;
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/admin/products?${statusQuery}page=1&limit=8`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await response.json();
+      const products = Array.isArray(data.data) ? data.data : [];
+      setModerationProducts(products);
+
+      if (filter === 'pending') {
+        setMetrics((prev) => ({
+          ...prev,
+          pendingProductApprovals: data.total ?? products.length,
+        }));
+      } else {
+        await fetchPendingApprovalsCount(token);
+      }
+    } catch (error) {
+      console.error('Failed to fetch moderation products:', error);
+    } finally {
+      setLoadingModerationProducts(false);
+    }
+  };
+
   const fetchRecentActivities = async () => {
     try {
       const token = await user.getIdToken();
-      const [ordersRes, vendorsRes] = await Promise.all([
+      const [ordersRes, vendorsRes, productsRes] = await Promise.all([
         fetch(`${import.meta.env.VITE_API_URL}/orders`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`${import.meta.env.VITE_API_URL}/vendors`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        fetch(`${import.meta.env.VITE_API_URL}/admin/products?page=1&limit=6`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
       const ordersData = await ordersRes.json();
       const vendorsData = await vendorsRes.json();
+      const productsData = await productsRes.json();
       const vendorMap = new Map((vendorsData.vendors || []).map((vendor) => [vendor._id?.toString(), vendor]));
       const recentOrders = (ordersData.data || []).slice(0, 20);
+      const recentProducts = Array.isArray(productsData.data) ? productsData.data : [];
 
       const vendorOrders = recentOrders.flatMap((order) => {
         const grouped = new Map();
@@ -162,7 +230,7 @@ const VendorActivityDashboard = () => {
 
       setRecentVendorOrders(vendorOrders);
 
-      const activities = vendorOrders.slice(0, 10).map(order => ({
+      const orderActivities = vendorOrders.slice(0, 8).map(order => ({
         type: 'order',
         vendor: order.vendorId,
         description: `${order.vendorName}: order #${order.orderId.slice(-6)} is ${order.status}`,
@@ -171,9 +239,137 @@ const VendorActivityDashboard = () => {
         link: `/admin/vendors/${order.vendorId}`,
       }));
 
-      setActivities(activities);
+      const productActivities = recentProducts.map((product) => {
+        const status = product.approvalStatus || 'pending';
+        const statusMessages = {
+          pending: 'submitted',
+          approved: 'approved',
+          rejected: 'rejected',
+        };
+
+        return {
+          type: 'product',
+          vendor: product.vendorId?.toString?.() || product.vendorId || null,
+          description: `${product.vendorShopName || 'Vendor'} ${statusMessages[status] || 'updated'} "${product.title}"`,
+          amount: product.price || 0,
+          time: new Date(
+            product.lastModeratedAt ||
+              product.approvedAt ||
+              product.lastSubmittedAt ||
+              product.createdAt ||
+              Date.now()
+          ),
+          link: `/admin/products/edit/${product._id}?returnTo=${encodeURIComponent('/admin/vendor-activity')}`,
+        };
+      });
+
+      setActivities(
+        [...productActivities, ...orderActivities]
+          .sort((a, b) => new Date(b.time) - new Date(a.time))
+          .slice(0, 10)
+      );
     } catch (error) {
       console.error('Failed to fetch activities:', error);
+    }
+  };
+
+  const handleApproveProduct = async (productId) => {
+    try {
+      setModeratingProductId(productId);
+      const token = await user.getIdToken();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/admin/products/${productId}/approve`,
+        {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to approve product');
+      }
+      await Promise.all([
+        fetchModerationProducts(productFilter, token),
+        fetchPendingApprovalsCount(token),
+        fetchRecentActivities(),
+      ]);
+      toast.success('Product approved');
+    } catch (error) {
+      toast.error(error.message || 'Failed to approve product');
+    } finally {
+      setModeratingProductId(null);
+    }
+  };
+
+  const handleRejectProduct = async () => {
+    if (!rejectModal) return;
+    if (!rejectReason.trim()) {
+      toast.error('Please enter a rejection reason');
+      return;
+    }
+
+    try {
+      setModeratingProductId(rejectModal);
+      const token = await user.getIdToken();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/admin/products/${rejectModal}/reject`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ reason: rejectReason.trim() }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to reject product');
+      }
+      await Promise.all([
+        fetchModerationProducts(productFilter, token),
+        fetchPendingApprovalsCount(token),
+        fetchRecentActivities(),
+      ]);
+      setRejectModal(null);
+      setRejectReason('');
+      toast.success('Product rejected');
+    } catch (error) {
+      toast.error(error.message || 'Failed to reject product');
+    } finally {
+      setModeratingProductId(null);
+    }
+  };
+
+  const openRejectModal = (productId) => {
+    setRejectModal(productId);
+    setRejectReason('');
+  };
+
+  const handleDisableProduct = async (productId) => {
+    try {
+      setModeratingProductId(productId);
+      const token = await user.getIdToken();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/admin/products/${productId}/disable`,
+        {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to disable product');
+      }
+      await Promise.all([
+        fetchModerationProducts(productFilter, token),
+        fetchRecentActivities(),
+      ]);
+      toast.success('Product disabled');
+    } catch (error) {
+      toast.error(error.message || 'Failed to disable product');
+    } finally {
+      setModeratingProductId(null);
     }
   };
 
@@ -199,6 +395,22 @@ const VendorActivityDashboard = () => {
     };
     return classes[status] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
   };
+
+  const getApprovalClass = (status) => {
+    const classes = {
+      approved: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+      rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+    };
+    return classes[status] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+  };
+
+  const moderationFilters = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' },
+    { value: 'all', label: 'All Products' },
+  ];
 
   if (loading) {
     return (
@@ -307,6 +519,160 @@ const VendorActivityDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Top Performers & Vendor List */}
         <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Product Moderation Board
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Review vendor products by approval status and manage them without leaving this page
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+                  {metrics.pendingProductApprovals || 0} pending
+                </div>
+                <Link
+                  to="/admin/products"
+                  className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+                >
+                  Full moderation →
+                </Link>
+              </div>
+            </div>
+
+            <div className="mb-5 flex flex-wrap gap-2">
+              {moderationFilters.map((filter) => (
+                <button
+                  key={filter.value}
+                  onClick={() => setProductFilter(filter.value)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                    productFilter === filter.value
+                      ? 'bg-orange-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
+            {loadingModerationProducts ? (
+              <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                Loading moderation products...
+              </div>
+            ) : moderationProducts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-green-200 bg-green-50 px-6 py-10 text-center dark:border-green-900/40 dark:bg-green-900/10">
+                <p className="text-base font-semibold text-green-800 dark:text-green-300">
+                  No {productFilter === 'all' ? '' : `${productFilter} `}products found
+                </p>
+                <p className="mt-1 text-sm text-green-700 dark:text-green-400">
+                  {productFilter === 'pending'
+                    ? 'The queue is clear for now.'
+                    : 'Try another filter or check the full moderation page.'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {moderationProducts.map((product) => (
+                  <div
+                    key={product._id}
+                    className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-700/30"
+                  >
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="flex gap-4 min-w-0">
+                        <div className="h-20 w-20 overflow-hidden rounded-xl bg-white shadow-sm dark:bg-gray-800">
+                          {product.images?.[0] ? (
+                            <img
+                              src={product.images[0]}
+                              alt={product.title}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-xs text-gray-400">
+                              No image
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                              {product.title}
+                            </h3>
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize ${getApprovalClass(product.approvalStatus || 'pending')}`}>
+                              {product.approvalStatus || 'pending'}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            {product.vendorShopName || 'Unknown vendor'}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                            <span>Price: {formatPrice(product.price || 0)}</span>
+                            <span>Stock: {product.stock ?? 0}</span>
+                            <span>
+                              {product.approvalStatus === 'approved'
+                                ? `Approved: ${getTimeAgo(new Date(product.approvedAt || product.lastModeratedAt || product.createdAt || Date.now()))}`
+                                : product.approvalStatus === 'rejected'
+                                ? `Rejected: ${getTimeAgo(new Date(product.lastModeratedAt || product.createdAt || Date.now()))}`
+                                : `Submitted: ${getTimeAgo(new Date(product.lastSubmittedAt || product.createdAt || Date.now()))}`}
+                            </span>
+                          </div>
+                          {product.description && (
+                            <p className="mt-2 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
+                              {product.description}
+                            </p>
+                          )}
+                          {product.rejectionReason && (
+                            <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                              Rejection reason: {product.rejectionReason}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                        <Link
+                          to={`/admin/products/edit/${product._id}?returnTo=${encodeURIComponent('/admin/vendor-activity')}`}
+                          className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                        >
+                          Review
+                        </Link>
+                        {product.approvalStatus !== 'rejected' && (
+                          <button
+                            onClick={() => openRejectModal(product._id)}
+                            disabled={moderatingProductId === product._id}
+                            className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:hover:bg-red-900/20"
+                          >
+                            Reject
+                          </button>
+                        )}
+                        {product.approvalStatus !== 'approved' && (
+                          <button
+                            onClick={() => handleApproveProduct(product._id)}
+                            disabled={moderatingProductId === product._id}
+                            className="rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {moderatingProductId === product._id ? 'Saving...' : 'Approve'}
+                          </button>
+                        )}
+                        {product.approvalStatus === 'approved' && product.isActive !== false && (
+                          <button
+                            onClick={() => handleDisableProduct(product._id)}
+                            disabled={moderatingProductId === product._id}
+                            className="rounded-lg border border-amber-200 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/20"
+                          >
+                            {moderatingProductId === product._id ? 'Saving...' : 'Disable'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Recent Vendor Orders */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center justify-between mb-6">
@@ -606,7 +972,7 @@ const VendorActivityDashboard = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Pending Approvals</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Pending Vendor Approvals</p>
                   <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                     {vendors.filter(v => v.status === 'pending').length}
                   </p>
@@ -619,6 +985,26 @@ const VendorActivityDashboard = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </Link>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Pending Product Approvals</p>
+                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                    {metrics.pendingProductApprovals || 0}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setProductFilter('pending');
+                    fetchModerationProducts('pending');
+                  }}
+                  className="text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               </div>
 
               <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
@@ -658,6 +1044,44 @@ const VendorActivityDashboard = () => {
           </div>
         </div>
       </div>
+
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Reject Product
+            </h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Add a short reason. The vendor will see this and can correct the product faster.
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={4}
+              className="mt-4 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+              placeholder="Explain what needs to be fixed before approval"
+            />
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setRejectModal(null);
+                  setRejectReason('');
+                }}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectProduct}
+                disabled={moderatingProductId === rejectModal}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {moderatingProductId === rejectModal ? 'Rejecting...' : 'Reject Product'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
