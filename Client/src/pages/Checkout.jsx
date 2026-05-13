@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import useCart from "../hooks/useCart";
 import {
   createOrder,
   getDefaultAddress,
   getUserAddresses,
+  getPublicVendorMarketingItems,
+  validateCoupon,
 } from "../services/api";
 import { auth } from "../firebase/firebase.config";
 import CouponInput from "../components/CouponInput";
@@ -15,10 +17,13 @@ import BackButton from "../components/BackButton";
 import Breadcrumb from "../components/Breadcrumb";
 import AddressLocationFields from "../components/AddressLocationFields";
 
+const CHECKOUT_VOUCHER_KEY = "hnilabazar_selected_voucher";
+
 export default function Checkout() {
   const { cart, cartTotal, clearCart } = useCart();
   const { formatPrice } = useCurrency();
   const navigate = useNavigate();
+  const location = useLocation();
   const { addNotification } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
@@ -34,6 +39,12 @@ export default function Checkout() {
   const [deliveryQuoteLoading, setDeliveryQuoteLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState("standard");
   const [deliveryFor, setDeliveryFor] = useState("self");
+  const [availableStoreVouchers, setAvailableStoreVouchers] = useState([]);
+  const [storeVouchersLoading, setStoreVouchersLoading] = useState(false);
+  const [couponFeedback, setCouponFeedback] = useState("");
+  const [couponError, setCouponError] = useState("");
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const preferredVoucherTriedRef = useRef(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -99,6 +110,18 @@ export default function Checkout() {
 
   // Calculate totals with coupon and points
   const subtotal = cartTotal;
+  const checkoutItems = useMemo(
+    () =>
+      cart.map((item) => ({
+        productId: item._id,
+        vendorId: item.vendorId,
+        price: item.price,
+        quantity: item.quantity,
+        title: item.title,
+        shopName: item.shopName || item.vendorName,
+      })),
+    [cart],
+  );
   const couponDiscount = appliedCoupon?.discountAmount || 0;
   const pointsDiscount = appliedPoints?.discountAmount || 0;
   const totalDiscount = couponDiscount + pointsDiscount;
@@ -186,6 +209,53 @@ export default function Checkout() {
     formData.area,
     deliveryMethod,
   ]);
+
+  useEffect(() => {
+    const vendorIds = [...new Set(cart.map((item) => item.vendorId).filter(Boolean))];
+
+    if (vendorIds.length === 0) {
+      setAvailableStoreVouchers([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchStoreVouchers = async () => {
+      try {
+        setStoreVouchersLoading(true);
+        const responses = await Promise.all(
+          vendorIds.map((id) => getPublicVendorMarketingItems(id, { type: "voucher" })),
+        );
+
+        if (cancelled) return;
+
+        const vouchers = responses.flatMap((response, index) =>
+          (response.data.data || [])
+            .filter((item) => item.type === "voucher")
+            .map((item) => ({
+              ...item,
+              vendorId: item.vendorId || vendorIds[index],
+            })),
+        );
+
+        setAvailableStoreVouchers(vouchers);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to fetch store vouchers:", error);
+          setAvailableStoreVouchers([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setStoreVouchersLoading(false);
+        }
+      }
+    };
+
+    fetchStoreVouchers();
+    return () => {
+      cancelled = true;
+    };
+  }, [cart]);
 
   // Fetch default address and set user email on mount
   useEffect(() => {
@@ -311,12 +381,69 @@ export default function Checkout() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleCouponApplied = (couponData) => {
-    setAppliedCoupon(couponData);
+  const clearPreferredVoucher = () => {
+    try {
+      sessionStorage.removeItem(CHECKOUT_VOUCHER_KEY);
+    } catch (error) {
+      console.error("Failed to clear selected voucher:", error);
+    }
+  };
+
+  const applyCouponCode = async (code, { silent = false } = {}) => {
+    const normalizedCode = String(code || "").trim().toUpperCase();
+
+    if (!normalizedCode) return;
+
+    setIsApplyingCoupon(true);
+    setCouponError("");
+    if (!silent) {
+      setCouponFeedback("");
+    }
+
+    try {
+      const response = await validateCoupon(normalizedCode, subtotal, checkoutItems);
+      const { coupon, discountAmount, finalTotal, scopeVendorId, vendorSubtotal } =
+        response.data.data;
+
+      const previousCode = appliedCoupon?.code;
+
+      setAppliedCoupon({
+        code: coupon.code,
+        discountAmount,
+        finalTotal,
+        coupon,
+        scopeVendorId: scopeVendorId || coupon.vendorId || null,
+        vendorSubtotal: vendorSubtotal || null,
+      });
+
+      if (previousCode && previousCode !== coupon.code) {
+        setCouponFeedback(
+          `Replaced ${previousCode} with ${coupon.code}. Only one coupon or voucher can be used per order.`,
+        );
+      } else if (!silent) {
+        setCouponFeedback(`${coupon.code} is now applied to this order.`);
+      }
+
+      if (coupon.type !== "vendor_voucher") {
+        clearPreferredVoucher();
+      }
+    } catch (error) {
+      const message = error.response?.data?.error || "Invalid coupon code";
+      setCouponError(message);
+      if (!silent) {
+        setCouponFeedback("");
+      }
+      throw error;
+    } finally {
+      setIsApplyingCoupon(false);
+    }
   };
 
   const handleCouponRemoved = () => {
     setAppliedCoupon(null);
+    setCouponFeedback("");
+    setCouponError("");
+    clearPreferredVoucher();
   };
 
   const handlePointsApplied = (pointsData) => {
@@ -326,6 +453,42 @@ export default function Checkout() {
   const handlePointsRemoved = () => {
     setAppliedPoints(null);
   };
+
+  useEffect(() => {
+    if (preferredVoucherTriedRef.current || checkoutItems.length === 0) {
+      return;
+    }
+
+    let preferredVoucher = null;
+
+    try {
+      const fromStorage = sessionStorage.getItem(CHECKOUT_VOUCHER_KEY);
+      preferredVoucher = fromStorage ? JSON.parse(fromStorage) : null;
+    } catch (error) {
+      console.error("Failed to parse preferred voucher:", error);
+      clearPreferredVoucher();
+    }
+
+    const stateVoucherCode = location.state?.preferredVoucherCode;
+    const voucherCode = stateVoucherCode || preferredVoucher?.code;
+
+    if (!voucherCode) {
+      preferredVoucherTriedRef.current = true;
+      return;
+    }
+
+    preferredVoucherTriedRef.current = true;
+
+    applyCouponCode(voucherCode, { silent: true })
+      .then(() => {
+        setCouponFeedback(
+          `${voucherCode.toUpperCase()} was selected from a store voucher. Only one voucher can be used per order.`,
+        );
+      })
+      .catch(() => {
+        clearPreferredVoucher();
+      });
+  }, [checkoutItems, location.state, subtotal]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1710,19 +1873,96 @@ export default function Checkout() {
               <div className="mb-6">
                 <CouponInput
                   orderTotal={cartTotal}
-                  items={cart.map((item) => ({
-                    productId: item._id,
-                    vendorId: item.vendorId,
-                    price: item.price,
-                    quantity: item.quantity,
-                    title: item.title,
-                    shopName: item.shopName || item.vendorName,
-                  }))}
-                  onCouponApplied={handleCouponApplied}
+                  items={checkoutItems}
+                  onCouponApplied={() => {}}
                   onCouponRemoved={handleCouponRemoved}
                   appliedCoupon={appliedCoupon}
+                  onApplyCode={applyCouponCode}
+                  isApplying={isApplyingCoupon}
                 />
               </div>
+
+              {(couponFeedback || couponError) && (
+                <div
+                  className={`mb-6 rounded-xl border p-3 text-sm ${
+                    couponError
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : "border-amber-200 bg-amber-50 text-amber-800"
+                  }`}
+                >
+                  {couponError || couponFeedback}
+                </div>
+              )}
+
+              {(storeVouchersLoading || availableStoreVouchers.length > 0) && (
+                <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4">
+                  <div className="mb-3">
+                    <h3 className="text-sm font-bold text-gray-900">
+                      Available Store Vouchers
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Daraz-style rule: choose one voucher only for this order.
+                    </p>
+                  </div>
+
+                  {storeVouchersLoading ? (
+                    <div className="space-y-2">
+                      {[...Array(2)].map((_, index) => (
+                        <div
+                          key={index}
+                          className="h-16 animate-pulse rounded-xl bg-gray-100"
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {availableStoreVouchers.map((voucher) => {
+                        const isApplied = appliedCoupon?.code === voucher.code;
+
+                        return (
+                          <div
+                            key={voucher._id}
+                            className="rounded-xl border border-orange-200 bg-orange-50/60 p-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {voucher.title}
+                                </p>
+                                <p className="text-xs text-gray-600">
+                                  {voucher.vendorName || "Store voucher"} • Min order{" "}
+                                  {formatPrice(voucher.minOrderAmount || 0)}
+                                </p>
+                                <p className="mt-1 text-xs text-orange-700">
+                                  Code: <span className="font-bold">{voucher.code}</span>
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-black text-orange-600">
+                                  {voucher.discountType === "percentage"
+                                    ? `${voucher.discountValue}% OFF`
+                                    : `${formatPrice(voucher.discountValue || 0)} OFF`}
+                                </p>
+                                <button
+                                  onClick={() => applyCouponCode(voucher.code)}
+                                  disabled={isApplyingCoupon && !isApplied}
+                                  className={`mt-2 rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                                    isApplied
+                                      ? "bg-green-600 text-white"
+                                      : "border border-orange-200 bg-white text-orange-700 hover:bg-orange-100"
+                                  }`}
+                                >
+                                  {isApplied ? "Applied" : appliedCoupon ? "Replace" : "Apply"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Points Redemption */}
               <div className="mb-6">

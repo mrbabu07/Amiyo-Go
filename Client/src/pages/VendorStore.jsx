@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import ProductCard from "../components/ProductCard";
 import { useCurrency } from "../hooks/useCurrency";
@@ -9,9 +9,11 @@ import { auth } from "../firebase/firebase.config";
 import { getPublicVendorMarketingItems } from "../services/api";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const CHECKOUT_VOUCHER_KEY = "hnilabazar_selected_voucher";
 
 export default function VendorStore() {
   const { vendorId } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
   const [vendor, setVendor] = useState(null);
@@ -282,6 +284,32 @@ export default function VendorStore() {
     } catch (error) {
       console.error("Failed to copy voucher code:", error);
     }
+  };
+
+  const useVoucherNow = (voucher) => {
+    const selectedVoucher = {
+      code: voucher.code,
+      vendorId,
+      vendorName: vendor?.shopName || voucher.vendorName || "this store",
+      title: voucher.title,
+      selectedAt: new Date().toISOString(),
+    };
+
+    try {
+      sessionStorage.setItem(
+        CHECKOUT_VOUCHER_KEY,
+        JSON.stringify(selectedVoucher),
+      );
+    } catch (error) {
+      console.error("Failed to store selected voucher:", error);
+    }
+
+    navigate("/checkout", {
+      state: {
+        preferredVoucherCode: voucher.code,
+        preferredVendorId: vendorId,
+      },
+    });
   };
 
   const voucherItems = storeMarketing.filter((item) => item.type === "voucher");
@@ -566,7 +594,7 @@ export default function VendorStore() {
                       Store Vouchers
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Collect seller vouchers here and apply them during checkout for this store.
+                      Pick one seller voucher for this store. Only one voucher can be used per order.
                     </p>
                   </div>
                 </div>
@@ -632,8 +660,14 @@ export default function VendorStore() {
                           >
                             {copiedVoucherCode === voucher.code ? "Copied" : "Copy Code"}
                           </button>
+                          <button
+                            onClick={() => useVoucherNow(voucher)}
+                            className="rounded-lg border border-orange-200 bg-white px-4 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:bg-gray-900 dark:text-orange-300 dark:hover:bg-orange-950/30"
+                          >
+                            Use Now
+                          </button>
                           <span className="text-xs text-gray-500 dark:text-gray-400">
-                            Use this on checkout when your cart includes this seller&apos;s items.
+                            Daraz-style rule: one voucher at a time, and only for this seller&apos;s items.
                           </span>
                         </div>
                       </div>
