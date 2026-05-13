@@ -30,6 +30,9 @@ export default function Checkout() {
   const [showAddressSelector, setShowAddressSelector] = useState(false);
   const [addressLoaded, setAddressLoaded] = useState(false);
   const [deliverySettings, setDeliverySettings] = useState(null);
+  const [deliveryQuote, setDeliveryQuote] = useState(null);
+  const [deliveryQuoteLoading, setDeliveryQuoteLoading] = useState(false);
+  const [deliveryMethod, setDeliveryMethod] = useState("standard");
   const [deliveryFor, setDeliveryFor] = useState("self");
   const [formData, setFormData] = useState({
     name: "",
@@ -68,8 +71,8 @@ export default function Checkout() {
         console.error("Error fetching delivery settings:", err);
         // Use defaults if fetch fails
         setDeliverySettings({
-          freeDeliveryThreshold: 50,
-          standardDeliveryCharge: 100 / 110,
+          freeDeliveryThreshold: 1000,
+          standardDeliveryCharge: 100,
           freeDeliveryEnabled: true,
         });
       }
@@ -78,9 +81,9 @@ export default function Checkout() {
   }, []);
 
   // Use delivery settings or defaults
-  const freeDeliveryThreshold = deliverySettings?.freeDeliveryThreshold || 50;
+  const freeDeliveryThreshold = deliverySettings?.freeDeliveryThreshold || 1000;
   const deliveryChargeAmount =
-    deliverySettings?.standardDeliveryCharge || 100 / 110;
+    deliverySettings?.standardDeliveryCharge || 100;
   const freeDeliveryEnabled = deliverySettings?.freeDeliveryEnabled !== false;
 
   // Validate cart items have product IDs
@@ -100,12 +103,89 @@ export default function Checkout() {
   const pointsDiscount = appliedPoints?.discountAmount || 0;
   const totalDiscount = couponDiscount + pointsDiscount;
 
-  // Calculate delivery charge based on settings
-  const deliveryCharge =
+  const fallbackDeliveryCharge =
     freeDeliveryEnabled && subtotal - totalDiscount >= freeDeliveryThreshold
       ? 0
       : deliveryChargeAmount;
+  const deliveryCharge = deliveryQuote?.totalDeliveryFee ?? fallbackDeliveryCharge;
   const finalTotal = subtotal - totalDiscount + deliveryCharge;
+
+  useEffect(() => {
+    const canQuote =
+      cart.length > 0 &&
+      formData.district &&
+      formData.upazila &&
+      formData.union &&
+      formData.area;
+
+    if (!canQuote) {
+      setDeliveryQuote(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const fetchDeliveryQuote = async () => {
+      try {
+        setDeliveryQuoteLoading(true);
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/delivery-settings/calculate`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+            body: JSON.stringify({
+              products: cart.map((item) => ({
+                productId: item._id,
+                price: item.price,
+                quantity: item.quantity,
+                vendorId: item.vendorId,
+                shopName: item.shopName || item.vendorName,
+              })),
+              shippingInfo: {
+                division: formData.division,
+                district: formData.district || formData.city,
+                city: formData.district || formData.city,
+                upazila: formData.upazila,
+                union: formData.union,
+                wardNo: formData.wardNo,
+                area: formData.area,
+              },
+              deliveryMethod,
+            }),
+          },
+        );
+        const data = await response.json();
+        if (data.success) {
+          setDeliveryQuote({
+            totalDeliveryFee: data.data.totalDeliveryFee ?? data.data.deliveryCharge,
+            breakdown: data.data.deliveryBreakdown || [],
+          });
+        }
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          console.error("Error calculating delivery quote:", err);
+          setDeliveryQuote(null);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setDeliveryQuoteLoading(false);
+        }
+      }
+    };
+
+    fetchDeliveryQuote();
+    return () => controller.abort();
+  }, [
+    cart,
+    formData.division,
+    formData.district,
+    formData.city,
+    formData.upazila,
+    formData.union,
+    formData.wardNo,
+    formData.area,
+    deliveryMethod,
+  ]);
 
   // Fetch default address and set user email on mount
   useEffect(() => {
@@ -333,6 +413,9 @@ export default function Checkout() {
         transactionId:
           formData.paymentMethod !== "cod" ? formData.transactionId : null,
         specialInstructions: formData.specialInstructions,
+        deliveryMethod,
+        deliveryBreakdown: deliveryQuote?.breakdown || [],
+        deliveryCharge,
         couponCode: appliedCoupon?.code || null,
         redeemedPoints: appliedPoints?.points || null,
         pointsDiscount: appliedPoints?.discountAmount || 0,
@@ -1644,6 +1727,39 @@ export default function Checkout() {
                 />
               </div>
 
+              <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <p className="text-sm font-semibold text-gray-900 mb-3">
+                  Delivery Method
+                </p>
+                <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { value: "standard", label: "Standard delivery" },
+                    ...(deliverySettings?.expressDeliveryEnabled
+                      ? [{ value: "express", label: "Express delivery" }]
+                      : []),
+                    { value: "pickup", label: "Pickup if vendor allows" },
+                  ].map((option) => (
+                    <label
+                      key={option.value}
+                      className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-sm cursor-pointer ${
+                        deliveryMethod === option.value
+                          ? "border-primary-500 bg-white text-primary-700"
+                          : "border-gray-200 bg-white text-gray-700"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="deliveryMethod"
+                        value={option.value}
+                        checked={deliveryMethod === option.value}
+                        onChange={(e) => setDeliveryMethod(e.target.value)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               {/* Pricing Breakdown */}
               <div className="border-t pt-4 space-y-3">
                 <div className="flex justify-between text-gray-600">
@@ -1719,6 +1835,32 @@ export default function Checkout() {
                     {formatPrice(deliveryCharge)}
                   </span>
                 </div>
+
+                {deliveryQuoteLoading && (
+                  <p className="text-xs text-gray-500">Calculating delivery by vendor...</p>
+                )}
+
+                {deliveryQuote?.breakdown?.length > 0 && (
+                  <div className="space-y-2 rounded-lg border border-blue-100 bg-blue-50 p-3">
+                    {deliveryQuote.breakdown.map((item, index) => (
+                      <div
+                        key={`${item.vendorId || "platform"}-${index}`}
+                        className="flex items-start justify-between gap-3 text-xs text-blue-800"
+                      >
+                        <div>
+                          <p className="font-semibold">{item.vendorName}</p>
+                          <p>
+                            {item.zoneLabel} · {item.deliveryMethod?.replace("_", " ")}
+                            {item.freeDeliveryApplied ? " · free base delivery" : ""}
+                          </p>
+                        </div>
+                        <span className="font-semibold">
+                          {item.deliveryFee > 0 ? formatPrice(item.deliveryFee) : "FREE"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {freeDeliveryEnabled &&
                   cartTotal < freeDeliveryThreshold &&

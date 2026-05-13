@@ -1,4 +1,22 @@
 const DeliverySettings = require("../models/DeliverySettings");
+const { calculateDeliveryBreakdown } = require("../utils/deliveryCalculator");
+
+const editableFields = [
+  "freeDeliveryThreshold",
+  "standardDeliveryCharge",
+  "expressDeliveryCharge",
+  "expressDeliveryEnabled",
+  "freeDeliveryEnabled",
+  "deliveryAreas",
+  "platformBaseLocation",
+  "estimatedDeliveryDays",
+  "zoneFees",
+  "remoteAreaFee",
+  "perishableFee",
+  "heavyItemThresholdKg",
+  "heavyItemFeePerKg",
+  "codCharge",
+];
 
 // Get delivery settings
 exports.getDeliverySettings = async (req, res) => {
@@ -22,28 +40,11 @@ exports.updateDeliverySettings = async (req, res) => {
   try {
     const settings = await DeliverySettings.getSettings();
 
-    // Update fields
-    if (req.body.freeDeliveryThreshold !== undefined) {
-      settings.freeDeliveryThreshold = req.body.freeDeliveryThreshold;
-    }
-    if (req.body.standardDeliveryCharge !== undefined) {
-      settings.standardDeliveryCharge = req.body.standardDeliveryCharge;
-    }
-    if (req.body.expressDeliveryCharge !== undefined) {
-      settings.expressDeliveryCharge = req.body.expressDeliveryCharge;
-    }
-    if (req.body.expressDeliveryEnabled !== undefined) {
-      settings.expressDeliveryEnabled = req.body.expressDeliveryEnabled;
-    }
-    if (req.body.freeDeliveryEnabled !== undefined) {
-      settings.freeDeliveryEnabled = req.body.freeDeliveryEnabled;
-    }
-    if (req.body.deliveryAreas !== undefined) {
-      settings.deliveryAreas = req.body.deliveryAreas;
-    }
-    if (req.body.estimatedDeliveryDays !== undefined) {
-      settings.estimatedDeliveryDays = req.body.estimatedDeliveryDays;
-    }
+    editableFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        settings[field] = req.body[field];
+      }
+    });
 
     await settings.save();
 
@@ -64,8 +65,54 @@ exports.updateDeliverySettings = async (req, res) => {
 // Calculate delivery charge for an order
 exports.calculateDeliveryCharge = async (req, res) => {
   try {
-    const { subtotal, area } = req.body;
+    const { subtotal, area, products = [], shippingInfo = {}, deliveryMethod = "standard" } = req.body;
     const settings = await DeliverySettings.getSettings();
+
+    if (Array.isArray(products) && products.length > 0) {
+      const Product = req.app.locals.models?.Product;
+      const Vendor = req.app.locals.models?.Vendor;
+      const hydratedItems = [];
+      const vendorsById = {};
+
+      for (const item of products) {
+        const productId = item.productId || item._id;
+        const product = Product && productId ? await Product.findById(productId) : null;
+        const vendorId = product?.vendorId?.toString?.() || item.vendorId || null;
+
+        if (Vendor && vendorId && !vendorsById[vendorId]) {
+          vendorsById[vendorId] = await Vendor.findById(vendorId).catch(() => null);
+        }
+
+        hydratedItems.push({
+          ...item,
+          price: Number(item.price ?? product?.price ?? 0),
+          quantity: Number(item.quantity || 1),
+          vendorId,
+          shopName: item.shopName || product?.shopName,
+          weight: Number(product?.weight || item.weight || 0),
+          isPerishable: Boolean(product?.isPerishable || item.isPerishable),
+          deliveryClass: product?.deliveryClass || item.deliveryClass || "",
+        });
+      }
+
+      const delivery = calculateDeliveryBreakdown({
+        items: hydratedItems,
+        shippingInfo,
+        vendorsById,
+        settings,
+        deliveryMethod,
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          deliveryCharge: delivery.totalDeliveryFee,
+          totalDeliveryFee: delivery.totalDeliveryFee,
+          deliveryBreakdown: delivery.breakdown,
+          isFree: delivery.isFree,
+        },
+      });
+    }
 
     let deliveryCharge = settings.standardDeliveryCharge;
 

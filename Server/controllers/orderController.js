@@ -1,6 +1,8 @@
 const emailService = require("../services/emailService");
 const invoiceService = require("../services/invoiceService");
 const { ObjectId } = require("mongodb");
+const DeliverySettings = require("../models/DeliverySettings");
+const { calculateDeliveryBreakdown } = require("../utils/deliveryCalculator");
 
 const normalizeId = (id) => {
   if (!id) return null;
@@ -202,7 +204,7 @@ const syncVendorOrdersForCustomerCancellation = async ({ db, order }) => {
           $set: {
             products,
             status: "cancelled",
-            paymentStatus: order.paymentStatus === "paid" ? "refund_pending" : "cancelled",
+            paymentStatus: ["paid", "refund_pending"].includes(order.paymentStatus) ? "refund_pending" : "cancelled",
             cancelledBy: order.cancelledBy || order.userId || null,
             cancelledByRole: order.cancelledByRole || "user",
             cancellationSource: order.cancellationSource || "customer",
@@ -377,6 +379,7 @@ const createOrder = async (req, res) => {
       transactionId,
       specialInstructions,
       couponCode,
+      deliveryMethod = "standard",
       isGuest = false,
     } = req.body;
 
@@ -497,8 +500,28 @@ const createOrder = async (req, res) => {
         vendorAddress: vendorSnapshot.vendorAddress || "",
         vendorSlug: vendorSnapshot.vendorSlug || "",
         categoryId: normalizeId(product.categoryId),
+        weight: Number(product.weight || 0),
+        isPerishable: Boolean(product.isPerishable),
+        deliveryClass: product.deliveryClass || "",
       });
     }
+
+    const vendorsById = {};
+    for (const vendorId of vendorSnapshotCache.keys()) {
+      const vendorObjectId = safeObjectId(vendorId);
+      vendorsById[vendorId] = vendorObjectId
+        ? await vendorCollection.findOne({ _id: vendorObjectId })
+        : null;
+    }
+
+    const deliverySettings = await DeliverySettings.getSettings();
+    const delivery = calculateDeliveryBreakdown({
+      items: productsWithVendor,
+      shippingInfo,
+      vendorsById,
+      settings: deliverySettings,
+      deliveryMethod,
+    });
 
     // Create order with coupon support
     const orderData = {
@@ -510,6 +533,9 @@ const createOrder = async (req, res) => {
       transactionId: transactionId || null,
       specialInstructions,
       couponCode,
+      deliveryMethod,
+      deliveryCharge: delivery.totalDeliveryFee,
+      deliveryBreakdown: delivery.breakdown,
       isGuest: isGuest || false,
     };
 
@@ -540,8 +566,10 @@ const createOrder = async (req, res) => {
         return sum + (item.price * item.quantity);
       }, 0);
 
-      // Calculate proportional delivery charge
-      const vendorDeliveryCharge = (vendorSubtotal / createdOrder.subtotal) * createdOrder.deliveryCharge;
+      const vendorDelivery = (createdOrder.deliveryBreakdown || []).find(
+        (item) => (item.vendorId || "platform") === vendorId,
+      );
+      const vendorDeliveryCharge = vendorDelivery?.deliveryFee || 0;
 
       // Calculate proportional discounts
       const vendorCouponDiscount = (vendorSubtotal / createdOrder.subtotal) * (createdOrder.couponDiscount || 0);
@@ -561,6 +589,8 @@ const createOrder = async (req, res) => {
         pointsDiscount: Math.round(vendorPointsDiscount * 100) / 100,
         totalDiscount: Math.round(vendorTotalDiscount * 100) / 100,
         deliveryCharge: Math.round(vendorDeliveryCharge * 100) / 100,
+        deliveryMethod: vendorDelivery?.deliveryMethod || deliveryMethod,
+        deliveryBreakdown: vendorDelivery || null,
         totalAmount: Math.round(vendorTotal * 100) / 100,
         shippingInfo,
         paymentMethod,

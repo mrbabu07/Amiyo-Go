@@ -1,4 +1,4 @@
-const { createTransport } = require("nodemailer");
+﻿const { createTransport } = require("nodemailer");
 
 class EmailService {
   constructor() {
@@ -15,7 +15,7 @@ class EmailService {
         !process.env.SMTP_PASS
       ) {
         console.log(
-          "📧 Email service initialized (mock mode - no SMTP config)",
+          "ðŸ“§ Email service initialized (mock mode - no SMTP config)",
         );
         return;
       }
@@ -33,26 +33,26 @@ class EmailService {
       // Verify connection
       this.transporter.verify((error, success) => {
         if (error) {
-          console.error("📧 Email service error:", error.message);
+          console.error("ðŸ“§ Email service error:", error.message);
           this.transporter = null;
         } else {
-          console.log("📧 Email service initialized successfully");
+          console.log("ðŸ“§ Email service initialized successfully");
         }
       });
     } catch (error) {
-      console.error("📧 Email service initialization failed:", error.message);
+      console.error("ðŸ“§ Email service initialization failed:", error.message);
       this.transporter = null;
     }
   }
 
   async sendEmail(to, subject, html) {
     try {
-      console.log("📧 [EmailService] Attempting to send email:");
+      console.log("ðŸ“§ [EmailService] Attempting to send email:");
       console.log("   To:", to);
       console.log("   Subject:", subject);
 
       if (!this.transporter) {
-        console.log("📧 [MOCK] Email not sent - no transporter configured");
+        console.log("ðŸ“§ [MOCK] Email not sent - no transporter configured");
         console.log("   Check SMTP credentials in .env file");
         return { success: true, mock: true };
       }
@@ -64,14 +64,14 @@ class EmailService {
         html,
       };
 
-      console.log("📧 [EmailService] Sending via SMTP...");
+      console.log("ðŸ“§ [EmailService] Sending via SMTP...");
       const info = await this.transporter.sendMail(mailOptions);
-      console.log("✅ [EmailService] Email sent successfully!");
+      console.log("âœ… [EmailService] Email sent successfully!");
       console.log("   Message ID:", info.messageId);
       console.log("   Response:", info.response);
       return { success: true, messageId: info.messageId };
     } catch (error) {
-      console.error("❌ [EmailService] Email send error:", error.message);
+      console.error("âŒ [EmailService] Email send error:", error.message);
       console.error("   Error code:", error.code);
       console.error("   Error details:", error);
       return { success: false, error: error.message };
@@ -94,7 +94,7 @@ class EmailService {
           ${item.quantity}
         </td>
         <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">
-          ৳${Math.round((item.price || 0) * 110)}
+          ৳${Math.round((item.price || 0) )}
         </td>
       </tr>
     `,
@@ -110,7 +110,7 @@ class EmailService {
       </head>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-          <h1 style="color: white; margin: 0; font-size: 28px;">🎉 Order Confirmed!</h1>
+          <h1 style="color: white; margin: 0; font-size: 28px;">ðŸŽ‰ Order Confirmed!</h1>
         </div>
         
         <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -123,7 +123,7 @@ class EmailService {
           <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #10B981;">
             <h2 style="margin-top: 0; color: #10B981;">Order Details</h2>
             <p style="margin: 5px 0;"><strong>Order ID:</strong> #${orderId}</p>
-            <p style="margin: 5px 0;"><strong>Order Total:</strong> ৳${Math.round(orderTotal * 110)}</p>
+            <p style="margin: 5px 0;"><strong>Order Total:</strong> ৳${Math.round(orderTotal )}</p>
           </div>
           
           <h3 style="color: #333; margin-top: 30px;">Items Ordered:</h3>
@@ -167,7 +167,7 @@ class EmailService {
         </div>
         
         <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
+          <p>Â© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
         </div>
       </body>
       </html>
@@ -188,31 +188,31 @@ class EmailService {
       pending: {
         title: "Order Received",
         message: "We've received your order and will process it soon.",
-        icon: "📦",
+        icon: "ðŸ“¦",
         color: "#F59E0B",
       },
       processing: {
         title: "Order Processing",
         message: "Your order is being prepared for shipment.",
-        icon: "⚙️",
+        icon: "âš™ï¸",
         color: "#3B82F6",
       },
       shipped: {
         title: "Order Shipped",
         message: "Your order is on its way!",
-        icon: "🚚",
+        icon: "ðŸšš",
         color: "#8B5CF6",
       },
       delivered: {
         title: "Order Delivered",
         message: "Your order has been delivered. Enjoy!",
-        icon: "✅",
+        icon: "âœ…",
         color: "#10B981",
       },
       cancelled: {
         title: "Order Cancelled",
         message: "Your order has been cancelled.",
-        icon: "❌",
+        icon: "âŒ",
         color: "#EF4444",
       },
     };
@@ -257,7 +257,7 @@ class EmailService {
         </div>
         
         <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
+          <p>Â© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
         </div>
       </body>
       </html>
@@ -284,7 +284,7 @@ class EmailService {
       </head>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-          <h1 style="color: white; margin: 0; font-size: 28px;">🔔 Back in Stock!</h1>
+          <h1 style="color: white; margin: 0; font-size: 28px;">ðŸ”” Back in Stock!</h1>
         </div>
         
         <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -313,7 +313,7 @@ class EmailService {
         </div>
         
         <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
+          <p>Â© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
         </div>
       </body>
       </html>
@@ -339,7 +339,7 @@ class EmailService {
       </head>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-          <h1 style="color: white; margin: 0; font-size: 28px;">🎉 Welcome to ${process.env.APP_NAME}!</h1>
+          <h1 style="color: white; margin: 0; font-size: 28px;">ðŸŽ‰ Welcome to ${process.env.APP_NAME}!</h1>
         </div>
         
         <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -350,7 +350,7 @@ class EmailService {
           </p>
           
           <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #10B981;">🎁 Get Started:</h3>
+            <h3 style="margin-top: 0; color: #10B981;">ðŸŽ Get Started:</h3>
             <ul style="padding-left: 20px;">
               <li style="margin: 10px 0;">Browse our latest products</li>
               <li style="margin: 10px 0;">Check out flash sales for amazing deals</li>
@@ -372,7 +372,7 @@ class EmailService {
         </div>
         
         <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
+          <p>Â© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
         </div>
       </body>
       </html>
@@ -398,7 +398,7 @@ class EmailService {
       </head>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-          <h1 style="color: white; margin: 0; font-size: 28px;">🔐 Password Reset</h1>
+          <h1 style="color: white; margin: 0; font-size: 28px;">ðŸ” Password Reset</h1>
         </div>
         
         <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -410,7 +410,7 @@ class EmailService {
           
           <div style="background: #FEF3C7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #F59E0B;">
             <p style="margin: 0; color: #92400E; font-size: 14px;">
-              ⚠️ This link will expire in 1 hour for security reasons.
+              âš ï¸ This link will expire in 1 hour for security reasons.
             </p>
           </div>
           
@@ -431,7 +431,7 @@ class EmailService {
         </div>
         
         <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
+          <p>Â© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
         </div>
       </body>
       </html>
@@ -454,7 +454,7 @@ class EmailService {
       </head>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-          <h1 style="color: white; margin: 0; font-size: 28px;">🔄 Return Request Received</h1>
+          <h1 style="color: white; margin: 0; font-size: 28px;">ðŸ”„ Return Request Received</h1>
         </div>
         
         <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -469,12 +469,12 @@ class EmailService {
             <p style="margin: 5px 0;"><strong>Return ID:</strong> #${returnId}</p>
             <p style="margin: 5px 0;"><strong>Order ID:</strong> #${orderId}</p>
             <p style="margin: 5px 0;"><strong>Reason:</strong> ${reason}</p>
-            ${refundAmount ? `<p style="margin: 5px 0;"><strong>Refund Amount:</strong> ৳${Math.round(refundAmount * 110)}</p>` : ""}
+            ${refundAmount ? `<p style="margin: 5px 0;"><strong>Refund Amount:</strong> ৳${Math.round(refundAmount )}</p>` : ""}
           </div>
           
           <div style="background: #DBEAFE; padding: 15px; border-radius: 8px; margin: 20px 0;">
             <p style="margin: 0; color: #1E40AF; font-size: 14px;">
-              ℹ️ We'll review your request within 24-48 hours and send you an update.
+              â„¹ï¸ We'll review your request within 24-48 hours and send you an update.
             </p>
           </div>
           
@@ -491,7 +491,7 @@ class EmailService {
         </div>
         
         <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
+          <p>Â© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
         </div>
       </body>
       </html>
@@ -517,7 +517,7 @@ class EmailService {
       </head>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-          <h1 style="color: white; margin: 0; font-size: 28px;">⚠️ Low Stock Alert</h1>
+          <h1 style="color: white; margin: 0; font-size: 28px;">âš ï¸ Low Stock Alert</h1>
         </div>
         
         <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -542,7 +542,7 @@ class EmailService {
         </div>
         
         <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
+          <p>Â© ${new Date().getFullYear()} ${process.env.APP_NAME}. All rights reserved.</p>
         </div>
       </body>
       </html>
@@ -557,3 +557,5 @@ class EmailService {
 }
 
 module.exports = new EmailService();
+
+

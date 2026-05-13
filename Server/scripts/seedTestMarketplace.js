@@ -67,6 +67,7 @@ const testAccounts = [
       "fresh-fish-seafood",
       "fresh-vegetables",
       "homemade-products",
+      "restaurants-food-ordering",
     ],
   },
   {
@@ -95,6 +96,8 @@ const imageByRoot = {
     "https://images.unsplash.com/photo-1542838132-92c53300491e?w=700&h=700&fit=crop",
   "homemade-products":
     "https://images.unsplash.com/photo-1600857544200-b2f666a9a2ec?w=700&h=700&fit=crop",
+  "restaurants-food-ordering":
+    "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=700&h=700&fit=crop",
   "resell-market":
     "https://images.unsplash.com/photo-1556742502-ec7c0e9f34b1?w=700&h=700&fit=crop",
   "fresh-fish-seafood":
@@ -290,6 +293,14 @@ function getCategoryPath(category, categoryById) {
   return pathItems;
 }
 
+function getDeliveryClassForRoot(rootSlug) {
+  if (rootSlug === "restaurants-food-ordering") return "restaurant";
+  if (rootSlug === "fresh-fish-seafood") return "fish";
+  if (rootSlug === "fresh-vegetables") return "vegetable";
+  if (rootSlug === "homemade-products") return "homemade";
+  return "";
+}
+
 async function upsertVendors(db, categories, usersByEmail) {
   const vendors = db.collection("vendors");
   const rootCategories = categories.filter((category) => !category.parentId);
@@ -342,13 +353,25 @@ async function upsertVendors(db, categories, usersByEmail) {
         bankName: "Test Bank",
       },
       address: {
-        division: "Dhaka",
-        district: "Dhaka",
-        upazila: "Dhanmondi",
-        union: "Dhanmondi",
-        wardNo: "12",
-        area: "Dhanmondi",
-        details: "House 12, Road 5, Dhanmondi, Dhaka",
+        division: "Chattogram",
+        district: "Coxsbazar",
+        upazila: "Teknaf",
+        union: "Hnila",
+        wardNo: "7",
+        area: "Hnila Bazar",
+        details: "Hnila Bazar, Teknaf, Coxsbazar",
+      },
+      deliverySettings: {
+        selfDeliveryEnabled: true,
+        pickupEnabled: true,
+        sameUnionFee: 30,
+        sameUpazilaFee: 50,
+        sameDistrictFee: 80,
+        outsideDistrictFee: 120,
+        freeDeliveryThreshold: 0,
+        perishableFee: 20,
+        handlingFee: 0,
+        preparationTime: "Same day in Hnila",
       },
       seedTag,
       createdAt: new Date(),
@@ -403,6 +426,7 @@ async function seedProducts(db, categories, vendorDocs) {
     const title = `${category.name} Test Item`;
     const image = imageByRoot[root.slug] || imageByRoot.groceries;
     const price = 120 + ((index % 24) + 1) * 35;
+    const deliveryClass = getDeliveryClassForRoot(root.slug);
 
     return {
       title,
@@ -429,6 +453,8 @@ async function seedProducts(db, categories, vendorDocs) {
         categoryPath: pathItems.map((item) => item.name).join(" > "),
         condition: root.slug === "resell-market" ? "Good" : "New",
       },
+      deliveryClass,
+      isPerishable: Boolean(deliveryClass),
       approvalStatus: "approved",
       isActive: true,
       approvedBy: "seed-script",
@@ -469,18 +495,18 @@ async function seedAddressAndOrder(db, usersByEmail, products) {
     name: "Test Customer",
     phone: "01700000001",
     email: "user@gmail.com",
-    division: "Dhaka",
-    divisionId: "3",
-    district: "Dhaka",
-    districtId: "26",
-    city: "Dhaka",
-    upazila: "Dhanmondi",
-    upazilaId: "153",
-    union: "Dhanmondi",
-    unionId: "test-dhanmondi",
-    wardNo: "12",
-    area: "Dhanmondi",
-    address: "House 12, Road 5",
+    division: "Chattogram",
+    divisionId: "1",
+    district: "Coxsbazar",
+    districtId: "9",
+    city: "Coxsbazar",
+    upazila: "Teknaf",
+    upazilaId: "87",
+    union: "Hnila",
+    unionId: "880",
+    wardNo: "7",
+    area: "Hnila Bazar",
+    address: "House 12, Hnila Bazar",
     isDefault: true,
     seedTag,
     createdAt: new Date(),
@@ -531,13 +557,35 @@ async function seedAddressAndOrder(db, usersByEmail, products) {
     0,
   );
 
+  const deliveryCharge = 30;
+
   const orderResult = await orders.insertOne({
     userId: user.firebaseUid,
     products: orderProducts,
     subtotal,
-    deliveryCharge: 80,
-    total: subtotal + 80,
-    totalAmount: subtotal + 80,
+    deliveryCharge,
+    deliveryBreakdown: [
+      {
+        vendorId: sampleVendorIds[0] || null,
+        vendorName: vendorDocs[0]?.shopName || "HnilaBazar",
+        deliveryMethod: "vendor_delivery",
+        zoneType: "sameUnion",
+        zoneLabel: "Same union",
+        subtotal,
+        baseFee: deliveryCharge,
+        deliveryFee: deliveryCharge,
+        freeDeliveryApplied: false,
+        freeDeliveryThreshold: 0,
+        perishableFee: 0,
+        heavyFee: 0,
+        expressFee: 0,
+        remoteAreaFee: 0,
+        handlingFee: 0,
+        itemCount: orderProducts.reduce((sum, product) => sum + product.quantity, 0),
+      },
+    ],
+    total: subtotal + deliveryCharge,
+    totalAmount: subtotal + deliveryCharge,
     status: "pending",
     paymentMethod: "cod",
     paymentStatus: "pending",
@@ -545,14 +593,14 @@ async function seedAddressAndOrder(db, usersByEmail, products) {
       name: "Test Customer",
       email: "user@gmail.com",
       phone: "01700000001",
-      division: "Dhaka",
-      district: "Dhaka",
-      city: "Dhaka",
-      upazila: "Dhanmondi",
-      union: "Dhanmondi",
-      wardNo: "12",
-      area: "Dhanmondi",
-      address: "House 12, Road 5",
+      division: "Chattogram",
+      district: "Coxsbazar",
+      city: "Coxsbazar",
+      upazila: "Teknaf",
+      union: "Hnila",
+      wardNo: "7",
+      area: "Hnila Bazar",
+      address: "House 12, Hnila Bazar",
     },
     seedTag,
     createdAt: new Date(),
@@ -579,21 +627,21 @@ async function seedAddressAndOrder(db, usersByEmail, products) {
         userId: user.firebaseUid,
         products: vendorProducts,
         subtotal: vendorSubtotal,
-        deliveryCharge: Math.round((vendorSubtotal / subtotal) * 80),
+        deliveryCharge: Math.round((vendorSubtotal / subtotal) * deliveryCharge),
         totalAmount:
-          vendorSubtotal + Math.round((vendorSubtotal / subtotal) * 80),
+          vendorSubtotal + Math.round((vendorSubtotal / subtotal) * deliveryCharge),
         shippingInfo: {
           name: "Test Customer",
           email: "user@gmail.com",
           phone: "01700000001",
-          division: "Dhaka",
-          district: "Dhaka",
-          city: "Dhaka",
-          upazila: "Dhanmondi",
-          union: "Dhanmondi",
-          wardNo: "12",
-          area: "Dhanmondi",
-          address: "House 12, Road 5",
+          division: "Chattogram",
+          district: "Coxsbazar",
+          city: "Coxsbazar",
+          upazila: "Teknaf",
+          union: "Hnila",
+          wardNo: "7",
+          area: "Hnila Bazar",
+          address: "House 12, Hnila Bazar",
         },
         paymentMethod: "cod",
         paymentStatus: "pending",
@@ -622,6 +670,46 @@ async function seedAddressAndOrder(db, usersByEmail, products) {
   return 1;
 }
 
+async function upsertDeliverySettings(db) {
+  const now = new Date();
+  await db.collection("deliverysettings").updateOne(
+    {},
+    {
+      $set: {
+        freeDeliveryThreshold: 1000,
+        standardDeliveryCharge: 100,
+        expressDeliveryCharge: 80,
+        expressDeliveryEnabled: false,
+        freeDeliveryEnabled: true,
+        platformBaseLocation: {
+          division: "Chattogram",
+          district: "Coxsbazar",
+          upazila: "Teknaf",
+          union: "Hnila",
+        },
+        zoneFees: {
+          sameUnion: 30,
+          sameUpazila: 50,
+          sameDistrict: 80,
+          outsideDistrict: 120,
+        },
+        remoteAreaFee: 0,
+        perishableFee: 20,
+        heavyItemThresholdKg: 5,
+        heavyItemFeePerKg: 10,
+        codCharge: 0,
+        estimatedDeliveryDays: { min: 1, max: 5 },
+        updatedAt: now,
+      },
+      $setOnInsert: {
+        deliveryAreas: [],
+        createdAt: now,
+      },
+    },
+    { upsert: true },
+  );
+}
+
 async function run() {
   if (!uri) {
     throw new Error("MONGO_URI is missing from Server/.env");
@@ -647,6 +735,9 @@ async function run() {
     console.log(
       `Categories ready. Created ${categoryResult.created}, updated ${categoryResult.updated}, total active ${allCategories.length}.`,
     );
+
+    console.log("Setting Hnila as the main delivery service area...");
+    await upsertDeliverySettings(db);
 
     console.log("Creating/updating Firebase and database users...");
     const usersByEmail = new Map();

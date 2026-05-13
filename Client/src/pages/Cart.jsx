@@ -7,6 +7,7 @@ import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../hooks/useCurrency";
 import BackButton from "../components/BackButton";
 import Breadcrumb from "../components/Breadcrumb";
+import { getDefaultAddress } from "../services/api";
 
 export default function Cart() {
   const { cart, removeFromCart, updateQuantity, cartTotal } = useCart();
@@ -16,6 +17,9 @@ export default function Cart() {
   const { formatPrice } = useCurrency();
   const navigate = useNavigate();
   const [deliverySettings, setDeliverySettings] = useState(null);
+  const [defaultAddress, setDefaultAddress] = useState(null);
+  const [deliveryQuote, setDeliveryQuote] = useState(null);
+  const [deliveryQuoteLoading, setDeliveryQuoteLoading] = useState(false);
 
   // Fetch delivery settings
   useEffect(() => {
@@ -32,8 +36,8 @@ export default function Cart() {
         console.error("Error fetching delivery settings:", err);
         // Use defaults if fetch fails
         setDeliverySettings({
-          freeDeliveryThreshold: 50,
-          standardDeliveryCharge: 100 / 110,
+          freeDeliveryThreshold: 1000,
+          standardDeliveryCharge: 100,
           freeDeliveryEnabled: true,
         });
       }
@@ -41,10 +45,99 @@ export default function Cart() {
     fetchDeliverySettings();
   }, []);
 
+  useEffect(() => {
+    const fetchDefaultAddress = async () => {
+      if (!user) {
+        setDefaultAddress(null);
+        return;
+      }
+
+      try {
+        const response = await getDefaultAddress();
+        setDefaultAddress(response.data?.data || null);
+      } catch {
+        setDefaultAddress(null);
+      }
+    };
+
+    fetchDefaultAddress();
+  }, [user]);
+
   // Use delivery settings or defaults
-  const freeDeliveryThreshold = deliverySettings?.freeDeliveryThreshold || 50;
-  const deliveryCharge = deliverySettings?.standardDeliveryCharge || 100 / 110;
+  const freeDeliveryThreshold = deliverySettings?.freeDeliveryThreshold || 1000;
+  const deliveryCharge = deliverySettings?.standardDeliveryCharge || 100;
   const freeDeliveryEnabled = deliverySettings?.freeDeliveryEnabled !== false;
+  const estimatedDeliveryCharge =
+    freeDeliveryEnabled && cartTotal >= freeDeliveryThreshold ? 0 : deliveryCharge;
+  const shownDeliveryCharge =
+    deliveryQuote?.totalDeliveryFee ?? estimatedDeliveryCharge;
+  const hasExactDeliveryQuote = Boolean(deliveryQuote);
+
+  useEffect(() => {
+    const canQuote =
+      cart.length > 0 &&
+      defaultAddress?.district &&
+      defaultAddress?.upazila &&
+      defaultAddress?.union;
+
+    if (!canQuote) {
+      setDeliveryQuote(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const fetchDeliveryQuote = async () => {
+      try {
+        setDeliveryQuoteLoading(true);
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/delivery-settings/calculate`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+            body: JSON.stringify({
+              products: cart.map((item) => ({
+                productId: item._id,
+                price: item.price,
+                quantity: item.quantity,
+                vendorId: item.vendorId,
+                shopName: item.shopName || item.vendorName,
+              })),
+              shippingInfo: {
+                division: defaultAddress.division,
+                district: defaultAddress.district || defaultAddress.city,
+                city: defaultAddress.district || defaultAddress.city,
+                upazila: defaultAddress.upazila,
+                union: defaultAddress.union,
+                wardNo: defaultAddress.wardNo,
+                area: defaultAddress.area,
+              },
+              deliveryMethod: "standard",
+            }),
+          },
+        );
+        const data = await response.json();
+        if (data.success) {
+          setDeliveryQuote({
+            totalDeliveryFee: data.data.totalDeliveryFee ?? data.data.deliveryCharge,
+            breakdown: data.data.deliveryBreakdown || [],
+          });
+        }
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          console.error("Error calculating cart delivery quote:", err);
+          setDeliveryQuote(null);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setDeliveryQuoteLoading(false);
+        }
+      }
+    };
+
+    fetchDeliveryQuote();
+    return () => controller.abort();
+  }, [cart, defaultAddress]);
 
   const handleCheckout = () => {
     if (!user) {
@@ -404,22 +497,24 @@ export default function Cart() {
               </div>
               <div className="flex justify-between text-gray-600">
                 <span className="flex items-center gap-2">
-                  Delivery Charge
-                  {freeDeliveryEnabled &&
-                    cartTotal >= freeDeliveryThreshold && (
+                  {hasExactDeliveryQuote ? "Delivery Charge" : "Delivery Estimate"}
+                  {shownDeliveryCharge === 0 && (
                       <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
                         FREE
                       </span>
                     )}
                 </span>
                 <span
-                  className={`font-medium ${freeDeliveryEnabled && cartTotal >= freeDeliveryThreshold ? "line-through text-gray-400" : ""}`}
+                  className={`font-medium ${shownDeliveryCharge === 0 ? "line-through text-gray-400" : ""}`}
                 >
-                  {freeDeliveryEnabled && cartTotal >= freeDeliveryThreshold
-                    ? formatPrice(0)
-                    : formatPrice(deliveryCharge)}
+                  {deliveryQuoteLoading ? "Calculating..." : formatPrice(shownDeliveryCharge)}
                 </span>
               </div>
+              {!hasExactDeliveryQuote && (
+                <p className="text-xs text-gray-500 -mt-2">
+                  Final delivery fee will be calculated on checkout after selecting address.
+                </p>
+              )}
 
               {/* Coupon Teaser */}
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
@@ -483,10 +578,7 @@ export default function Cart() {
                   <span className="text-2xl font-bold text-primary-500">
                     {formatPrice(
                       cartTotal +
-                        (freeDeliveryEnabled &&
-                        cartTotal >= freeDeliveryThreshold
-                          ? 0
-                          : deliveryCharge),
+                        shownDeliveryCharge,
                     )}
                   </span>
                 </div>

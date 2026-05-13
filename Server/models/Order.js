@@ -185,17 +185,6 @@ class Order {
     const subtotal = calculatedSubtotal;
     const totalDiscount = orderData.totalDiscount || 0;
 
-    // Get delivery settings from database
-    const deliverySettingsCollection =
-      this.collection.db.collection("deliverysettings");
-    const deliverySettings = await deliverySettingsCollection.findOne({});
-
-    // Default delivery settings if not found
-    const freeDeliveryThreshold = deliverySettings?.freeDeliveryThreshold || 50; // $50 USD (৳5500)
-    const standardDeliveryCharge =
-      deliverySettings?.standardDeliveryCharge || 100 / 110; // ৳100
-    const freeDeliveryEnabled = deliverySettings?.freeDeliveryEnabled !== false;
-
     // Apply coupon discount if provided
     let couponDiscountAmount = 0;
     let couponApplied = null;
@@ -258,22 +247,7 @@ class Order {
     // Calculate order amount after discounts (before delivery)
     const orderAmountAfterDiscount = subtotal - totalDiscountAmount;
 
-    // Determine delivery charge based on order amount and settings
-    let deliveryCharge = standardDeliveryCharge;
-
-    if (
-      freeDeliveryEnabled &&
-      orderAmountAfterDiscount >= freeDeliveryThreshold
-    ) {
-      deliveryCharge = 0; // Free delivery
-      console.log(
-        `✅ Free delivery applied (order: $${orderAmountAfterDiscount.toFixed(2)}, threshold: $${freeDeliveryThreshold})`,
-      );
-    } else {
-      console.log(
-        `💰 Delivery charge: $${deliveryCharge.toFixed(2)} (order: $${orderAmountAfterDiscount.toFixed(2)}, threshold: $${freeDeliveryThreshold})`,
-      );
-    }
+    const deliveryCharge = Number(orderData.deliveryCharge || 0);
 
     // Calculate final total (secure calculation)
     const finalTotal = subtotal - totalDiscountAmount + deliveryCharge;
@@ -289,6 +263,8 @@ class Order {
       pointsDiscount: Math.round(pointsDiscountAmount * 100) / 100,
       totalDiscount: Math.round(totalDiscountAmount * 100) / 100,
       deliveryCharge: Math.round(deliveryCharge * 100) / 100,
+      deliveryMethod: orderData.deliveryMethod || "standard",
+      deliveryBreakdown: orderData.deliveryBreakdown || [],
       total: Math.round(finalTotal * 100) / 100,
       couponApplied,
       redeemedPoints,
@@ -391,7 +367,18 @@ class Order {
       },
     );
 
-    return { ...order, status: "cancelled", products: cancelledProducts, cancelledAt: now, updatedAt: now };
+    return {
+      ...order,
+      status: "cancelled",
+      products: cancelledProducts,
+      paymentStatus: order.paymentStatus === "paid" ? "refund_pending" : "cancelled",
+      cancelledBy: userId,
+      cancelledByRole: "user",
+      cancellationSource: "customer",
+      cancellationMessage: "User cancelled this order within 30 minutes.",
+      cancelledAt: now,
+      updatedAt: now,
+    };
   }
 
   /**

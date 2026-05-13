@@ -200,6 +200,7 @@ function getCategoryIcon(categoryName) {
     return "👶";
   if (name.includes("shoe") || name.includes("footwear")) return "👟";
   if (name.includes("beauty") || name.includes("cosmetic")) return "💄";
+  if (name.includes("restaurant") || name.includes("food ordering") || name.includes("meal")) return "🍽️";
   if (name.includes("home") || name.includes("furniture")) return "🏠";
   if (name.includes("book") || name.includes("education")) return "📚";
   if (name.includes("game") || name.includes("toy")) return "🎮";

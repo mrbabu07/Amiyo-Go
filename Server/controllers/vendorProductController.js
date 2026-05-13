@@ -20,6 +20,46 @@ const vendorCanUseCategory = async (categoryId, allowedCategoryIds, Category) =>
   return false;
 };
 
+const getDeliveryMetaForCategory = (category = {}) => {
+  const slug = String(category.slug || "").toLowerCase();
+
+  if (
+    [
+      "restaurant",
+      "food-ordering",
+      "meals",
+      "biriyani",
+      "tehari",
+      "fast-food",
+      "street-food",
+      "fuchka",
+      "chotpoti",
+      "bhelpuri",
+      "jhalmuri",
+      "lunch-box",
+      "office-meal",
+      "school-tiffin",
+      "event-food",
+    ].some((pattern) => slug.includes(pattern))
+  ) {
+    return { deliveryClass: "restaurant", isPerishable: true };
+  }
+
+  if (["fish", "seafood"].some((pattern) => slug.includes(pattern))) {
+    return { deliveryClass: "fish", isPerishable: true };
+  }
+
+  if (["vegetable", "fruit", "fresh"].some((pattern) => slug.includes(pattern))) {
+    return { deliveryClass: "vegetable", isPerishable: true };
+  }
+
+  if (["homemade", "ready-meals", "pitha", "sweets"].some((pattern) => slug.includes(pattern))) {
+    return { deliveryClass: "homemade", isPerishable: true };
+  }
+
+  return { deliveryClass: "", isPerishable: false };
+};
+
 // ─── Get vendor's products (paginated, filterable by status) ───
 exports.getVendorProducts = async (req, res) => {
   try {
@@ -81,6 +121,7 @@ exports.createProduct = async (req, res) => {
     }
 
     // Create product — vendorId always comes from auth, never frontend
+    const deliveryMeta = getDeliveryMetaForCategory(category);
     const productData = {
       vendorId: req.vendor._id,
       categoryId,
@@ -91,6 +132,7 @@ exports.createProduct = async (req, res) => {
       stock: stock !== undefined ? parseInt(stock) : 0,
       variants: variants || [],
       attributes: attributes || {},
+      ...deliveryMeta,
     };
 
     const productId = await Product.create(productData);
@@ -198,6 +240,11 @@ exports.updateProduct = async (req, res) => {
     if (stock !== undefined) updateData.stock = parseInt(stock);
     if (variants !== undefined) updateData.variants = variants;
     if (attributes !== undefined) updateData.attributes = attributes;
+
+    if (categoryId && categoryId !== product.categoryId.toString()) {
+      const category = await Category.findById(categoryId);
+      Object.assign(updateData, getDeliveryMetaForCategory(category));
+    }
 
     // Re-approval logic: if product is approved and a critical field changed, reset to pending
     if (product.approvalStatus === "approved") {

@@ -231,6 +231,121 @@ export default function AdminDeliverySettings() {
           </div>
         </div>
 
+        {/* Platform Base Area */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+            Main Service Area
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+            Used as the local shop address for older vendors that have not saved a delivery address yet.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              ["division", "Division"],
+              ["district", "District"],
+              ["upazila", "Upazila"],
+              ["union", "Union"],
+            ].map(([field, label]) => (
+              <div key={field}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {label}
+                </label>
+                <input
+                  type="text"
+                  value={settings?.platformBaseLocation?.[field] || ""}
+                  onChange={(e) =>
+                    handleNestedChange("platformBaseLocation", field, e.target.value)
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 rounded-lg border border-primary-100 bg-primary-50 px-4 py-3 text-sm text-primary-900 dark:border-primary-900/40 dark:bg-primary-900/20 dark:text-primary-100">
+            Current local base:{" "}
+            <span className="font-semibold">
+              {settings?.platformBaseLocation?.division || "Chattogram"} /{" "}
+              {settings?.platformBaseLocation?.district || "Coxsbazar"} /{" "}
+              {settings?.platformBaseLocation?.upazila || "Teknaf"} /{" "}
+              {settings?.platformBaseLocation?.union || "Hnila"}
+            </span>
+          </div>
+        </div>
+
+        {/* Village Zone Fees */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+            Village Zone Fees
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+            Used when a vendor does not set their own delivery fees. Checkout compares the customer address with the vendor shop location.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              ["sameUnion", "Same Union"],
+              ["sameUpazila", "Same Upazila"],
+              ["sameDistrict", "Same District"],
+              ["outsideDistrict", "Outside District"],
+            ].map(([field, label]) => (
+              <div key={field}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {label} Fee (BDT)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={settings?.zoneFees?.[field] ?? 0}
+                  onChange={(e) =>
+                    handleNestedChange("zoneFees", field, parseFloat(e.target.value) || 0)
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Fish/Vegetable/Frozen Extra Fee
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={settings?.perishableFee ?? 0}
+                onChange={(e) => handleChange("perishableFee", parseFloat(e.target.value) || 0)}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Heavy Item Starts After (kg)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={settings?.heavyItemThresholdKg ?? 5}
+                onChange={(e) => handleChange("heavyItemThresholdKg", parseFloat(e.target.value) || 0)}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Heavy Item Fee / Extra kg
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={settings?.heavyItemFeePerKg ?? 0}
+                onChange={(e) => handleChange("heavyItemFeePerKg", parseFloat(e.target.value) || 0)}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Express Delivery */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-6">

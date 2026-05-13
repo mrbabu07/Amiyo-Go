@@ -29,6 +29,7 @@ const iconOptions = [
   ["laptop", "Computer"],
   ["home", "Home"],
   ["grocery", "Grocery"],
+  ["restaurant", "Restaurant & Food"],
   ["homemade", "Homemade"],
   ["resell", "Resell Market"],
   ["fish", "Fish & Seafood"],

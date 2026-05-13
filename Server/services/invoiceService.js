@@ -1,4 +1,4 @@
-const PDFDocument = require("pdfkit");
+﻿const PDFDocument = require("pdfkit");
 const fs = require("fs");
 const path = require("path");
 
@@ -168,7 +168,7 @@ class InvoiceService {
       const itemTotal = itemPrice * itemQuantity;
       const vendorName = item.vendorName || item.shopName || "-";
       const commission = item.adminCommissionAmount != null
-        ? `৳${Math.round(item.adminCommissionAmount * 110)}`
+        ? `৳${Math.round(item.adminCommissionAmount )}`
         : "-";
 
       // Item details
@@ -186,8 +186,8 @@ class InvoiceService {
         .text(itemText, 50, position, { width: 145, ellipsis: true })
         .text(vendorName, 200, position, { width: 85, ellipsis: true })
         .text(itemQuantity, 290, position, { width: 50, align: "right" })
-        .text(`৳${Math.round(itemPrice * 110)}`, 340, position, { width: 70, align: "right" })
-        .text(`৳${Math.round(itemTotal * 110)}`, 410, position, { width: 70, align: "right" })
+        .text(`৳${Math.round(itemPrice )}`, 340, position, { width: 70, align: "right" })
+        .text(`৳${Math.round(itemTotal )}`, 410, position, { width: 70, align: "right" })
         .text(commission, 480, position, { width: 70, align: "right" });
 
       position += 22;
@@ -225,7 +225,7 @@ class InvoiceService {
     doc
       .fontSize(10)
       .text("Subtotal:", 370, position)
-      .text(`৳${Math.round(subtotal * 110)}`, 0, position, { align: "right" });
+      .text(`৳${Math.round(subtotal )}`, 0, position, { align: "right" });
 
     position += 20;
 
@@ -234,7 +234,7 @@ class InvoiceService {
       doc
         .fillColor("#EF4444")
         .text("Discount:", 370, position)
-        .text(`-৳${Math.round(order.totalDiscount * 110)}`, 0, position, { align: "right" });
+        .text(`-৳${Math.round(order.totalDiscount )}`, 0, position, { align: "right" });
       position += 20;
       doc.fillColor("#444444");
     }
@@ -244,7 +244,7 @@ class InvoiceService {
       doc
         .fillColor("#EF4444")
         .text(`Coupon (${order.couponApplied?.code || "DISCOUNT"}):`, 370, position)
-        .text(`-৳${Math.round(order.couponDiscount * 110)}`, 0, position, { align: "right" });
+        .text(`-৳${Math.round(order.couponDiscount )}`, 0, position, { align: "right" });
       position += 20;
       doc.fillColor("#444444");
     }
@@ -254,7 +254,7 @@ class InvoiceService {
       doc
         .fillColor("#EF4444")
         .text("Loyalty Points:", 370, position)
-        .text(`-৳${Math.round(order.pointsDiscount * 110)}`, 0, position, { align: "right" });
+        .text(`-৳${Math.round(order.pointsDiscount )}`, 0, position, { align: "right" });
       position += 20;
       doc.fillColor("#444444");
     }
@@ -264,7 +264,7 @@ class InvoiceService {
     doc
       .text("Delivery Charge:", 370, position)
       .text(
-        deliveryCharge === 0 ? "FREE" : `৳${Math.round(deliveryCharge * 110)}`,
+        deliveryCharge === 0 ? "FREE" : `৳${Math.round(deliveryCharge )}`,
         0, position, { align: "right" },
       );
 
@@ -276,7 +276,7 @@ class InvoiceService {
         .fillColor("#6366F1")
         .fontSize(9)
         .text("Platform Commission:", 370, position)
-        .text(`৳${Math.round(order.totalCommission * 110)}`, 0, position, { align: "right" });
+        .text(`৳${Math.round(order.totalCommission )}`, 0, position, { align: "right" });
       position += 18;
       doc.fillColor("#444444").fontSize(10);
     }
@@ -297,7 +297,7 @@ class InvoiceService {
       .fillColor("#10B981")
       .fontSize(12)
       .text("Total Amount:", 370, position)
-      .text(`৳${Math.round(total * 110)}`, 0, position, { align: "right" });
+      .text(`৳${Math.round(total )}`, 0, position, { align: "right" });
 
     doc.fillColor("#444444").fontSize(10);
     position += 30;
@@ -367,3 +367,4 @@ class InvoiceService {
 }
 
 module.exports = new InvoiceService();
+

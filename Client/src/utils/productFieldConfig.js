@@ -187,6 +187,68 @@ const categoryFieldGroups = {
     ],
   },
 
+  restaurant: {
+    slugPatterns: [
+      'restaurant', 'food-ordering', 'meals', 'biriyani', 'tehari',
+      'curry', 'bhuna', 'grill', 'bbq', 'set-menu', 'platters',
+      'fast-food', 'burgers', 'pizza', 'fried-chicken', 'sandwiches',
+      'wraps', 'paratha', 'roti', 'khichuri', 'haleem', 'lunch-box',
+      'office-meal', 'school-tiffin', 'event-food', 'desserts', 'lassi',
+      'street-food', 'fuchka', 'chotpoti', 'bhelpuri', 'jhalmuri',
+      'singara', 'samosa', 'shawarma', 'chowmein'
+    ],
+    fields: [
+      {
+        name: 'restaurantName',
+        label: 'Restaurant Name',
+        type: 'text',
+        required: false,
+        placeholder: 'e.g., Hnila Food Corner',
+      },
+      {
+        name: 'servingSize',
+        label: 'Serving Size',
+        type: 'select',
+        required: true,
+        options: ['1 person', '2 people', '3-4 people', 'Family pack', 'Party pack'],
+      },
+      {
+        name: 'preparationTime',
+        label: 'Preparation Time',
+        type: 'text',
+        required: true,
+        placeholder: 'e.g., 20 minutes, 1 hour',
+      },
+      {
+        name: 'foodType',
+        label: 'Food Type',
+        type: 'select',
+        required: true,
+        options: ['Ready to eat', 'Pre-order', 'Frozen', 'Bakery', 'Drink'],
+      },
+      {
+        name: 'spiceLevel',
+        label: 'Spice Level',
+        type: 'select',
+        required: false,
+        options: ['No spice', 'Mild', 'Medium', 'Spicy', 'Extra spicy'],
+      },
+      {
+        name: 'ingredients',
+        label: 'Ingredients',
+        type: 'textarea',
+        required: false,
+      },
+      {
+        name: 'availableTime',
+        label: 'Available Time',
+        type: 'text',
+        required: false,
+        placeholder: 'e.g., 10 AM - 10 PM, Lunch only',
+      },
+    ],
+  },
+
   resell: {
     slugPatterns: [
       'resell', 'used', 'pre-owned', 'resale', 'second-hand'

@@ -266,6 +266,7 @@ class Product {
         priceRange: { min: 0, max: 0 },
         sizes: [],
         colors: [],
+        brands: [],
         categories: [],
       };
     }

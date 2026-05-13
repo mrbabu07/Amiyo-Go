@@ -4,7 +4,7 @@ const couponToSegment = (coupon) => ({
   id: coupon._id.toString(),
   label: coupon.discountType === "percentage"
     ? `${coupon.discountValue}% OFF`
-    : `৳${coupon.discountValue} OFF`,
+    : `\u09F3${coupon.discountValue} OFF`,
   value: coupon.code,
   type: "coupon",
   couponCode: coupon.code,

@@ -23,6 +23,7 @@ import {
   ShoppingBag,
   Smartphone,
   Sparkles,
+  UtensilsCrossed,
   Watch,
 } from "lucide-react";
 import { getCategories } from "../services/api";
@@ -46,6 +47,7 @@ const iconMap = {
   pet: PawPrint,
   pharmacy: Pill,
   resell: RotateCcw,
+  restaurant: UtensilsCrossed,
   sports: Dumbbell,
   stationery: PencilRuler,
   vegetable: Leaf,
@@ -75,6 +77,7 @@ function getCategoryIcon(category) {
   if (name.includes("tv") || name.includes("appliance")) return Monitor;
   if (name.includes("home") || name.includes("living")) return Home;
   if (name.includes("grocery") || name.includes("pet")) return ShoppingBag;
+  if (name.includes("restaurant") || name.includes("food ordering") || name.includes("meal")) return UtensilsCrossed;
   if (name.includes("homemade") || name.includes("handmade")) return HandHeart;
   if (name.includes("resell") || name.includes("used") || name.includes("pre-owned")) return RotateCcw;
   if (name.includes("fish") || name.includes("seafood")) return Fish;

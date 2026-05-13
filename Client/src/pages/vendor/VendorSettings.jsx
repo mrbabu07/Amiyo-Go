@@ -30,6 +30,18 @@ const VendorSettings = () => {
       country: 'Bangladesh',
     },
     payoutMethod: '',
+    deliverySettings: {
+      selfDeliveryEnabled: true,
+      pickupEnabled: true,
+      sameUnionFee: 30,
+      sameUpazilaFee: 50,
+      sameDistrictFee: 80,
+      outsideDistrictFee: 120,
+      freeDeliveryThreshold: 0,
+      perishableFee: 20,
+      handlingFee: 0,
+      preparationTime: '1-2 days',
+    },
   });
 
   useEffect(() => {
@@ -62,6 +74,19 @@ const VendorSettings = () => {
             country: 'Bangladesh',
           },
           payoutMethod: v.payoutMethod || '',
+          deliverySettings: {
+            selfDeliveryEnabled: true,
+            pickupEnabled: true,
+            sameUnionFee: 30,
+            sameUpazilaFee: 50,
+            sameDistrictFee: 80,
+            outsideDistrictFee: 120,
+            freeDeliveryThreshold: 0,
+            perishableFee: 20,
+            handlingFee: 0,
+            preparationTime: '1-2 days',
+            ...(v.deliverySettings || {}),
+          },
         });
       }
     } catch (error) {
@@ -501,6 +526,109 @@ const VendorSettings = () => {
                     })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition bg-gray-50"
                     placeholder="Bangladesh"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Settings */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h8m-8 4h8m-8 4h5M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                </svg>
+                Delivery Fees
+              </h2>
+              <p className="text-orange-100 text-sm mt-1">Control your own local delivery and pickup rules</p>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="flex items-center justify-between rounded-lg border border-gray-200 p-4">
+                  <div>
+                    <p className="font-semibold text-gray-900">Vendor self delivery</p>
+                    <p className="text-xs text-gray-500">Use your fee rules for local delivery</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={formData.deliverySettings.selfDeliveryEnabled}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      deliverySettings: {
+                        ...formData.deliverySettings,
+                        selfDeliveryEnabled: e.target.checked,
+                      },
+                    })}
+                    className="h-5 w-5"
+                  />
+                </label>
+                <label className="flex items-center justify-between rounded-lg border border-gray-200 p-4">
+                  <div>
+                    <p className="font-semibold text-gray-900">Customer pickup</p>
+                    <p className="text-xs text-gray-500">Allow pickup from your shop</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={formData.deliverySettings.pickupEnabled}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      deliverySettings: {
+                        ...formData.deliverySettings,
+                        pickupEnabled: e.target.checked,
+                      },
+                    })}
+                    className="h-5 w-5"
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {[
+                  ['sameUnionFee', 'Same Union Fee'],
+                  ['sameUpazilaFee', 'Same Upazila Fee'],
+                  ['sameDistrictFee', 'Same District Fee'],
+                  ['outsideDistrictFee', 'Outside District Fee'],
+                  ['perishableFee', 'Fish/Vegetable/Frozen Extra Fee'],
+                  ['handlingFee', 'Packing/Handling Fee'],
+                  ['freeDeliveryThreshold', 'Free Delivery Above'],
+                ].map(([field, label]) => (
+                  <div key={field}>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {label} (BDT)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.deliverySettings[field] || 0}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        deliverySettings: {
+                          ...formData.deliverySettings,
+                          [field]: parseFloat(e.target.value) || 0,
+                        },
+                      })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
+                    />
+                  </div>
+                ))}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Preparation Time
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.deliverySettings.preparationTime || ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      deliverySettings: {
+                        ...formData.deliverySettings,
+                        preparationTime: e.target.value,
+                      },
+                    })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
+                    placeholder="e.g. 1-2 days, Same day"
                   />
                 </div>
               </div>
