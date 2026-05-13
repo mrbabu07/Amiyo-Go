@@ -1,5 +1,73 @@
 const { ObjectId } = require("mongodb");
 
+const ACTIVE_PAYOUT_STATUSES = ["pending", "approved", "paid", "completed"];
+const PAYOUT_STATUS_PRIORITY = {
+  paid: 5,
+  completed: 5,
+  approved: 4,
+  pending: 3,
+  cancelled: 2,
+  rejected: 1,
+};
+
+const toDateKey = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+};
+
+const buildPayoutDedupKey = (payout) => {
+  const vendorKey = payout.vendorId?.toString?.() || "";
+  const startKey = toDateKey(payout.periodStart);
+  const endKey = toDateKey(payout.periodEnd);
+
+  if (payout.type === "admin_generated" && vendorKey && startKey && endKey) {
+    const amountKey = Number(payout.amount || 0).toFixed(2);
+    return `cycle:${vendorKey}:${startKey}:${endKey}:${amountKey}`;
+  }
+
+  return `id:${payout._id?.toString?.() || Math.random().toString(36).slice(2)}`;
+};
+
+const pickPreferredPayout = (current, incoming) => {
+  const currentPriority = PAYOUT_STATUS_PRIORITY[current.status] || 0;
+  const incomingPriority = PAYOUT_STATUS_PRIORITY[incoming.status] || 0;
+
+  if (incomingPriority !== currentPriority) {
+    return incomingPriority > currentPriority ? incoming : current;
+  }
+
+  const currentTime = new Date(current.paidAt || current.approvedAt || current.createdAt || 0).getTime();
+  const incomingTime = new Date(incoming.paidAt || incoming.approvedAt || incoming.createdAt || 0).getTime();
+
+  return incomingTime >= currentTime ? incoming : current;
+};
+
+const dedupePayouts = (payouts = []) => {
+  const deduped = new Map();
+
+  for (const payout of payouts) {
+    const key = buildPayoutDedupKey(payout);
+    if (!deduped.has(key)) {
+      deduped.set(key, payout);
+      continue;
+    }
+
+    deduped.set(key, pickPreferredPayout(deduped.get(key), payout));
+  }
+
+  return Array.from(deduped.values()).sort(
+    (a, b) =>
+      new Date(b.paidAt || b.approvedAt || b.createdAt || 0).getTime() -
+      new Date(a.paidAt || a.approvedAt || a.createdAt || 0).getTime()
+  );
+};
+
+const isSameCycleWindow = (left, right) =>
+  toDateKey(left?.periodStart) === toDateKey(right?.periodStart) &&
+  toDateKey(left?.periodEnd) === toDateKey(right?.periodEnd);
+
 /**
  * Calculate eligible payout for a vendor
  * Shows delivered items that haven't been paid yet, minus return deductions
@@ -123,6 +191,31 @@ exports.createPayout = async (req, res) => {
       });
     }
 
+    if (periodStart && periodEnd) {
+      const existingCyclePayouts = await VendorPayout.collection
+        .find({
+          vendorId: new ObjectId(vendorId),
+          type: "admin_generated",
+          status: { $in: ACTIVE_PAYOUT_STATUSES },
+        })
+        .project({ _id: 1, amount: 1, status: 1, periodStart: 1, periodEnd: 1 })
+        .toArray();
+
+      const duplicateCyclePayout = existingCyclePayouts.find((payout) =>
+        isSameCycleWindow(
+          { periodStart, periodEnd },
+          { periodStart: payout.periodStart, periodEnd: payout.periodEnd }
+        )
+      );
+
+      if (duplicateCyclePayout) {
+        return res.status(400).json({
+          success: false,
+          error: "A payout already exists for this vendor in the selected payout cycle",
+        });
+      }
+    }
+
     // Create payout record
     const payout = await VendorPayout.create({
       vendorId,
@@ -178,12 +271,14 @@ exports.getAllPayouts = async (req, res) => {
       })
     );
 
+    const normalizedPayouts = vendorId ? dedupePayouts(payoutsWithVendor) : payoutsWithVendor;
+
     res.json({
       success: true,
-      payouts: payoutsWithVendor,
-      total: result.total,
+      payouts: normalizedPayouts,
+      total: vendorId ? normalizedPayouts.length : result.total,
       page: result.page,
-      pages: result.pages,
+      pages: vendorId ? Math.max(1, Math.ceil(normalizedPayouts.length / (filter.limit || 20))) : result.pages,
     });
   } catch (error) {
     console.error("Error fetching payouts:", error);
