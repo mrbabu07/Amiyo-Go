@@ -47,6 +47,8 @@ node_modules/
 # Build outputs
 dist/
 build/
+coverage/
+Server/coverage/
 
 # Logs
 *.log

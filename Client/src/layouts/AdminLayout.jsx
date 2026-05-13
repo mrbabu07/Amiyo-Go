@@ -52,6 +52,7 @@ const AdminLayout = () => {
       '/admin': 'dashboard',
       '/admin/vendor-activity': 'vendorActivity',
       '/admin/vendors': 'vendors',
+      '/admin/vendor-requests': 'vendors',
       '/admin/chats': 'vendorChats',
       '/admin/products': 'products',
       '/admin/inventory': 'products',
@@ -86,6 +87,7 @@ const AdminLayout = () => {
         </svg>
       ),
       children: [
+        { name: 'Requests & Approvals', path: '/admin/vendor-requests' },
         { name: 'Vendor Activity', path: '/admin/vendor-activity' },
         { name: 'All Vendors', path: '/admin/vendors' },
         { name: 'Vendor Chats', path: '/admin/chats' },

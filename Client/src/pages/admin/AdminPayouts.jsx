@@ -10,6 +10,17 @@ import {
   createBulkPayouts 
 } from '../../services/api';
 
+const getBulkFailureSummary = (errors = []) => {
+  if (!Array.isArray(errors) || errors.length === 0) return '';
+  const messages = errors
+    .slice(0, 3)
+    .map((entry) => entry?.error)
+    .filter(Boolean);
+
+  if (messages.length === 0) return '';
+  return messages.join(' | ');
+};
+
 const StatusBadge = ({ status }) => {
   const colors = {
     pending: 'bg-yellow-100 text-yellow-800',
@@ -39,6 +50,10 @@ export default function AdminPayouts() {
   const [weeklyData, setWeeklyData] = useState(null);
   const [selectedVendors, setSelectedVendors] = useState([]);
   const [processingBulk, setProcessingBulk] = useState(false);
+
+  const selectableVendorIds = (weeklyData?.vendors || [])
+    .filter((vendor) => vendor.canCreatePayout !== false)
+    .map((vendor) => vendor.vendorId);
 
   useEffect(() => {
     if (activeTab === 'history') {
@@ -92,10 +107,10 @@ export default function AdminPayouts() {
   };
 
   const handleSelectAll = () => {
-    if (selectedVendors.length === weeklyData?.vendors.length) {
+    if (selectedVendors.length === selectableVendorIds.length) {
       setSelectedVendors([]);
     } else {
-      setSelectedVendors(weeklyData?.vendors.map(v => v.vendorId) || []);
+      setSelectedVendors(selectableVendorIds);
     }
   };
 
@@ -128,7 +143,12 @@ export default function AdminPayouts() {
       toast.success(`Created ${res.data.data.created} payout(s) successfully`);
       
       if (res.data.data.failed > 0) {
-        toast.error(`${res.data.data.failed} payout(s) failed`);
+        const details = getBulkFailureSummary(res.data.data.errors);
+        toast.error(
+          details
+            ? `${res.data.data.failed} payout(s) failed: ${details}`
+            : `${res.data.data.failed} payout(s) failed`
+        );
       }
 
       // Reload weekly data
@@ -270,12 +290,12 @@ export default function AdminPayouts() {
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={selectedVendors.length === weeklyData.vendors.length}
+                          checked={selectableVendorIds.length > 0 && selectedVendors.length === selectableVendorIds.length}
                           onChange={handleSelectAll}
                           className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                         />
                         <span className="text-sm font-medium text-gray-700">
-                          Select All ({selectedVendors.length} selected)
+                          Select All Ready Vendors ({selectedVendors.length} selected)
                         </span>
                       </label>
                     </div>
@@ -302,7 +322,7 @@ export default function AdminPayouts() {
                 )}
 
                 {/* Vendors List */}
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                   {weeklyData.vendors.length === 0 ? (
                     <div className="p-8 text-center text-gray-500">
                       <div className="text-4xl mb-2">✅</div>
@@ -317,7 +337,7 @@ export default function AdminPayouts() {
                             <th className="px-4 py-3 text-left">
                               <input
                                 type="checkbox"
-                                checked={selectedVendors.length === weeklyData.vendors.length}
+                                checked={selectableVendorIds.length > 0 && selectedVendors.length === selectableVendorIds.length}
                                 onChange={handleSelectAll}
                                 className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                               />
@@ -405,6 +425,55 @@ export default function AdminPayouts() {
                     </div>
                   )}
                 </div>
+
+                {weeklyData.blockedVendors?.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-amber-100">
+                    <div className="px-4 py-3 border-b bg-amber-50">
+                      <h4 className="font-semibold text-amber-900">Blocked Vendors</h4>
+                      <p className="text-sm text-amber-700 mt-1">
+                        These vendors were excluded from bulk payout so the valid payments can go through cleanly.
+                      </p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                          <tr>
+                            <th className="px-4 py-3 text-left">Vendor</th>
+                            <th className="px-4 py-3 text-right">Eligible Amount</th>
+                            <th className="px-4 py-3 text-left">Reason</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {weeklyData.blockedVendors.map((vendor) => (
+                            <tr key={vendor.vendorId} className="hover:bg-gray-50">
+                              <td className="px-4 py-3">
+                                {vendor.vendorName === 'Unknown Vendor' ? (
+                                  <span className="font-medium text-gray-900">{vendor.vendorName}</span>
+                                ) : (
+                                  <Link
+                                    to={`/admin/vendors/${vendor.vendorId}`}
+                                    className="text-blue-600 hover:text-blue-800 font-medium"
+                                  >
+                                    {vendor.vendorName}
+                                  </Link>
+                                )}
+                                {vendor.vendorPhone && (
+                                  <div className="text-xs text-gray-500">{vendor.vendorPhone}</div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                ৳{vendor.eligibleAmount.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-3 text-amber-800">
+                                {vendor.blockingReason || 'This vendor is not payable in the current cycle.'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500">

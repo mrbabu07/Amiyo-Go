@@ -180,6 +180,7 @@ const router = createBrowserRouter([
     children: [
       { path: "", element: lazyElement(AdminDashboard) },
       { path: "vendors", element: lazyElement(AdminVendors) },
+      { path: "vendor-requests", element: lazyElement(AdminVendors) },
       { path: "vendors/:vendorId", element: lazyElement(AdminVendorDetail) },
       { path: "vendor-activity", element: lazyElement(VendorActivityDashboard) },
       { path: "chats", element: lazyElement(AdminVendorChats) },

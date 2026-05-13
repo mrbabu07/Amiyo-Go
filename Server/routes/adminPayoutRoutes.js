@@ -32,9 +32,9 @@ router.get("/", verifyToken, verifyAdmin, getAllPayouts);
 router.get("/stats", verifyToken, verifyAdmin, getPayoutStats);
 router.get("/weekly-list", verifyToken, verifyAdmin, getWeeklyPayoutList);
 router.post("/bulk", verifyToken, verifyAdmin, createBulkPayouts);
-router.get("/:payoutId", verifyToken, verifyAdmin, getPayoutById);
 router.get("/vendor/:vendorId/eligible", verifyToken, verifyAdmin, calculateEligiblePayout);
 router.post("/vendor/:vendorId", verifyToken, verifyAdmin, createPayout);
+router.get("/:payoutId", verifyToken, verifyAdmin, getPayoutById);
 router.patch("/:payoutId/paid", verifyToken, verifyAdmin, markPayoutPaid);
 router.patch("/:payoutId/cancel", verifyToken, verifyAdmin, cancelPayout);
 

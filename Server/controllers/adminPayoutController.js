@@ -519,6 +519,21 @@ exports.getWeeklyPayoutList = async (req, res) => {
           earning.totalEarnings - alreadyPaidOrPending - returnDeductions.totalDeduction
         );
 
+        const hasPendingPayout = existingPayouts.some((p) => p.status === "pending");
+        const hasPayoutMethod = Boolean(
+          (vendor?.bankName && vendor?.bankAccountNumber) ||
+          (vendor?.mobileBankingProvider && vendor?.mobileBankingNumber)
+        );
+
+        let blockingReason = "";
+        if (!vendor) {
+          blockingReason = "Vendor record no longer exists";
+        } else if (hasPendingPayout) {
+          blockingReason = "Vendor already has a pending payout for this cycle";
+        } else if (eligibleAmount <= 0) {
+          blockingReason = "No remaining eligible balance for this cycle";
+        }
+
         return {
           vendorId: earning.vendorId,
           vendorName: vendor?.shopName || "Unknown Vendor",
@@ -538,15 +553,23 @@ exports.getWeeklyPayoutList = async (req, res) => {
           eligibleAmount: Math.round(eligibleAmount * 100) / 100,
           itemsCount: earning.itemsCount,
           ordersCount: earning.ordersCount,
-          hasPendingPayout: existingPayouts.some((p) => p.status === "pending"),
+          hasPendingPayout,
+          hasPayoutMethod,
+          payoutMethodLabel: vendor?.mobileBankingProvider
+            ? `${vendor.mobileBankingProvider} ${vendor.mobileBankingNumber || ""}`.trim()
+            : vendor?.bankName
+              ? `${vendor.bankName}${vendor.bankAccountNumber ? ` (${vendor.bankAccountNumber})` : ""}`
+              : "",
+          canCreatePayout: !blockingReason,
+          blockingReason,
           periodStart: startDate,
           periodEnd: endDate,
         };
       })
     );
 
-    // Filter out vendors with no eligible amount
-    const eligibleVendors = vendorsList.filter((v) => v.eligibleAmount > 0);
+    const eligibleVendors = vendorsList.filter((v) => v.canCreatePayout);
+    const blockedVendors = vendorsList.filter((v) => !v.canCreatePayout);
 
     // Calculate totals
     const totalEligibleAmount = eligibleVendors.reduce(
@@ -562,7 +585,9 @@ exports.getWeeklyPayoutList = async (req, res) => {
         periodStart: startDate,
         periodEnd: endDate,
         vendors: eligibleVendors,
+        blockedVendors,
         totalVendors: eligibleVendors.length,
+        totalBlockedVendors: blockedVendors.length,
         totalEligibleAmount: Math.round(totalEligibleAmount * 100) / 100,
       },
     });
@@ -613,7 +638,22 @@ exports.createBulkPayouts = async (req, res) => {
         if (!vendor) {
           errors.push({
             vendorId,
-            error: "Vendor not found",
+            error: "Vendor record no longer exists",
+          });
+          continue;
+        }
+
+        const existingPayout = await VendorPayout.collection.findOne({
+          vendorId: new ObjectId(vendorId),
+          periodStart: periodStart ? new Date(periodStart) : null,
+          periodEnd: periodEnd ? new Date(periodEnd) : null,
+          status: { $in: ["pending", "paid"] },
+        });
+
+        if (existingPayout) {
+          errors.push({
+            vendorId,
+            error: "A payout already exists for this vendor in the selected period",
           });
           continue;
         }
