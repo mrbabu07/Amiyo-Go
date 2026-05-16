@@ -158,6 +158,8 @@ const router = createBrowserRouter([
       { path: "finance", element: lazyElement(VendorFinance) },
       { path: "finance/payouts", element: lazyElement(VendorFinance) },
       { path: "finance/transactions", element: lazyElement(VendorFinance) },
+      { path: "finance/statements", element: lazyElement(VendorFinance) },
+      { path: "finance/commissions", element: lazyElement(VendorFinance) },
       { path: "settings/bank", element: lazyElement(VendorBankSettings) },
       { path: "marketing/promotions", element: lazyElement(VendorMarketing) },
       { path: "marketing/vouchers", element: lazyElement(VendorMarketing) },

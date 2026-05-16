@@ -1,68 +1,144 @@
-import { useState, useEffect, useCallback } from "react";
+import { createElement, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import {
+  ArrowLeft,
+  Banknote,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Landmark,
+  Percent,
+  ReceiptText,
+  RefreshCcw,
+  ShieldAlert,
+  TrendingUp,
+  WalletCards,
+} from "lucide-react";
+import toast from "react-hot-toast";
 import useAuth from "../../hooks/useAuth";
 import { useCurrency } from "../../hooks/useCurrency";
-import toast from "react-hot-toast";
-import { 
-  getVendorFinanceSummary, 
-  getVendorFinanceTransactions, 
-  getVendorPayouts 
+import {
+  downloadVendorFinanceStatement,
+  downloadVendorTaxInvoice,
+  getVendorCommissionRates,
+  getVendorFinanceSummary,
+  getVendorFinanceTransactions,
+  getVendorPayouts,
 } from "../../services/api";
 import PayoutRequestButton from "../../components/vendor/PayoutRequestButton";
 import PayoutRequestsList from "../../components/vendor/PayoutRequestsList";
 
 const tabs = [
-  { id: "overview", label: "💰 Overview", path: "/vendor/finance" },
-  { id: "payouts", label: "📋 Payouts", path: "/vendor/finance/payouts" },
-  { id: "transactions", label: "📊 Transactions", path: "/vendor/finance/transactions" },
+  { id: "overview", label: "Overview", path: "/vendor/finance", icon: WalletCards },
+  { id: "transactions", label: "Transactions", path: "/vendor/finance/transactions", icon: ReceiptText },
+  { id: "statements", label: "Statements", path: "/vendor/finance/statements", icon: FileSpreadsheet },
+  { id: "commissions", label: "Commissions", path: "/vendor/finance/commissions", icon: Percent },
+  { id: "payouts", label: "Payouts", path: "/vendor/finance/payouts", icon: Landmark },
 ];
 
-const statusBadge = (status) => {
-  const map = {
-    pending: "bg-yellow-100 text-yellow-700",
-    paid: "bg-green-100 text-green-700",
-    cancelled: "bg-red-100 text-red-700",
-  };
-  return map[status] || "bg-gray-100 text-gray-700";
+const statusStyles = {
+  released: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  shipping: "bg-sky-50 text-sky-700 border-sky-200",
+  pending_clearance: "bg-amber-50 text-amber-700 border-amber-200",
+  refund_deducted: "bg-rose-50 text-rose-700 border-rose-200",
+  void: "bg-slate-100 text-slate-600 border-slate-200",
+  paid: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  pending: "bg-amber-50 text-amber-700 border-amber-200",
+  approved: "bg-sky-50 text-sky-700 border-sky-200",
+  cancelled: "bg-rose-50 text-rose-700 border-rose-200",
+};
+
+const currentMonthValue = () => new Date().toISOString().slice(0, 7);
+
+const formatDate = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const normalizeStatus = (status = "") =>
+  status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const calculateTotals = (rows = []) =>
+  rows.reduce(
+    (total, row) => ({
+      saleAmount: total.saleAmount + Number(row.saleAmount || 0),
+      platformCommissionAmount: total.platformCommissionAmount + Number(row.platformCommissionAmount || 0),
+      shippingFeeCredited: total.shippingFeeCredited + Number(row.shippingFeeCredited || 0),
+      shippingFeeDebited: total.shippingFeeDebited + Number(row.shippingFeeDebited || 0),
+      refundDeducted: total.refundDeducted + Number(row.refundDeducted || 0),
+      netPayout: total.netPayout + Number(row.netPayout || 0),
+    }),
+    {
+      saleAmount: 0,
+      platformCommissionAmount: 0,
+      shippingFeeCredited: 0,
+      shippingFeeDebited: 0,
+      refundDeducted: 0,
+      netPayout: 0,
+    },
+  );
+
+const downloadBlob = (response, fallbackName) => {
+  const disposition = response.headers?.["content-disposition"] || "";
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match?.[1] || fallbackName;
+  const blob = new Blob([response.data], {
+    type: response.headers?.["content-type"] || "application/octet-stream",
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 };
 
 export default function VendorFinance() {
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
   const location = useLocation();
-
-  const activeTab = tabs.find((t) => location.pathname === t.path)?.id || "overview";
+  const activeTab = tabs.find((tab) => location.pathname === tab.path)?.id || "overview";
 
   const [loading, setLoading] = useState(true);
+  const [statementLoading, setStatementLoading] = useState(false);
   const [stats, setStats] = useState(null);
   const [payouts, setPayouts] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [commissionRates, setCommissionRates] = useState([]);
+  const [statementRows, setStatementRows] = useState([]);
+  const [statementMonth, setStatementMonth] = useState(currentMonthValue());
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Fetch finance data
   const fetchFinanceData = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     try {
-      // Fetch finance summary
-      const summaryRes = await getVendorFinanceSummary();
-      console.log('📊 Finance Summary Response:', summaryRes.data);
-      if (summaryRes.data.success) {
-        console.log('💰 Setting stats:', summaryRes.data.data);
-        setStats(summaryRes.data.data);
-      }
+      const [summaryRes, txRes, payoutsRes, rateRes] = await Promise.all([
+        getVendorFinanceSummary(),
+        getVendorFinanceTransactions({ limit: 50 }),
+        getVendorPayouts({ limit: 20 }),
+        getVendorCommissionRates(),
+      ]);
 
-      // Fetch transactions
-      const txRes = await getVendorFinanceTransactions({ limit: 50 });
-      if (txRes.data.success) {
-        setTransactions(txRes.data.data || []);
-      }
-
-      // Fetch payouts
-      const payoutsRes = await getVendorPayouts({ limit: 20 });
-      if (payoutsRes.data.success) {
-        setPayouts(payoutsRes.data.data || []);
-      }
-
+      setStats(summaryRes.data?.data || null);
+      setTransactions(txRes.data?.data || []);
+      setPayouts(payoutsRes.data?.data || []);
+      setCommissionRates(rateRes.data?.data || []);
     } catch (error) {
       console.error("Failed to fetch finance data:", error);
       toast.error("Failed to load finance data");
@@ -71,478 +147,592 @@ export default function VendorFinance() {
     }
   }, [user]);
 
+  const fetchStatementRows = useCallback(async () => {
+    if (!user) return;
+
+    setStatementLoading(true);
+    try {
+      const response = await getVendorFinanceTransactions({
+        month: statementMonth,
+        limit: 1000,
+      });
+      setStatementRows(response.data?.data || []);
+    } catch (error) {
+      console.error("Failed to load statement preview:", error);
+      toast.error("Failed to load statement preview");
+    } finally {
+      setStatementLoading(false);
+    }
+  }, [statementMonth, user]);
+
   useEffect(() => {
     fetchFinanceData();
   }, [fetchFinanceData]);
 
+  useEffect(() => {
+    if (activeTab === "statements") {
+      fetchStatementRows();
+    }
+  }, [activeTab, fetchStatementRows]);
+
+  const statementTotals = useMemo(() => calculateTotals(statementRows), [statementRows]);
+  const earnings = stats?.earningsSummary || {};
+  const payoutSchedule = stats?.payoutSchedule || {};
+  const refundImpact = stats?.refundImpact || {};
+
+  const handleRefresh = async () => {
+    await fetchFinanceData();
+    if (activeTab === "statements") await fetchStatementRows();
+    setRefreshTrigger((value) => value + 1);
+  };
+
+  const handleStatementDownload = async (format) => {
+    try {
+      const response = await downloadVendorFinanceStatement(format, { month: statementMonth });
+      downloadBlob(response, `statement-${statementMonth}.${format}`);
+    } catch (error) {
+      console.error("Failed to download statement:", error);
+      toast.error("Failed to download statement");
+    }
+  };
+
+  const handleTaxInvoiceDownload = async () => {
+    try {
+      const response = await downloadVendorTaxInvoice({ month: statementMonth });
+      downloadBlob(response, `tax-invoice-${statementMonth}.pdf`);
+    } catch (error) {
+      console.error("Failed to download tax invoice:", error);
+      toast.error("Failed to download tax invoice");
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-orange-600" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center gap-4">
-            <Link to="/vendor/dashboard" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+    <div className="min-h-screen bg-slate-50">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/vendor/dashboard"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+              title="Back to dashboard"
+            >
+              <ArrowLeft className="h-5 w-5" />
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Finance Center</h1>
-              <p className="text-sm text-gray-500">Track your earnings, payouts and financial statements</p>
+              <h1 className="text-2xl font-bold text-slate-950">Finance Center</h1>
+              <p className="text-sm text-slate-500">Earnings, settlements, statements, payouts, and commission rates.</p>
             </div>
           </div>
+          <button
+            onClick={handleRefresh}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Refresh
+          </button>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            icon={WalletCards}
+            label="Current cycle balance"
+            value={formatPrice(earnings.currentCycleBalance || 0)}
+            note={`${formatDate(stats?.currentCycle?.start)} to ${formatDate(stats?.currentCycle?.end)}`}
+            tone="emerald"
+          />
+          <MetricCard
+            icon={Clock3}
+            label="Pending clearance"
+            value={formatPrice(earnings.pendingClearance || 0)}
+            note="Orders not yet released for payout"
+            tone="amber"
+          />
+          <MetricCard
+            icon={CheckCircle2}
+            label="Released amount"
+            value={formatPrice(earnings.releasedAmount || 0)}
+            note="Paid payout transfers"
+            tone="sky"
+          />
+          <MetricCard
+            icon={ShieldAlert}
+            label="Withheld for returns"
+            value={formatPrice(earnings.withheldForReturns || 0)}
+            note={`${refundImpact.returnsCount || 0} approved return deductions`}
+            tone="rose"
+          />
+        </section>
 
-        {/* Balance Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          {/* Available Balance */}
-          <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-orange-100 text-sm font-medium">Total Due Amount</span>
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">💰</div>
+        <section className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Panel className="lg:col-span-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <MiniStat label="Gross sales" value={formatPrice(stats?.grossSales || 0)} />
+              <MiniStat label="Platform commission" value={`-${formatPrice(stats?.totalCommission || 0)}`} danger />
+              <MiniStat label="Net earnings" value={formatPrice(stats?.netEarnings || 0)} success />
+              <MiniStat label="Available payout" value={formatPrice(stats?.pendingBalance || 0)} strong />
             </div>
-            <div className="text-3xl font-bold mb-1">{formatPrice(stats?.pendingBalance || 0)}</div>
-            <div className="text-orange-100 text-sm">Delivered earnings not paid or scheduled</div>
-          </div>
-
-          {/* Paid Balance */}
-          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-green-100 text-sm font-medium">Paid to You</span>
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">✅</div>
-            </div>
-            <div className="text-3xl font-bold mb-1">{formatPrice(stats?.paidBalance || 0)}</div>
-            <div className="text-green-100 text-sm">Completed payout transfers</div>
-          </div>
-
-          {/* Gross Sales */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-gray-500 text-sm font-medium">Gross Sales</span>
-              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-xl">�</div>
-            </div>
-            <div className="text-3xl font-bold text-gray-900 mb-1">{formatPrice(stats?.grossSales || 0)}</div>
-            <div className="text-sm text-gray-400">Before commission</div>
-          </div>
-
-          {/* Commission */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-gray-500 text-sm font-medium">Total Commission</span>
-              <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-xl">📉</div>
-            </div>
-            <div className="text-3xl font-bold text-red-600 mb-1">-{formatPrice(stats?.totalCommission || 0)}</div>
-            <div className="text-sm text-gray-400">Platform fee</div>
-          </div>
-        </div>
-
-        {/* Return Deductions Alert */}
-        {stats?.returnDeductions && stats.returnDeductions > 0 && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3 flex-1">
-                <h3 className="text-sm font-medium text-yellow-800">
-                  Return Deductions Applied
-                </h3>
-                <div className="mt-2 text-sm text-yellow-700">
-                  <p>
-                    {stats.returnCount || 0} approved return(s) have been deducted from your earnings.
-                    Total deduction: <strong>{formatPrice(stats.returnDeductions)}</strong>
-                  </p>
-                </div>
-                <div className="mt-4">
-                  <Link to="/vendor/returns" className="text-sm font-medium text-yellow-800 hover:text-yellow-600 underline">
-                    View Returns →
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Payout Schedule Info & Request Button */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <span className="text-xl">📅</span>
-              Payout Schedule
-            </h3>
-            <PayoutRequestButton onRequestSuccess={() => {
-              fetchFinanceData();
-              setRefreshTrigger(prev => prev + 1);
-            }} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          </Panel>
+          <Panel>
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 text-orange-700">
+                <CalendarDays className="h-5 w-5" />
+              </span>
               <div>
-                <p className="font-medium text-gray-900">Weekly Payouts</p>
-                <p className="text-sm text-gray-600">Processed every Monday for delivered orders from previous week</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">Next Payout</p>
-                <p className="text-sm text-gray-600">
-                  {(() => {
-                    const today = new Date();
-                    const nextMonday = new Date(today);
-                    nextMonday.setDate(today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
-                    return nextMonday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-                  })()}
+                <p className="text-sm font-semibold text-slate-950">Next payout</p>
+                <p className="mt-1 text-lg font-bold text-slate-950">{formatDate(payoutSchedule.nextPayoutDate)}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Cutoff {formatDate(payoutSchedule.cutoffDate)}. Minimum {formatPrice(payoutSchedule.minimumPayoutThreshold || stats?.minimumPayout || 1000)}.
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">Minimum Payout</p>
-                <p className="text-sm text-gray-600">
-                  {formatPrice(100)} (you have {formatPrice(stats?.pendingBalance || 0)})
-                  {stats?.pendingBalance >= 100 ? (
-                    <span className="text-green-600 font-medium ml-1">✓ Eligible</span>
-                  ) : (
-                    <span className="text-gray-400 ml-1">Not yet</span>
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+          </Panel>
+        </section>
 
-        {/* Finance Health */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Delivered Earnings
-            </p>
-            <p className="mt-2 text-2xl font-bold text-green-700">
-              {formatPrice(stats?.deliveredNetEarnings || 0)}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              From {stats?.deliveredCount || 0} delivered item(s)
-            </p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              In Progress Sales
-            </p>
-            <p className="mt-2 text-2xl font-bold text-blue-700">
-              {formatPrice(stats?.inProgressGrossSales || 0)}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              Pending, processing, packed, or shipped items
-            </p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Payout Status
-            </p>
-            <p className={`mt-2 text-2xl font-bold ${stats?.payoutEligible ? "text-green-700" : "text-gray-900"}`}>
-              {stats?.payoutEligible ? "Eligible" : "Building"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              Minimum payout {formatPrice(stats?.minimumPayout || 1000)}
-            </p>
-          </div>
-        </div>
-
-        {/* Commission Info Banner */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-center gap-4">
-          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-xl flex-shrink-0">ℹ️</div>
-          <div className="flex-1">
-            <p className="font-medium text-blue-900">Commission System</p>
-            <p className="text-sm text-blue-600">
-              Platform commission is calculated per category. Your earnings = Gross Sales - Commission. 
-              Commission rates vary by product category.
-            </p>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="flex border-b border-gray-200">
-            {tabs.map((tab) => (
-              <Link
-                key={tab.id}
-                to={tab.path}
-                className={`flex-1 py-4 text-sm font-medium text-center transition border-b-2 ${
-                  activeTab === tab.id
-                    ? "border-orange-500 text-orange-600 bg-orange-50"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {tab.label}
-              </Link>
-            ))}
-          </div>
-
-          <div className="p-6">
-            {/* Overview Tab */}
-            {activeTab === "overview" && (
-              <div className="space-y-6">
-                {/* Earnings Breakdown */}
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200">
-                  <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <span className="text-xl">💵</span>
-                    Earnings Breakdown
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Gross Sales (All Orders)</span>
-                      <span className="text-xl font-bold text-gray-900">{formatPrice(stats?.grossSales || 0)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-red-600">Platform Commission</span>
-                      <span className="text-xl font-bold text-red-600">-{formatPrice(stats?.totalCommission || 0)}</span>
-                    </div>
-                    <div className="border-t-2 border-gray-300 pt-3 flex justify-between items-center">
-                      <span className="text-green-700 font-semibold">Net Earnings</span>
-                      <span className="text-2xl font-bold text-green-700">{formatPrice(stats?.netEarnings || 0)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Balance Status */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-5 border border-orange-200">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-2xl">⏳</span>
-                      <p className="text-sm text-orange-700 font-medium">Available Balance</p>
-                    </div>
-                    <p className="text-3xl font-bold text-orange-900">{formatPrice(stats?.pendingBalance || 0)}</p>
-                    <p className="text-xs text-orange-600 mt-1">Available for payout request</p>
-                  </div>
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-5 border border-blue-200">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-2xl">🕐</span>
-                    <p className="text-sm text-blue-700 font-medium">Approved/Pending Payouts</p>
-                    </div>
-                    <p className="text-3xl font-bold text-blue-900">{formatPrice(stats?.pendingPayouts || 0)}</p>
-                    <p className="text-xs text-blue-600 mt-1">Requested or approved, not marked paid yet</p>
-                  </div>
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-5 border border-green-200">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-2xl">✅</span>
-                      <p className="text-sm text-green-700 font-medium">Paid Balance</p>
-                    </div>
-                    <p className="text-3xl font-bold text-green-900">{formatPrice(stats?.paidBalance || 0)}</p>
-                    <p className="text-xs text-green-600 mt-1">Total amount received via payouts</p>
-                  </div>
-                </div>
-
-                {/* Bank Settings Card */}
-                <Link 
-                  to="/vendor/settings/bank"
-                  className="block bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02]"
+        <nav className="mt-6 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="flex min-w-max">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+              return (
+                <Link
+                  key={tab.id}
+                  to={tab.path}
+                  className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition ${
+                    active
+                      ? "border-orange-500 bg-orange-50 text-orange-700"
+                      : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                  }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-white/20 rounded-lg backdrop-blur-sm">
-                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-white mb-1">Payment Settings</h3>
-                        <p className="text-blue-100 text-sm">Set up your bank account or mobile banking for payouts</p>
-                      </div>
-                    </div>
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
                 </Link>
+              );
+            })}
+          </div>
+        </nav>
 
-                <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
-                  <h4 className="font-semibold text-blue-900 mb-4 flex items-center gap-2">
-                    <span className="text-xl">ℹ️</span>
-                    How Earnings Work
-                  </h4>
-                  <div className="space-y-3 text-sm text-blue-800">
-                    <p>• <strong>Gross Sales:</strong> Total amount from all your delivered orders (what customers paid)</p>
-                    <p>• <strong>Commission:</strong> Platform fee based on product category - deducted automatically</p>
-                    <p>• <strong>Net Earnings:</strong> Your actual earnings after commission (Gross Sales - Commission)</p>
-                    <p>• <strong>Available Balance:</strong> Net earnings from delivered orders, ready for payout request</p>
-                    <p>• <strong>Pending Payouts:</strong> Amount you've requested but admin hasn't paid yet</p>
-                    <p>• <strong>Paid Balance:</strong> Amount already transferred to you by admin</p>
-                  </div>
-                </div>
+        <section className="mt-5">
+          {activeTab === "overview" && (
+            <OverviewTab
+              stats={stats}
+              refundImpact={refundImpact}
+              transactions={transactions}
+              formatPrice={formatPrice}
+            />
+          )}
+
+          {activeTab === "transactions" && (
+            <TransactionsTab transactions={transactions} formatPrice={formatPrice} />
+          )}
+
+          {activeTab === "statements" && (
+            <StatementsTab
+              statementMonth={statementMonth}
+              setStatementMonth={setStatementMonth}
+              statementRows={statementRows}
+              statementTotals={statementTotals}
+              loading={statementLoading}
+              formatPrice={formatPrice}
+              onDownloadStatement={handleStatementDownload}
+              onDownloadTaxInvoice={handleTaxInvoiceDownload}
+            />
+          )}
+
+          {activeTab === "commissions" && (
+            <CommissionTab commissionRates={commissionRates} />
+          )}
+
+          {activeTab === "payouts" && (
+            <PayoutsTab
+              payouts={payouts}
+              stats={stats}
+              refreshTrigger={refreshTrigger}
+              onRequestSuccess={handleRefresh}
+              formatPrice={formatPrice}
+            />
+          )}
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function OverviewTab({ stats, refundImpact, transactions, formatPrice }) {
+  const latestRows = transactions.slice(0, 5);
+
+  return (
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <Panel className="xl:col-span-2">
+        <PanelTitle icon={TrendingUp} title="Earnings Summary" />
+        <div className="mt-4 space-y-3">
+          <BreakdownRow label="Delivered net earnings" value={formatPrice(stats?.deliveredNetEarnings || 0)} />
+          <BreakdownRow label="Pending payout holds" value={`-${formatPrice(stats?.pendingPayouts || 0)}`} />
+          <BreakdownRow label="Return deductions" value={`-${formatPrice(stats?.returnDeductions || 0)}`} />
+          <BreakdownRow label="Paid to date" value={formatPrice(stats?.paidBalance || 0)} />
+          <div className="border-t border-slate-200 pt-3">
+            <BreakdownRow label="Available payout balance" value={formatPrice(stats?.pendingBalance || 0)} strong />
+          </div>
+        </div>
+      </Panel>
+
+      <Panel>
+        <PanelTitle icon={ShieldAlert} title="Refund Impact" />
+        <div className="mt-4">
+          <p className="text-3xl font-bold text-rose-700">{formatPrice(refundImpact.totalDeducted || 0)}</p>
+          <p className="mt-1 text-sm text-slate-500">{refundImpact.returnsCount || 0} approved refund or return deductions.</p>
+          <div className="mt-4 space-y-2">
+            {(refundImpact.recentReturns || []).slice(0, 3).map((item) => (
+              <div key={item.returnId || item.orderId} className="rounded-lg border border-slate-200 px-3 py-2">
+                <p className="truncate text-sm font-semibold text-slate-800">{item.productTitle || "Returned item"}</p>
+                <p className="mt-1 text-xs text-slate-500">{formatDate(item.approvedAt)} - {formatPrice(item.deduction || 0)}</p>
               </div>
-            )}
-
-            {/* Payouts Tab */}
-            {activeTab === "payouts" && (
-              <div className="space-y-6">
-                {/* Payout Requests Section */}
-                <PayoutRequestsList refreshTrigger={refreshTrigger} />
-
-                {/* Payout History Section */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-gray-900">Payout History</h3>
-                    <span className="text-sm text-gray-500">{payouts.length} total payouts</span>
-                  </div>
-
-                  {payouts.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500 bg-white rounded-lg border border-gray-200">
-                      <div className="text-4xl mb-2">💰</div>
-                      <p>No payouts yet</p>
-                      <p className="text-sm mt-1">Payouts will appear here when admin processes them</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {payouts.map((payout) => (
-                        <div
-                          key={payout._id}
-                          className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition bg-white"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              payout.status === 'paid' ? 'bg-green-100' :
-                              payout.status === 'pending' ? 'bg-yellow-100' :
-                              'bg-red-100'
-                            }`}>
-                              <span className="text-xl">
-                                {payout.status === 'paid' ? '✅' :
-                                 payout.status === 'pending' ? '⏳' : '❌'}
-                              </span>
-                            </div>
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                {payout.status === 'paid' ? 'Payout Received' :
-                                 payout.status === 'pending' ? 'Payout Pending' :
-                                 'Payout Cancelled'}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {new Date(payout.createdAt).toLocaleDateString("en-US", {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                })}
-                                {payout.transactionId && ` · ${payout.transactionId}`}
-                              </p>
-                              {payout.note && (
-                                <p className="text-xs text-gray-400 mt-1">{payout.note}</p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className={`font-bold text-lg ${
-                              payout.status === 'paid' ? 'text-green-600' :
-                              payout.status === 'pending' ? 'text-yellow-600' :
-                              'text-red-600'
-                            }`}>
-                              {payout.status === 'cancelled' ? '-' : '+'}{formatPrice(payout.amount)}
-                            </p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${statusBadge(payout.status)}`}>
-                              {payout.status}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Transactions Tab */}
-            {activeTab === "transactions" && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-gray-900">Order Transactions</h3>
-                  <span className="text-sm text-gray-500">{transactions.length} transactions</span>
-                </div>
-
-                {transactions.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <div className="text-4xl mb-2">📊</div>
-                    <p>No transactions yet</p>
-                    <p className="text-sm mt-1">Transactions will appear when orders are delivered</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left border-b border-gray-200">
-                          <th className="pb-3 text-xs text-gray-500 uppercase font-semibold">Date</th>
-                          <th className="pb-3 text-xs text-gray-500 uppercase font-semibold">Order</th>
-                          <th className="pb-3 text-xs text-gray-500 uppercase font-semibold">Product</th>
-                          <th className="pb-3 text-xs text-gray-500 uppercase font-semibold text-right">Qty</th>
-                          <th className="pb-3 text-xs text-gray-500 uppercase font-semibold text-right">Subtotal</th>
-                          <th className="pb-3 text-xs text-gray-500 uppercase font-semibold text-right">Commission</th>
-                          <th className="pb-3 text-xs text-gray-500 uppercase font-semibold text-right">Your Earning</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {transactions.map((tx, i) => (
-                          <tr key={i} className="hover:bg-gray-50 transition">
-                            <td className="py-3 text-gray-600">
-                              {new Date(tx.orderDate).toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </td>
-                            <td className="py-3 font-mono text-xs text-gray-500">
-                              {tx.orderId?.toString().slice(-8)}
-                            </td>
-                            <td className="py-3 text-gray-900 max-w-xs truncate">{tx.productName}</td>
-                            <td className="py-3 text-right text-gray-700">{tx.quantity}</td>
-                            <td className="py-3 text-right text-gray-700">
-                              {formatPrice(tx.itemTotal)}
-                            </td>
-                            <td className="py-3 text-right text-red-600">
-                              -{formatPrice(tx.commissionAmount || 0)}
-                              {tx.commissionRate && (
-                                <span className="text-xs text-gray-400 ml-1">
-                                  ({tx.commissionRate}%)
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3 text-right font-semibold text-green-600">
-                              +{formatPrice(tx.vendorEarning || 0)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+            ))}
+            {(!refundImpact.recentReturns || refundImpact.recentReturns.length === 0) && (
+              <p className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-500">No refund deductions recorded.</p>
             )}
           </div>
         </div>
-      </div>
+      </Panel>
+
+      <Panel className="xl:col-span-3">
+        <PanelTitle icon={ReceiptText} title="Latest Order Settlements" />
+        <div className="mt-4 overflow-x-auto">
+          <TransactionTable rows={latestRows} formatPrice={formatPrice} compact />
+        </div>
+      </Panel>
     </div>
+  );
+}
+
+function TransactionsTab({ transactions, formatPrice }) {
+  return (
+    <Panel>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <PanelTitle icon={ReceiptText} title="Order-Level Transaction Breakdown" />
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+          {transactions.length} rows
+        </span>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <TransactionTable rows={transactions} formatPrice={formatPrice} />
+      </div>
+    </Panel>
+  );
+}
+
+function StatementsTab({
+  statementMonth,
+  setStatementMonth,
+  statementRows,
+  statementTotals,
+  loading,
+  formatPrice,
+  onDownloadStatement,
+  onDownloadTaxInvoice,
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <Panel className="xl:col-span-2">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <PanelTitle icon={FileSpreadsheet} title="Monthly Statement" />
+          <label className="text-sm font-semibold text-slate-700">
+            Month
+            <input
+              type="month"
+              value={statementMonth}
+              onChange={(event) => setStatementMonth(event.target.value)}
+              className="ml-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-orange-500"
+            />
+          </label>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <DownloadAction
+            icon={FileSpreadsheet}
+            label="CSV Statement"
+            onClick={() => onDownloadStatement("csv")}
+          />
+          <DownloadAction
+            icon={FileText}
+            label="PDF Statement"
+            onClick={() => onDownloadStatement("pdf")}
+          />
+          <DownloadAction
+            icon={ReceiptText}
+            label="Tax Invoice"
+            onClick={onDownloadTaxInvoice}
+          />
+        </div>
+
+        <div className="mt-5 overflow-x-auto">
+          {loading ? (
+            <div className="rounded-lg border border-slate-200 p-6 text-center text-sm text-slate-500">Loading statement preview...</div>
+          ) : (
+            <TransactionTable rows={statementRows.slice(0, 12)} formatPrice={formatPrice} compact />
+          )}
+        </div>
+      </Panel>
+
+      <Panel>
+        <PanelTitle icon={Banknote} title="Statement Totals" />
+        <div className="mt-4 space-y-3">
+          <BreakdownRow label="Sales" value={formatPrice(statementTotals.saleAmount)} />
+          <BreakdownRow label="Commission" value={`-${formatPrice(statementTotals.platformCommissionAmount)}`} />
+          <BreakdownRow label="Shipping credited" value={formatPrice(statementTotals.shippingFeeCredited)} />
+          <BreakdownRow label="Shipping debited" value={`-${formatPrice(statementTotals.shippingFeeDebited)}`} />
+          <BreakdownRow label="Refund deducted" value={`-${formatPrice(statementTotals.refundDeducted)}`} />
+          <div className="border-t border-slate-200 pt-3">
+            <BreakdownRow label="Net payout" value={formatPrice(statementTotals.netPayout)} strong />
+          </div>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function CommissionTab({ commissionRates }) {
+  return (
+    <Panel>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <PanelTitle icon={Percent} title="Commission Rate Card" />
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+          {commissionRates.length} categories
+        </span>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[720px] text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-xs font-bold uppercase text-slate-500">
+              <th className="px-3 py-3">Category</th>
+              <th className="px-3 py-3 text-right">Base commission</th>
+              <th className="px-3 py-3 text-right">Minimum rate</th>
+              <th className="px-3 py-3 text-right">Effective rate</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {commissionRates.map((category) => (
+              <tr key={category.categoryId || category.slug} className="hover:bg-slate-50">
+                <td className="px-3 py-3">
+                  <p className="font-semibold text-slate-900">{category.name}</p>
+                  <p className="text-xs text-slate-500">{category.slug || "No slug"}</p>
+                </td>
+                <td className="px-3 py-3 text-right text-slate-700">{category.commissionRate || 0}%</td>
+                <td className="px-3 py-3 text-right text-slate-700">{category.minimumCommissionRate || 0}%</td>
+                <td className="px-3 py-3 text-right font-bold text-slate-950">{category.effectiveCommissionRate || 0}%</td>
+              </tr>
+            ))}
+            {commissionRates.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-3 py-8 text-center text-slate-500">
+                  No commission rates available for your approved categories.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}
+
+function PayoutsTab({ payouts, stats, refreshTrigger, onRequestSuccess, formatPrice }) {
+  return (
+    <div className="space-y-4">
+      <Panel>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <PanelTitle icon={Landmark} title="Payout Schedule" />
+            <p className="mt-2 text-sm text-slate-500">
+              Available balance {formatPrice(stats?.pendingBalance || 0)}. Minimum payout {formatPrice(stats?.minimumPayout || 1000)}.
+            </p>
+          </div>
+          <PayoutRequestButton onRequestSuccess={onRequestSuccess} />
+        </div>
+      </Panel>
+
+      <PayoutRequestsList refreshTrigger={refreshTrigger} />
+
+      <Panel>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <PanelTitle icon={Banknote} title="Payout History" />
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+            {payouts.length} records
+          </span>
+        </div>
+        <div className="mt-4 space-y-3">
+          {payouts.map((payout) => (
+            <div key={payout._id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-4 py-3">
+              <div>
+                <p className="font-semibold text-slate-950">{payout.note || "Payout transfer"}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Requested {formatDate(payout.createdAt)}
+                  {payout.transactionId ? ` - ${payout.transactionId}` : ""}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold text-slate-950">{formatPrice(payout.amount || 0)}</p>
+                <StatusBadge status={payout.status} />
+              </div>
+            </div>
+          ))}
+          {payouts.length === 0 && (
+            <div className="rounded-lg border border-slate-200 p-8 text-center text-sm text-slate-500">
+              Payout history will appear after admin processes a transfer.
+            </div>
+          )}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function TransactionTable({ rows, formatPrice, compact = false }) {
+  if (!rows.length) {
+    return (
+      <div className="rounded-lg border border-slate-200 p-8 text-center text-sm text-slate-500">
+        No finance transactions found.
+      </div>
+    );
+  }
+
+  return (
+    <table className="w-full min-w-[980px] text-sm">
+      <thead>
+        <tr className="border-b border-slate-200 text-left text-xs font-bold uppercase text-slate-500">
+          <th className="px-3 py-3">Order</th>
+          <th className="px-3 py-3">Products</th>
+          <th className="px-3 py-3 text-right">Sale</th>
+          <th className="px-3 py-3 text-right">Commission</th>
+          <th className="px-3 py-3 text-right">Ship credit</th>
+          <th className="px-3 py-3 text-right">Ship debit</th>
+          <th className="px-3 py-3 text-right">Refund</th>
+          <th className="px-3 py-3 text-right">Net payout</th>
+          {!compact && <th className="px-3 py-3 text-right">Status</th>}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-100">
+        {rows.map((row) => (
+          <tr key={row.orderId || row.orderNumber} className="hover:bg-slate-50">
+            <td className="px-3 py-3">
+              <p className="font-mono text-xs font-semibold text-slate-900">#{row.orderNumber}</p>
+              <p className="mt-1 text-xs text-slate-500">{formatDate(row.orderDate)}</p>
+            </td>
+            <td className="max-w-xs px-3 py-3">
+              <p className="truncate font-semibold text-slate-900">{row.productsSummary || "Order items"}</p>
+              <p className="mt-1 text-xs text-slate-500">{row.itemCount || 0} item(s)</p>
+            </td>
+            <td className="px-3 py-3 text-right text-slate-700">{formatPrice(row.saleAmount || 0)}</td>
+            <td className="px-3 py-3 text-right text-rose-700">
+              -{formatPrice(row.platformCommissionAmount || 0)}
+              <span className="ml-1 text-xs text-slate-400">({row.platformCommissionRate || 0}%)</span>
+            </td>
+            <td className="px-3 py-3 text-right text-emerald-700">{formatPrice(row.shippingFeeCredited || 0)}</td>
+            <td className="px-3 py-3 text-right text-amber-700">-{formatPrice(row.shippingFeeDebited || 0)}</td>
+            <td className="px-3 py-3 text-right text-rose-700">-{formatPrice(row.refundDeducted || 0)}</td>
+            <td className="px-3 py-3 text-right font-bold text-slate-950">{formatPrice(row.netPayout || 0)}</td>
+            {!compact && (
+              <td className="px-3 py-3 text-right">
+                <StatusBadge status={row.itemStatus} />
+              </td>
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function MetricCard({ icon, label, value, note, tone }) {
+  const tones = {
+    emerald: "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+    sky: "bg-sky-50 text-sky-700",
+    rose: "bg-rose-50 text-rose-700",
+  };
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-slate-500">{label}</p>
+        <span className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${tones[tone] || tones.sky}`}>
+          {createElement(icon, { className: "h-5 w-5" })}
+        </span>
+      </div>
+      <p className="mt-4 text-2xl font-bold text-slate-950">{value}</p>
+      <p className="mt-1 text-xs text-slate-500">{note}</p>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, danger = false, success = false, strong = false }) {
+  const color = danger ? "text-rose-700" : success ? "text-emerald-700" : strong ? "text-orange-700" : "text-slate-950";
+
+  return (
+    <div>
+      <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
+      <p className={`mt-2 text-xl font-bold ${color}`}>{value}</p>
+    </div>
+  );
+}
+
+function Panel({ children, className = "" }) {
+  return (
+    <div className={`rounded-lg border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+function PanelTitle({ icon, title }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+        {createElement(icon, { className: "h-4 w-4" })}
+      </span>
+      <h2 className="text-base font-bold text-slate-950">{title}</h2>
+    </div>
+  );
+}
+
+function BreakdownRow({ label, value, strong = false }) {
+  return (
+    <div className="flex items-center justify-between gap-4 text-sm">
+      <span className={strong ? "font-bold text-slate-950" : "text-slate-600"}>{label}</span>
+      <span className={strong ? "text-lg font-bold text-slate-950" : "font-semibold text-slate-900"}>{value}</span>
+    </div>
+  );
+}
+
+function DownloadAction({ icon, label, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+    >
+      <span className="inline-flex items-center gap-2">
+        {createElement(icon, { className: "h-4 w-4" })}
+        {label}
+      </span>
+      <Download className="h-4 w-4" />
+    </button>
+  );
+}
+
+function StatusBadge({ status }) {
+  const value = status || "pending";
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${statusStyles[value] || "border-slate-200 bg-slate-100 text-slate-600"}`}>
+      {normalizeStatus(value)}
+    </span>
   );
 }

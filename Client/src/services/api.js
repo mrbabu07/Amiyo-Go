@@ -372,6 +372,15 @@ export const getVendorFinanceSummary = () =>
 export const getVendorFinanceTransactions = (params = {}) =>
   api.get("/vendors/finance/transactions", { params });
 
+export const getVendorCommissionRates = () =>
+  api.get("/vendors/finance/commission-rates");
+
+export const downloadVendorFinanceStatement = (format = "csv", params = {}) =>
+  api.get(`/vendors/finance/statement/${format}`, { params, responseType: "blob" });
+
+export const downloadVendorTaxInvoice = (params = {}) =>
+  api.get("/vendors/finance/tax-invoice", { params, responseType: "blob" });
+
 export const getVendorMarketingItems = (params = {}) =>
   api.get("/vendors/marketing/items", { params });
 

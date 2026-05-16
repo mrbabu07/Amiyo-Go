@@ -49,6 +49,8 @@ const VendorLayout = () => {
         { title: 'Overview', path: '/vendor/finance', icon: '💵' },
         { title: 'Payouts', path: '/vendor/finance/payouts', icon: '📋' },
         { title: 'Transactions', path: '/vendor/finance/transactions', icon: '📊' },
+        { title: 'Statements', path: '/vendor/finance/statements', icon: 'CSV' },
+        { title: 'Commissions', path: '/vendor/finance/commissions', icon: '%' },
       ],
     },
     {

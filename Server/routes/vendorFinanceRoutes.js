@@ -6,6 +6,9 @@ const vendorFinanceController = require("../controllers/vendor/vendorFinanceCont
 // Vendor finance routes (self-service)
 router.get("/summary", verifyToken, requireRole("vendor"), vendorFinanceController.getFinanceSummary);
 router.get("/transactions", verifyToken, requireRole("vendor"), vendorFinanceController.getTransactions);
+router.get("/commission-rates", verifyToken, requireRole("vendor"), vendorFinanceController.getCommissionRates);
+router.get("/statement/:format", verifyToken, requireRole("vendor"), vendorFinanceController.downloadStatement);
+router.get("/tax-invoice", verifyToken, requireRole("vendor"), vendorFinanceController.downloadTaxInvoice);
 router.get("/payouts", verifyToken, requireRole("vendor"), vendorFinanceController.getPayouts);
 
 // Payout request routes

@@ -66,6 +66,7 @@ jest.mock("../controllers/orderController", () => ({
   bulkUpdateOrderStatus: (req, res) => res.json({ route: "orders:bulk-status" }),
   addOrderNote: (req, res) => res.json({ route: "orders:add-note", id: req.params.id }),
   regenerateInvoice: (req, res) => res.json({ route: "orders:regenerate-invoice", id: req.params.id }),
+  getOrderTimelineEvents: (req, res) => res.json({ route: "orders:timeline", id: req.params.id }),
   getUserOrders: (req, res) => res.json({ route: "orders:my-orders" }),
   createOrder: (req, res) =>
     res.status(201).json({
@@ -86,6 +87,18 @@ jest.mock("../controllers/orderController", () => ({
 jest.mock("../controllers/vendor/vendorFinanceController", () => ({
   getFinanceSummary: (req, res) => res.json({ route: "vendor-finance:summary" }),
   getTransactions: (req, res) => res.json({ route: "vendor-finance:transactions" }),
+  getCommissionRates: (req, res) => res.json({ route: "vendor-finance:commission-rates" }),
+  downloadStatement: (req, res) =>
+    res.json({
+      route: "vendor-finance:statement",
+      format: req.params.format,
+      month: req.query.month || "",
+    }),
+  downloadTaxInvoice: (req, res) =>
+    res.json({
+      route: "vendor-finance:tax-invoice",
+      month: req.query.month || "",
+    }),
   getPayouts: (req, res) => res.json({ route: "vendor-finance:payouts" }),
   getAvailableBalance: (req, res) => res.json({ route: "vendor-finance:available-balance" }),
   requestPayout: (req, res) =>
@@ -134,6 +147,8 @@ jest.mock("../controllers/adminPayoutController", () => ({
 
 jest.mock("../controllers/vendorMarketingController", () => ({
   listPublicVendorMarketingItems: (req, res) => res.json({ route: "vendor-marketing:public" }),
+  recordPublicVendorMarketingEvent: (req, res) =>
+    res.json({ route: "vendor-marketing:public-event", id: req.params.id, itemId: req.params.itemId }),
   listVendorMarketingItems: (req, res) => res.json({ route: "vendor-marketing:list" }),
   createVendorMarketingItem: (req, res) =>
     res.status(201).json({
@@ -145,6 +160,7 @@ jest.mock("../controllers/vendorMarketingController", () => ({
     res.json({ route: "vendor-marketing:update", id: req.params.id }),
   deleteVendorMarketingItem: (req, res) =>
     res.json({ route: "vendor-marketing:delete", id: req.params.id }),
+  getCampaignVoucherAnalytics: (req, res) => res.json({ route: "vendor-marketing:analytics" }),
   listAdminMarketingItems: (req, res) => res.json({ route: "admin-vendor-marketing:list" }),
   reviewAdminMarketingItem: (req, res) =>
     res.json({
@@ -287,6 +303,43 @@ describe("Black-box workflow API tests", () => {
         route: "vendor-finance:request-payout",
         amount: 2500,
         payoutMethod: "bkash",
+      });
+    });
+
+    test("GET /api/vendors/finance/commission-rates returns the vendor rate card route", async () => {
+      const response = await request(app)
+        .get("/api/vendors/finance/commission-rates")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "vendor-finance:commission-rates" });
+    });
+
+    test("GET /api/vendors/finance/statement/:format reaches statement export", async () => {
+      const response = await request(app)
+        .get("/api/vendors/finance/statement/csv?month=2026-05")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "vendor-finance:statement",
+        format: "csv",
+        month: "2026-05",
+      });
+    });
+
+    test("GET /api/vendors/finance/tax-invoice reaches tax invoice export", async () => {
+      const response = await request(app)
+        .get("/api/vendors/finance/tax-invoice?month=2026-05")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "vendor-finance:tax-invoice",
+        month: "2026-05",
       });
     });
 
