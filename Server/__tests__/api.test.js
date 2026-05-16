@@ -126,6 +126,31 @@ jest.mock("../controllers/adminDashboardController", () => ({
     res.json({ route: "admin-dashboard:overview", range: req.query.range || "7d" }),
 }));
 
+jest.mock("../controllers/adminProductController", () => ({
+  getAllAdminProducts: (req, res) =>
+    res.json({ route: "admin-products:list", status: req.query.status || req.query.approvalStatus || "all" }),
+  getPendingProducts: (req, res) => res.json({ route: "admin-products:pending" }),
+  getModerationQueue: (req, res) => res.json({ route: "admin-products:queue" }),
+  approveProduct: (req, res) => res.json({ route: "admin-products:approve", id: req.params.id }),
+  rejectProduct: (req, res) => res.json({ route: "admin-products:reject", id: req.params.id }),
+  disableProduct: (req, res) => res.json({ route: "admin-products:disable", id: req.params.id }),
+  adminEditProduct: (req, res) => res.json({ route: "admin-products:admin-edit", id: req.params.id }),
+  bulkModerateProducts: (req, res) => res.json({ route: "admin-products:bulk", action: req.body.action }),
+  getModerationConfig: (req, res) => res.json({ route: "admin-products:config" }),
+  scanProductsForModeration: (req, res) => res.json({ route: "admin-products:scan", scope: req.body.scope }),
+  getDuplicateProductGroups: (req, res) => res.json({ route: "admin-products:duplicates" }),
+  getIpViolationReports: (req, res) => res.json({ route: "admin-products:ip-reports" }),
+  submitIpViolationReport: (req, res) => res.status(201).json({ route: "admin-products:submit-ip-report" }),
+  reviewIpViolationReport: (req, res) =>
+    res.json({ route: "admin-products:review-ip-report", id: req.params.reportId }),
+  getBrandRegistry: (req, res) => res.json({ route: "admin-products:brands" }),
+  upsertBrandRegistryItem: (req, res) => res.status(201).json({ route: "admin-products:brand-save" }),
+  reviewBrandRegistryItem: (req, res) =>
+    res.json({ route: "admin-products:brand-review", id: req.params.brandId }),
+  getVendorProductsAdmin: (req, res) =>
+    res.json({ route: "admin-products:vendor-products", vendorId: req.params.vendorId }),
+}));
+
 jest.mock("../controllers/adminVendorPerformanceController", () => ({
   getVendorPerformance: (req, res) => res.json({ route: "vendors:performance", id: req.params.id }),
 }));
@@ -224,6 +249,7 @@ const buildApp = () => {
   app.use("/api/vendors", require("../routes/vendorRoutes"));
   app.use("/api/vendor-chat", require("../routes/vendorChatRoutes"));
   app.use("/api/admin/dashboard", require("../routes/adminDashboardRoutes"));
+  app.use("/api/admin/products", require("../routes/adminProductRoutes"));
   app.use("/api/admin/payouts", require("../routes/adminPayoutRoutes"));
   app.use("/api/admin/vendors", require("../routes/adminVendorRoutes"));
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
@@ -408,6 +434,60 @@ describe("Black-box API tests", () => {
     test("GET /api/admin/dashboard/overview rejects vendor access", async () => {
       const response = await request(app)
         .get("/api/admin/dashboard/overview")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "Admin access required" });
+    });
+  });
+
+  describe("admin product moderation API behavior", () => {
+    test("GET /api/admin/products/queue uses the moderation queue route", async () => {
+      const response = await request(app)
+        .get("/api/admin/products/queue")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-products:queue" });
+    });
+
+    test("POST /api/admin/products/bulk uses the bulk moderation route", async () => {
+      const response = await request(app)
+        .post("/api/admin/products/bulk")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ action: "approve", productIds: ["p1"] });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-products:bulk", action: "approve" });
+    });
+
+    test("PATCH /api/admin/products/:id/admin-edit reaches edit-on-behalf route", async () => {
+      const response = await request(app)
+        .patch("/api/admin/products/product-1/admin-edit")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ title: "Fixed title" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-products:admin-edit", id: "product-1" });
+    });
+
+    test("GET /api/admin/products/brands is not captured by product action routes", async () => {
+      const response = await request(app)
+        .get("/api/admin/products/brands")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-products:brands" });
+    });
+
+    test("GET /api/admin/products/queue rejects vendor access", async () => {
+      const response = await request(app)
+        .get("/api/admin/products/queue")
         .set("Authorization", "Bearer test")
         .set("x-test-role", "vendor");
 

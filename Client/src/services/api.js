@@ -236,14 +236,53 @@ export const getAdminVendorById = (vendorId) =>
 export const getAdminVendorProducts = (vendorId, params = {}) =>
   api.get(`/admin/products/by-vendor/${vendorId}`, { params });
 
+export const getAdminProducts = (params = {}) =>
+  api.get("/admin/products", { params });
+
+export const getAdminProductQueue = (params = {}) =>
+  api.get("/admin/products/queue", { params });
+
 export const approveAdminProduct = (productId) =>
   api.patch(`/admin/products/${productId}/approve`);
 
 export const rejectAdminProduct = (productId, reason) =>
   api.patch(`/admin/products/${productId}/reject`, { reason });
 
-export const disableAdminProduct = (productId) =>
-  api.patch(`/admin/products/${productId}/disable`);
+export const disableAdminProduct = (productId, data = {}) =>
+  api.patch(`/admin/products/${productId}/disable`, data);
+
+export const adminEditProduct = (productId, data) =>
+  api.patch(`/admin/products/${productId}/admin-edit`, data);
+
+export const bulkModerateAdminProducts = (data) =>
+  api.post("/admin/products/bulk", data);
+
+export const getProductModerationConfig = () =>
+  api.get("/admin/products/moderation/config");
+
+export const scanProductModeration = (data = {}) =>
+  api.post("/admin/products/moderation/scan", data);
+
+export const getProductDuplicateGroups = () =>
+  api.get("/admin/products/duplicates");
+
+export const getProductIpReports = (params = {}) =>
+  api.get("/admin/products/ip-reports", { params });
+
+export const submitProductIpReport = (data) =>
+  api.post("/admin/products/ip-reports", data);
+
+export const reviewProductIpReport = (reportId, data) =>
+  api.patch(`/admin/products/ip-reports/${reportId}/review`, data);
+
+export const getBrandRegistry = () =>
+  api.get("/admin/products/brands");
+
+export const saveBrandRegistryItem = (data) =>
+  api.post("/admin/products/brands", data);
+
+export const reviewBrandRegistryItem = (brandId, data) =>
+  api.patch(`/admin/products/brands/${brandId}/review`, data);
 
 // ── Admin: Vendor finance ──────────────────────────────────────
 export const getAdminVendorFinanceSummary = (vendorId, params = {}) =>

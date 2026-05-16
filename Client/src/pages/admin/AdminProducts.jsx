@@ -1,385 +1,753 @@
-import { useState, useEffect } from "react";
-import { getProducts, deleteProduct } from "../../services/api";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import Loading from "../../components/Loading";
 import toast, { Toaster } from "react-hot-toast";
+import Loading from "../../components/Loading";
 import useCurrency from "../../hooks/useCurrency";
+import {
+  getAdminProducts,
+  approveAdminProduct,
+  rejectAdminProduct,
+  disableAdminProduct,
+  adminEditProduct,
+  bulkModerateAdminProducts,
+  getProductModerationConfig,
+  scanProductModeration,
+  getProductDuplicateGroups,
+  getProductIpReports,
+  submitProductIpReport,
+  reviewProductIpReport,
+  getBrandRegistry,
+  saveBrandRegistryItem,
+  reviewBrandRegistryItem,
+} from "../../services/api";
+
+const STATUS_TABS = [
+  { key: "queue", label: "Queue" },
+  { key: "pending", label: "Pending" },
+  { key: "flagged", label: "Flagged" },
+  { key: "approved", label: "Live" },
+  { key: "rejected", label: "Rejected" },
+  { key: "delisted", label: "Delisted" },
+  { key: "all", label: "All" },
+];
+
+const statusClass = {
+  approved: "bg-green-100 text-green-800 border-green-200",
+  pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  flagged: "bg-red-100 text-red-800 border-red-200",
+  rejected: "bg-gray-100 text-gray-700 border-gray-200",
+  delisted: "bg-black text-white border-black",
+  changes_requested: "bg-orange-100 text-orange-800 border-orange-200",
+};
+
+const guidanceOptions = [
+  "Add a clean white background image and resubmit.",
+  "Remove prohibited or misleading keywords from the title.",
+  "Select the correct category and fill all required attributes.",
+  "Upload authentic brand proof or remove official brand claims.",
+];
+
+const getProductImage = (product) =>
+  product.image ||
+  product.images?.[0] ||
+  "https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=160&h=160&fit=crop";
+
+const getFlagTone = (severity) => {
+  if (severity === "high") return "bg-red-50 text-red-700 border-red-100";
+  if (severity === "medium") return "bg-yellow-50 text-yellow-800 border-yellow-100";
+  return "bg-blue-50 text-blue-700 border-blue-100";
+};
 
 export default function AdminProducts() {
   const { formatPrice } = useCurrency();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [deleteId, setDeleteId] = useState(null);
+  const [activeStatus, setActiveStatus] = useState("queue");
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [config, setConfig] = useState(null);
+  const [duplicates, setDuplicates] = useState([]);
+  const [ipReports, setIpReports] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [rejectModal, setRejectModal] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [editModal, setEditModal] = useState(null);
+  const [editForm, setEditForm] = useState({ title: "", sku: "", categoryId: "", brand: "", note: "", approveAfterEdit: true });
+  const [brandForm, setBrandForm] = useState({ name: "", ownerVendorId: "", trademarkNumber: "" });
+  const [ipForm, setIpForm] = useState({ productId: "", brandName: "", reason: "" });
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  const metrics = useMemo(() => {
+    const flags = products.reduce((sum, product) => sum + (product.moderationFlags?.length || 0), 0);
+    return {
+      total,
+      pending: products.filter((product) => product.approvalStatus === "pending").length,
+      flagged: products.filter((product) => (product.moderationFlags || []).length > 0 || product.approvalStatus === "flagged").length,
+      trusted: products.filter((product) => product.trustedVendor).length,
+      flags,
+    };
+  }, [products, total]);
 
   const fetchProducts = async () => {
+    setLoading(true);
     try {
-      const response = await getProducts();
-      setProducts(response.data.data);
+      const params = {
+        page: 1,
+        limit: 50,
+        sort: "submitted",
+      };
+      if (activeStatus === "queue") params.status = "queue";
+      else if (activeStatus !== "all") params.approvalStatus = activeStatus;
+      if (searchTerm.trim()) params.search = searchTerm.trim();
+
+      const response = await getAdminProducts(params);
+      setProducts(response.data.data || []);
+      setTotal(response.data.total || 0);
+      setSelectedIds([]);
     } catch (error) {
-      console.error("Failed to fetch products:", error);
+      toast.error(error.response?.data?.error || "Failed to load moderation products");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    const loadingToast = toast.loading("Deleting product...");
+  const fetchSidePanels = async () => {
     try {
-      await deleteProduct(id);
-      setProducts(products.filter((p) => p._id !== id));
-      setDeleteId(null);
-      toast.success("Product deleted successfully!", {
-        id: loadingToast,
-      });
+      const [configRes, duplicateRes, reportsRes, brandsRes] = await Promise.all([
+        getProductModerationConfig(),
+        getProductDuplicateGroups(),
+        getProductIpReports({ status: "pending" }),
+        getBrandRegistry(),
+      ]);
+      setConfig(configRes.data.data);
+      setDuplicates(duplicateRes.data.data || []);
+      setIpReports(reportsRes.data.data || []);
+      setBrands(brandsRes.data.data || []);
     } catch (error) {
-      console.error("Failed to delete product:", error);
-      toast.error("Failed to delete product", {
-        id: loadingToast,
-      });
+      toast.error(error.response?.data?.error || "Failed to load moderation side panels");
     }
   };
 
-  const filteredProducts = products.filter((product) =>
-    product.title.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  useEffect(() => {
+    fetchProducts();
+  }, [activeStatus]);
 
-  if (loading) return <Loading />;
+  useEffect(() => {
+    fetchSidePanels();
+  }, []);
+
+  const handleSearch = (event) => {
+    event.preventDefault();
+    fetchProducts();
+  };
+
+  const toggleProduct = (productId) => {
+    setSelectedIds((prev) =>
+      prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId],
+    );
+  };
+
+  const handleApprove = async (productId) => {
+    setActionLoading(true);
+    try {
+      await approveAdminProduct(productId);
+      toast.success("Product approved");
+      fetchProducts();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to approve product");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const openReject = (product = null, mode = "single") => {
+    setRejectModal({ product, mode });
+    setRejectReason("");
+  };
+
+  const submitReject = async () => {
+    if (!rejectReason.trim()) {
+      toast.error("Reject reason is required");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      if (rejectModal.mode === "bulk") {
+        await bulkModerateAdminProducts({
+          action: "reject",
+          productIds: selectedIds,
+          reason: rejectReason,
+        });
+      } else {
+        await rejectAdminProduct(rejectModal.product._id, rejectReason);
+      }
+      toast.success("Product rejected with vendor guidance");
+      setRejectModal(null);
+      setSelectedIds([]);
+      fetchProducts();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to reject product");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBulk = async (action) => {
+    if (selectedIds.length === 0) {
+      toast.error("Select products first");
+      return;
+    }
+    if (action === "reject") {
+      openReject(null, "bulk");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await bulkModerateAdminProducts({ action, productIds: selectedIds });
+      toast.success(`${selectedIds.length} products processed`);
+      setSelectedIds([]);
+      fetchProducts();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Bulk action failed");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDelist = async (productId, reason = "Policy or IP violation") => {
+    setActionLoading(true);
+    try {
+      await disableAdminProduct(productId, { reason });
+      toast.success("Product delisted");
+      fetchProducts();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to delist product");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const openEdit = (product) => {
+    setEditModal(product);
+    setEditForm({
+      title: product.title || "",
+      sku: product.sku || "",
+      categoryId: product.categoryId || "",
+      brand: product.brand || product.attributes?.brand || "",
+      note: "",
+      approveAfterEdit: true,
+    });
+  };
+
+  const submitEdit = async () => {
+    if (!editModal) return;
+    setActionLoading(true);
+    try {
+      await adminEditProduct(editModal._id, editForm);
+      toast.success(editForm.approveAfterEdit ? "Edited and approved" : "Product updated");
+      setEditModal(null);
+      fetchProducts();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to edit product");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const runScan = async () => {
+    setActionLoading(true);
+    try {
+      const response = await scanProductModeration({ scope: activeStatus === "all" ? "all" : "queue" });
+      toast.success(response.data.message || "Moderation scan complete");
+      await Promise.all([fetchProducts(), fetchSidePanels()]);
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Scan failed");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const submitBrand = async (event) => {
+    event.preventDefault();
+    if (!brandForm.name.trim()) return;
+    try {
+      await saveBrandRegistryItem({ ...brandForm, status: "pending" });
+      toast.success("Brand added to registry");
+      setBrandForm({ name: "", ownerVendorId: "", trademarkNumber: "" });
+      fetchSidePanels();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to save brand");
+    }
+  };
+
+  const approveBrand = async (brandId) => {
+    try {
+      await reviewBrandRegistryItem(brandId, { status: "approved", officialStoreEligible: true });
+      toast.success("Brand approved");
+      fetchSidePanels();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to approve brand");
+    }
+  };
+
+  const submitIpReport = async (event) => {
+    event.preventDefault();
+    if (!ipForm.productId.trim()) {
+      toast.error("Product ID is required");
+      return;
+    }
+    try {
+      await submitProductIpReport(ipForm);
+      toast.success("IP report added");
+      setIpForm({ productId: "", brandName: "", reason: "" });
+      fetchSidePanels();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to submit report");
+    }
+  };
+
+  const resolveIpReport = async (report, delistProduct) => {
+    try {
+      await reviewProductIpReport(report._id, {
+        status: delistProduct ? "actioned" : "resolved",
+        delistProduct,
+        adminNote: delistProduct ? "Delisted after counterfeit review" : "Reviewed without delisting",
+      });
+      toast.success(delistProduct ? "Report actioned and product delisted" : "Report resolved");
+      await Promise.all([fetchProducts(), fetchSidePanels()]);
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to review report");
+    }
+  };
+
+  if (loading && products.length === 0) return <Loading />;
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: "#363636",
-            color: "#fff",
-          },
-          success: {
-            duration: 3000,
-            iconTheme: {
-              primary: "#10B981",
-              secondary: "#fff",
-            },
-          },
-          error: {
-            duration: 4000,
-            iconTheme: {
-              primary: "#EF4444",
-              secondary: "#fff",
-            },
-          },
-        }}
-      />
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <Link
-                to="/admin"
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Back to Dashboard"
-              >
-                <svg
-                  className="w-6 h-6 text-gray-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 19l-7-7 7-7"
-                  />
-                </svg>
-              </Link>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-                <p className="text-gray-600">
-                  {products.length} products total
-                </p>
+    <div className="min-h-screen bg-gray-100">
+      <Toaster position="top-right" />
+
+      <div className="border-b bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <Link to="/admin" className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">
+                  Back
+                </Link>
+                <h1 className="text-2xl font-bold text-gray-900">Product Moderation</h1>
               </div>
+              <p className="mt-2 text-sm text-gray-500">
+                Review vendor submissions, fix minor issues, catch policy risk, and keep the catalog clean.
+              </p>
             </div>
-            <Link
-              to="/admin/products/add"
-              className="btn-primary flex items-center gap-2"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={runScan}
+                disabled={actionLoading}
+                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              Add Product
-            </Link>
+                Run Filter Scan
+              </button>
+              <Link to="/admin/categories" className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                Category Attributes
+              </Link>
+              <Link to="/admin/products/add" className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">
+                Add Product
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            {[
+              ["Products", metrics.total],
+              ["Pending Here", metrics.pending],
+              ["Flagged Here", metrics.flagged],
+              ["Trusted Vendors", metrics.trusted],
+              ["Open Reports", ipReports.length],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-gray-200 bg-white p-4">
+                <p className="text-xs font-medium uppercase text-gray-500">{label}</p>
+                <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Info Banner */}
-        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">
-                Product Moderation
-              </h3>
-              <div className="mt-2 text-sm text-blue-700">
-                <p>
-                  Review vendor products for quality and policy compliance. Click on vendor name to see their profile and approval history.
-                </p>
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 xl:grid-cols-[1fr_360px]">
+        <main className="space-y-5">
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap gap-2">
+                {STATUS_TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveStatus(tab.key)}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+                      activeStatus === tab.key ? "bg-orange-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
+              <form onSubmit={handleSearch} className="flex min-w-0 gap-2 lg:w-96">
+                <input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search SKU, title, vendor, category, status"
+                  className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                />
+                <button className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black">
+                  Search
+                </button>
+              </form>
             </div>
-          </div>
-        </div>
 
-        {/* Search Bar */}
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-          <div className="relative">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
+            {selectedIds.length > 0 && (
+              <div className="mt-4 flex flex-col gap-3 rounded-lg border border-orange-200 bg-orange-50 p-3 lg:flex-row lg:items-center lg:justify-between">
+                <p className="text-sm font-semibold text-orange-900">{selectedIds.length} selected</p>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => handleBulk("approve")} className="rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700">
+                    Bulk Approve
+                  </button>
+                  <button onClick={() => handleBulk("reject")} className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700">
+                    Bulk Reject
+                  </button>
+                  <button onClick={() => handleBulk("delist")} className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-black">
+                    Bulk Delist
+                  </button>
+                  <button onClick={() => setSelectedIds([])} className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-sm font-semibold text-orange-800 hover:bg-orange-100">
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
 
-        {/* Products Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Product
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Price
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Stock
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredProducts.length === 0 ? (
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[980px]">
+                <thead className="border-b bg-gray-50">
                   <tr>
-                    <td
-                      colSpan="5"
-                      className="px-6 py-12 text-center text-gray-500"
-                    >
-                      {searchTerm
-                        ? "No products found matching your search"
-                        : "No products yet"}
-                    </td>
+                    <th className="px-4 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        checked={products.length > 0 && selectedIds.length === products.length}
+                        onChange={(event) => setSelectedIds(event.target.checked ? products.map((product) => product._id) : [])}
+                        className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                      />
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Product</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Vendor</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Risk</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Price</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Actions</th>
                   </tr>
-                ) : (
-                  filteredProducts.map((product) => (
-                    <tr
-                      key={product._id}
-                      className="hover:bg-gray-50 transition"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-4">
-                          <img
-                            src={
-                              product.image ||
-                              product.images?.[0] ||
-                              "https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=100&h=100&fit=crop"
-                            }
-                            alt={product.title}
-                            className="w-12 h-12 object-cover rounded-lg"
-                          />
-                          <div>
-                            <p className="font-medium text-gray-900">
-                              {product.title}
-                            </p>
-                            <p className="text-sm text-gray-500 truncate max-w-xs">
-                              {product.description}
-                            </p>
-                            {/* Vendor Context */}
-                            {product.vendorId && (
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs text-gray-400">by</span>
-                                <Link
-                                  to={`/admin/vendors/${product.vendorId}`}
-                                  className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium flex items-center gap-1"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                  </svg>
-                                  {product.vendorShopName || 'View Vendor'}
-                                </Link>
-                              </div>
-                            )}
-                            {/* Approval Status */}
-                            {product.approvalStatus && (
-                              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                product.approvalStatus === 'approved' ? 'bg-green-100 text-green-800' :
-                                product.approvalStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-red-100 text-red-800'
-                              }`}>
-                                {product.approvalStatus}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="font-semibold text-gray-900">
-                          {formatPrice(product.price || 0)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-gray-600">{product.stock}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            product.stock > 10
-                              ? "bg-green-100 text-green-800"
-                              : product.stock > 0
-                                ? "bg-yellow-100 text-yellow-800"
-                                : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {product.stock > 10
-                            ? "In Stock"
-                            : product.stock > 0
-                              ? "Low Stock"
-                              : "Out of Stock"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link
-                            to={`/admin/products/edit/${product._id}`}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                            title="Edit"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
-                          </Link>
-                          <button
-                            onClick={() => setDeleteId(product._id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                            title="Delete"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        </div>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {products.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="px-4 py-12 text-center text-sm text-gray-500">
+                        No products match this moderation view.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    products.map((product) => (
+                      <tr key={product._id} className="align-top hover:bg-gray-50">
+                        <td className="px-4 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(product._id)}
+                            onChange={() => toggleProduct(product._id)}
+                            className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex gap-3">
+                            <img src={getProductImage(product)} alt={product.title} className="h-16 w-16 rounded-lg object-cover" />
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-semibold text-gray-900">{product.title}</p>
+                                <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass[product.approvalStatus] || "bg-gray-100 text-gray-700 border-gray-200"}`}>
+                                  {product.approvalStatus || "approved"}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs text-gray-500">SKU {product.sku || "missing"} - {product.categoryName || "No category"}</p>
+                              <p className="mt-1 line-clamp-2 text-sm text-gray-600">{product.description || "No description"}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-sm">
+                          {product.vendorId ? (
+                            <Link to={`/admin/vendors/${product.vendorId}`} className="font-semibold text-blue-700 hover:underline">
+                              {product.vendorShopName || "Vendor"}
+                            </Link>
+                          ) : (
+                            <span className="text-gray-500">Admin product</span>
+                          )}
+                          {product.trustedVendor && <p className="mt-1 text-xs font-semibold text-green-700">Trusted vendor</p>}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex max-w-xs flex-wrap gap-1.5">
+                            {(product.moderationFlags || []).length === 0 ? (
+                              <span className="rounded-full bg-green-50 px-2 py-1 text-xs font-semibold text-green-700">No flags</span>
+                            ) : (
+                              product.moderationFlags.slice(0, 3).map((flag) => (
+                                <span key={`${product._id}-${flag.type}-${flag.message}`} className={`rounded-full border px-2 py-1 text-xs font-semibold ${getFlagTone(flag.severity)}`}>
+                                  {flag.message}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-right font-semibold text-gray-900">{formatPrice(product.price || 0)}</td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <button onClick={() => handleApprove(product._id)} disabled={actionLoading} className="rounded-lg bg-green-50 px-3 py-1.5 text-sm font-semibold text-green-700 hover:bg-green-100">
+                              Approve
+                            </button>
+                            <button onClick={() => openReject(product)} className="rounded-lg bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-100">
+                              Reject
+                            </button>
+                            <button onClick={() => openEdit(product)} className="rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100">
+                              Quick Edit
+                            </button>
+                            <Link to={`/admin/products/edit/${product._id}`} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                              Full Edit
+                            </Link>
+                            <button onClick={() => handleDelist(product._id)} className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">
+                              Delist
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        </main>
+
+        <aside className="space-y-5">
+          <section className="rounded-xl border border-gray-200 bg-white p-5">
+            <h2 className="text-lg font-semibold text-gray-900">Policy Filter</h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(config?.prohibitedKeywords || []).slice(0, 10).map((keyword) => (
+                <span key={keyword} className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                  {keyword}
+                </span>
+              ))}
+            </div>
+            <div className="mt-4 space-y-2">
+              {(config?.categories || []).filter((category) => category.requiredAttributes?.length > 0).slice(0, 4).map((category) => (
+                <div key={category._id} className="rounded-lg border border-gray-200 p-3">
+                  <p className="text-sm font-semibold text-gray-900">{category.name}</p>
+                  <p className="mt-1 text-xs text-gray-500">Required: {category.requiredAttributes.join(", ")}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-5">
+            <h2 className="text-lg font-semibold text-gray-900">Brand Registry</h2>
+            <form onSubmit={submitBrand} className="mt-3 space-y-2">
+              <input
+                value={brandForm.name}
+                onChange={(event) => setBrandForm((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="Brand name"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+              />
+              <input
+                value={brandForm.ownerVendorId}
+                onChange={(event) => setBrandForm((prev) => ({ ...prev, ownerVendorId: event.target.value }))}
+                placeholder="Owner vendor ID"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+              />
+              <button className="w-full rounded-lg bg-orange-600 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-700">
+                Add Brand
+              </button>
+            </form>
+            <div className="mt-4 space-y-2">
+              {brands.slice(0, 4).map((brand) => (
+                <div key={brand._id} className="rounded-lg border border-gray-200 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{brand.name}</p>
+                      <p className="text-xs capitalize text-gray-500">{brand.status || "pending"}</p>
+                    </div>
+                    {brand.status !== "approved" && (
+                      <button onClick={() => approveBrand(brand._id)} className="rounded-md bg-green-50 px-2 py-1 text-xs font-semibold text-green-700 hover:bg-green-100">
+                        Approve
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-5">
+            <h2 className="text-lg font-semibold text-gray-900">IP Reports</h2>
+            <form onSubmit={submitIpReport} className="mt-3 space-y-2">
+              <input
+                value={ipForm.productId}
+                onChange={(event) => setIpForm((prev) => ({ ...prev, productId: event.target.value }))}
+                placeholder="Product ID"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+              />
+              <input
+                value={ipForm.brandName}
+                onChange={(event) => setIpForm((prev) => ({ ...prev, brandName: event.target.value }))}
+                placeholder="Brand"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+              />
+              <input
+                value={ipForm.reason}
+                onChange={(event) => setIpForm((prev) => ({ ...prev, reason: event.target.value }))}
+                placeholder="Reason"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+              />
+              <button className="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-black">
+                Add Report
+              </button>
+            </form>
+            <div className="mt-4 space-y-2">
+              {ipReports.length === 0 ? (
+                <p className="text-sm text-gray-500">No pending IP reports.</p>
+              ) : (
+                ipReports.slice(0, 4).map((report) => (
+                  <div key={report._id} className="rounded-lg border border-red-100 bg-red-50 p-3">
+                    <p className="text-sm font-semibold text-red-900">{report.brandName || "Brand report"}</p>
+                    <p className="mt-1 text-xs text-red-700">{report.reason}</p>
+                    <div className="mt-2 flex gap-2">
+                      <button onClick={() => resolveIpReport(report, true)} className="rounded-md bg-red-600 px-2 py-1 text-xs font-semibold text-white">
+                        Delist
+                      </button>
+                      <button onClick={() => resolveIpReport(report, false)} className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-red-700">
+                        Resolve
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-5">
+            <h2 className="text-lg font-semibold text-gray-900">Clone Detection</h2>
+            <div className="mt-3 space-y-2">
+              {duplicates.length === 0 ? (
+                <p className="text-sm text-gray-500">No cross-vendor duplicate groups detected.</p>
+              ) : (
+                duplicates.slice(0, 5).map((group) => (
+                  <div key={group.key} className="rounded-lg border border-gray-200 p-3">
+                    <p className="text-sm font-semibold text-gray-900">{group.title}</p>
+                    <p className="text-xs text-gray-500">{group.count} similar listings from different vendors</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </aside>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {deleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-6 h-6 text-red-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-              Delete Product?
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">
+              {rejectModal.mode === "bulk" ? `Reject ${selectedIds.length} Products` : "Reject Product"}
             </h3>
-            <p className="text-gray-600 text-center mb-6">
-              This action cannot be undone. The product will be permanently
-              removed.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteId(null)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-              >
+            <div className="mt-4 space-y-2">
+              {guidanceOptions.map((option) => (
+                <button
+                  key={option}
+                  onClick={() => setRejectReason(option)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={rejectReason}
+              onChange={(event) => setRejectReason(event.target.value)}
+              rows={4}
+              placeholder="Specific guidance sent to vendor"
+              className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+            />
+            <div className="mt-5 flex gap-3">
+              <button onClick={submitReject} disabled={actionLoading} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                Reject
+              </button>
+              <button onClick={() => setRejectModal(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
                 Cancel
               </button>
-              <button
-                onClick={() => handleDelete(deleteId)}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">Edit on Behalf of Vendor</h3>
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <input
+                value={editForm.title}
+                onChange={(event) => setEditForm((prev) => ({ ...prev, title: event.target.value }))}
+                placeholder="Title"
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+              <input
+                value={editForm.sku}
+                onChange={(event) => setEditForm((prev) => ({ ...prev, sku: event.target.value }))}
+                placeholder="SKU"
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+              <select
+                value={editForm.categoryId}
+                onChange={(event) => setEditForm((prev) => ({ ...prev, categoryId: event.target.value }))}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
               >
-                Delete
+                <option value="">Select category</option>
+                {(config?.categories || []).map((category) => (
+                  <option key={category._id} value={category._id}>{category.name}</option>
+                ))}
+              </select>
+              <input
+                value={editForm.brand}
+                onChange={(event) => setEditForm((prev) => ({ ...prev, brand: event.target.value }))}
+                placeholder="Brand"
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <textarea
+              value={editForm.note}
+              onChange={(event) => setEditForm((prev) => ({ ...prev, note: event.target.value }))}
+              rows={3}
+              placeholder="Internal note"
+              className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+            <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={editForm.approveAfterEdit}
+                onChange={(event) => setEditForm((prev) => ({ ...prev, approveAfterEdit: event.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+              />
+              Approve after saving
+            </label>
+            <div className="mt-5 flex gap-3">
+              <button onClick={submitEdit} disabled={actionLoading} className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+                Save
+              </button>
+              <button onClick={() => setEditModal(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                Cancel
               </button>
             </div>
           </div>
