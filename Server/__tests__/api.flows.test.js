@@ -64,6 +64,9 @@ jest.mock("../controllers/orderController", () => ({
   getAdminOrderStats: (req, res) => res.json({ route: "orders:admin-stats" }),
   exportOrdersCsv: (req, res) => res.json({ route: "orders:export-csv" }),
   bulkUpdateOrderStatus: (req, res) => res.json({ route: "orders:bulk-status" }),
+  getAdminCodReconciliation: (req, res) => res.json({ route: "orders:cod-reconciliation" }),
+  getAdminSlaBreaches: (req, res) => res.json({ route: "orders:sla-breaches" }),
+  getAdminFraudOrders: (req, res) => res.json({ route: "orders:fraud-queue" }),
   addOrderNote: (req, res) => res.json({ route: "orders:add-note", id: req.params.id }),
   regenerateInvoice: (req, res) => res.json({ route: "orders:regenerate-invoice", id: req.params.id }),
   getOrderTimelineEvents: (req, res) => res.json({ route: "orders:timeline", id: req.params.id }),
@@ -82,6 +85,10 @@ jest.mock("../controllers/orderController", () => ({
   adminResolveDispute: (req, res) => res.json({ route: "orders:resolve-dispute", id: req.params.id }),
   adminApproveRefund: (req, res) => res.json({ route: "orders:approve-refund", id: req.params.id }),
   adminOverrideStatus: (req, res) => res.json({ route: "orders:override-status", id: req.params.id }),
+  adminReassignCourier: (req, res) => res.json({ route: "orders:reassign-courier", id: req.params.id }),
+  adminChangeDeliveryAddress: (req, res) => res.json({ route: "orders:delivery-address", id: req.params.id }),
+  adminExtendReturnWindow: (req, res) => res.json({ route: "orders:return-window", id: req.params.id }),
+  adminForceRefundOrder: (req, res) => res.json({ route: "orders:force-refund", id: req.params.id }),
 }));
 
 jest.mock("../controllers/vendor/vendorFinanceController", () => ({

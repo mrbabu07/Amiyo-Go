@@ -45,6 +45,30 @@ export const deleteCategory = (id) => api.delete(`/categories/${id}`);
 // Orders
 export const getUserOrders = () => api.get("/orders/my-orders");
 export const getAllOrders = () => api.get("/orders");
+export const getAdminOrderManagement = (params = {}) =>
+  api.get("/orders/admin", { params });
+export const getAdminOrderDetail = (id) =>
+  api.get(`/orders/admin/${id}/detail`);
+export const exportAdminOrdersCsv = (params = {}) =>
+  api.get("/orders/admin/export/csv", { params, responseType: "blob" });
+export const getAdminCodReconciliation = (params = {}) =>
+  api.get("/orders/admin/cod-reconciliation", { params });
+export const getAdminSlaBreaches = (params = {}) =>
+  api.get("/orders/admin/sla-breaches", { params });
+export const getAdminFraudQueue = (params = {}) =>
+  api.get("/orders/admin/fraud-queue", { params });
+export const adminForceCancelOrder = (id, data = {}) =>
+  api.patch(`/orders/admin/${id}/force-cancel`, data);
+export const adminForceRefundOrder = (id, data = {}) =>
+  api.patch(`/orders/admin/${id}/force-refund`, data);
+export const adminReassignOrderCourier = (id, data) =>
+  api.patch(`/orders/admin/${id}/reassign-courier`, data);
+export const adminChangeOrderDeliveryAddress = (id, data) =>
+  api.patch(`/orders/admin/${id}/delivery-address`, data);
+export const adminExtendOrderReturnWindow = (id, data) =>
+  api.patch(`/orders/admin/${id}/return-window`, data);
+export const adminOverrideOrderStatus = (id, data) =>
+  api.patch(`/orders/admin/${id}/override-status`, data);
 export const createOrder = (data) => api.post("/orders", data);
 export const createGuestOrder = (data) => api.post("/orders/guest", data);
 export const updateOrderStatus = (id, status, trackingNumber) =>

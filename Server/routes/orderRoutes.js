@@ -8,6 +8,9 @@ const {
   getAdminOrderStats,
   exportOrdersCsv,
   bulkUpdateOrderStatus,
+  getAdminCodReconciliation,
+  getAdminSlaBreaches,
+  getAdminFraudOrders,
   addOrderNote,
   regenerateInvoice,
   getUserOrders,
@@ -20,15 +23,28 @@ const {
   adminResolveDispute,
   adminApproveRefund,
   adminOverrideStatus,
+  adminReassignCourier,
+  adminChangeDeliveryAddress,
+  adminExtendReturnWindow,
+  adminForceRefundOrder,
 } = require("../controllers/orderController");
 
 // ── Admin routes ───────────────────────────────────────────────
 router.get("/admin/stats",       verifyToken, verifyAdmin, getAdminOrderStats);
 router.get("/admin/export/csv",  verifyToken, verifyAdmin, exportOrdersCsv);
+router.get("/admin/cod-reconciliation", verifyToken, verifyAdmin, getAdminCodReconciliation);
+router.get("/admin/sla-breaches", verifyToken, verifyAdmin, getAdminSlaBreaches);
+router.get("/admin/fraud-queue", verifyToken, verifyAdmin, getAdminFraudOrders);
 router.get("/admin",             verifyToken, verifyAdmin, getAdminOrders);
 router.patch("/admin/bulk-status",             verifyToken, verifyAdmin, bulkUpdateOrderStatus);
 
 // ── Admin order action routes (Daraz-style control) ────────────
+router.get("/admin/:id/detail",             verifyToken, verifyAdmin, getAdminOrderById);
+router.patch("/admin/:id/force-cancel",     verifyToken, verifyAdmin, adminCancelOrder);
+router.patch("/admin/:id/force-refund",     verifyToken, verifyAdmin, adminForceRefundOrder);
+router.patch("/admin/:id/reassign-courier", verifyToken, verifyAdmin, adminReassignCourier);
+router.patch("/admin/:id/delivery-address", verifyToken, verifyAdmin, adminChangeDeliveryAddress);
+router.patch("/admin/:id/return-window",    verifyToken, verifyAdmin, adminExtendReturnWindow);
 router.patch("/admin/:id/cancel",          verifyToken, verifyAdmin, adminCancelOrder);
 router.patch("/admin/:id/resolve-dispute", verifyToken, verifyAdmin, adminResolveDispute);
 router.patch("/admin/:id/approve-refund",  verifyToken, verifyAdmin, adminApproveRefund);

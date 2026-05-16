@@ -57,6 +57,9 @@ jest.mock("../controllers/orderController", () => ({
   getAdminOrderStats: (req, res) => res.json({ route: "orders:admin-stats" }),
   exportOrdersCsv: (req, res) => res.json({ route: "orders:export-csv" }),
   bulkUpdateOrderStatus: (req, res) => res.json({ route: "orders:bulk-status" }),
+  getAdminCodReconciliation: (req, res) => res.json({ route: "orders:cod-reconciliation" }),
+  getAdminSlaBreaches: (req, res) => res.json({ route: "orders:sla-breaches" }),
+  getAdminFraudOrders: (req, res) => res.json({ route: "orders:fraud-queue" }),
   addOrderNote: (req, res) => res.json({ route: "orders:add-note", id: req.params.id }),
   regenerateInvoice: (req, res) => res.json({ route: "orders:regenerate-invoice", id: req.params.id }),
   getOrderTimelineEvents: (req, res) => res.json({ route: "orders:timeline", id: req.params.id }),
@@ -72,6 +75,10 @@ jest.mock("../controllers/orderController", () => ({
   adminResolveDispute: (req, res) => res.json({ route: "orders:resolve-dispute", id: req.params.id }),
   adminApproveRefund: (req, res) => res.json({ route: "orders:approve-refund", id: req.params.id }),
   adminOverrideStatus: (req, res) => res.json({ route: "orders:override-status", id: req.params.id }),
+  adminReassignCourier: (req, res) => res.json({ route: "orders:reassign-courier", id: req.params.id }),
+  adminChangeDeliveryAddress: (req, res) => res.json({ route: "orders:delivery-address", id: req.params.id }),
+  adminExtendReturnWindow: (req, res) => res.json({ route: "orders:return-window", id: req.params.id }),
+  adminForceRefundOrder: (req, res) => res.json({ route: "orders:force-refund", id: req.params.id }),
 }));
 
 jest.mock("../controllers/vendorController", () => ({
@@ -314,6 +321,58 @@ describe("Black-box API tests", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ route: "orders:admin-stats" });
+    });
+
+    test("GET /api/orders/admin/cod-reconciliation uses the COD reconciliation route", async () => {
+      const response = await request(app)
+        .get("/api/orders/admin/cod-reconciliation")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "orders:cod-reconciliation" });
+    });
+
+    test("GET /api/orders/admin/sla-breaches uses the SLA monitor route", async () => {
+      const response = await request(app)
+        .get("/api/orders/admin/sla-breaches")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "orders:sla-breaches" });
+    });
+
+    test("GET /api/orders/admin/fraud-queue uses the fraud queue route", async () => {
+      const response = await request(app)
+        .get("/api/orders/admin/fraud-queue")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "orders:fraud-queue" });
+    });
+
+    test("PATCH /api/orders/admin/:id/reassign-courier uses the admin courier override route", async () => {
+      const response = await request(app)
+        .patch("/api/orders/admin/order-1/reassign-courier")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ courierName: "Pathao" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "orders:reassign-courier", id: "order-1" });
+    });
+
+    test("PATCH /api/orders/admin/:id/force-refund uses the admin refund override route", async () => {
+      const response = await request(app)
+        .patch("/api/orders/admin/order-1/force-refund")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ amount: 100 });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "orders:force-refund", id: "order-1" });
     });
 
     test("POST /api/orders/guest allows guest checkout without auth", async () => {

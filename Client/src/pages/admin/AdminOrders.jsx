@@ -1,1790 +1,897 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { getAllOrders, updateOrderStatus } from "../../services/api";
-import { useCurrency } from "../../hooks/useCurrency";
-import Loading from "../../components/Loading";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowLeft,
+  Banknote,
+  CalendarClock,
+  Download,
+  Eye,
+  FileText,
+  Filter,
+  MapPin,
+  PackageCheck,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  ShieldAlert,
+  Truck,
+  Wallet,
+  XCircle,
+} from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
-import { generateProfessionalInvoice } from "../../utils/printTemplate";
+import Loading from "../../components/Loading";
+import useCurrency from "../../hooks/useCurrency";
+import {
+  adminChangeOrderDeliveryAddress,
+  adminExtendOrderReturnWindow,
+  adminForceCancelOrder,
+  adminForceRefundOrder,
+  adminOverrideOrderStatus,
+  adminReassignOrderCourier,
+  exportAdminOrdersCsv,
+  getAdminCodReconciliation,
+  getAdminFraudQueue,
+  getAdminOrderDetail,
+  getAdminOrderManagement,
+  getAdminSlaBreaches,
+} from "../../services/api";
+
+const STATUS_TABS = [
+  { key: "all", label: "All" },
+  { key: "pending", label: "Pending" },
+  { key: "processing", label: "Processing" },
+  { key: "packed", label: "Packed" },
+  { key: "shipped", label: "Shipped" },
+  { key: "delivered", label: "Delivered" },
+  { key: "cancelled", label: "Cancelled" },
+  { key: "returned", label: "Returned" },
+];
+
+const ORDER_STATUSES = [
+  "pending",
+  "processing",
+  "packed",
+  "ready_to_ship",
+  "shipped",
+  "delivered",
+  "cancelled",
+  "returned",
+];
+
+const DEFAULT_FILTERS = {
+  status: "all",
+  vendorId: "",
+  paymentMethod: "all",
+  deliveryZone: "",
+  from: "",
+  to: "",
+  search: "",
+};
+
+const DEFAULT_FORMS = {
+  status: "processing",
+  statusNote: "",
+  cancelReason: "",
+  refundAmount: "",
+  refundReason: "",
+  refundMethod: "manual",
+  courierName: "",
+  trackingNumber: "",
+  riderName: "",
+  riderPhone: "",
+  courierNote: "",
+  returnWindowUntil: "",
+  returnWindowNote: "",
+};
+
+const statusTone = {
+  pending: "border-yellow-200 bg-yellow-50 text-yellow-800",
+  processing: "border-blue-200 bg-blue-50 text-blue-800",
+  packed: "border-cyan-200 bg-cyan-50 text-cyan-800",
+  ready_to_ship: "border-indigo-200 bg-indigo-50 text-indigo-800",
+  shipped: "border-indigo-200 bg-indigo-50 text-indigo-800",
+  delivered: "border-green-200 bg-green-50 text-green-800",
+  cancelled: "border-red-200 bg-red-50 text-red-800",
+  returned: "border-gray-200 bg-gray-100 text-gray-700",
+};
+
+const formatStatus = (status = "") =>
+  status
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || "Unknown";
+
+const shortId = (id = "") => id.toString().slice(-8).toUpperCase();
+
+const formatDate = (value) => {
+  if (!value) return "N/A";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "N/A";
+  return date.toLocaleString("en-BD", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const cleanParams = (filters) =>
+  Object.entries(filters).reduce((params, [key, value]) => {
+    if (value && value !== "all") params[key] = value;
+    return params;
+  }, {});
+
+const getVendorNames = (order) =>
+  order?.vendorNames?.length
+    ? order.vendorNames.join(", ")
+    : order?.perVendorBreakdown?.map((vendor) => vendor.vendorName || vendor.shopName).filter(Boolean).join(", ") ||
+      order?.primaryVendorName ||
+      "HnilaBazar";
+
+const getAddressText = (shippingInfo = {}) =>
+  [
+    shippingInfo.name,
+    shippingInfo.phone,
+    shippingInfo.address,
+    shippingInfo.area,
+    shippingInfo.upazila,
+    shippingInfo.district || shippingInfo.city,
+    shippingInfo.division,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+function MetricTile({ icon: Icon, label, value, tone = "text-gray-900" }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium text-gray-500">{label}</p>
+        <Icon className="h-4 w-4 text-gray-400" />
+      </div>
+      <p className={`mt-2 text-2xl font-bold ${tone}`}>{value}</p>
+    </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  return (
+    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusTone[status] || "border-gray-200 bg-gray-50 text-gray-700"}`}>
+      {formatStatus(status)}
+    </span>
+  );
+}
+
+function EmptyPanel({ title }) {
+  return (
+    <div className="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-500">
+      {title}
+    </div>
+  );
+}
 
 export default function AdminOrders() {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all");
-  const [expandedOrder, setExpandedOrder] = useState(null);
   const { formatPrice } = useCurrency();
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [orders, setOrders] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [sideLoading, setSideLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [orderDetail, setOrderDetail] = useState(null);
+  const [codData, setCodData] = useState({ summary: {}, orders: [] });
+  const [slaData, setSlaData] = useState({ summary: {}, breaches: [] });
+  const [fraudData, setFraudData] = useState({ summary: {}, orders: [] });
+  const [forms, setForms] = useState(DEFAULT_FORMS);
+  const [addressForm, setAddressForm] = useState({
+    name: "",
+    phone: "",
+    address: "",
+    area: "",
+    upazila: "",
+    district: "",
+    division: "",
+  });
 
-  // Utility function to safely render color
-  const renderColor = (color) => {
-    if (!color) return null;
-    if (typeof color === "string") return color;
-    if (typeof color === "object" && color.name) return color.name;
-    return "Unknown Color";
-  };
+  const metrics = useMemo(
+    () => ({
+      total,
+      pending: orders.filter((order) => order.status === "pending").length,
+      processing: orders.filter((order) => ["processing", "packed", "ready_to_ship"].includes(order.status)).length,
+      disputes: orders.filter((order) => ["return_requested", "returned"].includes(order.status)).length,
+    }),
+    [orders, total],
+  );
 
-  const getItemVendorName = (item) =>
-    item?.shopName ||
-    item?.vendorName ||
-    item?.storeName ||
-    item?.vendor?.shopName ||
-    item?.vendor?.name ||
-    "HnilaBazar";
+  const vendorOptions = useMemo(() => {
+    const map = new Map();
+    orders.forEach((order) => {
+      (order.perVendorBreakdown || []).forEach((vendor) => {
+        if (vendor.vendorId) map.set(vendor.vendorId, vendor.vendorName || vendor.shopName || vendor.vendorId);
+      });
+    });
+    return [...map.entries()].map(([value, label]) => ({ value, label }));
+  }, [orders]);
 
-  const getFullShippingAddress = (shippingInfo = {}) =>
-    [
-      shippingInfo.name,
-      shippingInfo.phone,
-      shippingInfo.address,
-      shippingInfo.area,
-      shippingInfo.wardNo ? `Ward: ${shippingInfo.wardNo}` : "",
-      shippingInfo.union,
-      shippingInfo.upazila,
-      shippingInfo.district || shippingInfo.city,
-      shippingInfo.division,
-      shippingInfo.zipCode,
-    ]
-      .filter(Boolean)
-      .join("\n");
+  const selectedOrder = orderDetail || orders.find((order) => order._id === selectedOrderId);
 
-  const getCancellationMessage = (order) => {
-    if (order?.status !== "cancelled") return "";
-    if (order.cancellationMessage) return order.cancellationMessage;
-    if (order.cancelledByRole === "user" || order.cancellationSource === "customer") {
-      return "User cancelled this order.";
-    }
-    const userCancelHistory = order.statusHistory?.find(
-      (entry) =>
-        entry.status === "cancelled" &&
-        /customer|user/i.test(`${entry.changedBy || ""} ${entry.note || ""}`),
-    );
-    return userCancelHistory ? "User cancelled this order." : "";
-  };
-
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  const fetchOrders = async () => {
+  const loadOrders = async (nextFilters = filters) => {
+    setLoading(true);
     try {
-      const response = await getAllOrders();
-      console.log("📋 Fetched orders:", response.data.data);
-      setOrders(response.data.data);
+      const response = await getAdminOrderManagement({
+        ...cleanParams(nextFilters),
+        page: 1,
+        limit: 50,
+      });
+      const payload = response.data || {};
+      setOrders(payload.data || payload.orders || []);
+      setTotal(payload.total || (payload.data || payload.orders || []).length);
     } catch (error) {
-      console.error("Failed to fetch orders:", error);
+      toast.error(error.response?.data?.error || "Failed to load orders");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStatusChange = async (orderId, newStatus) => {
-    const loadingToast = toast.loading("Updating order status...");
+  const loadSidePanels = async () => {
+    setSideLoading(true);
     try {
-      await updateOrderStatus(orderId, newStatus);
-      setOrders(
-        orders.map((order) =>
-          order._id === orderId ? { ...order, status: newStatus } : order,
-        ),
-      );
+      const [codResponse, slaResponse, fraudResponse] = await Promise.all([
+        getAdminCodReconciliation({ limit: 500 }),
+        getAdminSlaBreaches({ limit: 500 }),
+        getAdminFraudQueue({ limit: 500 }),
+      ]);
+      setCodData(codResponse.data.data || { summary: {}, orders: [] });
+      setSlaData(slaResponse.data.data || { summary: {}, breaches: [] });
+      setFraudData(fraudResponse.data.data || { summary: {}, orders: [] });
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to load order monitors");
+    } finally {
+      setSideLoading(false);
+    }
+  };
 
-      // Note: Notification will be sent to the customer's account
-      // This would require backend implementation to send notifications to specific users
-
-      toast.success(`Order status updated to ${newStatus}!`, {
-        id: loadingToast,
+  const loadDetail = async (orderId) => {
+    if (!orderId) return;
+    setSelectedOrderId(orderId);
+    setDetailLoading(true);
+    try {
+      const response = await getAdminOrderDetail(orderId);
+      const detail = response.data.data;
+      setOrderDetail(detail);
+      const shippingInfo = detail?.shippingInfo || {};
+      setAddressForm({
+        name: shippingInfo.name || "",
+        phone: shippingInfo.phone || "",
+        address: shippingInfo.address || "",
+        area: shippingInfo.area || "",
+        upazila: shippingInfo.upazila || "",
+        district: shippingInfo.district || shippingInfo.city || "",
+        division: shippingInfo.division || "",
       });
+      setForms((current) => ({
+        ...current,
+        status: detail?.status || "processing",
+        refundAmount: detail?.total ? String(detail.total) : "",
+        courierName: detail?.courierName || "",
+        trackingNumber: detail?.trackingNumber || "",
+      }));
     } catch (error) {
-      console.error("Failed to update status:", error);
-      toast.error("Failed to update order status", {
-        id: loadingToast,
-      });
+      toast.error(error.response?.data?.error || "Failed to load order detail");
+    } finally {
+      setDetailLoading(false);
     }
   };
 
-  const printOrder = (order) => {
+  useEffect(() => {
+    loadOrders();
+    loadSidePanels();
+  }, []);
+
+  const updateFilter = (key, value) => {
+    const next = { ...filters, [key]: value };
+    setFilters(next);
+    if (key === "status") loadOrders(next);
+  };
+
+  const handleSearch = (event) => {
+    event.preventDefault();
+    loadOrders();
+  };
+
+  const resetFilters = () => {
+    setFilters(DEFAULT_FILTERS);
+    loadOrders(DEFAULT_FILTERS);
+  };
+
+  const refreshAll = async () => {
+    await Promise.all([loadOrders(), loadSidePanels()]);
+    if (selectedOrderId) await loadDetail(selectedOrderId);
+  };
+
+  const runAction = async (action, successMessage) => {
+    if (!selectedOrderId) return;
+    setActionLoading(true);
     try {
-      // Create print content using professional template
-      const printContent = generateProfessionalInvoice(order);
-
-      // Create a new window for printing
-      const printWindow = window.open("", "_blank", "width=800,height=600");
-
-      if (!printWindow) {
-        // Fallback: Use iframe method if popup is blocked
-        printOrderWithIframe(order);
-        return;
-      }
-
-      // Write content to the new window
-      printWindow.document.open();
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-
-      // Wait for content to load, then print
-      printWindow.onload = function () {
-        printWindow.focus();
-        printWindow.print();
-
-        // Close window after printing (with delay to ensure print dialog appears)
-        setTimeout(() => {
-          printWindow.close();
-        }, 1000);
-      };
+      await action();
+      toast.success(successMessage);
+      await refreshAll();
     } catch (error) {
-      console.error("Print error:", error);
-      // Fallback to iframe method
-      printOrderWithIframe(order);
+      toast.error(error.response?.data?.error || "Action failed");
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  const printOrderWithIframe = (order) => {
+  const downloadCsv = async () => {
     try {
-      // Create hidden iframe for printing
-      const iframe = document.createElement("iframe");
-      iframe.style.position = "absolute";
-      iframe.style.top = "-9999px";
-      iframe.style.left = "-9999px";
-      iframe.style.width = "0px";
-      iframe.style.height = "0px";
-
-      document.body.appendChild(iframe);
-
-      const printContent = generateProfessionalInvoice(order);
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-
-      iframeDoc.open();
-      iframeDoc.write(printContent);
-      iframeDoc.close();
-
-      // Wait for content to load, then print
-      iframe.onload = function () {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-
-        // Remove iframe after printing
-        setTimeout(() => {
-          document.body.removeChild(iframe);
-        }, 1000);
-      };
+      const response = await exportAdminOrdersCsv(cleanParams(filters));
+      const blob = response.data instanceof Blob ? response.data : new Blob([response.data], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `orders-${Date.now()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("Order export downloaded");
     } catch (error) {
-      console.error("Iframe print error:", error);
-      alert(
-        "Unable to print. Please check your browser settings and try again.",
-      );
+      toast.error(error.response?.data?.error || "Failed to export orders");
     }
   };
 
-  const generatePrintContent = (order) => {
-    const orderDate = new Date(order.createdAt).toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-    const subtotal = order.subtotal || order.total || 0;
-    const deliveryCharge = order.deliveryCharge || 0;
-    const total = order.total || 0;
-
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Order #${order._id.slice(-8).toUpperCase()} - HnilaBazar</title>
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          
-          body {
-            font-family: "Plus Jakarta Sans", "Noto Sans Bengali", Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-          }
-          
-          .header {
-            text-align: center;
-            border-bottom: 3px solid #1e7098;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-          }
-          
-          .company-name {
-            font-size: 28px;
-            font-weight: bold;
-            color: #1e7098;
-            margin-bottom: 5px;
-          }
-          
-          .company-tagline {
-            color: #666;
-            font-size: 14px;
-          }
-          
-          .order-header {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            border-left: 4px solid #1e7098;
-          }
-          
-          .order-title {
-            font-size: 24px;
-            font-weight: bold;
-            color: #1e7098;
-            margin-bottom: 10px;
-          }
-          
-          .order-meta {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-top: 15px;
-          }
-          
-          .meta-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
-          }
-          
-          .meta-label {
-            font-weight: bold;
-            color: #555;
-          }
-          
-          .meta-value {
-            color: #333;
-          }
-          
-          .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            text-transform: uppercase;
-          }
-          
-          .status-pending { background: #fff3cd; color: #856404; }
-          .status-processing { background: #cce5ff; color: #004085; }
-          .status-shipped { background: #e2e3ff; color: #383d41; }
-          .status-delivered { background: #d4edda; color: #155724; }
-          .status-cancelled { background: #f8d7da; color: #721c24; }
-          
-          .section {
-            margin-bottom: 30px;
-            page-break-inside: avoid;
-          }
-          
-          .section-title {
-            font-size: 18px;
-            font-weight: bold;
-            color: #1e7098;
-            margin-bottom: 15px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #e9ecef;
-          }
-          
-          .two-column {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-          }
-          
-          .info-card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #dee2e6;
-          }
-          
-          .info-item {
-            margin-bottom: 12px;
-          }
-          
-          .info-label {
-            font-weight: bold;
-            color: #495057;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
-          }
-          
-          .info-value {
-            color: #212529;
-            font-size: 14px;
-          }
-          
-          .address-box {
-            background: white;
-            border: 2px solid #1e7098;
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 10px;
-            font-family: "Plus Jakarta Sans", "Noto Sans Bengali", Arial, sans-serif;
-            white-space: pre-line;
-            line-height: 1.8;
-          }
-          
-          .products-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-          }
-          
-          .products-table th,
-          .products-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #dee2e6;
-          }
-          
-          .products-table th {
-            background: #f8f9fa;
-            font-weight: bold;
-            color: #495057;
-            border-bottom: 2px solid #1e7098;
-          }
-          
-          .product-image {
-            width: 40px;
-            height: 40px;
-            object-fit: cover;
-            border-radius: 4px;
-            border: 1px solid #dee2e6;
-          }
-          
-          .product-details {
-            font-size: 13px;
-            color: #666;
-            margin-top: 4px;
-          }
-          
-          .total-section {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #dee2e6;
-            margin-top: 20px;
-          }
-          
-          .total-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #dee2e6;
-          }
-          
-          .total-row:last-child {
-            border-bottom: none;
-            font-weight: bold;
-            font-size: 16px;
-            color: #1e7098;
-            border-top: 2px solid #1e7098;
-            padding-top: 12px;
-            margin-top: 8px;
-          }
-          
-          .footer {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 2px solid #e9ecef;
-            text-align: center;
-            color: #666;
-            font-size: 12px;
-          }
-          
-          .print-date {
-            margin-top: 10px;
-            font-style: italic;
-          }
-          
-          @media print {
-            body {
-              margin: 0;
-              padding: 15px;
-            }
-            
-            .section {
-              page-break-inside: avoid;
-            }
-            
-            .order-header {
-              page-break-after: avoid;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <!-- Header -->
-        <div class="header">
-          <div class="company-name">HnilaBazar</div>
-          <div class="company-tagline">Your Trusted E-commerce Partner</div>
-        </div>
-
-        <!-- Order Header -->
-        <div class="order-header">
-          <div class="order-title">Order #${order._id.slice(-8).toUpperCase()}</div>
-          <div class="order-meta">
-            <div>
-              <div class="meta-item">
-                <span class="meta-label">Order Date:</span>
-                <span class="meta-value">${orderDate}</span>
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">Payment Method:</span>
-                <span class="meta-value">${order.paymentMethod ? order.paymentMethod.toUpperCase() : "N/A"}</span>
-              </div>
-            </div>
-            <div>
-              <div class="meta-item">
-                <span class="meta-label">Status:</span>
-                <span class="meta-value">
-                  <span class="status-badge status-${order.status}">${order.status.toUpperCase()}</span>
-                </span>
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">Total Amount:</span>
-                <span class="meta-value" style="font-weight: bold; color: #1e7098;">${formatPrice(total)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Customer & Shipping Information -->
-        <div class="section">
-          <div class="section-title">📋 Customer & Shipping Information</div>
-          <div class="two-column">
-            <!-- Customer Info -->
-            <div>
-              <h4 style="margin-bottom: 15px; color: #495057;">👤 Customer Details</h4>
-              <div class="info-card">
-                ${
-                  order.shippingInfo
-                    ? `
-                  <div class="info-item">
-                    <div class="info-label">Full Name</div>
-                    <div class="info-value">${order.shippingInfo.name || "N/A"}</div>
-                  </div>
-                  <div class="info-item">
-                    <div class="info-label">Phone Number</div>
-                    <div class="info-value">${order.shippingInfo.phone || "N/A"}</div>
-                  </div>
-                  <div class="info-item">
-                    <div class="info-label">Email Address</div>
-                    <div class="info-value">${order.shippingInfo.email || "N/A"}</div>
-                  </div>
-                `
-                    : `
-                  <div style="text-align: center; color: #666; padding: 20px;">
-                    <strong>⚠️ No Customer Information Available</strong><br>
-                    <small>This order was placed before customer info collection was implemented</small>
-                  </div>
-                `
-                }
-                <div class="info-item" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
-                  <div class="info-label">System User ID</div>
-                  <div class="info-value" style="font-family: monospace; font-size: 11px; word-break: break-all;">${order.userId}</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Shipping Address -->
-            <div>
-              <h4 style="margin-bottom: 15px; color: #495057;">📍 Delivery Address</h4>
-              ${
-                order.shippingInfo
-                  ? `
-                <div class="info-card">
-                  <div class="info-item">
-                    <div class="info-label">Street Address</div>
-                    <div class="info-value">${order.shippingInfo.address || "N/A"}</div>
-                  </div>
-                  <div class="info-item">
-                    <div class="info-label">Area/Thana</div>
-                    <div class="info-value">${order.shippingInfo.area || "N/A"}</div>
-                  </div>
-                  <div class="info-item">
-                    <div class="info-label">City/District</div>
-                    <div class="info-value">${order.shippingInfo.city || "N/A"}</div>
-                  </div>
-                  <div class="info-item">
-                    <div class="info-label">Postal Code</div>
-                    <div class="info-value">${order.shippingInfo.zipCode || "N/A"}</div>
-                  </div>
-                  
-                  <div style="margin-top: 15px;">
-                    <div class="info-label">📦 Complete Shipping Address</div>
-                    <div class="address-box">${[
-                      order.shippingInfo.name,
-                      order.shippingInfo.phone,
-                      order.shippingInfo.address,
-                      order.shippingInfo.area +
-                        (order.shippingInfo.city
-                          ? `, ${order.shippingInfo.city}`
-                          : ""),
-                      order.shippingInfo.zipCode,
-                    ]
-                      .filter(Boolean)
-                      .join("\n")}</div>
-                  </div>
-                </div>
-              `
-                  : `
-                <div class="info-card" style="text-align: center; color: #666; padding: 30px;">
-                  <strong>⚠️ No Shipping Address Available</strong><br>
-                  <small>Please contact customer for delivery details</small>
-                </div>
-              `
-              }
-            </div>
-          </div>
-        </div>
-
-        <!-- Order Items -->
-        <div class="section">
-          <div class="section-title">🛍️ Order Items (${order.products?.length || 0} items)</div>
-          <table class="products-table">
-            <thead>
-              <tr>
-                <th style="width: 60px;">Image</th>
-                <th>Product Details</th>
-                <th style="width: 80px; text-align: center;">Qty</th>
-                <th style="width: 100px; text-align: right;">Unit Price</th>
-                <th style="width: 100px; text-align: right;">Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${
-                order.products
-                  ?.map(
-                    (item) => `
-                <tr>
-                  <td>
-                    ${
-                      item.image
-                        ? `<img src="${item.image}" alt="${item.title}" class="product-image" />`
-                        : '<div style="width: 40px; height: 40px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #666;">No Image</div>'
-                    }
-                  </td>
-                  <td>
-                    <div style="font-weight: bold; margin-bottom: 4px;">${item.title}</div>
-                    <div class="product-details">
-                      ${item.selectedSize ? `Size: <strong>${item.selectedSize}</strong>` : ""}
-                      ${item.selectedSize && item.selectedColor ? " • " : ""}
-                      ${item.selectedColor ? `Color: <strong>${renderColor(item.selectedColor)}</strong>` : ""}
-                    </div>
-                  </td>
-                  <td style="text-align: center; font-weight: bold;">${item.quantity}</td>
-                  <td style="text-align: right;">${formatPrice(item.price)}</td>
-                  <td style="text-align: right; font-weight: bold;">${formatPrice(item.price * item.quantity)}</td>
-                </tr>
-              `,
-                  )
-                  .join("") ||
-                '<tr><td colspan="5" style="text-align: center; color: #666; padding: 20px;">No items found</td></tr>'
-              }
-            </tbody>
-          </table>
-
-          <!-- Order Total -->
-          <div class="total-section">
-            <div class="total-row">
-              <span>Subtotal:</span>
-              <span>${formatPrice(subtotal)}</span>
-            </div>
-            <div class="total-row">
-              <span>Delivery Charge:</span>
-              <span>${deliveryCharge > 0 ? formatPrice(deliveryCharge) : "FREE"}</span>
-            </div>
-            <div class="total-row">
-              <span>Total Amount:</span>
-              <span>${formatPrice(total)}</span>
-            </div>
-          </div>
-        </div>
-
-        ${
-          order.specialInstructions
-            ? `
-          <!-- Special Instructions -->
-          <div class="section">
-            <div class="section-title">📝 Special Instructions</div>
-            <div class="info-card" style="background: #fff3cd; border-color: #ffeaa7;">
-              <div style="color: #856404; font-weight: bold; margin-bottom: 8px;">Customer Notes:</div>
-              <div style="color: #856404;">${order.specialInstructions}</div>
-            </div>
-          </div>
-        `
-            : ""
-        }
-
-        <!-- Footer -->
-        <div class="footer">
-          <div><strong>HnilaBazar</strong> - Your Trusted E-commerce Partner</div>
-          <div>📞 Contact: +880 1521-721946 | 📧 Email: mdjahedulislamjaved@gmail.com</div>
-          <div class="print-date">Printed on: ${new Date().toLocaleString()}</div>
-        </div>
-      </body>
-      </html>
-    `;
-  };
-
-  const statusConfig = {
-    pending: {
-      color: "bg-yellow-100 text-yellow-800 border-yellow-200",
-      icon: "⏳",
-    },
-    processing: {
-      color: "bg-blue-100 text-blue-800 border-blue-200",
-      icon: "🔄",
-    },
-    shipped: {
-      color: "bg-purple-100 text-purple-800 border-purple-200",
-      icon: "📦",
-    },
-    delivered: {
-      color: "bg-green-100 text-green-800 border-green-200",
-      icon: "✅",
-    },
-    cancelled: { color: "bg-red-100 text-red-800 border-red-200", icon: "❌" },
-  };
-
-  const filteredOrders =
-    filter === "all"
-      ? orders
-      : orders.filter((order) => order.status === filter);
-
-  const stats = {
-    total: orders.length,
-    pending: orders.filter((o) => o.status === "pending").length,
-    processing: orders.filter((o) => o.status === "processing").length,
-    delivered: orders.filter((o) => o.status === "delivered").length,
-  };
-
-  if (loading) return <Loading />;
+  if (loading && orders.length === 0) return <Loading />;
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: "#363636",
-            color: "#fff",
-          },
-          success: {
-            duration: 3000,
-            iconTheme: {
-              primary: "#10B981",
-              secondary: "#fff",
-            },
-          },
-          error: {
-            duration: 4000,
-            iconTheme: {
-              primary: "#EF4444",
-              secondary: "#fff",
-            },
-          },
-        }}
-      />
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center gap-4">
-            <Link
-              to="/admin"
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Back to Dashboard"
-            >
-              <svg
-                className="w-6 h-6 text-gray-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
+    <div className="min-h-screen bg-gray-100">
+      <Toaster position="top-right" />
+
+      <div className="border-b border-gray-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div className="flex items-center gap-3">
+            <Link to="/admin" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" title="Back to dashboard">
+              <ArrowLeft className="h-5 w-5" />
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-              <p className="text-gray-600">Manage and track customer orders</p>
+              <h1 className="text-2xl font-bold text-gray-900">Order Management</h1>
+              <p className="text-sm text-gray-500">Global operations across vendors, delivery, payment, SLA, and risk.</p>
             </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={refreshAll}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={downloadCsv}
+              className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-sm p-4">
-            <p className="text-sm text-gray-500">Total Orders</p>
-            <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4">
-            <p className="text-sm text-gray-500">Pending</p>
-            <p className="text-2xl font-bold text-yellow-600">
-              {stats.pending}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4">
-            <p className="text-sm text-gray-500">Processing</p>
-            <p className="text-2xl font-bold text-blue-600">
-              {stats.processing}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4">
-            <p className="text-sm text-gray-500">Delivered</p>
-            <p className="text-2xl font-bold text-green-600">
-              {stats.delivered}
-            </p>
-          </div>
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricTile icon={PackageCheck} label="Filtered Orders" value={metrics.total} />
+          <MetricTile icon={CalendarClock} label="Pending" value={metrics.pending} tone="text-yellow-700" />
+          <MetricTile icon={Truck} label="In Fulfillment" value={metrics.processing} tone="text-blue-700" />
+          <MetricTile icon={AlertTriangle} label="SLA Breaches" value={slaData.summary?.total || 0} tone="text-red-700" />
         </div>
 
-        {/* Filter Tabs */}
-        <div className="bg-white rounded-xl shadow-sm p-2 mb-6 flex flex-wrap gap-2">
-          {[
-            "all",
-            "pending",
-            "processing",
-            "shipped",
-            "delivered",
-            "cancelled",
-          ].map((status) => (
+        <form onSubmit={handleSearch} className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <Filter className="h-4 w-4" />
+            Filters
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-7">
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-gray-600">Search</span>
+              <div className="flex rounded-lg border border-gray-300 bg-white">
+                <Search className="ml-3 mt-2.5 h-4 w-4 text-gray-400" />
+                <input
+                  value={filters.search}
+                  onChange={(event) => updateFilter("search", event.target.value)}
+                  className="w-full rounded-lg border-0 px-3 py-2 text-sm focus:outline-none"
+                  placeholder="Order, buyer, SKU"
+                />
+              </div>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-gray-600">Vendor</span>
+              <select
+                value={filters.vendorId}
+                onChange={(event) => updateFilter("vendorId", event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="">All vendors</option>
+                {vendorOptions.map((vendor) => (
+                  <option key={vendor.value} value={vendor.value}>
+                    {vendor.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-gray-600">Payment</span>
+              <select
+                value={filters.paymentMethod}
+                onChange={(event) => updateFilter("paymentMethod", event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="all">All methods</option>
+                <option value="cod">COD</option>
+                <option value="bkash">bKash</option>
+                <option value="nagad">Nagad</option>
+                <option value="bank">Bank</option>
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-gray-600">Zone</span>
+              <input
+                value={filters.deliveryZone}
+                onChange={(event) => updateFilter("deliveryZone", event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                placeholder="Dhaka, Chattogram"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-gray-600">From</span>
+              <input
+                type="date"
+                value={filters.from}
+                onChange={(event) => updateFilter("from", event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-gray-600">To</span>
+              <input
+                type="date"
+                value={filters.to}
+                onChange={(event) => updateFilter("to", event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <div className="flex items-end gap-2">
+              <button type="submit" className="w-full rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700">
+                Apply
+              </button>
+              <button type="button" onClick={resetFilters} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                Reset
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div className="mt-6 flex flex-wrap gap-2">
+          {STATUS_TABS.map((tab) => (
             <button
-              key={status}
-              onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                filter === status
-                  ? "bg-primary-500 text-white"
-                  : "text-gray-600 hover:bg-gray-100"
+              key={tab.key}
+              type="button"
+              onClick={() => updateFilter("status", tab.key)}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+                filters.status === tab.key ? "bg-gray-900 text-white" : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
               }`}
             >
-              {status.charAt(0).toUpperCase() + status.slice(1)}
+              {tab.label}
             </button>
           ))}
         </div>
 
-        {/* Orders List */}
-        {filteredOrders.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm p-12 text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                />
-              </svg>
+        <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          <section className="lg:col-span-8">
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+                <div>
+                  <h2 className="font-semibold text-gray-900">Global Orders</h2>
+                  <p className="text-xs text-gray-500">{loading ? "Loading..." : `${orders.length} visible from ${total} matching orders`}</p>
+                </div>
+                <FileText className="h-5 w-5 text-gray-400" />
+              </div>
+
+              {orders.length === 0 ? (
+                <EmptyPanel title="No orders match the current filters." />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                      <tr>
+                        <th className="px-4 py-3">Order</th>
+                        <th className="px-4 py-3">Vendor</th>
+                        <th className="px-4 py-3">Buyer</th>
+                        <th className="px-4 py-3">Payment</th>
+                        <th className="px-4 py-3">Zone</th>
+                        <th className="px-4 py-3 text-right">Total</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {orders.map((order) => (
+                        <tr key={order._id} className={selectedOrderId === order._id ? "bg-blue-50/60" : "hover:bg-gray-50"}>
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-gray-900">#{shortId(order._id)}</div>
+                            <div className="text-xs text-gray-500">{formatDate(order.createdAt)}</div>
+                          </td>
+                          <td className="max-w-40 px-4 py-3 text-gray-700">
+                            <span className="line-clamp-2">{getVendorNames(order)}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-gray-800">{order.shippingInfo?.name || "Customer"}</div>
+                            <div className="text-xs text-gray-500">{order.shippingInfo?.phone || "No phone"}</div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            <div className="font-medium uppercase">{order.paymentMethod || "N/A"}</div>
+                            <div className="text-xs text-gray-500">{formatStatus(order.paymentStatus || "pending")}</div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            <div className="inline-flex items-center gap-1">
+                              <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                              {order.deliveryZone || order.shippingInfo?.district || order.shippingInfo?.city || "N/A"}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatPrice(order.total || 0)}</td>
+                          <td className="px-4 py-3">
+                            <StatusBadge status={order.status} />
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => loadDetail(order._id)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              Open
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              No orders found
-            </h3>
-            <p className="text-gray-600">
-              {filter === "all"
-                ? "No orders have been placed yet"
-                : `No ${filter} orders`}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredOrders.map((order) => (
-              <div
-                key={order._id}
-                className="bg-white rounded-xl shadow-sm overflow-hidden"
-              >
-                {/* Order Header */}
-                <div
-                  className="p-6 cursor-pointer hover:bg-gray-50 transition"
-                  onClick={() =>
-                    setExpandedOrder(
-                      expandedOrder === order._id ? null : order._id,
-                    )
-                  }
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-2xl">
-                        {statusConfig[order.status]?.icon}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-3 mb-1">
-                          <p className="font-semibold text-gray-900">
-                            Order #{order._id.slice(-8).toUpperCase()}
-                          </p>
-                          {getCancellationMessage(order) && (
-                            <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
-                              User cancelled
-                            </span>
-                          )}
-                          {order.paymentMethod && (
-                            <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
-                              {order.paymentMethod.toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
-                          <span>
-                            {new Date(order.createdAt).toLocaleDateString(
-                              "en-US",
-                              {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              },
-                            )}
-                          </span>
-                          {order.shippingInfo?.name && (
-                            <>
-                              <span>•</span>
-                              <span>{order.shippingInfo.name}</span>
-                            </>
-                          )}
-                          {order.shippingInfo?.city && (
-                            <>
-                              <span>•</span>
-                              <span>{order.shippingInfo.city}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm text-gray-500">
-                            {order.products?.length || 0} items
-                          </span>
-                          {order.products?.some(
-                            (item) => item.selectedSize || item.selectedColor,
-                          ) && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-                              Customized Items
-                            </span>
-                          )}
-                        </div>
-                        <p className="font-bold text-lg text-primary-500">
-                          {formatPrice(order.total)}
-                          {order.deliveryCharge > 0 && (
-                            <span className="text-xs text-gray-500 ml-1">
-                              (+{formatPrice(order.deliveryCharge)} delivery)
-                            </span>
-                          )}
-                        </p>
-                      </div>
 
-                      {/* Quick Print Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          printOrder(order);
-                        }}
-                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                        title="Print Order Details"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-                          />
-                        </svg>
-                      </button>
-
-                      <select
-                        value={order.status}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          handleStatusChange(order._id, e.target.value);
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        disabled={Boolean(getCancellationMessage(order))}
-                        className={`px-3 py-2 rounded-lg text-sm font-semibold border ${
-                          statusConfig[order.status]?.color
-                        } cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-60`}
-                        title={getCancellationMessage(order) ? "This order was cancelled by the user" : "Update order status"}
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="processing">Processing</option>
-                        <option value="shipped">Shipped</option>
-                        <option value="delivered">Delivered</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
-                      <svg
-                        className={`w-5 h-5 text-gray-400 transition ${
-                          expandedOrder === order._id ? "rotate-180" : ""
-                        }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
+            {selectedOrder && (
+              <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+                <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-bold text-gray-900">Order #{shortId(selectedOrder._id)}</h2>
+                      <StatusBadge status={selectedOrder.status} />
                     </div>
+                    <p className="mt-1 text-sm text-gray-500">{getAddressText(selectedOrder.shippingInfo)}</p>
+                  </div>
+                  <div className="text-left lg:text-right">
+                    <p className="text-sm text-gray-500">Order total</p>
+                    <p className="text-xl font-bold text-gray-900">{formatPrice(selectedOrder.total || 0)}</p>
                   </div>
                 </div>
 
-                {/* Expanded Order Details */}
-                {expandedOrder === order._id && (
-                  <div className="border-t bg-gray-50 p-6">
-                    {getCancellationMessage(order) && (
-                      <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                        <p className="font-bold">User cancelled this order</p>
-                        <p className="mt-1">
-                          {getCancellationMessage(order)}
-                          {order.cancelledAt && ` Cancelled at ${new Date(order.cancelledAt).toLocaleString()}.`}
-                        </p>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      {/* Order Items with Details */}
-                      <div className="lg:col-span-2">
-                        <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                          <svg
-                            className="w-5 h-5 text-primary-500"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                            />
-                          </svg>
-                          Order Items ({order.products?.length || 0})
-                        </h4>
-                        <div className="space-y-3">
-                          {order.products?.map((item, index) => (
-                            <div
-                              key={index}
-                              className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm"
-                            >
-                              <div className="flex items-start gap-4">
-                                {/* Product Image */}
-                                <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                                  {item.image ? (
-                                    <img
-                                      src={item.image}
-                                      alt={item.title}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                      <svg
-                                        className="w-6 h-6"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                        />
-                                      </svg>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Product Details */}
-                                <div className="flex-1">
-                                  <h5 className="font-medium text-gray-900 mb-2">
-                                    {item.title}
-                                  </h5>
-                                  <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-cyan-100 bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-800">
-                                    <svg
-                                      className="h-3.5 w-3.5"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M3 9.75L12 4l9 5.75M5 10.75V20h14v-9.25M9 20v-5h6v5"
-                                      />
-                                    </svg>
-                                    Store: {getItemVendorName(item)}
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                      <span className="text-gray-500">
-                                        Vendor ID:
-                                      </span>
-                                      <span className="ml-2 font-mono text-xs text-gray-700">
-                                        {item.vendorId || "Platform"}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-gray-500">
-                                        Quantity:
-                                      </span>
-                                      <span className="ml-2 font-medium text-gray-900">
-                                        {item.quantity}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-gray-500">
-                                        Unit Price:
-                                      </span>
-                                      <span className="ml-2 font-medium text-gray-900">
-                                        {formatPrice(item.price)}
-                                      </span>
-                                    </div>
-                                    {item.selectedSize && (
-                                      <div>
-                                        <span className="text-gray-500">
-                                          Size:
-                                        </span>
-                                        <span className="ml-2 font-medium text-primary-600 bg-primary-50 px-2 py-1 rounded-md text-xs">
-                                          {item.selectedSize}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {item.selectedColor && (
-                                      <div>
-                                        <span className="text-gray-500">
-                                          Color:
-                                        </span>
-                                        <div className="ml-2 inline-flex items-center gap-2 font-medium text-gray-700 bg-gray-50 px-2 py-1 rounded-md text-xs">
-                                          {typeof item.selectedColor ===
-                                            "object" &&
-                                            item.selectedColor.value && (
-                                              <div
-                                                className="w-3 h-3 rounded-full border border-gray-300"
-                                                style={{
-                                                  backgroundColor:
-                                                    item.selectedColor.value,
-                                                }}
-                                              />
-                                            )}
-                                          {renderColor(item.selectedColor)}
-                                        </div>
-                                      </div>
-                                    )}
-                                    <div>
-                                      <span className="text-gray-500">
-                                        Subtotal:
-                                      </span>
-                                      <span className="ml-2 font-semibold text-gray-900">
-                                        {formatPrice(
-                                          (item.price || 0) *
-                                            (item.quantity || 0),
-                                        )}
-                                      </span>
-                                    </div>
-                                    {item.commissionRateSnapshot !==
-                                      undefined && (
-                                      <div>
-                                        <span className="text-gray-500">
-                                          Commission:
-                                        </span>
-                                        <span className="ml-2 font-medium text-orange-700">
-                                          {item.commissionRateSnapshot}% (
-                                          {formatPrice(
-                                            item.adminCommissionAmount || 0,
-                                          )}
-                                          )
-                                        </span>
-                                      </div>
-                                    )}
-                                    {item.vendorEarningAmount !== undefined && (
-                                      <div>
-                                        <span className="text-gray-500">
-                                          Vendor Earning:
-                                        </span>
-                                        <span className="ml-2 font-medium text-green-700">
-                                          {formatPrice(
-                                            item.vendorEarningAmount || 0,
-                                          )}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
+                {detailLoading ? (
+                  <div className="p-6">
+                    <Loading />
+                  </div>
+                ) : (
+                  <div className="grid gap-6 p-4 xl:grid-cols-2">
+                    <div className="space-y-5">
+                      <section>
+                        <h3 className="mb-3 font-semibold text-gray-900">Order Items</h3>
+                        <div className="overflow-hidden rounded-lg border border-gray-200">
+                          {(selectedOrder.products || []).map((item) => (
+                            <div key={`${item.productId || item._id || item.sku}-${item.title}`} className="flex items-center justify-between gap-3 border-b border-gray-100 px-3 py-3 last:border-b-0">
+                              <div>
+                                <p className="font-medium text-gray-900">{item.title || item.name || "Product"}</p>
+                                <p className="text-xs text-gray-500">{item.sku || item.vendorName || item.shopName || "No SKU"}</p>
+                              </div>
+                              <div className="text-right text-sm">
+                                <p className="font-semibold text-gray-900">{formatPrice(Number(item.price || 0) * Number(item.quantity || 1))}</p>
+                                <p className="text-xs text-gray-500">Qty {item.quantity || 1}</p>
                               </div>
                             </div>
                           ))}
-
-                          {order.perVendorBreakdown?.length > 0 && (
-                            <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                              <h5 className="font-medium text-gray-900 mb-3">
-                                Vendor Breakdown
-                              </h5>
-                              <div className="space-y-3">
-                                {order.perVendorBreakdown.map(
-                                  (vendor, index) => (
-                                    <div
-                                      key={`${vendor.vendorId || "platform"}-${index}`}
-                                      className="rounded-lg border border-gray-100 bg-gray-50 p-3"
-                                    >
-                                      <div className="flex items-center justify-between gap-3">
-                                        <div>
-                                          <p className="font-semibold text-gray-900">
-                                            {vendor.shopName ||
-                                              vendor.vendorName ||
-                                              "HnilaBazar"}
-                                          </p>
-                                          <p className="font-mono text-xs text-gray-500">
-                                            {vendor.vendorId || "Platform"}
-                                          </p>
-                                        </div>
-                                        <p className="text-sm font-semibold text-primary-700">
-                                          {formatPrice(vendor.grossSales || 0)}
-                                        </p>
-                                      </div>
-                                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                                        <div>
-                                          <span className="text-gray-500">
-                                            Commission
-                                          </span>
-                                          <p className="font-semibold text-orange-700">
-                                            {formatPrice(
-                                              vendor.totalCommission || 0,
-                                            )}
-                                          </p>
-                                        </div>
-                                        <div>
-                                          <span className="text-gray-500">
-                                            Net Earning
-                                          </span>
-                                          <p className="font-semibold text-green-700">
-                                            {formatPrice(
-                                              vendor.netEarnings || 0,
-                                            )}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ),
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {order.vendorOrders?.length > 0 && (
-                            <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                              <h5 className="font-medium text-gray-900 mb-3">
-                                Vendor Fulfillment Orders
-                              </h5>
-                              <div className="overflow-hidden rounded-lg border border-gray-100">
-                                <table className="min-w-full divide-y divide-gray-100 text-sm">
-                                  <thead className="bg-gray-50">
-                                    <tr>
-                                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                        Vendor Order
-                                      </th>
-                                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                        Store
-                                      </th>
-                                      <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                        Status
-                                      </th>
-                                      <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                        Total
-                                      </th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-gray-100 bg-white">
-                                    {order.vendorOrders.map((vendorOrder) => {
-                                      const firstProduct =
-                                        vendorOrder.products?.[0] || {};
-                                      return (
-                                        <tr key={vendorOrder._id}>
-                                          <td className="px-3 py-2 font-mono text-xs text-gray-700">
-                                            {vendorOrder._id
-                                              ?.slice(-8)
-                                              .toUpperCase()}
-                                          </td>
-                                          <td className="px-3 py-2">
-                                            <p className="font-semibold text-gray-900">
-                                              {firstProduct.shopName ||
-                                                firstProduct.vendorName ||
-                                                "HnilaBazar"}
-                                            </p>
-                                            <p className="font-mono text-xs text-gray-500">
-                                              {vendorOrder.vendorId ||
-                                                "Platform"}
-                                            </p>
-                                          </td>
-                                          <td className="px-3 py-2">
-                                            <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold capitalize text-gray-700">
-                                              {vendorOrder.status || "pending"}
-                                            </span>
-                                          </td>
-                                          <td className="px-3 py-2 text-right font-semibold text-gray-900">
-                                            {formatPrice(
-                                              vendorOrder.totalAmount || 0,
-                                            )}
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Order Total Breakdown */}
-                          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                            <h5 className="font-medium text-gray-900 mb-3">
-                              Order Summary
-                            </h5>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-gray-500">Subtotal:</span>
-                                <span className="text-gray-900">
-                                  {formatPrice(order.subtotal || order.total)}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-500">
-                                  Delivery Charge:
-                                </span>
-                                <span className="text-gray-900">
-                                  {order.deliveryCharge
-                                    ? formatPrice(order.deliveryCharge)
-                                    : "FREE"}
-                                </span>
-                              </div>
-                              <div className="border-t pt-2 flex justify-between font-semibold">
-                                <span className="text-gray-900">Total:</span>
-                                <span className="text-primary-600">
-                                  {formatPrice(order.total)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
                         </div>
-                      </div>
+                      </section>
 
-                      {/* Customer & Shipping Information */}
-                      <div className="space-y-6">
-                        {/* Customer Details */}
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <svg
-                              className="w-5 h-5 text-blue-500"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                              />
-                            </svg>
-                            Customer Information
-                          </h4>
-                          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm space-y-4">
-                            {order.shippingInfo ? (
-                              <>
-                                {order.shippingInfo.name && (
-                                  <div>
-                                    <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                      Full Name
-                                    </span>
-                                    <p className="text-sm font-medium text-gray-900 mt-1">
-                                      {order.shippingInfo.name}
-                                    </p>
+                      <section>
+                        <h3 className="mb-3 font-semibold text-gray-900">Full Timeline</h3>
+                        <div className="space-y-3">
+                          {(selectedOrder.timeline || []).length === 0 ? (
+                            <EmptyPanel title="No timeline events recorded yet." />
+                          ) : (
+                            selectedOrder.timeline.map((event, index) => (
+                              <div key={`${event.type}-${event.status}-${event.createdAt}-${index}`} className="flex gap-3">
+                                <div className="mt-1 h-2.5 w-2.5 rounded-full bg-gray-900" />
+                                <div className="flex-1 border-b border-gray-100 pb-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="font-medium text-gray-900">{event.label || formatStatus(event.status)}</p>
+                                    <span className="text-xs text-gray-500">{formatDate(event.createdAt)}</span>
                                   </div>
-                                )}
-
-                                <div className="grid grid-cols-1 gap-4">
-                                  {order.shippingInfo.phone && (
-                                    <div>
-                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                        Phone Number
-                                      </span>
-                                      <p className="text-sm text-gray-900 mt-1">
-                                        <a
-                                          href={`tel:${order.shippingInfo.phone}`}
-                                          className="text-blue-600 hover:underline font-medium"
-                                        >
-                                          {order.shippingInfo.phone}
-                                        </a>
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  {order.shippingInfo.email && (
-                                    <div>
-                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                        Email Address
-                                      </span>
-                                      <p className="text-sm text-gray-900 mt-1">
-                                        <a
-                                          href={`mailto:${order.shippingInfo.email}`}
-                                          className="text-blue-600 hover:underline"
-                                        >
-                                          {order.shippingInfo.email}
-                                        </a>
-                                      </p>
-                                    </div>
+                                  <p className="text-xs uppercase text-gray-500">{event.type || "event"} {event.actorRole ? `by ${event.actorRole}` : ""}</p>
+                                  {event.note && <p className="mt-1 text-sm text-gray-600">{event.note}</p>}
+                                  {(event.courierName || event.trackingNumber) && (
+                                    <p className="mt-1 text-xs text-gray-500">
+                                      {event.courierName} {event.trackingNumber ? `- ${event.trackingNumber}` : ""}
+                                    </p>
                                   )}
                                 </div>
-                              </>
-                            ) : (
-                              <div className="text-center py-6">
-                                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                                  <svg
-                                    className="w-6 h-6 text-yellow-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                                    />
-                                  </svg>
-                                </div>
-                                <p className="text-sm font-medium text-gray-900 mb-1">
-                                  No Customer Information
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  This order was placed before customer info
-                                  collection was implemented
-                                </p>
                               </div>
-                            )}
-
-                            {/* Firebase User ID for reference */}
-                            <div className="pt-3 border-t border-gray-100">
-                              <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                System Reference
-                              </span>
-                              <p className="font-mono text-xs text-gray-600 bg-gray-50 p-2 rounded mt-1">
-                                User ID: {order.userId}
-                              </p>
-                            </div>
-                          </div>
+                            ))
+                          )}
                         </div>
+                      </section>
+                    </div>
 
-                        {/* Shipping Address */}
-                        {order.shippingInfo && (
-                          <div>
-                            <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                              <svg
-                                className="w-5 h-5 text-green-500"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
+                    <div className="space-y-5">
+                      <section>
+                        <h3 className="mb-3 font-semibold text-gray-900">Admin Overrides</h3>
+                        <div className="space-y-3">
+                          <div className="rounded-lg border border-gray-200 p-3">
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <select
+                                value={forms.status}
+                                onChange={(event) => setForms((current) => ({ ...current, status: event.target.value }))}
+                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
                               >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                                />
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                                />
-                              </svg>
-                              Delivery Address
-                            </h4>
-                            <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                              <div className="space-y-3">
-                                {/* Address Details */}
-                                {order.shippingInfo.address && (
-                                  <div>
-                                    <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                      Street Address
-                                    </span>
-                                    <p className="text-sm text-gray-900 mt-1 leading-relaxed">
-                                      {order.shippingInfo.address}
-                                    </p>
-                                  </div>
-                                )}
-
-                                {/* Location Details */}
-                                <div className="grid grid-cols-2 gap-4">
-                                  {order.shippingInfo.area && (
-                                    <div>
-                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                        Area
-                                      </span>
-                                      <p className="text-sm font-medium text-gray-900 mt-1">
-                                        {order.shippingInfo.area}
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  {order.shippingInfo.wardNo && (
-                                    <div>
-                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                        Ward No
-                                      </span>
-                                      <p className="text-sm font-medium text-gray-900 mt-1">
-                                        {order.shippingInfo.wardNo}
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  {order.shippingInfo.union && (
-                                    <div>
-                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                        Union
-                                      </span>
-                                      <p className="text-sm font-medium text-gray-900 mt-1">
-                                        {order.shippingInfo.union}
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  {order.shippingInfo.upazila && (
-                                    <div>
-                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                        Upazila
-                                      </span>
-                                      <p className="text-sm font-medium text-gray-900 mt-1">
-                                        {order.shippingInfo.upazila}
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  {order.shippingInfo.district && (
-                                    <div>
-                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                        District
-                                      </span>
-                                      <p className="text-sm font-medium text-gray-900 mt-1">
-                                        {order.shippingInfo.district}
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  {order.shippingInfo.division && (
-                                    <div>
-                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                        Division
-                                      </span>
-                                      <p className="text-sm font-medium text-gray-900 mt-1">
-                                        {order.shippingInfo.division}
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  {order.shippingInfo.city && (
-                                    <div>
-                                      <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                        City/District
-                                      </span>
-                                      <p className="text-sm font-medium text-gray-900 mt-1">
-                                        {order.shippingInfo.city}
-                                      </p>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {order.shippingInfo.zipCode && (
-                                  <div>
-                                    <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                      Postal Code
-                                    </span>
-                                    <p className="text-sm text-gray-900 mt-1">
-                                      {order.shippingInfo.zipCode}
-                                    </p>
-                                  </div>
-                                )}
-
-                                {/* Complete Address for Shipping Label */}
-                                <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">
-                                      📦 Shipping Label Address
-                                    </span>
-                                    <button
-                                      onClick={() => {
-                                        const fullAddress =
-                                          getFullShippingAddress(
-                                            order.shippingInfo,
-                                          );
-                                        navigator.clipboard.writeText(
-                                          fullAddress,
-                                        );
-                                        alert(
-                                          "Shipping address copied to clipboard!",
-                                        );
-                                      }}
-                                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
-                                    >
-                                      <svg
-                                        className="w-3 h-3"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                        />
-                                      </svg>
-                                      Copy
-                                    </button>
-                                  </div>
-                                  <div className="text-sm text-gray-900 leading-relaxed whitespace-pre-line font-mono bg-white p-3 rounded border">
-                                    {getFullShippingAddress(
-                                      order.shippingInfo,
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Payment & Additional Info */}
-                        <div>
-                          <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <svg
-                              className="w-5 h-5 text-purple-500"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                                {ORDER_STATUSES.map((status) => (
+                                  <option key={status} value={status}>{formatStatus(status)}</option>
+                                ))}
+                              </select>
+                              <input
+                                value={forms.statusNote}
+                                onChange={(event) => setForms((current) => ({ ...current, statusNote: event.target.value }))}
+                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                placeholder="Status note"
                               />
-                            </svg>
-                            Order Details
-                          </h4>
-                          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm space-y-3">
-                            {order.paymentMethod && (
-                              <div>
-                                <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                  Payment Method
-                                </span>
-                                <p className="text-sm font-medium text-gray-900 mt-1 capitalize">
-                                  {order.paymentMethod}
-                                </p>
-                              </div>
-                            )}
-                            {order.transactionId && (
-                              <div>
-                                <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                  Transaction ID
-                                </span>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <p className="text-sm font-mono font-bold text-green-700 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
-                                    {order.transactionId}
-                                  </p>
-                                  <button
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(
-                                        order.transactionId,
-                                      );
-                                      toast.success("Transaction ID copied!");
-                                    }}
-                                    className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                                    title="Copy Transaction ID"
-                                  >
-                                    <svg
-                                      className="w-4 h-4 text-gray-600"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                      />
-                                    </svg>
-                                  </button>
-                                </div>
-                                {order.paymentStatus ===
-                                  "pending_verification" && (
-                                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                                    <svg
-                                      className="w-3 h-3"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                                      />
-                                    </svg>
-                                    Payment verification pending
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                            <div>
-                              <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                Order Date
-                              </span>
-                              <p className="text-sm text-gray-900 mt-1">
-                                {new Date(order.createdAt).toLocaleDateString(
-                                  "en-US",
-                                  {
-                                    weekday: "long",
-                                    year: "numeric",
-                                    month: "long",
-                                    day: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  },
-                                )}
-                              </p>
                             </div>
-                            {order.specialInstructions && (
-                              <div>
-                                <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                  Special Instructions
-                                </span>
-                                <p className="text-sm text-gray-900 mt-1 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                                  {order.specialInstructions}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Quick Actions */}
-                        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                          <h5 className="font-medium text-gray-900 mb-3">
-                            Quick Actions
-                          </h5>
-                          <div className="space-y-2">
-                            {/* Print Order Button */}
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                printOrder(order);
-                              }}
-                              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
+                              disabled={actionLoading}
+                              onClick={() => runAction(() => adminOverrideOrderStatus(selectedOrderId, { status: forms.status, note: forms.statusNote }), "Status overridden")}
+                              className="mt-2 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
                             >
-                              <svg
-                                className="w-4 h-4"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-                                />
-                              </svg>
-                              Print Order Details
+                              <Activity className="h-4 w-4" />
+                              Override Status
                             </button>
+                          </div>
 
-                            {order.shippingInfo?.phone && (
-                              <a
-                                href={`tel:${order.shippingInfo.phone}`}
-                                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm"
-                              >
-                                <svg
-                                  className="w-4 h-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                                  />
-                                </svg>
-                                Call Customer
-                              </a>
-                            )}
-                            {order.shippingInfo?.email && (
-                              <a
-                                href={`mailto:${order.shippingInfo.email}?subject=Order Update - ${order._id.slice(-8).toUpperCase()}`}
-                                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm"
-                              >
-                                <svg
-                                  className="w-4 h-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                                  />
-                                </svg>
-                                Email Customer
-                              </a>
-                            )}
+                          <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                            <input
+                              value={forms.cancelReason}
+                              onChange={(event) => setForms((current) => ({ ...current, cancelReason: event.target.value }))}
+                              className="w-full rounded-lg border border-red-200 px-3 py-2 text-sm"
+                              placeholder="Force-cancel reason"
+                            />
+                            <button
+                              type="button"
+                              disabled={actionLoading}
+                              onClick={() => runAction(() => adminForceCancelOrder(selectedOrderId, { reason: forms.cancelReason }), "Order force-cancelled")}
+                              className="mt-2 inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                            >
+                              <XCircle className="h-4 w-4" />
+                              Force Cancel
+                            </button>
+                          </div>
+
+                          <div className="rounded-lg border border-gray-200 p-3">
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              <input
+                                value={forms.refundAmount}
+                                onChange={(event) => setForms((current) => ({ ...current, refundAmount: event.target.value }))}
+                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                placeholder="Amount"
+                              />
+                              <input
+                                value={forms.refundMethod}
+                                onChange={(event) => setForms((current) => ({ ...current, refundMethod: event.target.value }))}
+                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                placeholder="Method"
+                              />
+                              <input
+                                value={forms.refundReason}
+                                onChange={(event) => setForms((current) => ({ ...current, refundReason: event.target.value }))}
+                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                placeholder="Reason"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              disabled={actionLoading}
+                              onClick={() =>
+                                runAction(
+                                  () => adminForceRefundOrder(selectedOrderId, {
+                                    amount: Number(forms.refundAmount || selectedOrder.total || 0),
+                                    reason: forms.refundReason,
+                                    method: forms.refundMethod,
+                                  }),
+                                  "Refund forced",
+                                )
+                              }
+                              className="mt-2 inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                            >
+                              <Wallet className="h-4 w-4" />
+                              Force Refund
+                            </button>
+                          </div>
+
+                          <div className="rounded-lg border border-gray-200 p-3">
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <input value={forms.courierName} onChange={(event) => setForms((current) => ({ ...current, courierName: event.target.value }))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Courier name" />
+                              <input value={forms.trackingNumber} onChange={(event) => setForms((current) => ({ ...current, trackingNumber: event.target.value }))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Tracking number" />
+                              <input value={forms.riderName} onChange={(event) => setForms((current) => ({ ...current, riderName: event.target.value }))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Rider name" />
+                              <input value={forms.riderPhone} onChange={(event) => setForms((current) => ({ ...current, riderPhone: event.target.value }))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Rider phone" />
+                            </div>
+                            <input value={forms.courierNote} onChange={(event) => setForms((current) => ({ ...current, courierNote: event.target.value }))} className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Courier note" />
+                            <button
+                              type="button"
+                              disabled={actionLoading}
+                              onClick={() =>
+                                runAction(
+                                  () => adminReassignOrderCourier(selectedOrderId, {
+                                    courierName: forms.courierName,
+                                    trackingNumber: forms.trackingNumber,
+                                    riderName: forms.riderName,
+                                    riderPhone: forms.riderPhone,
+                                    note: forms.courierNote,
+                                  }),
+                                  "Courier reassigned",
+                                )
+                              }
+                              className="mt-2 inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                            >
+                              <Truck className="h-4 w-4" />
+                              Reassign Courier
+                            </button>
                           </div>
                         </div>
-                      </div>
+                      </section>
+
+                      <section>
+                        <h3 className="mb-3 font-semibold text-gray-900">Address And Return Window</h3>
+                        <div className="rounded-lg border border-gray-200 p-3">
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {Object.keys(addressForm).map((key) => (
+                              <input
+                                key={key}
+                                value={addressForm[key]}
+                                onChange={(event) => setAddressForm((current) => ({ ...current, [key]: event.target.value }))}
+                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                placeholder={formatStatus(key)}
+                              />
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => runAction(() => adminChangeOrderDeliveryAddress(selectedOrderId, { shippingInfo: addressForm, note: "Admin address correction" }), "Delivery address updated")}
+                            className="mt-2 inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                          >
+                            <MapPin className="h-4 w-4" />
+                            Change Address
+                          </button>
+                        </div>
+                        <div className="mt-3 rounded-lg border border-gray-200 p-3">
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <input
+                              type="datetime-local"
+                              value={forms.returnWindowUntil}
+                              onChange={(event) => setForms((current) => ({ ...current, returnWindowUntil: event.target.value }))}
+                              className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                            />
+                            <input
+                              value={forms.returnWindowNote}
+                              onChange={(event) => setForms((current) => ({ ...current, returnWindowNote: event.target.value }))}
+                              className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                              placeholder="Reason"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => runAction(() => adminExtendOrderReturnWindow(selectedOrderId, { returnWindowUntil: forms.returnWindowUntil, note: forms.returnWindowNote }), "Return window extended")}
+                            className="mt-2 inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            Extend Return Window
+                          </button>
+                        </div>
+                      </section>
                     </div>
                   </div>
                 )}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            )}
+          </section>
+
+          <aside className="space-y-6 lg:col-span-4">
+            <section className="rounded-lg border border-gray-200 bg-white">
+              <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+                <div>
+                  <h2 className="font-semibold text-gray-900">COD Reconciliation</h2>
+                  <p className="text-xs text-gray-500">{sideLoading ? "Loading..." : `${codData.summary?.totalCod || 0} COD orders`}</p>
+                </div>
+                <Banknote className="h-5 w-5 text-green-600" />
+              </div>
+              <div className="grid grid-cols-2 gap-2 p-4 text-sm">
+                <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-500">Collected</p><p className="font-bold text-gray-900">{codData.summary?.collected || 0}</p></div>
+                <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-500">Remitted</p><p className="font-bold text-gray-900">{codData.summary?.remitted || 0}</p></div>
+                <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-500">Discrepancies</p><p className="font-bold text-red-700">{codData.summary?.discrepancies || 0}</p></div>
+                <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-500">COD Value</p><p className="font-bold text-gray-900">{formatPrice(codData.summary?.codValue || 0)}</p></div>
+              </div>
+              <div className="border-t border-gray-100">
+                {(codData.orders || []).slice(0, 6).map((order) => (
+                  <button key={order.orderId} type="button" onClick={() => loadDetail(order.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-gray-900">#{shortId(order.orderId)}</p>
+                      <span className={order.hasDiscrepancy ? "text-xs font-semibold text-red-700" : "text-xs font-semibold text-gray-500"}>{formatStatus(order.reconciliationStatus)}</span>
+                    </div>
+                    <p className="text-xs text-gray-500">{order.vendorNames?.join(", ") || "Vendor"} - {formatPrice(order.total || 0)}</p>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-gray-200 bg-white">
+              <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+                <div>
+                  <h2 className="font-semibold text-gray-900">SLA Breach Monitor</h2>
+                  <p className="text-xs text-gray-500">{slaData.summary?.processing || 0} processing, {slaData.summary?.delivery || 0} delivery</p>
+                </div>
+                <CalendarClock className="h-5 w-5 text-red-600" />
+              </div>
+              {(slaData.breaches || []).length === 0 ? (
+                <div className="p-4"><EmptyPanel title="No SLA breaches found." /></div>
+              ) : (
+                (slaData.breaches || []).slice(0, 6).map((breach) => (
+                  <button key={`${breach.orderId}-${breach.breachType}`} type="button" onClick={() => loadDetail(breach.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-gray-900">#{shortId(breach.orderId)}</p>
+                      <span className="text-xs font-semibold text-red-700">{breach.breachHours}h late</span>
+                    </div>
+                    <p className="text-xs text-gray-500">{formatStatus(breach.breachType)} - {breach.vendorNames?.join(", ") || "Vendor"}</p>
+                  </button>
+                ))
+              )}
+            </section>
+
+            <section className="rounded-lg border border-gray-200 bg-white">
+              <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+                <div>
+                  <h2 className="font-semibold text-gray-900">Fraud Order Queue</h2>
+                  <p className="text-xs text-gray-500">{fraudData.summary?.totalFlagged || 0} flagged orders</p>
+                </div>
+                <ShieldAlert className="h-5 w-5 text-orange-600" />
+              </div>
+              {(fraudData.orders || []).length === 0 ? (
+                <div className="p-4"><EmptyPanel title="No fraud signals found." /></div>
+              ) : (
+                (fraudData.orders || []).slice(0, 6).map((order) => (
+                  <button key={order.orderId} type="button" onClick={() => loadDetail(order.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-gray-900">#{shortId(order.orderId)}</p>
+                      <span className="text-xs font-semibold text-orange-700">{order.signals?.length || 0} signals</span>
+                    </div>
+                    <p className="text-xs text-gray-500">{order.signals?.[0]?.label || "Review required"}</p>
+                  </button>
+                ))
+              )}
+            </section>
+          </aside>
+        </div>
+      </main>
     </div>
   );
 }

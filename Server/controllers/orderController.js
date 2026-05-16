@@ -50,6 +50,8 @@ const itemStatusFromOrderStatus = (status) => {
     pending: "pending",
     processing: "processing",
     packed: "packed",
+    ready_to_ship: "ready_to_ship",
+    pickup_ready: "pickup_ready",
     shipped: "shipped",
     delivered: "delivered",
     cancelled: "cancelled",
@@ -1160,47 +1162,360 @@ const downloadInvoice = async (req, res) => {
 // ─────────────────────────────────────────
 // Admin: Paginated + filtered order list
 // ─────────────────────────────────────────
-const getAdminOrders = async (req, res) => {
-  try {
-    const Order = req.app.locals.models.Order;
-    const { status, from, to, search, page = 1, limit = 20 } = req.query;
-    const result = await Order.findAllPaginated({ status, from, to, search, page, limit });
+const dateOrNull = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
-    const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+const hoursBetween = (start, end = new Date()) => {
+  const startDate = dateOrNull(start);
+  if (!startDate) return 0;
+  return Math.max(0, Math.round(((dateOrNull(end) || new Date()) - startDate) / 36_000) / 100);
+};
 
-    result.orders = result.orders.map(order => {
-      let totalCommission = 0;
-      let totalVendorEarnings = 0;
-      const vendorMap = {};
-      if (order.products && Array.isArray(order.products)) {
-        for (const p of order.products) {
-          const comm = p.adminCommissionAmount || 0;
-          const earn = p.vendorEarningAmount || 0;
-          const vId = p.vendorId || 'platform';
-          totalCommission += comm;
-          totalVendorEarnings += earn;
-          if (!vendorMap[vId]) {
-            vendorMap[vId] = { vendorId: vId === 'platform' ? null : vId, grossSales: 0, totalCommission: 0, netEarnings: 0 };
-          }
-          vendorMap[vId].grossSales += (p.price * p.quantity);
-          vendorMap[vId].totalCommission += comm;
-          vendorMap[vId].netEarnings += earn;
-        }
+const isCodPayment = (method) =>
+  ["cod", "cash_on_delivery", "cash on delivery"].includes(String(method || "").toLowerCase());
+
+const getDeliveryZone = (order = {}) => {
+  const shippingInfo = order.shippingInfo || {};
+  return (
+    order.deliveryZone ||
+    shippingInfo.deliveryZone ||
+    shippingInfo.zone ||
+    shippingInfo.district ||
+    shippingInfo.city ||
+    shippingInfo.upazila ||
+    shippingInfo.area ||
+    shippingInfo.division ||
+    ""
+  );
+};
+
+const getOrderVendorIds = (order = {}) => [
+  ...new Set(
+    (order.products || [])
+      .map((product) => normalizeId(product.vendorId))
+      .filter((vendorId) => vendorId && vendorId !== "platform"),
+  ),
+];
+
+const getOrderVendorNames = (order = {}) => [
+  ...new Set(
+    [
+      ...(order.products || []).map((product) => product.vendorName || product.shopName || product.storeName),
+      ...(order.perVendorBreakdown || []).map((vendor) => vendor.shopName || vendor.vendorName),
+    ].filter(Boolean),
+  ),
+];
+
+const csvValue = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+const fetchVendorMap = async (db, orders = []) => {
+  if (!db) return new Map();
+
+  const vendorIds = [
+    ...new Set(
+      orders
+        .flatMap((order) => getOrderVendorIds(order))
+        .filter((vendorId) => ObjectId.isValid(vendorId)),
+    ),
+  ];
+
+  if (vendorIds.length === 0) return new Map();
+
+  const vendors = await db
+    .collection("vendors")
+    .find({ _id: { $in: vendorIds.map((vendorId) => new ObjectId(vendorId)) } })
+    .toArray();
+
+  return new Map(vendors.map((vendor) => [normalizeId(vendor._id), vendor]));
+};
+
+const enrichAdminOrdersWithVendors = async (db, orders = []) => {
+  const vendorMap = await fetchVendorMap(db, orders);
+
+  return orders.map((order) => {
+    const vendorBreakdown = {};
+
+    const products = (order.products || []).map((product) => {
+      const vendorId = normalizeId(product.vendorId);
+      const vendor = vendorId ? vendorMap.get(vendorId) : null;
+      const vendorName = product.vendorName || product.shopName || getVendorLabel(vendor);
+      const key = vendorId || "platform";
+
+      if (!vendorBreakdown[key]) {
+        vendorBreakdown[key] = {
+          vendorId: vendorId || null,
+          vendorName,
+          shopName: vendorName,
+          grossSales: 0,
+          totalCommission: 0,
+          netEarnings: 0,
+          itemCount: 0,
+        };
       }
+
+      const lineTotal = Number(product.price || 0) * Number(product.quantity || 0);
+      vendorBreakdown[key].grossSales += lineTotal;
+      vendorBreakdown[key].totalCommission += Number(product.adminCommissionAmount || 0);
+      vendorBreakdown[key].netEarnings += Number(product.vendorEarningAmount || 0);
+      vendorBreakdown[key].itemCount += Number(product.quantity || 1);
+
       return {
-        ...order,
-        totalCommission: round2(totalCommission),
-        totalVendorEarnings: round2(totalVendorEarnings),
-        perVendorBreakdown: Object.values(vendorMap).map(v => ({
-          ...v,
-          grossSales: round2(v.grossSales),
-          totalCommission: round2(v.totalCommission),
-          netEarnings: round2(v.netEarnings),
-        })),
+        ...product,
+        vendorId: vendorId || null,
+        vendorName,
+        shopName: product.shopName || vendorName,
       };
     });
 
-    res.json({ success: true, ...result });
+    const perVendorBreakdown = Object.values(vendorBreakdown).map((vendor) => ({
+      ...vendor,
+      grossSales: Math.round(vendor.grossSales * 100) / 100,
+      totalCommission: Math.round(vendor.totalCommission * 100) / 100,
+      netEarnings: Math.round(vendor.netEarnings * 100) / 100,
+    }));
+
+    const vendorNames = perVendorBreakdown.map((vendor) => vendor.vendorName).filter(Boolean);
+    const deliveryZone = getDeliveryZone(order);
+
+    return {
+      ...order,
+      products,
+      deliveryZone,
+      vendorNames,
+      primaryVendorName: vendorNames[0] || "HnilaBazar",
+      perVendorBreakdown: perVendorBreakdown.length > 0 ? perVendorBreakdown : order.perVendorBreakdown || [],
+      itemCount: products.reduce((sum, product) => sum + Number(product.quantity || 1), 0),
+    };
+  });
+};
+
+const getEventTime = (event = {}) =>
+  dateOrNull(event.createdAt || event.changedAt || event.timestamp || event.at || event.time) || new Date(0);
+
+const buildAdminOrderTimeline = (order = {}, persistedEvents = []) => {
+  const events = [];
+  const addEvent = (event) => {
+    const createdAt = getEventTime(event);
+    if (!createdAt || createdAt.getTime() === 0) return;
+    events.push({
+      type: event.type || "order",
+      status: event.status || "",
+      label: event.label || event.status || "Order event",
+      actorId: event.actorId || event.changedBy || event.addedBy || null,
+      actorRole: event.actorRole || event.role || "",
+      note: event.note || event.text || "",
+      courierName: event.courierName || "",
+      trackingNumber: event.trackingNumber || "",
+      metadata: event.metadata || {},
+      createdAt,
+    });
+  };
+
+  addEvent({
+    type: "order",
+    status: "created",
+    label: "Order placed",
+    actorId: order.userId || null,
+    actorRole: "buyer",
+    createdAt: order.createdAt,
+  });
+
+  persistedEvents.forEach((event) => addEvent({ ...event, type: event.type || "event" }));
+
+  (order.statusHistory || []).forEach((item) =>
+    addEvent({
+      type: "status",
+      status: item.status,
+      label: `Order ${String(item.status || "").replace(/_/g, " ")}`,
+      actorId: item.changedBy,
+      actorRole: item.actorRole || "system",
+      note: item.note || "",
+      createdAt: item.changedAt,
+    }),
+  );
+
+  (order.adminActions || []).forEach((item) =>
+    addEvent({
+      type: "admin",
+      status: item.type || item.action || "admin_action",
+      label: item.label || item.type || "Admin action",
+      actorId: item.actorId || item.adminId,
+      actorRole: "admin",
+      note: item.note || item.reason || "",
+      createdAt: item.createdAt || item.at,
+      metadata: item.metadata || {},
+    }),
+  );
+
+  (order.paymentEvents || []).forEach((item) =>
+    addEvent({
+      type: "payment",
+      status: item.status || order.paymentStatus,
+      label: item.label || `Payment ${item.status || order.paymentStatus || "updated"}`,
+      actorId: item.actorId,
+      actorRole: item.actorRole || "system",
+      note: item.note || item.transactionId || "",
+      createdAt: item.createdAt || item.at,
+      metadata: item.metadata || {},
+    }),
+  );
+
+  if (order.paymentStatus) {
+    addEvent({
+      type: "payment",
+      status: order.paymentStatus,
+      label: `Payment ${String(order.paymentStatus).replace(/_/g, " ")}`,
+      createdAt: order.paymentVerifiedAt || order.refundApprovedAt || order.createdAt,
+      note: order.transactionId ? `Transaction: ${order.transactionId}` : "",
+    });
+  }
+
+  (order.courierUpdates || []).forEach((item) =>
+    addEvent({
+      type: "courier",
+      status: item.status || "courier_update",
+      label: item.label || item.status || "Courier update",
+      actorId: item.actorId,
+      actorRole: item.actorRole || "courier",
+      note: item.note || "",
+      courierName: item.courierName || order.courierName || "",
+      trackingNumber: item.trackingNumber || order.trackingNumber || "",
+      createdAt: item.createdAt || item.at,
+      metadata: item.metadata || {},
+    }),
+  );
+
+  (order.products || []).forEach((item) => {
+    [
+      ["vendorAcceptedAt", "accepted", "Vendor accepted item"],
+      ["packedAt", "packed", "Item packed"],
+      ["readyToShipAt", "ready_to_ship", "Ready to ship"],
+      ["shippedAt", "shipped", "Item shipped"],
+      ["deliveredAt", "delivered", "Item delivered"],
+      ["codCollectedAt", "cod_collected", "COD cash collected"],
+      ["returnedAt", "returned", "Item returned"],
+    ].forEach(([field, status, label]) => {
+      if (item[field]) {
+        addEvent({
+          type: status === "cod_collected" ? "payment" : "fulfillment",
+          status,
+          label,
+          note: item.title || item.name || item.sku || "",
+          courierName: item.courierName || order.courierName || "",
+          trackingNumber: item.trackingNumber || order.trackingNumber || "",
+          createdAt: item[field],
+        });
+      }
+    });
+  });
+
+  const unique = new Map();
+  events
+    .sort((left, right) => getEventTime(left) - getEventTime(right))
+    .forEach((event) => {
+      const key = [
+        event.type,
+        event.status,
+        event.label,
+        event.note,
+        getEventTime(event).toISOString(),
+      ].join("|");
+      if (!unique.has(key)) unique.set(key, event);
+    });
+
+  return [...unique.values()];
+};
+
+const buildCodReconciliation = (order = {}) => {
+  const products = order.products || [];
+  const codItems = products.filter((product) => product.itemStatus !== "cancelled");
+  const allItemsCollected =
+    codItems.length > 0 && codItems.every((product) => product.codCollected === true);
+  const anyItemCollected = products.some((product) => product.codCollected === true);
+  const dispatched =
+    ["shipped", "partially_shipped", "delivered", "partially_delivered"].includes(order.status) ||
+    products.some((product) => ["shipped", "delivered"].includes(product.itemStatus));
+  const collected =
+    order.codCollectionStatus === "collected" ||
+    order.codCollected === true ||
+    allItemsCollected ||
+    anyItemCollected;
+  const remitted =
+    order.codRemittanceStatus === "remitted" ||
+    order.codRemitted === true ||
+    Boolean(order.codRemittedAt || order.vendorRemittedAt);
+  const discrepancyAmount = Number(order.codDiscrepancyAmount || 0);
+  const hasDiscrepancy =
+    discrepancyAmount > 0 ||
+    order.codCollectionStatus === "discrepancy" ||
+    (collected && !remitted && hoursBetween(order.codCollectedAt || order.updatedAt || order.createdAt) > 72);
+
+  let reconciliationStatus = "pending_dispatch";
+  if (dispatched) reconciliationStatus = "dispatched";
+  if (collected) reconciliationStatus = "collected";
+  if (remitted) reconciliationStatus = "remitted";
+  if (hasDiscrepancy) reconciliationStatus = "discrepancy";
+
+  return {
+    reconciliationStatus,
+    dispatched,
+    collected,
+    remitted,
+    hasDiscrepancy,
+    discrepancyAmount,
+  };
+};
+
+const getAdminActorId = (req) => req.user?.uid || req.dbUser?._id?.toString?.() || "admin";
+
+const updateVendorOrderSnapshots = async (db, orderId, update) => {
+  if (!db?.collection) return;
+  const vendorOrders = db.collection("vendorOrders");
+  if (!vendorOrders?.updateMany) return;
+  await vendorOrders.updateMany({ parentOrderId: normalizeId(orderId) }, update);
+};
+
+const getAdminOrders = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const db = req.app.locals.db || Order.collection?.db;
+    const {
+      status,
+      vendorId,
+      from,
+      to,
+      dateFrom,
+      dateTo,
+      search,
+      paymentMethod,
+      deliveryZone,
+      page = 1,
+      limit = 20,
+    } = req.query;
+    const result = await Order.findAllPaginated({
+      status,
+      vendorId,
+      from: from || dateFrom,
+      to: to || dateTo,
+      search,
+      paymentMethod,
+      deliveryZone,
+      page,
+      limit,
+    });
+
+    const orders = await enrichAdminOrdersWithVendors(db, result.orders || []);
+
+    res.json({
+      success: true,
+      ...result,
+      orders,
+      data: orders,
+      filters: { status, vendorId, from: from || dateFrom, to: to || dateTo, search, paymentMethod, deliveryZone },
+    });
   } catch (error) {
     console.error('Error in getAdminOrders:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -1213,7 +1528,7 @@ const getAdminOrders = async (req, res) => {
 const getAdminOrderById = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
-    const db = req.app.locals.db;
+    const db = req.app.locals.db || Order.collection?.db;
     const { id } = req.params;
 
     const order = await Order.findById(id);
@@ -1241,37 +1556,43 @@ const getAdminOrderById = async (req, res) => {
       }
     }
 
-    // Enrich vendor info
-    const vendorsCollection = db.collection('vendors');
-    const perVendorBreakdown = await Promise.all(
-      Object.values(vendorMap).map(async (v) => {
-        let shopName = null;
-        if (v.vendorId) {
-          try {
-            const { ObjectId } = require('mongodb');
-            const vendor = await vendorsCollection.findOne({ _id: new ObjectId(v.vendorId) });
-            shopName = vendor?.shopName || null;
-          } catch (_) {}
-        }
-        return {
+    let enrichedOrder = order;
+    if (db) {
+      const [enriched] = await enrichAdminOrdersWithVendors(db, [order]);
+      enrichedOrder = enriched || order;
+    }
+
+    const perVendorBreakdown = enrichedOrder.perVendorBreakdown?.length
+      ? enrichedOrder.perVendorBreakdown
+      : Object.values(vendorMap).map((v) => ({
           ...v,
-          shopName,
+          shopName: null,
           grossSales: round2(v.grossSales),
           totalCommission: round2(v.totalCommission),
           netEarnings: round2(v.netEarnings),
-        };
-      })
-    );
+        }));
+
+    let persistedEvents = [];
+    try {
+      persistedEvents = await getTimelineForOrder(req.app, id);
+    } catch (_) {
+      persistedEvents = [];
+    }
+    const timeline = buildAdminOrderTimeline(enrichedOrder, persistedEvents);
 
     res.json({
       success: true,
       data: {
-        ...order,
+        ...enrichedOrder,
         totalCommission: round2(totalCommission),
         totalVendorEarnings: round2(totalVendorEarnings),
         perVendorBreakdown,
         statusHistory: order.statusHistory || [],
         notes: order.notes || [],
+        timeline,
+        codReconciliation: isCodPayment(order.paymentMethod)
+          ? buildCodReconciliation(order)
+          : null,
       },
     });
   } catch (error) {
@@ -1300,15 +1621,29 @@ const getAdminOrderStats = async (req, res) => {
 const exportOrdersCsv = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
-    const { status, from, to, search } = req.query;
-    const result = await Order.findAllPaginated({ status, from, to, search, page: 1, limit: 10000 });
+    const db = req.app.locals.db || Order.collection?.db;
+    const { status, vendorId, from, to, dateFrom, dateTo, search, paymentMethod, deliveryZone } = req.query;
+    const result = await Order.findAllPaginated({
+      status,
+      vendorId,
+      from: from || dateFrom,
+      to: to || dateTo,
+      search,
+      paymentMethod,
+      deliveryZone,
+      page: 1,
+      limit: 10000,
+    });
+    const orders = await enrichAdminOrdersWithVendors(db, result.orders || []);
 
-    const rows = result.orders.map(o => [
+    const rows = orders.map(o => [
       o._id.toString(),
       o.createdAt ? new Date(o.createdAt).toISOString() : '',
       o.status,
+      (o.vendorNames || getOrderVendorNames(o)).join(" | "),
       o.paymentMethod,
       o.paymentStatus,
+      getDeliveryZone(o),
       o.shippingInfo?.name || '',
       o.shippingInfo?.email || '',
       o.shippingInfo?.phone || '',
@@ -1320,10 +1655,11 @@ const exportOrdersCsv = async (req, res) => {
       o.deliveryCharge || 0,
       o.total || 0,
       o.couponApplied?.code || '',
+      isCodPayment(o.paymentMethod) ? buildCodReconciliation(o).reconciliationStatus : '',
     ]);
 
-    const header = 'OrderId,CreatedAt,Status,PaymentMethod,PaymentStatus,CustomerName,Email,Phone,Address,City,ItemCount,Subtotal,Discount,Delivery,Total,CouponCode';
-    const csv = [header, ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const header = 'OrderId,CreatedAt,Status,Vendors,PaymentMethod,PaymentStatus,DeliveryZone,CustomerName,Email,Phone,Address,City,ItemCount,Subtotal,Discount,Delivery,Total,CouponCode,CodReconciliation';
+    const csv = [header, ...rows.map(r => r.map(csvValue).join(','))].join('\n');
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="orders-${Date.now()}.csv"`);
@@ -1428,6 +1764,7 @@ const regenerateInvoice = async (req, res) => {
 const adminCancelOrder = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
+    const db = req.app.locals.db || Order.collection?.db;
     const { id } = req.params;
     const { reason } = req.body;
 
@@ -1461,9 +1798,30 @@ const adminCancelOrder = async (req, res) => {
             changedBy: req.user?.uid || "admin",
             note: reason || "Cancelled by admin",
           },
+          adminActions: {
+            type: "force_cancel",
+            label: "Order force-cancelled",
+            actorId: getAdminActorId(req),
+            note: reason || "Cancelled by admin",
+            createdAt: new Date(),
+          },
         },
       }
     );
+
+    await updateVendorOrderSnapshots(db, id, {
+      $set: { status: "cancelled", paymentStatus: order.paymentStatus === "paid" ? "refund_pending" : "cancelled", updatedAt: new Date() },
+    });
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId: id,
+      status: "cancelled",
+      label: "Order force-cancelled",
+      actorId: getAdminActorId(req),
+      actorRole: "admin",
+      note: reason || "Cancelled by admin",
+    });
 
     res.json({ success: true, message: "Order cancelled by admin" });
   } catch (error) {
@@ -1557,7 +1915,18 @@ const adminOverrideStatus = async (req, res) => {
       return res.status(400).json({ success: false, error: "status is required" });
     }
 
-    const validStatuses = ["pending", "processing", "packed", "shipped", "delivered", "cancelled", "returned"];
+    const validStatuses = [
+      "pending",
+      "processing",
+      "packed",
+      "ready_to_ship",
+      "pickup_ready",
+      "shipped",
+      "delivered",
+      "cancelled",
+      "returned",
+      "return_requested",
+    ];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -1595,6 +1964,549 @@ const adminOverrideStatus = async (req, res) => {
   }
 };
 
+const loadAdminAnalysisOrders = async (req, fallbackLimit = 500) => {
+  const Order = req.app.locals.models.Order;
+  const db = req.app.locals.db || Order.collection?.db;
+  const limit = Math.min(Number(req.query.limit || fallbackLimit) || fallbackLimit, 2000);
+  const orders = await Order.collection
+    .find({})
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .toArray();
+  return enrichAdminOrdersWithVendors(db, orders);
+};
+
+const getAdminCodReconciliation = async (req, res) => {
+  try {
+    const orders = (await loadAdminAnalysisOrders(req)).filter((order) => isCodPayment(order.paymentMethod));
+    const rows = orders.map((order) => {
+      const reconciliation = buildCodReconciliation(order);
+      return {
+        orderId: normalizeId(order._id),
+        createdAt: order.createdAt,
+        status: order.status,
+        vendorNames: order.vendorNames || getOrderVendorNames(order),
+        customerName: order.shippingInfo?.name || "",
+        customerPhone: order.shippingInfo?.phone || "",
+        deliveryZone: getDeliveryZone(order),
+        total: Number(order.total || 0),
+        codCollectedAt: order.codCollectedAt || null,
+        codRemittedAt: order.codRemittedAt || order.vendorRemittedAt || null,
+        ...reconciliation,
+      };
+    });
+
+    const summary = rows.reduce(
+      (memo, row) => {
+        memo.totalCod += 1;
+        memo.codValue += row.total;
+        if (row.dispatched) memo.dispatched += 1;
+        if (row.collected) memo.collected += 1;
+        if (row.remitted) memo.remitted += 1;
+        if (row.hasDiscrepancy) memo.discrepancies += 1;
+        return memo;
+      },
+      { totalCod: 0, codValue: 0, dispatched: 0, collected: 0, remitted: 0, discrepancies: 0 },
+    );
+
+    summary.codValue = Math.round(summary.codValue * 100) / 100;
+    res.json({ success: true, data: { summary, orders: rows } });
+  } catch (error) {
+    console.error("Error in getAdminCodReconciliation:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const getAdminSlaBreaches = async (req, res) => {
+  try {
+    const processingHours = Number(req.query.processingHours || 48);
+    const deliveryHours = Number(req.query.deliveryHours || 120);
+    const now = new Date();
+    const terminalStatuses = ["delivered", "cancelled", "returned"];
+    const shippedStatuses = ["shipped", "partially_shipped", "delivered", "partially_delivered"];
+    const orders = await loadAdminAnalysisOrders(req);
+
+    const breaches = orders
+      .flatMap((order) => {
+        const orderBreaches = [];
+        const processingDeadline =
+          dateOrNull(order.processingSlaDeadline) ||
+          (dateOrNull(order.createdAt)
+            ? new Date(dateOrNull(order.createdAt).getTime() + processingHours * 60 * 60 * 1000)
+            : null);
+        const hasShipped = shippedStatuses.includes(order.status) ||
+          (order.products || []).some((product) => dateOrNull(product.shippedAt));
+
+        if (
+          processingDeadline &&
+          now > processingDeadline &&
+          !terminalStatuses.includes(order.status) &&
+          !hasShipped
+        ) {
+          orderBreaches.push({
+            breachType: "processing",
+            breachHours: hoursBetween(processingDeadline, now),
+            deadline: processingDeadline,
+          });
+        }
+
+        const shippedAt =
+          dateOrNull(order.shippedAt) ||
+          dateOrNull(order.courierAssignedAt) ||
+          (order.products || []).map((product) => dateOrNull(product.shippedAt)).filter(Boolean).sort((a, b) => a - b)[0];
+        const deliveryDeadline =
+          dateOrNull(order.deliverySlaDeadline) ||
+          (shippedAt ? new Date(shippedAt.getTime() + deliveryHours * 60 * 60 * 1000) : null);
+
+        if (
+          deliveryDeadline &&
+          now > deliveryDeadline &&
+          ["shipped", "partially_shipped"].includes(order.status)
+        ) {
+          orderBreaches.push({
+            breachType: "delivery",
+            breachHours: hoursBetween(deliveryDeadline, now),
+            deadline: deliveryDeadline,
+          });
+        }
+
+        return orderBreaches.map((breach) => ({
+          orderId: normalizeId(order._id),
+          createdAt: order.createdAt,
+          status: order.status,
+          vendorNames: order.vendorNames || getOrderVendorNames(order),
+          customerName: order.shippingInfo?.name || "",
+          deliveryZone: getDeliveryZone(order),
+          total: Number(order.total || 0),
+          ...breach,
+        }));
+      })
+      .sort((left, right) => right.breachHours - left.breachHours);
+
+    const summary = breaches.reduce(
+      (memo, breach) => {
+        memo.total += 1;
+        memo[breach.breachType] = (memo[breach.breachType] || 0) + 1;
+        return memo;
+      },
+      { total: 0, processing: 0, delivery: 0 },
+    );
+
+    res.json({ success: true, data: { summary, breaches } });
+  } catch (error) {
+    console.error("Error in getAdminSlaBreaches:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const getFraudAddressKey = (order = {}) => {
+  const shippingInfo = order.shippingInfo || {};
+  return [
+    shippingInfo.phone,
+    shippingInfo.address,
+    shippingInfo.area,
+    shippingInfo.upazila,
+    shippingInfo.district || shippingInfo.city,
+  ]
+    .filter(Boolean)
+    .join("|")
+    .toLowerCase();
+};
+
+const getFraudBuyerKey = (order = {}) => order.userId || order.shippingInfo?.phone || getFraudAddressKey(order);
+
+const getAdminFraudOrders = async (req, res) => {
+  try {
+    const orders = await loadAdminAnalysisOrders(req);
+    const now = new Date();
+    const lastSevenDays = orders.filter((order) => hoursBetween(order.createdAt, now) <= 168);
+    const orderAverage =
+      orders.reduce((sum, order) => sum + Number(order.total || 0), 0) / Math.max(orders.length, 1);
+    const abnormalThreshold = Number(req.query.abnormalAmount || Math.max(20000, orderAverage * 4));
+
+    const addressCodCounts = lastSevenDays.reduce((memo, order) => {
+      if (!isCodPayment(order.paymentMethod)) return memo;
+      const key = getFraudAddressKey(order);
+      if (!key) return memo;
+      memo[key] = (memo[key] || 0) + 1;
+      return memo;
+    }, {});
+
+    const buyerVelocityCounts = orders
+      .filter((order) => hoursBetween(order.createdAt, now) <= 24)
+      .reduce((memo, order) => {
+        const key = getFraudBuyerKey(order);
+        if (!key) return memo;
+        memo[key] = (memo[key] || 0) + 1;
+        return memo;
+      }, {});
+
+    const flaggedOrders = orders
+      .map((order) => {
+        const signals = [];
+        const addressKey = getFraudAddressKey(order);
+        const buyerKey = getFraudBuyerKey(order);
+
+        if (isCodPayment(order.paymentMethod) && addressCodCounts[addressKey] >= 3) {
+          signals.push({
+            type: "multiple_cod_same_address",
+            severity: "high",
+            label: `${addressCodCounts[addressKey]} COD orders from same address in 7 days`,
+          });
+        }
+
+        if (Number(order.total || 0) >= abnormalThreshold) {
+          signals.push({
+            type: "abnormal_order_size",
+            severity: "medium",
+            label: `Order value is ${Math.round(Number(order.total || 0) / Math.max(orderAverage, 1))}x average`,
+          });
+        }
+
+        if (buyerVelocityCounts[buyerKey] >= 3) {
+          signals.push({
+            type: "velocity_check",
+            severity: "medium",
+            label: `${buyerVelocityCounts[buyerKey]} orders from buyer/contact in 24 hours`,
+          });
+        }
+
+        if (signals.length === 0) return null;
+
+        return {
+          orderId: normalizeId(order._id),
+          createdAt: order.createdAt,
+          status: order.status,
+          vendorNames: order.vendorNames || getOrderVendorNames(order),
+          customerName: order.shippingInfo?.name || "",
+          customerPhone: order.shippingInfo?.phone || "",
+          deliveryZone: getDeliveryZone(order),
+          paymentMethod: order.paymentMethod,
+          total: Number(order.total || 0),
+          signals,
+        };
+      })
+      .filter(Boolean)
+      .sort((left, right) => right.signals.length - left.signals.length);
+
+    const summary = flaggedOrders.reduce(
+      (memo, order) => {
+        memo.totalFlagged += 1;
+        order.signals.forEach((signal) => {
+          memo.bySignal[signal.type] = (memo.bySignal[signal.type] || 0) + 1;
+        });
+        return memo;
+      },
+      { totalFlagged: 0, bySignal: {} },
+    );
+
+    res.json({ success: true, data: { summary, orders: flaggedOrders } });
+  } catch (error) {
+    console.error("Error in getAdminFraudOrders:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const adminReassignCourier = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const db = req.app.locals.db || Order.collection?.db;
+    const { id } = req.params;
+    const orderObjectId = safeObjectId(id);
+    const { courierName, trackingNumber = "", riderName = "", riderPhone = "", note = "" } = req.body;
+
+    if (!orderObjectId) return res.status(400).json({ success: false, error: "Invalid order id" });
+    if (!courierName || !String(courierName).trim()) {
+      return res.status(400).json({ success: false, error: "courierName is required" });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, error: "Order not found" });
+
+    const now = new Date();
+    const assignment = {
+      courierName: String(courierName).trim(),
+      trackingNumber: String(trackingNumber || "").trim(),
+      riderName: String(riderName || "").trim(),
+      riderPhone: String(riderPhone || "").trim(),
+      assignedAt: now,
+      assignedBy: getAdminActorId(req),
+    };
+
+    await Order.collection.updateOne(
+      { _id: orderObjectId },
+      {
+        $set: {
+          courierName: assignment.courierName,
+          trackingNumber: assignment.trackingNumber,
+          courierAssignment: assignment,
+          courierAssignedAt: now,
+          updatedAt: now,
+        },
+        $push: {
+          courierUpdates: {
+            status: "courier_reassigned",
+            label: "Courier reassigned",
+            ...assignment,
+            note: String(note || "").trim(),
+            createdAt: now,
+          },
+          adminActions: {
+            type: "reassign_courier",
+            label: "Courier reassigned",
+            actorId: getAdminActorId(req),
+            note: String(note || "").trim(),
+            metadata: assignment,
+            createdAt: now,
+          },
+        },
+      },
+    );
+
+    await updateVendorOrderSnapshots(db, id, {
+      $set: {
+        courierName: assignment.courierName,
+        trackingNumber: assignment.trackingNumber,
+        courierAssignment: assignment,
+        updatedAt: now,
+      },
+    });
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId: id,
+      status: "courier_reassigned",
+      label: "Courier reassigned",
+      actorId: getAdminActorId(req),
+      actorRole: "admin",
+      courierName: assignment.courierName,
+      trackingNumber: assignment.trackingNumber,
+      note,
+    });
+
+    res.json({ success: true, message: "Courier reassigned", data: assignment });
+  } catch (error) {
+    console.error("Error in adminReassignCourier:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const adminChangeDeliveryAddress = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const db = req.app.locals.db || Order.collection?.db;
+    const { id } = req.params;
+    const orderObjectId = safeObjectId(id);
+    const { shippingInfo, note = "" } = req.body;
+
+    if (!orderObjectId) return res.status(400).json({ success: false, error: "Invalid order id" });
+    if (!shippingInfo || typeof shippingInfo !== "object" || Array.isArray(shippingInfo)) {
+      return res.status(400).json({ success: false, error: "shippingInfo object is required" });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, error: "Order not found" });
+
+    const now = new Date();
+    const updatedShippingInfo = {
+      ...(order.shippingInfo || {}),
+      ...shippingInfo,
+    };
+
+    await Order.collection.updateOne(
+      { _id: orderObjectId },
+      {
+        $set: {
+          shippingInfo: updatedShippingInfo,
+          deliveryZone: getDeliveryZone({ shippingInfo: updatedShippingInfo }),
+          updatedAt: now,
+        },
+        $push: {
+          adminActions: {
+            type: "change_delivery_address",
+            label: "Delivery address changed",
+            actorId: getAdminActorId(req),
+            note: String(note || "").trim(),
+            metadata: {
+              previousShippingInfo: order.shippingInfo || {},
+              shippingInfo: updatedShippingInfo,
+            },
+            createdAt: now,
+          },
+        },
+      },
+    );
+
+    await updateVendorOrderSnapshots(db, id, {
+      $set: {
+        shippingInfo: updatedShippingInfo,
+        updatedAt: now,
+      },
+    });
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId: id,
+      status: "delivery_address_changed",
+      label: "Delivery address changed",
+      actorId: getAdminActorId(req),
+      actorRole: "admin",
+      note,
+      metadata: { deliveryZone: getDeliveryZone({ shippingInfo: updatedShippingInfo }) },
+    });
+
+    res.json({ success: true, message: "Delivery address updated", data: updatedShippingInfo });
+  } catch (error) {
+    console.error("Error in adminChangeDeliveryAddress:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const adminExtendReturnWindow = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const { id } = req.params;
+    const orderObjectId = safeObjectId(id);
+    const { returnWindowUntil, expiresAt, note = "" } = req.body;
+    const until = dateOrNull(returnWindowUntil || expiresAt);
+
+    if (!orderObjectId) return res.status(400).json({ success: false, error: "Invalid order id" });
+    if (!until) return res.status(400).json({ success: false, error: "A valid return window date is required" });
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, error: "Order not found" });
+
+    const now = new Date();
+    const returnWindow = {
+      ...(order.returnWindow || {}),
+      expiresAt: until,
+      extendedAt: now,
+      extendedBy: getAdminActorId(req),
+      note: String(note || "").trim(),
+    };
+
+    await Order.collection.updateOne(
+      { _id: orderObjectId },
+      {
+        $set: {
+          returnWindow,
+          returnWindowExpiresAt: until,
+          updatedAt: now,
+        },
+        $push: {
+          adminActions: {
+            type: "extend_return_window",
+            label: "Return window extended",
+            actorId: getAdminActorId(req),
+            note: String(note || "").trim(),
+            metadata: { expiresAt: until },
+            createdAt: now,
+          },
+        },
+      },
+    );
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId: id,
+      status: "return_window_extended",
+      label: "Return window extended",
+      actorId: getAdminActorId(req),
+      actorRole: "admin",
+      note,
+      metadata: { expiresAt: until },
+    });
+
+    res.json({ success: true, message: "Return window extended", data: returnWindow });
+  } catch (error) {
+    console.error("Error in adminExtendReturnWindow:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const adminForceRefundOrder = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const db = req.app.locals.db || Order.collection?.db;
+    const { id } = req.params;
+    const orderObjectId = safeObjectId(id);
+    const { amount, reason = "", method = "manual" } = req.body;
+
+    if (!orderObjectId) return res.status(400).json({ success: false, error: "Invalid order id" });
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, error: "Order not found" });
+
+    const refundAmount = Number(amount || order.total || 0);
+    if (refundAmount <= 0) {
+      return res.status(400).json({ success: false, error: "Refund amount must be greater than 0" });
+    }
+
+    const now = new Date();
+    const refundEvent = {
+      status: "refunded",
+      label: "Refund forced by admin",
+      amount: refundAmount,
+      method,
+      note: String(reason || "").trim(),
+      actorId: getAdminActorId(req),
+      actorRole: "admin",
+      createdAt: now,
+    };
+
+    await Order.collection.updateOne(
+      { _id: orderObjectId },
+      {
+        $set: {
+          refundApproved: true,
+          refundApprovedAt: now,
+          refundApprovedBy: getAdminActorId(req),
+          refundStatus: "refunded",
+          refundAmount,
+          paymentStatus: "refunded",
+          updatedAt: now,
+        },
+        $push: {
+          paymentEvents: refundEvent,
+          adminActions: {
+            type: "force_refund",
+            label: "Refund forced by admin",
+            actorId: getAdminActorId(req),
+            note: String(reason || "").trim(),
+            metadata: { amount: refundAmount, method },
+            createdAt: now,
+          },
+        },
+      },
+    );
+
+    await updateVendorOrderSnapshots(db, id, {
+      $set: {
+        refundStatus: "refunded",
+        refundAmount,
+        paymentStatus: "refunded",
+        updatedAt: now,
+      },
+    });
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId: id,
+      status: "refunded",
+      label: "Refund forced by admin",
+      actorId: getAdminActorId(req),
+      actorRole: "admin",
+      note: reason,
+      metadata: { amount: refundAmount, method },
+    });
+
+    res.json({ success: true, message: "Refund forced", data: { refundAmount, method } });
+  } catch (error) {
+    console.error("Error in adminForceRefundOrder:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 module.exports = {
   getAllOrders,
   getAdminOrders,
@@ -1602,6 +2514,9 @@ module.exports = {
   getAdminOrderStats,
   exportOrdersCsv,
   bulkUpdateOrderStatus,
+  getAdminCodReconciliation,
+  getAdminSlaBreaches,
+  getAdminFraudOrders,
   addOrderNote,
   regenerateInvoice,
   getUserOrders,
@@ -1614,4 +2529,8 @@ module.exports = {
   adminResolveDispute,
   adminApproveRefund,
   adminOverrideStatus,
+  adminReassignCourier,
+  adminChangeDeliveryAddress,
+  adminExtendReturnWindow,
+  adminForceRefundOrder,
 };

@@ -34,29 +34,82 @@ class Order {
    * Paginated + filtered order list (Admin use)
    */
   async findAllPaginated(filter = {}) {
-    const { status, from, to, search, page = 1, limit = 20 } = filter;
+    const {
+      status,
+      vendorId,
+      from,
+      to,
+      dateFrom,
+      dateTo,
+      search,
+      paymentMethod,
+      deliveryZone,
+      page = 1,
+      limit = 20,
+    } = filter;
     const query = {};
+    const andBranches = [];
 
     if (status && status !== "all") query.status = status;
 
-    if (from || to) {
+    const fromDateValue = from || dateFrom;
+    const toDateValue = to || dateTo;
+    if (fromDateValue || toDateValue) {
       query.createdAt = {};
-      if (from) query.createdAt.$gte = new Date(from);
-      if (to) {
-        const toDate = new Date(to);
+      if (fromDateValue) query.createdAt.$gte = new Date(fromDateValue);
+      if (toDateValue) {
+        const toDate = new Date(toDateValue);
         toDate.setHours(23, 59, 59, 999);
         query.createdAt.$lte = toDate;
       }
     }
 
+    if (vendorId && vendorId !== "all") {
+      const vendorValues = [vendorId.toString()];
+      if (ObjectId.isValid(vendorId)) vendorValues.push(new ObjectId(vendorId));
+      query["products.vendorId"] = { $in: vendorValues };
+    }
+
+    if (paymentMethod && paymentMethod !== "all") {
+      const normalizedMethod = paymentMethod.toString().toLowerCase();
+      const aliases =
+        normalizedMethod === "cod"
+          ? ["cod", "cash_on_delivery", "cash on delivery"]
+          : [paymentMethod, normalizedMethod];
+      query.paymentMethod = { $in: aliases };
+    }
+
     if (search) {
       const searchRegex = new RegExp(search, "i");
-      query.$or = [
+      const searchBranches = [
         { "shippingInfo.name": searchRegex },
         { "shippingInfo.email": searchRegex },
         { "shippingInfo.phone": searchRegex },
+        { "products.title": searchRegex },
+        { "products.name": searchRegex },
+        { "products.sku": searchRegex },
       ];
+      if (ObjectId.isValid(search)) searchBranches.push({ _id: new ObjectId(search) });
+      andBranches.push({ $or: searchBranches });
     }
+
+    if (deliveryZone && deliveryZone !== "all") {
+      const zoneRegex = new RegExp(deliveryZone, "i");
+      andBranches.push({
+        $or: [
+          { deliveryZone: zoneRegex },
+          { "shippingInfo.deliveryZone": zoneRegex },
+          { "shippingInfo.zone": zoneRegex },
+          { "shippingInfo.district": zoneRegex },
+          { "shippingInfo.city": zoneRegex },
+          { "shippingInfo.upazila": zoneRegex },
+          { "shippingInfo.area": zoneRegex },
+          { "shippingInfo.division": zoneRegex },
+        ],
+      });
+    }
+
+    if (andBranches.length > 0) query.$and = andBranches;
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
