@@ -3,7 +3,160 @@ const { appendOrderEvent } = require("../services/orderEventService");
 
 const round2 = (value) => Math.round(((Number(value) || 0) + Number.EPSILON) * 100) / 100;
 
-const dateKey = (date) => date.toISOString().slice(0, 10);
+const dateKey = (date) => {
+  const value = new Date(date);
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, "0");
+  const day = `${value.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const toObjectId = (value) => {
+  if (!value) return null;
+  if (value instanceof ObjectId) return value;
+  const stringValue = value.toString();
+  return ObjectId.isValid(stringValue) ? new ObjectId(stringValue) : null;
+};
+
+const getIdVariants = (value) => {
+  const objectId = toObjectId(value);
+  return [value?.toString?.() || value, objectId].filter(Boolean);
+};
+
+const getReportDays = (period = "week") => {
+  const normalized = period.toString().toLowerCase();
+  if (["90", "quarter", "last90"].includes(normalized)) return 90;
+  if (["30", "month", "last30"].includes(normalized)) return 30;
+  return 7;
+};
+
+const buildPeriodRange = (days) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const currentStart = new Date(today);
+  currentStart.setDate(today.getDate() - days + 1);
+
+  const currentEnd = new Date(today);
+  currentEnd.setDate(today.getDate() + 1);
+
+  const previousStart = new Date(currentStart);
+  previousStart.setDate(currentStart.getDate() - days);
+
+  const previousEnd = new Date(currentStart);
+
+  return { currentStart, currentEnd, previousStart, previousEnd };
+};
+
+const isInRange = (date, start, end) => {
+  const value = new Date(date || Date.now());
+  return value >= start && value < end;
+};
+
+const percent = (part, whole) => (whole > 0 ? round2((part / whole) * 100) : 0);
+
+const periodChange = (current, previous) => {
+  if (previous > 0) return round2(((current - previous) / previous) * 100);
+  return current > 0 ? 100 : 0;
+};
+
+const readCursor = async (cursor) => {
+  if (!cursor || typeof cursor.toArray !== "function") return [];
+  return cursor.toArray();
+};
+
+const findDocuments = async (db, collectionName, query = {}, options = {}) => {
+  const collection = db.collection(collectionName);
+  if (!collection || typeof collection.find !== "function") return [];
+
+  let cursor = collection.find(query, options.projection ? { projection: options.projection } : undefined);
+  if (options.sort && typeof cursor.sort === "function") cursor = cursor.sort(options.sort);
+  if (options.limit && typeof cursor.limit === "function") cursor = cursor.limit(options.limit);
+  if (options.projection && typeof cursor.project === "function") cursor = cursor.project(options.projection);
+  return readCursor(cursor);
+};
+
+const countDocuments = async (db, collectionName, query = {}) => {
+  const collection = db.collection(collectionName);
+  if (!collection) return 0;
+  if (typeof collection.countDocuments === "function") {
+    return collection.countDocuments(query);
+  }
+  if (typeof collection.find === "function") {
+    const rows = await readCursor(collection.find(query));
+    return rows.length;
+  }
+  return 0;
+};
+
+const escapeRegex = (value = "") => value.toString().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const getProductId = (product) => (
+  product.productId ||
+  product.product_id ||
+  product._id ||
+  product.id ||
+  product.sku ||
+  product.title ||
+  product.name ||
+  ""
+).toString();
+
+const getProductName = (product) => (
+  product.title ||
+  product.name ||
+  product.productName ||
+  product.productTitle ||
+  "Product"
+);
+
+const getProductImage = (product) => {
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const first = product.images[0];
+    return first?.url || first?.src || first;
+  }
+  if (Array.isArray(product.media) && product.media.length > 0) {
+    const first = product.media[0];
+    return first?.url || first?.src || first;
+  }
+  return product.image || product.imageUrl || product.coverImage || "";
+};
+
+const getStock = (product) => {
+  if (Number.isFinite(Number(product.stock))) return Number(product.stock);
+  if (!Array.isArray(product.variants)) return 0;
+  return product.variants.reduce((sum, variant) => sum + (Number(variant.stock) || 0), 0);
+};
+
+const getAddToCartCount = (product) => Number(
+  product.addToCartCount ??
+  product.cartAdds ??
+  product.addToCart ??
+  product.addedToCart ??
+  product.analytics?.addToCart ??
+  product.metrics?.addToCart ??
+  0,
+) || 0;
+
+const getBuyerKey = (order = {}) => (
+  order.userId ||
+  order.customerId ||
+  order.buyerId ||
+  order.customer?.email ||
+  order.customer?.phone ||
+  order.shippingInfo?.email ||
+  order.shippingInfo?.phone ||
+  order.shippingAddress?.email ||
+  order.shippingAddress?.phone ||
+  order.email ||
+  order.phone ||
+  `order:${order._id || Math.random()}`
+).toString();
+
+const isCancelledOrReturnedOrder = (order = {}) => {
+  if (["cancelled", "returned"].includes(order.status)) return true;
+  return (order.products || []).some((product) => ["cancelled", "returned"].includes(product.itemStatus));
+};
 
 const deriveVendorOrderStatus = (statuses = []) => {
   const normalized = statuses.map((status) => status || "pending");
@@ -36,10 +189,7 @@ const getVendorForRequest = async (req) => {
 const getVendorOrderRows = async (db, vendorId) => {
   const orders = await db.collection("orders")
     .find({
-      $or: [
-        { "products.vendorId": vendorId },
-        { "products.vendorId": new ObjectId(vendorId) },
-      ],
+      "products.vendorId": { $in: getIdVariants(vendorId) },
     })
     .sort({ createdAt: -1 })
     .toArray();
@@ -119,6 +269,259 @@ const buildDailySales = (rows, days = 7) => {
     amount: round2(bucket.amount),
   }));
 };
+
+const getItemRevenue = (item) => round2(
+  Number(item.vendorEarningAmount) ||
+  ((Number(item.price) || 0) * (Number(item.quantity) || 0)),
+);
+
+const isDeliveredItem = (item, orderStatus) => (item.itemStatus || orderStatus) === "delivered";
+
+const buildSalesTrend = (rows, days, currentStart, previousStart) => {
+  const buckets = [];
+  const currentByKey = new Map();
+  const previousByKey = new Map();
+
+  for (let index = 0; index < days; index += 1) {
+    const day = new Date(currentStart);
+    day.setDate(currentStart.getDate() + index);
+    const previousDay = new Date(previousStart);
+    previousDay.setDate(previousStart.getDate() + index);
+    const key = dateKey(day);
+
+    const bucket = {
+      key,
+      date: day.toISOString(),
+      label: days <= 7
+        ? day.toLocaleDateString("en-US", { weekday: "short" })
+        : day.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      revenue: 0,
+      amount: 0,
+      orders: 0,
+      previousRevenue: 0,
+      previousOrders: 0,
+    };
+
+    buckets.push(bucket);
+    currentByKey.set(key, bucket);
+    previousByKey.set(dateKey(previousDay), bucket);
+  }
+
+  rows.forEach((row) => {
+    if (row.status !== "delivered") return;
+    const currentBucket = currentByKey.get(dateKey(row.createdAt));
+    if (currentBucket) {
+      currentBucket.revenue += row.deliveredEarnings;
+      currentBucket.amount += row.deliveredEarnings;
+      currentBucket.orders += 1;
+      return;
+    }
+
+    const previousBucket = previousByKey.get(dateKey(row.createdAt));
+    if (previousBucket) {
+      previousBucket.previousRevenue += row.deliveredEarnings;
+      previousBucket.previousOrders += 1;
+    }
+  });
+
+  return buckets.map((bucket) => ({
+    ...bucket,
+    revenue: round2(bucket.revenue),
+    amount: round2(bucket.amount),
+    previousRevenue: round2(bucket.previousRevenue),
+  }));
+};
+
+const buildMonthlyData = (rows) => {
+  const monthlyMap = new Map();
+  rows
+    .filter((row) => row.status === "delivered")
+    .forEach((row) => {
+      const key = row.createdAt.toISOString().slice(0, 7);
+      const label = row.createdAt.toLocaleDateString("en-US", { month: "short" });
+      const item = monthlyMap.get(key) || { key, month: label, amount: 0, revenue: 0, orders: 0 };
+      item.amount += row.deliveredEarnings;
+      item.revenue += row.deliveredEarnings;
+      item.orders += 1;
+      monthlyMap.set(key, item);
+    });
+
+  return [...monthlyMap.values()]
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .slice(-12)
+    .map((row) => ({
+      ...row,
+      amount: round2(row.amount),
+      revenue: round2(row.revenue),
+    }));
+};
+
+const buildProductPerformance = ({ currentRows, productDocs, reviewMeta }) => {
+  const stats = new Map();
+
+  productDocs.forEach((product) => {
+    const key = product._id?.toString?.() || product.id?.toString?.();
+    if (!key) return;
+    stats.set(key, {
+      productId: key,
+      sku: product.sku || product.defaultSku || "",
+      name: getProductName(product),
+      image: getProductImage(product),
+      revenue: 0,
+      unitsSold: 0,
+      sold: 0,
+      views: Number(product.views || 0),
+      addToCart: getAddToCartCount(product),
+      purchases: 0,
+      conversionRate: 0,
+      stock: getStock(product),
+      rating: reviewMeta.get(key) || 0,
+    });
+  });
+
+  currentRows.forEach((row) => {
+    row.products.forEach((item) => {
+      if (!isDeliveredItem(item, row.order.status)) return;
+      const key = getProductId(item);
+      if (!key) return;
+      const current = stats.get(key) || {
+        productId: key,
+        sku: item.sku || "",
+        name: getProductName(item),
+        image: getProductImage(item),
+        revenue: 0,
+        unitsSold: 0,
+        sold: 0,
+        views: Number(item.views || 0),
+        addToCart: getAddToCartCount(item),
+        purchases: 0,
+        conversionRate: 0,
+        stock: Number(item.stock || 0),
+        rating: reviewMeta.get(key) || 0,
+      };
+
+      const quantity = Number(item.quantity) || 0;
+      current.revenue += getItemRevenue(item);
+      current.unitsSold += quantity;
+      current.sold += quantity;
+      current.purchases += quantity;
+      if (item.sku && !current.sku) current.sku = item.sku;
+      stats.set(key, current);
+    });
+  });
+
+  return [...stats.values()]
+    .map((product) => ({
+      ...product,
+      revenue: round2(product.revenue),
+      conversionRate: percent(product.purchases, product.views),
+      addToCartRate: percent(product.addToCart, product.views),
+      purchaseConversionRate: percent(product.purchases, product.views),
+    }))
+    .sort((a, b) => (
+      (b.revenue - a.revenue) ||
+      (b.unitsSold - a.unitsSold) ||
+      (b.views - a.views)
+    ));
+};
+
+const buildCustomerRepeat = (allRows, currentRows) => {
+  const history = new Map();
+  allRows.forEach((row) => {
+    const buyerKey = getBuyerKey(row.order);
+    const buyer = history.get(buyerKey) || { count: 0 };
+    buyer.count += 1;
+    history.set(buyerKey, buyer);
+  });
+
+  const currentBuyers = new Set();
+  const returningBuyers = new Set();
+  let returningOrders = 0;
+
+  currentRows.forEach((row) => {
+    const buyerKey = getBuyerKey(row.order);
+    currentBuyers.add(buyerKey);
+    if ((history.get(buyerKey)?.count || 0) > 1) {
+      returningBuyers.add(buyerKey);
+      returningOrders += 1;
+    }
+  });
+
+  return {
+    totalOrders: currentRows.length,
+    uniqueCustomers: currentBuyers.size,
+    returningCustomers: returningBuyers.size,
+    returningOrders,
+    repeatRate: percent(returningOrders, currentRows.length),
+  };
+};
+
+const buildCancellationReturnTrend = ({ currentRows, platformAverageRate, days, currentStart }) => {
+  const buckets = [];
+  const byKey = new Map();
+
+  for (let index = 0; index < days; index += 1) {
+    const day = new Date(currentStart);
+    day.setDate(currentStart.getDate() + index);
+    const bucket = {
+      key: dateKey(day),
+      date: day.toISOString(),
+      label: days <= 7
+        ? day.toLocaleDateString("en-US", { weekday: "short" })
+        : day.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      totalOrders: 0,
+      cancelled: 0,
+      returned: 0,
+      rate: 0,
+      platformAverageRate,
+    };
+    buckets.push(bucket);
+    byKey.set(bucket.key, bucket);
+  }
+
+  currentRows.forEach((row) => {
+    const bucket = byKey.get(dateKey(row.createdAt));
+    if (!bucket) return;
+    bucket.totalOrders += 1;
+    if (row.status === "returned") bucket.returned += 1;
+    if (row.status === "cancelled") bucket.cancelled += 1;
+  });
+
+  return buckets.map((bucket) => ({
+    ...bucket,
+    rate: percent(bucket.cancelled + bucket.returned, bucket.totalOrders),
+  }));
+};
+
+const buildInventoryForecast = ({ productPerformance, days }) => (
+  productPerformance
+    .map((product) => {
+      const dailyVelocity = round2(product.unitsSold / days);
+      const daysUntilStockout = dailyVelocity > 0 ? round2(product.stock / dailyVelocity) : null;
+      let status = "healthy";
+      if (product.stock <= 0) status = "out_of_stock";
+      else if (dailyVelocity === 0) status = "no_recent_sales";
+      else if (daysUntilStockout <= 3) status = "critical";
+      else if (daysUntilStockout <= 7) status = "restock_soon";
+      else if (daysUntilStockout <= 14) status = "watch";
+
+      return {
+        productId: product.productId,
+        sku: product.sku,
+        name: product.name,
+        stock: product.stock,
+        unitsSold: product.unitsSold,
+        dailyVelocity,
+        daysUntilStockout,
+        status,
+      };
+    })
+    .sort((a, b) => {
+      const aDays = a.daysUntilStockout ?? Number.POSITIVE_INFINITY;
+      const bDays = b.daysUntilStockout ?? Number.POSITIVE_INFINITY;
+      return aDays - bDays;
+    })
+);
 
 const getVendorRatingStats = async (db, vendorId) => {
   const productIds = await db.collection("products")
@@ -568,95 +971,133 @@ exports.getTopProducts = async (req, res) => {
 
 exports.getVendorReports = async (req, res) => {
   try {
-    const { period = "week" } = req.query;
+    const days = getReportDays(req.query.period);
+    const { currentStart, currentEnd, previousStart, previousEnd } = buildPeriodRange(days);
     const { vendor, error } = await getVendorForRequest(req);
     if (error) return res.status(404).json({ error });
 
     const db = req.app.locals.db;
     const vendorId = vendor._id.toString();
-    const orderRows = await getVendorOrderRows(db, vendorId);
-    const salesData = buildDailySales(orderRows, period === "month" ? 30 : 7);
-    const productDocs = await db.collection("products")
-      .find({ vendorId })
-      .project({ _id: 1, title: 1, name: 1, views: 1, stock: 1, isActive: 1, createdAt: 1 })
-      .toArray();
+    const vendorIds = getIdVariants(vendorId);
 
-    const monthlyMap = new Map();
-    orderRows
-      .filter((row) => row.status === "delivered")
-      .forEach((row) => {
-        const key = row.createdAt.toISOString().slice(0, 7);
-        const label = row.createdAt.toLocaleDateString("en-US", { month: "short" });
-        const item = monthlyMap.get(key) || { key, month: label, amount: 0, orders: 0 };
-        item.amount += row.deliveredEarnings;
-        item.orders += 1;
-        monthlyMap.set(key, item);
-      });
-
-    const productStats = new Map();
-    orderRows.forEach((row) => {
-      row.products.forEach((product) => {
-        const key = (product.productId || product._id || product.title || product.name || "").toString();
-        if (!key) return;
-        const current = productStats.get(key) || {
-          productId: key,
-          name: product.title || product.name || "Product",
-          sold: 0,
-          revenue: 0,
-          views: 0,
-          rating: 0,
-        };
-        current.sold += Number(product.quantity) || 0;
-        current.revenue += (Number(product.vendorEarningAmount) || ((Number(product.price) || 0) * (Number(product.quantity) || 0)));
-        productStats.set(key, current);
-      });
-    });
-
-    const productIds = [...productStats.keys()]
-      .filter((id) => ObjectId.isValid(id))
-      .map((id) => new ObjectId(id));
-    const [products, reviewRows] = await Promise.all([
-      productIds.length
-        ? db.collection("products").find({ _id: { $in: productIds } }).toArray()
-        : [],
-      productIds.length
-        ? db.collection("reviews").aggregate([
-            { $match: { productId: { $in: productIds } } },
-            { $group: { _id: "$productId", avgRating: { $avg: "$rating" } } },
-          ]).toArray()
-        : [],
+    const [orderRows, productDocs] = await Promise.all([
+      getVendorOrderRows(db, vendorId),
+      findDocuments(
+        db,
+        "products",
+        { vendorId: { $in: vendorIds } },
+        {
+          projection: {
+            _id: 1,
+            title: 1,
+            name: 1,
+            sku: 1,
+            images: 1,
+            media: 1,
+            image: 1,
+            imageUrl: 1,
+            coverImage: 1,
+            views: 1,
+            addToCartCount: 1,
+            cartAdds: 1,
+            addToCart: 1,
+            stock: 1,
+            variants: 1,
+            isActive: 1,
+            createdAt: 1,
+          },
+        },
+      ),
     ]);
-    const productMeta = new Map(products.map((product) => [product._id.toString(), product]));
+
+    const currentRows = orderRows.filter((row) => isInRange(row.createdAt, currentStart, currentEnd));
+    const previousRows = orderRows.filter((row) => isInRange(row.createdAt, previousStart, previousEnd));
+    const currentDelivered = currentRows.filter((row) => row.status === "delivered");
+    const previousDelivered = previousRows.filter((row) => row.status === "delivered");
+    const currentRevenue = currentDelivered.reduce((sum, row) => sum + row.deliveredEarnings, 0);
+    const previousRevenue = previousDelivered.reduce((sum, row) => sum + row.deliveredEarnings, 0);
+
+    const productIds = productDocs
+      .map((product) => toObjectId(product._id))
+      .filter(Boolean);
+    const reviewRows = productIds.length
+      ? await db.collection("reviews").aggregate([
+          { $match: { productId: { $in: productIds } } },
+          { $group: { _id: "$productId", avgRating: { $avg: "$rating" } } },
+        ]).toArray()
+      : [];
     const reviewMeta = new Map(reviewRows.map((row) => [row._id.toString(), round2(row.avgRating)]));
 
-    const topProducts = [...productStats.values()]
-      .map((product) => {
-        const meta = productMeta.get(product.productId);
-        return {
-          ...product,
-          name: meta?.title || product.name,
-          views: meta?.views || 0,
-          rating: reviewMeta.get(product.productId) || 0,
-          revenue: round2(product.revenue),
-        };
-      })
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10);
+    const productPerformance = buildProductPerformance({
+      currentRows,
+      productDocs,
+      reviewMeta,
+    });
+    const topProducts = productPerformance.slice(0, 10);
+    const productFunnel = productPerformance
+      .filter((product) => product.views > 0 || product.addToCart > 0 || product.purchases > 0)
+      .slice(0, 20);
+
+    const monthlyData = buildMonthlyData(orderRows);
+    const salesTrend = buildSalesTrend(orderRows, days, currentStart, previousStart);
+
+    const platformOrders = await findDocuments(
+      db,
+      "orders",
+      { createdAt: { $gte: currentStart, $lt: currentEnd } },
+      { projection: { status: 1, products: 1, createdAt: 1 } },
+    );
+    const platformAverageRate = percent(
+      platformOrders.filter(isCancelledOrReturnedOrder).length,
+      platformOrders.length,
+    );
+    const cancellationReturnTrend = buildCancellationReturnTrend({
+      currentRows,
+      platformAverageRate,
+      days,
+      currentStart,
+    });
+
+    const campaignEvents = await countDocuments(db, "vendorMarketingEvents", {
+      vendorId: { $in: vendorIds },
+      event: { $in: ["view", "click"] },
+      createdAt: { $gte: currentStart, $lt: currentEnd },
+    });
+
+    const shopSlug = vendor.shopSlug || vendor.slug || vendor.customSlug || vendor.shopName;
+    const externalViews = await countDocuments(db, "pageViews", {
+      createdAt: { $gte: currentStart, $lt: currentEnd },
+      referrer: { $exists: true, $ne: "" },
+      $or: [
+        { vendorId: { $in: vendorIds } },
+        { "metadata.vendorId": { $in: vendorIds } },
+        { path: { $regex: `/vendor/${escapeRegex(vendorId)}`, $options: "i" } },
+        ...(shopSlug ? [{ path: { $regex: `/shop/${escapeRegex(shopSlug)}`, $options: "i" } }] : []),
+      ],
+    });
 
     const summary = {
-      totalSales: round2(orderRows.reduce((sum, row) => sum + row.deliveredEarnings, 0)),
-      totalOrders: orderRows.length,
-      deliveredOrders: orderRows.filter((row) => row.status === "delivered").length,
-      cancelledOrders: orderRows.filter((row) => row.status === "cancelled").length,
+      totalSales: round2(currentRevenue),
+      totalOrders: currentRows.length,
+      deliveredOrders: currentDelivered.length,
+      cancelledOrders: currentRows.filter((row) => row.status === "cancelled").length,
+      returnedOrders: currentRows.filter((row) => row.status === "returned").length,
       averageOrderValue: round2(
-        orderRows.filter((row) => row.status === "delivered").length
-          ? orderRows
-              .filter((row) => row.status === "delivered")
-              .reduce((sum, row) => sum + row.deliveredEarnings, 0) /
-            orderRows.filter((row) => row.status === "delivered").length
+        currentDelivered.length
+          ? currentRevenue / currentDelivered.length
           : 0,
       ),
+      previousSales: round2(previousRevenue),
+      previousOrders: previousRows.length,
+      revenueChangePercent: periodChange(currentRevenue, previousRevenue),
+      orderChangePercent: periodChange(currentRows.length, previousRows.length),
+      cancellationReturnRate: percent(
+        currentRows.filter((row) => ["cancelled", "returned"].includes(row.status)).length,
+        currentRows.length,
+      ),
     };
+    const customerRepeat = buildCustomerRepeat(orderRows, currentRows);
+    summary.customerRepeatRate = customerRepeat.repeatRate;
 
     const totalViews = productDocs.reduce((sum, product) => sum + Number(product.views || 0), 0);
     const productsWithViews = productDocs.filter((product) => Number(product.views || 0) > 0);
@@ -682,24 +1123,60 @@ exports.getVendorReports = async (req, res) => {
       ),
       topViewedProducts,
     };
+    const organicViews = Math.max(totalViews - campaignEvents - externalViews, 0);
+    const trafficTotal = organicViews + campaignEvents + externalViews;
+    const trafficSources = [
+      {
+        id: "organic",
+        label: "Organic platform search",
+        value: organicViews,
+        unit: "visits",
+        share: percent(organicViews, trafficTotal),
+      },
+      {
+        id: "campaign",
+        label: "Campaign traffic",
+        value: campaignEvents,
+        unit: "events",
+        share: percent(campaignEvents, trafficTotal),
+      },
+      {
+        id: "external",
+        label: "External shop link",
+        value: externalViews,
+        unit: "visits",
+        share: percent(externalViews, trafficTotal),
+      },
+    ];
 
     res.json({
       success: true,
       data: {
+        period: {
+          days,
+          label: `Last ${days} days`,
+          currentStart: currentStart.toISOString(),
+          currentEnd: currentEnd.toISOString(),
+          previousStart: previousStart.toISOString(),
+          previousEnd: previousEnd.toISOString(),
+        },
         summary,
-        salesData,
-        monthlyData: [...monthlyMap.values()].map((row) => ({ ...row, amount: round2(row.amount) })),
+        salesData: salesTrend,
+        salesTrend,
+        monthlyData,
         topProducts,
-        trafficSources: [
-          { label: "Product Views", value: totalViews, unit: "views" },
-          { label: "Active Listings", value: activeProducts.length, unit: "products" },
-          { label: "Viewed Products", value: productsWithViews.length, unit: "products" },
-          { label: "Zero-View Products", value: zeroViewProducts.length, unit: "products" },
-        ],
+        productFunnel,
+        trafficSources,
         visibilityStats,
+        cancellationReturnTrend,
+        customerRepeat,
+        inventoryForecast: buildInventoryForecast({ productPerformance, days }),
+        benchmark: {
+          platformCancellationReturnRate: platformAverageRate,
+        },
         trafficMessage: productDocs.length
-          ? "Visibility metrics are based on real product views and active listings."
-          : "Add products to start tracking visibility metrics.",
+          ? "Traffic combines product views with campaign and external shop-link events when those events are available."
+          : "Add products to start building visibility, funnel, and traffic metrics.",
       },
     });
   } catch (error) {

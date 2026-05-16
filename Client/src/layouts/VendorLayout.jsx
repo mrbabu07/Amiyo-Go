@@ -69,6 +69,7 @@ const VendorLayout = () => {
         { title: 'Sales Report', path: '/vendor/reports/sales', icon: '💹' },
         { title: 'Product Report', path: '/vendor/reports/products', icon: '📊' },
         { title: 'Traffic Report', path: '/vendor/reports/traffic', icon: '👥' },
+        { title: 'Inventory Forecast', path: '/vendor/reports/inventory', icon: 'Stock' },
       ],
     },
     {

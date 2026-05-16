@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { createElement, lazy, Suspense } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import AdminLayout from "../layouts/AdminLayout";
@@ -90,7 +90,7 @@ const AdminNewsletter = lazy(() => import("../pages/admin/AdminNewsletter"));
 
 const lazyElement = (Component) => (
   <Suspense fallback={<Loading />}>
-    <Component />
+    {createElement(Component)}
   </Suspense>
 );
 
@@ -168,6 +168,7 @@ const router = createBrowserRouter([
       { path: "reports/sales", element: lazyElement(VendorReports) },
       { path: "reports/products", element: lazyElement(VendorReports) },
       { path: "reports/traffic", element: lazyElement(VendorReports) },
+      { path: "reports/inventory", element: lazyElement(VendorReports) },
       { path: "reports", element: lazyElement(VendorReports) },
       { path: "shop/profile", element: lazyElement(VendorShop) },
       { path: "shop/decoration", element: lazyElement(VendorShop) },

@@ -267,6 +267,16 @@ describe("Black-box API tests", () => {
       expect(response.body).toEqual({ route: "vendors:marketing-list" });
     });
 
+    test("GET /api/vendors/reports uses the vendor reports route", async () => {
+      const response = await request(app)
+        .get("/api/vendors/reports?period=90")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "vendor-dashboard:reports" });
+    });
+
     test("GET /api/vendors/slug/:slug/public uses the public slug route", async () => {
       const response = await request(app).get("/api/vendors/slug/my-brand/public");
 
