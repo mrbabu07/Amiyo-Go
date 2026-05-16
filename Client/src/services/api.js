@@ -256,6 +256,8 @@ export const getAdminCommissionSummary = (params = {}) =>
   api.get("/admin/finance/commission-summary", { params });
 
 export const getAdminAlertSummary = () => api.get("/admin/alerts/summary");
+export const getAdminDashboardOverview = (params = {}) =>
+  api.get("/admin/dashboard/overview", { params });
 export const getAdminAnalyticsSummary = (params = {}) =>
   api.get("/admin/analytics/summary", { params });
 export const rebuildAdminAnalyticsSummary = (data = {}) =>

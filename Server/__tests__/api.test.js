@@ -121,6 +121,11 @@ jest.mock("../controllers/vendorDashboardController", () => ({
   getTopProducts: (req, res) => res.json({ route: "vendor-dashboard:top-products" }),
 }));
 
+jest.mock("../controllers/adminDashboardController", () => ({
+  getAdminDashboardOverview: (req, res) =>
+    res.json({ route: "admin-dashboard:overview", range: req.query.range || "7d" }),
+}));
+
 jest.mock("../controllers/adminVendorPerformanceController", () => ({
   getVendorPerformance: (req, res) => res.json({ route: "vendors:performance", id: req.params.id }),
 }));
@@ -199,6 +204,7 @@ const buildApp = () => {
   app.use("/api/orders", require("../routes/orderRoutes"));
   app.use("/api/vendors", require("../routes/vendorRoutes"));
   app.use("/api/vendor-chat", require("../routes/vendorChatRoutes"));
+  app.use("/api/admin/dashboard", require("../routes/adminDashboardRoutes"));
   app.use("/api/admin/payouts", require("../routes/adminPayoutRoutes"));
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
   return app;
@@ -365,6 +371,28 @@ describe("Black-box API tests", () => {
 
       expect(response.status).toBe(201);
       expect(response.body).toEqual({ route: "vendor-chat:quick-reply-create" });
+    });
+  });
+
+  describe("admin dashboard API behavior", () => {
+    test("GET /api/admin/dashboard/overview uses the command center route", async () => {
+      const response = await request(app)
+        .get("/api/admin/dashboard/overview?range=30d")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-dashboard:overview", range: "30d" });
+    });
+
+    test("GET /api/admin/dashboard/overview rejects vendor access", async () => {
+      const response = await request(app)
+        .get("/api/admin/dashboard/overview")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "Admin access required" });
     });
   });
 
