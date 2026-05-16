@@ -371,6 +371,21 @@ export const setVacationMode = (data) =>
 export const cancelVacationMode = () =>
   api.delete("/vendors/shop/vacation");
 
+export const getNotificationPreferences = () =>
+  api.get("/notifications/preferences");
+
+export const updateNotificationPreferences = (data) =>
+  api.post("/notifications/preferences", data);
+
+export const setupVendorTwoFactor = () =>
+  api.post("/vendors/security/2fa/setup");
+
+export const verifyVendorTwoFactor = (code) =>
+  api.post("/vendors/security/2fa/verify", { code });
+
+export const disableVendorTwoFactor = (code) =>
+  api.delete("/vendors/security/2fa", { data: { code } });
+
 // Vendor Reports
 export const getVendorReports = (params = {}) =>
   api.get("/vendors/reports", { params });

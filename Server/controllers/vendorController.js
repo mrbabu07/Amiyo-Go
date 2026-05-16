@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { ObjectId } = require("mongodb");
 const { uploadFile } = require("../services/storageService");
 
@@ -28,6 +29,190 @@ const mergeVendorShopProfile = (vendor, vendorShop) => {
     shopDecoration: vendorShop.shopDecoration ?? vendor.shopDecoration,
     vendorShopId: vendorShop._id,
   };
+};
+
+const toTrimmedString = (value) => (value === undefined || value === null ? "" : String(value).trim());
+
+const createSettingsId = (prefix) => `${prefix}_${crypto.randomBytes(6).toString("hex")}`;
+
+const normalizePayoutAccounts = (accounts = []) => {
+  const normalized = accounts
+    .filter(Boolean)
+    .map((account) => {
+      const type = toTrimmedString(account.type || account.provider || "bank").toLowerCase();
+      const isMobileProvider = ["bkash", "nagad", "rocket", "upay", "mfs", "mobile"].includes(type);
+
+      return {
+        id: toTrimmedString(account.id || account._id) || createSettingsId("pay"),
+        type,
+        label:
+          toTrimmedString(account.label) ||
+          (type === "bank" ? toTrimmedString(account.bankName) || "Bank account" : type.toUpperCase()),
+        accountName: toTrimmedString(account.accountName || account.bankAccountName || account.name),
+        accountNumber: toTrimmedString(
+          account.accountNumber || account.bankAccountNumber || account.mobileBankingNumber || account.number,
+        ),
+        bankName: toTrimmedString(account.bankName),
+        branchName: toTrimmedString(account.branchName || account.bankBranch),
+        routingNumber: toTrimmedString(account.routingNumber),
+        provider: isMobileProvider ? type : toTrimmedString(account.provider),
+        status: toTrimmedString(account.status) || "active",
+        isDefault: Boolean(account.isDefault || account.default),
+      };
+    })
+    .filter((account) => account.accountNumber || account.accountName || account.bankName);
+
+  const defaultIndex = normalized.findIndex((account) => account.isDefault);
+  return normalized.map((account, index) => ({
+    ...account,
+    isDefault: defaultIndex >= 0 ? index === defaultIndex : index === 0,
+  }));
+};
+
+const normalizeVendorAddress = (address = {}, prefix = "addr") => {
+  if (!address || typeof address !== "object") return {};
+
+  return {
+    id: toTrimmedString(address.id || address._id) || createSettingsId(prefix),
+    label: toTrimmedString(address.label),
+    contactName: toTrimmedString(address.contactName || address.name),
+    phone: toTrimmedString(address.phone),
+    street: toTrimmedString(address.street || address.addressLine1),
+    area: toTrimmedString(address.area || address.upazila),
+    city: toTrimmedString(address.city),
+    district: toTrimmedString(address.district || address.state),
+    division: toTrimmedString(address.division),
+    postalCode: toTrimmedString(address.postalCode || address.zipCode),
+    country: toTrimmedString(address.country) || "Bangladesh",
+    notes: toTrimmedString(address.notes || address.instructions),
+    isDefault: Boolean(address.isDefault || address.default),
+  };
+};
+
+const normalizePickupAddresses = (addresses = []) => {
+  const normalized = addresses
+    .filter(Boolean)
+    .map((address) => normalizeVendorAddress(address, "pickup"))
+    .filter((address) => address.street || address.city || address.district || address.phone);
+
+  const defaultIndex = normalized.findIndex((address) => address.isDefault);
+  return normalized.map((address, index) => ({
+    ...address,
+    isDefault: defaultIndex >= 0 ? index === defaultIndex : index === 0,
+  }));
+};
+
+const base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+const base32Encode = (buffer) => {
+  let bits = 0;
+  let value = 0;
+  let output = "";
+
+  for (const byte of buffer) {
+    value = (value << 8) | byte;
+    bits += 8;
+
+    while (bits >= 5) {
+      output += base32Alphabet[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+
+  if (bits > 0) {
+    output += base32Alphabet[(value << (5 - bits)) & 31];
+  }
+
+  return output;
+};
+
+const base32Decode = (secret) => {
+  const cleanSecret = String(secret || "")
+    .replace(/=+$/g, "")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+  let bits = 0;
+  let value = 0;
+  const bytes = [];
+
+  for (const char of cleanSecret) {
+    const index = base32Alphabet.indexOf(char);
+    if (index === -1) continue;
+
+    value = (value << 5) | index;
+    bits += 5;
+
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+
+  return Buffer.from(bytes);
+};
+
+const generateTotpCode = (secret, timestamp = Date.now()) => {
+  const key = base32Decode(secret);
+  const counter = Math.floor(timestamp / 1000 / 30);
+  const counterBuffer = Buffer.alloc(8);
+  counterBuffer.writeBigUInt64BE(BigInt(counter));
+
+  const hmac = crypto.createHmac("sha1", key).update(counterBuffer).digest();
+  const offset = hmac[hmac.length - 1] & 15;
+  const binary =
+    ((hmac[offset] & 127) << 24) |
+    ((hmac[offset + 1] & 255) << 16) |
+    ((hmac[offset + 2] & 255) << 8) |
+    (hmac[offset + 3] & 255);
+
+  return String(binary % 1000000).padStart(6, "0");
+};
+
+const safeCodeMatches = (left, right) => {
+  const leftBuffer = Buffer.from(String(left));
+  const rightBuffer = Buffer.from(String(right));
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+};
+
+const verifyTotpCode = (secret, code, window = 1) => {
+  const sanitizedCode = String(code || "").replace(/\s+/g, "");
+  if (!/^\d{6}$/.test(sanitizedCode) || !secret) return false;
+
+  for (let offset = -window; offset <= window; offset += 1) {
+    const expected = generateTotpCode(secret, Date.now() + offset * 30 * 1000);
+    if (safeCodeMatches(sanitizedCode, expected)) return true;
+  }
+
+  return false;
+};
+
+const buildOtpAuthUrl = (vendor, secret) => {
+  const issuer = "Amiyo Go";
+  const accountName = vendor.shopName || vendor.email || `Vendor ${vendor._id}`;
+  const label = `${issuer}:${accountName}`;
+
+  return {
+    issuer,
+    accountName,
+    otpauthUrl: `otpauth://totp/${encodeURIComponent(label)}?secret=${secret}&issuer=${encodeURIComponent(
+      issuer,
+    )}&digits=6&period=30`,
+  };
+};
+
+const findVendorForRequest = async (req) => {
+  const Vendor = req.app.locals.models.Vendor;
+  if (req.user?.vendorId && Vendor.findById) {
+    const vendor = await Vendor.findById(req.user.vendorId);
+    if (vendor) return vendor;
+  }
+
+  if (req.user?._id && Vendor.findByUserId) {
+    return Vendor.findByUserId(req.user._id);
+  }
+
+  return req.vendor || null;
 };
 
 // Public: Get vendor public information (for product pages)
@@ -551,7 +736,11 @@ exports.updateVendorProfile = async (req, res) => {
       bankBranch,
       // Mobile banking fields
       mobileBankingProvider,
-      mobileBankingNumber
+      mobileBankingNumber,
+      payoutAccounts,
+      pickupAddresses,
+      returnAddress,
+      notificationPreferences,
     } = req.body;
     const Vendor = req.app.locals.models.Vendor;
     const VendorShop = req.app.locals.models.VendorShop;
@@ -608,6 +797,38 @@ exports.updateVendorProfile = async (req, res) => {
     if (mobileBankingProvider !== undefined) updateData.mobileBankingProvider = mobileBankingProvider;
     if (mobileBankingNumber !== undefined) updateData.mobileBankingNumber = mobileBankingNumber;
 
+    if (Array.isArray(payoutAccounts)) {
+      const normalizedAccounts = normalizePayoutAccounts(payoutAccounts);
+      updateData.payoutAccounts = normalizedAccounts;
+
+      const defaultAccount = normalizedAccounts.find((account) => account.isDefault) || normalizedAccounts[0];
+      if (defaultAccount) {
+        updateData.payoutMethod = defaultAccount.type === "bank" ? "bank_transfer" : "mobile_banking";
+
+        if (defaultAccount.type === "bank") {
+          updateData.bankName = defaultAccount.bankName;
+          updateData.bankAccountName = defaultAccount.accountName;
+          updateData.bankAccountNumber = defaultAccount.accountNumber;
+          updateData.bankBranch = defaultAccount.branchName;
+        } else {
+          updateData.mobileBankingProvider = defaultAccount.provider || defaultAccount.type;
+          updateData.mobileBankingNumber = defaultAccount.accountNumber;
+        }
+      }
+    }
+
+    if (Array.isArray(pickupAddresses)) {
+      updateData.pickupAddresses = normalizePickupAddresses(pickupAddresses);
+    }
+
+    if (returnAddress !== undefined) {
+      updateData.returnAddress = normalizeVendorAddress(returnAddress, "return");
+    }
+
+    if (notificationPreferences !== undefined && typeof notificationPreferences === "object") {
+      updateData.notificationPreferences = notificationPreferences;
+    }
+
     await Vendor.update(vendor._id, updateData);
 
     const updatedVendor = await Vendor.findById(vendor._id);
@@ -622,6 +843,131 @@ exports.updateVendorProfile = async (req, res) => {
   } catch (error) {
     console.error("Error updating vendor profile:", error);
     res.status(500).json({ error: "Failed to update vendor profile" });
+  }
+};
+
+exports.setupVendorTwoFactor = async (req, res) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const vendor = await findVendorForRequest(req);
+
+    if (!vendor) {
+      return res.status(404).json({ success: false, error: "Vendor profile not found" });
+    }
+
+    const secret = base32Encode(crypto.randomBytes(20));
+    const otpDetails = buildOtpAuthUrl(vendor, secret);
+
+    await Vendor.collection.updateOne(
+      { _id: new ObjectId(vendor._id) },
+      {
+        $set: {
+          "security.twoFactor.pendingSecret": secret,
+          "security.twoFactor.pendingAt": new Date(),
+          updatedAt: new Date(),
+        },
+      },
+    );
+
+    res.json({
+      success: true,
+      data: {
+        secret,
+        manualEntryKey: secret,
+        ...otpDetails,
+      },
+    });
+  } catch (error) {
+    console.error("Error setting up vendor 2FA:", error);
+    res.status(500).json({ success: false, error: "Failed to set up two-factor authentication" });
+  }
+};
+
+exports.verifyVendorTwoFactor = async (req, res) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const vendor = await findVendorForRequest(req);
+    const code = req.body?.code;
+
+    if (!vendor) {
+      return res.status(404).json({ success: false, error: "Vendor profile not found" });
+    }
+
+    const pendingSecret = vendor.security?.twoFactor?.pendingSecret;
+    const existingSecret = vendor.security?.twoFactor?.secret;
+    const secret = pendingSecret || existingSecret;
+
+    if (!secret || !verifyTotpCode(secret, code)) {
+      return res.status(400).json({ success: false, error: "Invalid authenticator code" });
+    }
+
+    await Vendor.collection.updateOne(
+      { _id: new ObjectId(vendor._id) },
+      {
+        $set: {
+          "security.twoFactor.enabled": true,
+          "security.twoFactor.secret": secret,
+          "security.twoFactor.enabledAt": vendor.security?.twoFactor?.enabledAt || new Date(),
+          "security.twoFactor.lastVerifiedAt": new Date(),
+          updatedAt: new Date(),
+        },
+        $unset: {
+          "security.twoFactor.pendingSecret": "",
+          "security.twoFactor.pendingAt": "",
+        },
+      },
+    );
+
+    res.json({
+      success: true,
+      message: "Two-factor authentication enabled",
+      data: { enabled: true },
+    });
+  } catch (error) {
+    console.error("Error verifying vendor 2FA:", error);
+    res.status(500).json({ success: false, error: "Failed to verify two-factor authentication" });
+  }
+};
+
+exports.disableVendorTwoFactor = async (req, res) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const vendor = await findVendorForRequest(req);
+    const code = req.body?.code || req.query?.code;
+
+    if (!vendor) {
+      return res.status(404).json({ success: false, error: "Vendor profile not found" });
+    }
+
+    const twoFactor = vendor.security?.twoFactor || {};
+    if (twoFactor.enabled && twoFactor.secret && !verifyTotpCode(twoFactor.secret, code)) {
+      return res.status(400).json({ success: false, error: "Valid authenticator code is required" });
+    }
+
+    await Vendor.collection.updateOne(
+      { _id: new ObjectId(vendor._id) },
+      {
+        $set: {
+          "security.twoFactor.enabled": false,
+          "security.twoFactor.disabledAt": new Date(),
+          updatedAt: new Date(),
+        },
+        $unset: {
+          "security.twoFactor.secret": "",
+          "security.twoFactor.pendingSecret": "",
+          "security.twoFactor.pendingAt": "",
+        },
+      },
+    );
+
+    res.json({
+      success: true,
+      message: "Two-factor authentication disabled",
+      data: { enabled: false },
+    });
+  } catch (error) {
+    console.error("Error disabling vendor 2FA:", error);
+    res.status(500).json({ success: false, error: "Failed to disable two-factor authentication" });
   }
 };
 
@@ -1357,7 +1703,7 @@ exports.setVacationMode = async (req, res) => {
       });
     }
 
-    const { vacationStart, vacationEnd, vacationReason } = req.body;
+    const { vacationStart, vacationEnd, vacationReason, buyerMessage, vacationMessage } = req.body;
 
     if (!vacationStart || !vacationEnd) {
       return res.status(400).json({
@@ -1386,6 +1732,8 @@ exports.setVacationMode = async (req, res) => {
 
     // Check if currently in vacation period
     const isCurrentlyOnVacation = startDate <= now && endDate >= now;
+    const reason = vacationReason || "Vendor is on vacation";
+    const message = buyerMessage || vacationMessage || reason;
 
     await Vendor.collection.updateOne(
       { _id: new ObjectId(vendorId) },
@@ -1395,7 +1743,9 @@ exports.setVacationMode = async (req, res) => {
             enabled: true,
             startDate,
             endDate,
-            reason: vacationReason || "Vendor is on vacation",
+            reason,
+            buyerMessage: message,
+            message,
             setAt: new Date(),
           },
           isShopOpen: !isCurrentlyOnVacation, // Close shop if vacation is active now
@@ -1411,7 +1761,9 @@ exports.setVacationMode = async (req, res) => {
         enabled: true,
         startDate,
         endDate,
-        reason: vacationReason || "Vendor is on vacation",
+        reason,
+        buyerMessage: message,
+        message,
         isCurrentlyActive: isCurrentlyOnVacation,
       },
     });

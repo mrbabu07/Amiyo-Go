@@ -73,6 +73,9 @@ router.get("/shop/status", verifyToken, requireRole("vendor"), vendorController.
 router.patch("/shop/toggle", verifyToken, requireRole("vendor"), vendorController.toggleShopStatus);
 router.post("/shop/vacation", verifyToken, requireRole("vendor"), vendorController.setVacationMode);
 router.delete("/shop/vacation", verifyToken, requireRole("vendor"), vendorController.cancelVacationMode);
+router.post("/security/2fa/setup", verifyToken, requireRole("vendor"), vendorController.setupVendorTwoFactor);
+router.post("/security/2fa/verify", verifyToken, requireRole("vendor"), vendorController.verifyVendorTwoFactor);
+router.delete("/security/2fa", verifyToken, requireRole("vendor"), vendorController.disableVendorTwoFactor);
 
 // Vendor dashboard
 router.get("/dashboard/stats", verifyToken, vendorDashboardController.getDashboardStats);

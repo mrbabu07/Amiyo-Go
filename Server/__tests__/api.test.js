@@ -95,6 +95,9 @@ jest.mock("../controllers/vendorController", () => ({
   toggleShopStatus: (req, res) => res.json({ route: "vendors:shop-toggle" }),
   setVacationMode: (req, res) => res.json({ route: "vendors:vacation-set" }),
   cancelVacationMode: (req, res) => res.json({ route: "vendors:vacation-cancel" }),
+  setupVendorTwoFactor: (req, res) => res.json({ route: "vendors:2fa-setup" }),
+  verifyVendorTwoFactor: (req, res) => res.json({ route: "vendors:2fa-verify" }),
+  disableVendorTwoFactor: (req, res) => res.json({ route: "vendors:2fa-disable" }),
   getAllVendors: (req, res) => res.json({ route: "vendors:admin-list" }),
   getVendorStats: (req, res) => res.json({ route: "vendors:stats" }),
   getVendorById: (req, res) => res.json({ route: "vendors:admin-id", id: req.params.id }),
@@ -300,6 +303,38 @@ describe("Black-box API tests", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ route: "vendor-dashboard:reports" });
+    });
+
+    test("POST /api/vendors/security/2fa/setup uses the vendor security route", async () => {
+      const response = await request(app)
+        .post("/api/vendors/security/2fa/setup")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "vendors:2fa-setup" });
+    });
+
+    test("POST /api/vendors/security/2fa/verify uses the vendor security route", async () => {
+      const response = await request(app)
+        .post("/api/vendors/security/2fa/verify")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor")
+        .send({ code: "123456" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "vendors:2fa-verify" });
+    });
+
+    test("DELETE /api/vendors/security/2fa uses the vendor security route", async () => {
+      const response = await request(app)
+        .delete("/api/vendors/security/2fa")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor")
+        .send({ code: "123456" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "vendors:2fa-disable" });
     });
 
     test("GET /api/vendors/slug/:slug/public uses the public slug route", async () => {

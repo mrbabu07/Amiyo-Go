@@ -1,741 +1,1427 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import useAuth from '../../hooks/useAuth';
-import { auth } from '../../firebase/firebase.config';
-import axios from 'axios';
-import ShopStatusManager from '../../components/vendor/ShopStatusManager';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Bell,
+  Building2,
+  CalendarOff,
+  CheckCircle2,
+  Copy,
+  Edit3,
+  KeyRound,
+  Landmark,
+  Loader2,
+  Mail,
+  MapPin,
+  MessageSquare,
+  MonitorSmartphone,
+  Plus,
+  Save,
+  ShieldCheck,
+  ShieldOff,
+  Smartphone,
+  Star,
+  Trash2,
+  UserPlus,
+  Users,
+  XCircle,
+} from "lucide-react";
+import useAuth from "../../hooks/useAuth";
+import {
+  cancelVacationMode,
+  disableVendorTwoFactor,
+  getMyVendorProfile,
+  getNotificationPreferences,
+  getShopStatus,
+  getVendorStaff,
+  inviteVendorStaff,
+  removeVendorStaff,
+  setVacationMode,
+  setupVendorTwoFactor,
+  updateMyVendorProfile,
+  updateNotificationPreferences,
+  verifyVendorTwoFactor,
+} from "../../services/api";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const payoutTypes = [
+  { value: "bkash", label: "bKash", icon: Smartphone },
+  { value: "nagad", label: "Nagad", icon: Smartphone },
+  { value: "bank", label: "Bank account", icon: Landmark },
+];
+
+const staffRoles = [
+  {
+    id: "order-manager",
+    label: "Order manager",
+    permissions: ["orders:view", "orders:manage", "orders:ship", "returns:view"],
+  },
+  {
+    id: "product-editor",
+    label: "Product editor",
+    permissions: ["products:view", "products:manage", "inventory:manage"],
+  },
+  {
+    id: "finance-viewer",
+    label: "Finance viewer",
+    permissions: ["finance:view", "reports:view"],
+  },
+];
+
+const notificationEvents = [
+  { key: "new_order", label: "New order", description: "Order created or payment confirmed" },
+  { key: "shipment_due", label: "Shipment SLA", description: "Orders close to ship deadline" },
+  { key: "return_request", label: "Return request", description: "Buyer opened or updated a return" },
+  { key: "payout_update", label: "Payout update", description: "Payout released, held, or failed" },
+  { key: "low_stock", label: "Low stock", description: "SKU stock falls below threshold" },
+  { key: "campaign_alert", label: "Campaign alert", description: "Campaign eligibility or deadline" },
+  { key: "customer_message", label: "Customer message", description: "Buyer message needs reply" },
+];
+
+const tabs = [
+  { id: "payouts", label: "Payouts", icon: Landmark },
+  { id: "addresses", label: "Addresses", icon: MapPin },
+  { id: "vacation", label: "Vacation", icon: CalendarOff },
+  { id: "staff", label: "Staff", icon: Users },
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "security", label: "Security", icon: ShieldCheck },
+];
+
+const channels = [
+  { key: "email", label: "Email", icon: Mail },
+  { key: "sms", label: "SMS", icon: MessageSquare },
+  { key: "push", label: "Push", icon: MonitorSmartphone },
+];
+
+const emptyPayoutAccount = () => ({
+  id: "",
+  type: "bkash",
+  label: "",
+  accountName: "",
+  accountNumber: "",
+  bankName: "",
+  branchName: "",
+  routingNumber: "",
+  isDefault: false,
+});
+
+const emptyAddress = () => ({
+  id: "",
+  label: "",
+  contactName: "",
+  phone: "",
+  street: "",
+  area: "",
+  city: "",
+  district: "",
+  division: "",
+  postalCode: "",
+  country: "Bangladesh",
+  notes: "",
+  isDefault: false,
+});
+
+const emptyReturnAddress = () => ({
+  ...emptyAddress(),
+  label: "Return address",
+});
+
+const defaultNotifications = () =>
+  notificationEvents.reduce((acc, event) => {
+    acc[event.key] = { email: true, sms: false, push: true };
+    return acc;
+  }, {});
+
+const getApiError = (error, fallback) =>
+  error?.response?.data?.error || error?.response?.data?.message || error?.message || fallback;
+
+const readData = (response) => response?.data?.data ?? response?.data;
+
+const makeClientId = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+
+const getLegacyAccounts = (vendor) => {
+  const accounts = [];
+
+  if (vendor?.mobileBankingProvider || vendor?.mobileBankingNumber) {
+    accounts.push({
+      id: "legacy_mobile",
+      type: vendor.mobileBankingProvider || "bkash",
+      label: vendor.mobileBankingProvider || "Mobile banking",
+      accountName: vendor.bankAccountName || "",
+      accountNumber: vendor.mobileBankingNumber || "",
+      isDefault: vendor.payoutMethod !== "bank_transfer",
+    });
+  }
+
+  if (vendor?.bankName || vendor?.bankAccountNumber) {
+    accounts.push({
+      id: "legacy_bank",
+      type: "bank",
+      label: vendor.bankName || "Bank account",
+      accountName: vendor.bankAccountName || "",
+      accountNumber: vendor.bankAccountNumber || "",
+      bankName: vendor.bankName || "",
+      branchName: vendor.bankBranch || "",
+      isDefault: vendor.payoutMethod === "bank_transfer",
+    });
+  }
+
+  return accounts;
+};
+
+const normalizeAccounts = (vendor) => {
+  const accounts = Array.isArray(vendor?.payoutAccounts) && vendor.payoutAccounts.length
+    ? vendor.payoutAccounts
+    : getLegacyAccounts(vendor);
+
+  const defaultIndex = accounts.findIndex((account) => account.isDefault);
+  return accounts.map((account, index) => ({
+    ...emptyPayoutAccount(),
+    ...account,
+    id: account.id || account._id || makeClientId("pay"),
+    type: String(account.type || account.provider || "bkash").toLowerCase(),
+    isDefault: defaultIndex >= 0 ? index === defaultIndex : index === 0,
+  }));
+};
+
+const normalizeAddresses = (vendor) => {
+  const addresses = Array.isArray(vendor?.pickupAddresses) ? vendor.pickupAddresses : [];
+  const defaultIndex = addresses.findIndex((address) => address.isDefault);
+
+  return addresses.map((address, index) => ({
+    ...emptyAddress(),
+    ...address,
+    id: address.id || address._id || makeClientId("pickup"),
+    isDefault: defaultIndex >= 0 ? index === defaultIndex : index === 0,
+  }));
+};
+
+const normalizeNotifications = (vendorPreferences = {}, pushPreferences = {}) => {
+  const defaults = defaultNotifications();
+  const combined = { ...defaults, ...vendorPreferences, ...pushPreferences };
+
+  return notificationEvents.reduce((acc, event) => {
+    acc[event.key] = {
+      ...defaults[event.key],
+      ...(typeof combined[event.key] === "object" ? combined[event.key] : {}),
+    };
+    return acc;
+  }, {});
+};
+
+const formatDateValue = (date) => {
+  if (!date) return "";
+  const value = new Date(date);
+  if (Number.isNaN(value.getTime())) return "";
+  const offsetDate = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 16);
+};
 
 const VendorSettings = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("payouts");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState("");
+  const [notice, setNotice] = useState(null);
   const [vendor, setVendor] = useState(null);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [uploading, setUploading] = useState({ logo: false, banner: false });
+  const [shopStatus, setShopStatus] = useState(null);
+  const [staff, setStaff] = useState([]);
 
-  const [formData, setFormData] = useState({
-    shopName: '',
-    phone: '',
-    description: '',
-    logo: '',
-    banner: '',
-    address: {
-      street: '',
-      city: '',
-      state: '',
-      zipCode: '',
-      country: 'Bangladesh',
-    },
-    payoutMethod: '',
-    deliverySettings: {
-      selfDeliveryEnabled: true,
-      pickupEnabled: true,
-      sameUnionFee: 30,
-      sameUpazilaFee: 50,
-      sameDistrictFee: 80,
-      outsideDistrictFee: 120,
-      freeDeliveryThreshold: 0,
-      perishableFee: 20,
-      handlingFee: 0,
-      preparationTime: '1-2 days',
-    },
+  const [payoutAccounts, setPayoutAccounts] = useState([]);
+  const [accountForm, setAccountForm] = useState(emptyPayoutAccount);
+  const [editingAccountId, setEditingAccountId] = useState("");
+
+  const [pickupAddresses, setPickupAddresses] = useState([]);
+  const [pickupForm, setPickupForm] = useState(emptyAddress);
+  const [editingPickupId, setEditingPickupId] = useState("");
+  const [returnAddress, setReturnAddress] = useState(emptyReturnAddress);
+
+  const [vacationForm, setVacationForm] = useState({
+    vacationStart: "",
+    vacationEnd: "",
+    vacationReason: "",
+    buyerMessage: "",
   });
 
-  useEffect(() => {
-    if (user) {
-      fetchVendorData();
-    }
-  }, [user]);
+  const [staffForm, setStaffForm] = useState({
+    name: "",
+    email: "",
+    role: "order-manager",
+  });
 
-  const fetchVendorData = async () => {
+  const [notificationPreferences, setNotificationPreferences] = useState(defaultNotifications);
+  const [twoFactorSetup, setTwoFactorSetup] = useState(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [disableCode, setDisableCode] = useState("");
+
+  const showNotice = useCallback((type, text) => {
+    setNotice({ type, text });
+    window.clearTimeout(showNotice.timer);
+    showNotice.timer = window.setTimeout(() => setNotice(null), 4000);
+  }, []);
+
+  const loadSettings = useCallback(async () => {
+    if (!user) return;
+
+    setLoading(true);
     try {
-      const token = await auth.currentUser.getIdToken();
-      const response = await axios.get(`${API_URL}/vendors/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const [profileResponse, statusResponse, staffResponse, preferenceResponse] = await Promise.allSettled([
+        getMyVendorProfile(),
+        getShopStatus(),
+        getVendorStaff(),
+        getNotificationPreferences(),
+      ]);
+
+      if (profileResponse.status !== "fulfilled") {
+        throw profileResponse.reason;
+      }
+
+      const profileData = readData(profileResponse.value);
+      const nextVendor = profileData?.vendor || profileResponse.value?.data?.vendor || profileData;
+      setVendor(nextVendor);
+      setPayoutAccounts(normalizeAccounts(nextVendor));
+      setPickupAddresses(normalizeAddresses(nextVendor));
+      setReturnAddress({
+        ...emptyReturnAddress(),
+        ...(nextVendor?.returnAddress || {}),
+        id: nextVendor?.returnAddress?.id || makeClientId("return"),
       });
 
-      if (response.data.vendor) {
-        const v = response.data.vendor;
-        setVendor(v);
-        setFormData({
-          shopName: v.shopName || '',
-          phone: v.phone || '',
-          description: v.description || '',
-          logo: v.logo || '',
-          banner: v.banner || '',
-          address: v.address || {
-            street: '',
-            city: '',
-            state: '',
-            zipCode: '',
-            country: 'Bangladesh',
-          },
-          payoutMethod: v.payoutMethod || '',
-          deliverySettings: {
-            selfDeliveryEnabled: true,
-            pickupEnabled: true,
-            sameUnionFee: 30,
-            sameUpazilaFee: 50,
-            sameDistrictFee: 80,
-            outsideDistrictFee: 120,
-            freeDeliveryThreshold: 0,
-            perishableFee: 20,
-            handlingFee: 0,
-            preparationTime: '1-2 days',
-            ...(v.deliverySettings || {}),
-          },
-        });
-      }
+      const statusData = statusResponse.status === "fulfilled" ? readData(statusResponse.value) : null;
+      setShopStatus(statusData || null);
+      const vacationMode = statusData?.vacationMode || nextVendor?.vacationMode || {};
+      setVacationForm({
+        vacationStart: formatDateValue(vacationMode.startDate),
+        vacationEnd: formatDateValue(vacationMode.endDate),
+        vacationReason: vacationMode.reason || "",
+        buyerMessage: vacationMode.buyerMessage || vacationMode.message || "",
+      });
+
+      const staffData = staffResponse.status === "fulfilled" ? readData(staffResponse.value) : [];
+      setStaff(Array.isArray(staffData) ? staffData : staffData?.data || []);
+
+      const pushPreferences = preferenceResponse.status === "fulfilled" ? readData(preferenceResponse.value) : {};
+      setNotificationPreferences(normalizeNotifications(nextVendor?.notificationPreferences, pushPreferences));
     } catch (error) {
-      console.error('Error fetching vendor data:', error);
-    }
-  };
-
-  const handleImageUpload = async (e, type) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setError(`${type} image must be less than 5MB`);
-      return;
-    }
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setError('Please upload an image file');
-      return;
-    }
-
-    setUploading({ ...uploading, [type]: true });
-    setError('');
-
-    try {
-      // Convert to base64 for now (in production, upload to cloud storage)
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64String = reader.result;
-        
-        try {
-          const token = await auth.currentUser.getIdToken();
-          const response = await axios.post(
-            `${API_URL}/vendors/upload-${type}`,
-            { url: base64String },
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-            }
-          );
-
-          if (response.data.url) {
-            setFormData({ ...formData, [type]: response.data.url });
-            setSuccess(`${type.charAt(0).toUpperCase() + type.slice(1)} uploaded successfully!`);
-            setTimeout(() => setSuccess(''), 3000);
-          }
-        } catch (error) {
-          console.error(`Error uploading ${type}:`, error);
-          setError(error.response?.data?.error || `Failed to upload ${type}`);
-        } finally {
-          setUploading({ ...uploading, [type]: false });
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error(`Error reading ${type}:`, error);
-      setError(`Failed to read ${type} file`);
-      setUploading({ ...uploading, [type]: false });
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setLoading(true);
-
-    try {
-      const token = await auth.currentUser.getIdToken();
-      const response = await axios.patch(
-        `${API_URL}/vendors/me`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.data) {
-        setSuccess('Profile updated successfully!');
-        setTimeout(() => navigate('/vendor/dashboard'), 2000);
-      }
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      setError(error.response?.data?.error || 'Failed to update profile');
+      showNotice("error", getApiError(error, "Failed to load settings"));
     } finally {
       setLoading(false);
     }
+  }, [showNotice, user]);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  const saveVendorProfile = async (payload, successMessage) => {
+    setSaving("profile");
+    try {
+      const response = await updateMyVendorProfile(payload);
+      const nextVendor = response?.data?.vendor || readData(response)?.vendor || vendor;
+      setVendor(nextVendor);
+      showNotice("success", successMessage);
+      await loadSettings();
+    } catch (error) {
+      showNotice("error", getApiError(error, "Failed to save settings"));
+    } finally {
+      setSaving("");
+    }
   };
 
-  if (!vendor) {
+  const resetAccountForm = () => {
+    setAccountForm(emptyPayoutAccount());
+    setEditingAccountId("");
+  };
+
+  const submitAccount = (event) => {
+    event.preventDefault();
+
+    if (!accountForm.accountNumber.trim()) {
+      showNotice("error", "Account number is required");
+      return;
+    }
+
+    if (accountForm.type === "bank" && !accountForm.bankName.trim()) {
+      showNotice("error", "Bank name is required");
+      return;
+    }
+
+    const selectedType = payoutTypes.find((type) => type.value === accountForm.type);
+    const nextAccount = {
+      ...accountForm,
+      id: editingAccountId || accountForm.id || makeClientId("pay"),
+      label:
+        accountForm.label ||
+        (accountForm.type === "bank" ? accountForm.bankName || "Bank account" : selectedType?.label || accountForm.type),
+    };
+
+    setPayoutAccounts((accounts) => {
+      const existingAccounts = editingAccountId
+        ? accounts.map((account) => (account.id === editingAccountId ? nextAccount : account))
+        : [...accounts, { ...nextAccount, isDefault: accounts.length === 0 || nextAccount.isDefault }];
+      const defaultIndex = existingAccounts.findIndex((account) => account.isDefault);
+
+      return existingAccounts.map((account, index) => ({
+        ...account,
+        isDefault: defaultIndex >= 0 ? index === defaultIndex : index === 0,
+      }));
+    });
+    resetAccountForm();
+  };
+
+  const editAccount = (account) => {
+    setEditingAccountId(account.id);
+    setAccountForm({ ...emptyPayoutAccount(), ...account });
+  };
+
+  const removeAccount = (id) => {
+    setPayoutAccounts((accounts) => {
+      const remaining = accounts.filter((account) => account.id !== id);
+      if (!remaining.length) return remaining;
+      const hasDefault = remaining.some((account) => account.isDefault);
+      return remaining.map((account, index) => ({
+        ...account,
+        isDefault: hasDefault ? account.isDefault : index === 0,
+      }));
+    });
+  };
+
+  const setDefaultAccount = (id) => {
+    setPayoutAccounts((accounts) =>
+      accounts.map((account) => ({ ...account, isDefault: account.id === id })),
+    );
+  };
+
+  const savePayoutAccounts = () => {
+    saveVendorProfile({ payoutAccounts }, "Payout accounts saved");
+  };
+
+  const resetPickupForm = () => {
+    setPickupForm(emptyAddress());
+    setEditingPickupId("");
+  };
+
+  const submitPickupAddress = (event) => {
+    event.preventDefault();
+
+    if (!pickupForm.street.trim() || !pickupForm.phone.trim()) {
+      showNotice("error", "Pickup street address and phone are required");
+      return;
+    }
+
+    const nextAddress = {
+      ...pickupForm,
+      id: editingPickupId || pickupForm.id || makeClientId("pickup"),
+      label: pickupForm.label || "Warehouse",
+    };
+
+    setPickupAddresses((addresses) => {
+      const nextAddresses = editingPickupId
+        ? addresses.map((address) => (address.id === editingPickupId ? nextAddress : address))
+        : [...addresses, { ...nextAddress, isDefault: addresses.length === 0 || nextAddress.isDefault }];
+      const defaultIndex = nextAddresses.findIndex((address) => address.isDefault);
+
+      return nextAddresses.map((address, index) => ({
+        ...address,
+        isDefault: defaultIndex >= 0 ? index === defaultIndex : index === 0,
+      }));
+    });
+    resetPickupForm();
+  };
+
+  const editPickupAddress = (address) => {
+    setEditingPickupId(address.id);
+    setPickupForm({ ...emptyAddress(), ...address });
+  };
+
+  const removePickupAddress = (id) => {
+    setPickupAddresses((addresses) => {
+      const remaining = addresses.filter((address) => address.id !== id);
+      if (!remaining.length) return remaining;
+      const hasDefault = remaining.some((address) => address.isDefault);
+      return remaining.map((address, index) => ({
+        ...address,
+        isDefault: hasDefault ? address.isDefault : index === 0,
+      }));
+    });
+  };
+
+  const setDefaultPickupAddress = (id) => {
+    setPickupAddresses((addresses) =>
+      addresses.map((address) => ({ ...address, isDefault: address.id === id })),
+    );
+  };
+
+  const saveAddresses = () => {
+    saveVendorProfile({ pickupAddresses, returnAddress }, "Address settings saved");
+  };
+
+  const saveVacation = async (event) => {
+    event.preventDefault();
+    setSaving("vacation");
+    try {
+      await setVacationMode(vacationForm);
+      showNotice("success", "Vacation mode saved");
+      await loadSettings();
+    } catch (error) {
+      showNotice("error", getApiError(error, "Failed to save vacation mode"));
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const cancelVacation = async () => {
+    setSaving("vacation");
+    try {
+      await cancelVacationMode();
+      setVacationForm({ vacationStart: "", vacationEnd: "", vacationReason: "", buyerMessage: "" });
+      showNotice("success", "Vacation mode cancelled");
+      await loadSettings();
+    } catch (error) {
+      showNotice("error", getApiError(error, "Failed to cancel vacation mode"));
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const submitStaffInvite = async (event) => {
+    event.preventDefault();
+    const role = staffRoles.find((item) => item.id === staffForm.role) || staffRoles[0];
+
+    if (!staffForm.email.trim()) {
+      showNotice("error", "Staff email is required");
+      return;
+    }
+
+    setSaving("staff");
+    try {
+      await inviteVendorStaff({
+        name: staffForm.name,
+        email: staffForm.email,
+        role: staffForm.role,
+        permissions: role.permissions,
+      });
+      setStaffForm({ name: "", email: "", role: "order-manager" });
+      showNotice("success", "Staff invite created");
+      await loadSettings();
+    } catch (error) {
+      showNotice("error", getApiError(error, "Failed to invite staff"));
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const deleteStaff = async (id) => {
+    setSaving("staff");
+    try {
+      await removeVendorStaff(id);
+      showNotice("success", "Staff account removed");
+      await loadSettings();
+    } catch (error) {
+      showNotice("error", getApiError(error, "Failed to remove staff"));
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const toggleNotification = (eventKey, channel) => {
+    setNotificationPreferences((preferences) => ({
+      ...preferences,
+      [eventKey]: {
+        ...(preferences[eventKey] || {}),
+        [channel]: !preferences[eventKey]?.[channel],
+      },
+    }));
+  };
+
+  const saveNotifications = async () => {
+    setSaving("notifications");
+    try {
+      await Promise.all([
+        updateNotificationPreferences(notificationPreferences),
+        updateMyVendorProfile({ notificationPreferences }),
+      ]);
+      showNotice("success", "Notification preferences saved");
+      await loadSettings();
+    } catch (error) {
+      showNotice("error", getApiError(error, "Failed to save notification preferences"));
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const startTwoFactorSetup = async () => {
+    setSaving("security");
+    try {
+      const response = await setupVendorTwoFactor();
+      const setup = readData(response);
+      let qrCode = "";
+
+      try {
+        const qrModule = await import("qrcode");
+        const toDataURL = qrModule.toDataURL || qrModule.default?.toDataURL;
+        qrCode = toDataURL ? await toDataURL(setup.otpauthUrl, { margin: 1, width: 180 }) : "";
+      } catch (qrError) {
+        console.warn("QR code generation failed:", qrError);
+      }
+
+      setTwoFactorSetup({ ...setup, qrCode });
+      showNotice("success", "Authenticator setup started");
+    } catch (error) {
+      showNotice("error", getApiError(error, "Failed to start 2FA setup"));
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const confirmTwoFactorSetup = async (event) => {
+    event.preventDefault();
+    setSaving("security");
+    try {
+      await verifyVendorTwoFactor(twoFactorCode);
+      setTwoFactorCode("");
+      setTwoFactorSetup(null);
+      showNotice("success", "Two-factor authentication enabled");
+      await loadSettings();
+    } catch (error) {
+      showNotice("error", getApiError(error, "Invalid authenticator code"));
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const turnOffTwoFactor = async (event) => {
+    event.preventDefault();
+    setSaving("security");
+    try {
+      await disableVendorTwoFactor(disableCode);
+      setDisableCode("");
+      showNotice("success", "Two-factor authentication disabled");
+      await loadSettings();
+    } catch (error) {
+      showNotice("error", getApiError(error, "Failed to disable 2FA"));
+    } finally {
+      setSaving("");
+    }
+  };
+
+  const activeAccount = useMemo(
+    () => payoutAccounts.find((account) => account.isDefault) || payoutAccounts[0],
+    [payoutAccounts],
+  );
+  const defaultPickup = useMemo(
+    () => pickupAddresses.find((address) => address.isDefault) || pickupAddresses[0],
+    [pickupAddresses],
+  );
+  const twoFactorEnabled = Boolean(vendor?.security?.twoFactor?.enabled);
+  const vacationEnabled = Boolean(shopStatus?.vacationMode?.enabled || vendor?.vacationMode?.enabled);
+
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+      <div className="min-h-screen bg-slate-50 px-4 py-10">
+        <div className="mx-auto flex max-w-6xl items-center justify-center rounded-lg border border-slate-200 bg-white p-10">
+          <Loader2 className="mr-3 h-6 w-6 animate-spin text-orange-600" />
+          <span className="text-sm font-semibold text-slate-700">Loading vendor settings</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <svg className="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Shop Profile Settings
-          </h1>
-          <p className="text-gray-600 mt-2">Manage your shop information, branding, and location</p>
+    <div className="min-h-screen bg-slate-50 px-4 py-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">
+              Vendor control center
+            </p>
+            <h1 className="mt-1 text-2xl font-bold text-slate-950">Settings</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              {vendor?.shopName || "Your shop"} can manage payouts, fulfillment, people, alerts, and security here.
+            </p>
+          </div>
+          <div className="grid gap-2 text-sm sm:grid-cols-3">
+            <div className="rounded-lg border border-slate-200 px-4 py-3">
+              <p className="text-xs font-medium text-slate-500">Default payout</p>
+              <p className="mt-1 font-semibold text-slate-900">{activeAccount?.label || "Not set"}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 px-4 py-3">
+              <p className="text-xs font-medium text-slate-500">Default pickup</p>
+              <p className="mt-1 font-semibold text-slate-900">{defaultPickup?.label || "Not set"}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 px-4 py-3">
+              <p className="text-xs font-medium text-slate-500">2FA</p>
+              <p className={`mt-1 font-semibold ${twoFactorEnabled ? "text-emerald-700" : "text-amber-700"}`}>
+                {twoFactorEnabled ? "Enabled" : "Not enabled"}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r-lg flex items-start gap-3">
-            <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-            </svg>
-            <span>{error}</span>
+        {notice && (
+          <div
+            className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+              notice.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-rose-200 bg-rose-50 text-rose-800"
+            }`}
+          >
+            {notice.type === "success" ? (
+              <CheckCircle2 className="mt-0.5 h-4 w-4" />
+            ) : (
+              <XCircle className="mt-0.5 h-4 w-4" />
+            )}
+            <span>{notice.text}</span>
           </div>
         )}
 
-        {success && (
-          <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-r-lg flex items-start gap-3">
-            <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            <span>{success}</span>
+        <div className="rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+          <div className="flex gap-2 overflow-x-auto">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex min-w-max items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                    active
+                      ? "bg-slate-950 text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
 
-        {/* Shop Status Manager */}
-        <ShopStatusManager />
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Banner & Logo Section */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Shop Branding
-              </h2>
-              <p className="text-orange-100 text-sm mt-1">Upload your shop logo and banner image</p>
-            </div>
-
-            <div className="p-6">
-              {/* Banner Upload */}
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  Shop Banner (Recommended: 1200x300px)
-                </label>
-                <div className="relative">
-                  {formData.banner ? (
-                    <div className="relative group">
-                      <img
-                        src={formData.banner}
-                        alt="Shop Banner"
-                        className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded-lg">
-                        <label className="cursor-pointer bg-white text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition">
-                          Change Banner
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleImageUpload(e, 'banner')}
-                            className="hidden"
-                            disabled={uploading.banner}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  ) : (
-                    <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-orange-500 hover:bg-orange-50 transition">
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <svg className="w-12 h-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                        <p className="mb-2 text-sm text-gray-600">
-                          <span className="font-semibold">Click to upload</span> or drag and drop
-                        </p>
-                        <p className="text-xs text-gray-500">PNG, JPG or WEBP (MAX. 5MB)</p>
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageUpload(e, 'banner')}
-                        className="hidden"
-                        disabled={uploading.banner}
-                      />
-                    </label>
-                  )}
-                  {uploading.banner && (
-                    <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg">
-                      <div className="text-center">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-2"></div>
-                        <p className="text-sm text-gray-600">Uploading...</p>
-                      </div>
-                    </div>
-                  )}
+        {activeTab === "payouts" && (
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-950">Bank and MFS details</h2>
+                  <p className="text-sm text-slate-600">Add bKash, Nagad, and bank payout accounts.</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={savePayoutAccounts}
+                  disabled={saving === "profile"}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+                >
+                  {saving === "profile" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save payouts
+                </button>
               </div>
 
-              {/* Logo Upload */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  Shop Logo (Recommended: 200x200px)
-                </label>
-                <div className="flex items-start gap-6">
-                  <div className="relative">
-                    {formData.logo ? (
-                      <div className="relative group">
-                        <img
-                          src={formData.logo}
-                          alt="Shop Logo"
-                          className="w-32 h-32 object-cover rounded-xl border-2 border-gray-200 shadow-sm"
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded-xl">
-                          <label className="cursor-pointer bg-white text-gray-900 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100 transition">
-                            Change
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => handleImageUpload(e, 'logo')}
-                              className="hidden"
-                              disabled={uploading.logo}
-                            />
-                          </label>
+              <div className="mt-5 grid gap-3">
+                {payoutAccounts.length === 0 && (
+                  <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+                    No payout account added yet.
+                  </div>
+                )}
+
+                {payoutAccounts.map((account) => {
+                  const type = payoutTypes.find((item) => item.value === account.type) || payoutTypes[0];
+                  const Icon = type.icon;
+                  return (
+                    <div key={account.id} className="rounded-lg border border-slate-200 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-orange-50 text-orange-700">
+                            <Icon className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-semibold text-slate-950">{account.label || type.label}</h3>
+                              {account.isDefault && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                                  <Star className="h-3 w-3" />
+                                  Default
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {type.label} {account.accountNumber ? `- ${account.accountNumber}` : ""}
+                            </p>
+                            {account.type === "bank" && (
+                              <p className="text-xs text-slate-500">
+                                {account.bankName || "Bank"} {account.branchName ? `, ${account.branchName}` : ""}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {!account.isDefault && (
+                            <button
+                              type="button"
+                              onClick={() => setDefaultAccount(account.id)}
+                              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              Make default
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => editAccount(account)}
+                            className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
+                            aria-label="Edit payout account"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeAccount(account.id)}
+                            className="rounded-lg border border-rose-200 p-2 text-rose-600 hover:bg-rose-50"
+                            aria-label="Remove payout account"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-orange-500 hover:bg-orange-50 transition">
-                        <svg className="w-8 h-8 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span className="text-xs text-gray-500">Upload Logo</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => handleImageUpload(e, 'logo')}
-                          className="hidden"
-                          disabled={uploading.logo}
-                        />
-                      </label>
-                    )}
-                    {uploading.logo && (
-                      <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-xl">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-                      </div>
-                    )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">
+                {editingAccountId ? "Edit payout account" : "Add payout account"}
+              </h2>
+              <form onSubmit={submitAccount} className="mt-4 space-y-4">
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">Type</label>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {payoutTypes.map((type) => (
+                      <button
+                        key={type.value}
+                        type="button"
+                        onClick={() => setAccountForm((form) => ({ ...form, type: type.value }))}
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
+                          accountForm.type === type.value
+                            ? "border-orange-500 bg-orange-50 text-orange-700"
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {type.label}
+                      </button>
+                    ))}
                   </div>
-                  <div className="flex-1">
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-orange-900 mb-2 flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
-                        Logo Guidelines
-                      </h4>
-                      <ul className="text-xs text-orange-800 space-y-1">
-                        <li>• Use a square image (200x200px recommended)</li>
-                        <li>• Clear background works best</li>
-                        <li>• Keep it simple and recognizable</li>
-                        <li>• Maximum file size: 5MB</li>
-                      </ul>
+                </div>
+                <Field
+                  label="Label"
+                  value={accountForm.label}
+                  onChange={(value) => setAccountForm((form) => ({ ...form, label: value }))}
+                  placeholder="Primary bKash"
+                />
+                <Field
+                  label="Account holder"
+                  value={accountForm.accountName}
+                  onChange={(value) => setAccountForm((form) => ({ ...form, accountName: value }))}
+                  placeholder="Account holder name"
+                />
+                <Field
+                  label="Account number"
+                  value={accountForm.accountNumber}
+                  onChange={(value) => setAccountForm((form) => ({ ...form, accountNumber: value }))}
+                  placeholder="01XXXXXXXXX"
+                />
+                {accountForm.type === "bank" && (
+                  <>
+                    <Field
+                      label="Bank name"
+                      value={accountForm.bankName}
+                      onChange={(value) => setAccountForm((form) => ({ ...form, bankName: value }))}
+                      placeholder="Bank name"
+                    />
+                    <Field
+                      label="Branch"
+                      value={accountForm.branchName}
+                      onChange={(value) => setAccountForm((form) => ({ ...form, branchName: value }))}
+                      placeholder="Branch name"
+                    />
+                    <Field
+                      label="Routing number"
+                      value={accountForm.routingNumber}
+                      onChange={(value) => setAccountForm((form) => ({ ...form, routingNumber: value }))}
+                      placeholder="Optional"
+                    />
+                  </>
+                )}
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={accountForm.isDefault}
+                    onChange={(event) => setAccountForm((form) => ({ ...form, isDefault: event.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-300 text-orange-600"
+                  />
+                  Set as default payout account
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {editingAccountId ? "Update" : "Add"}
+                  </button>
+                  {editingAccountId && (
+                    <button
+                      type="button"
+                      onClick={resetAccountForm}
+                      className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </form>
+            </section>
+          </div>
+        )}
+
+        {activeTab === "addresses" && (
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-950">Pickup addresses</h2>
+                  <p className="text-sm text-slate-600">Manage warehouses and courier pickup points.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={saveAddresses}
+                  disabled={saving === "profile"}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+                >
+                  {saving === "profile" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save addresses
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                {pickupAddresses.length === 0 && (
+                  <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+                    No pickup address added yet.
+                  </div>
+                )}
+                {pickupAddresses.map((address) => (
+                  <div key={address.id} className="rounded-lg border border-slate-200 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
+                          <Building2 className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-semibold text-slate-950">{address.label || "Warehouse"}</h3>
+                            {address.isDefault && (
+                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-sm text-slate-700">{address.street}</p>
+                          <p className="text-xs text-slate-500">
+                            {[address.area, address.city, address.district].filter(Boolean).join(", ")}
+                          </p>
+                          <p className="text-xs text-slate-500">{address.phone}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {!address.isDefault && (
+                          <button
+                            type="button"
+                            onClick={() => setDefaultPickupAddress(address.id)}
+                            className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            Make default
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => editPickupAddress(address)}
+                          className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
+                          aria-label="Edit pickup address"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removePickupAddress(address.id)}
+                          className="rounded-lg border border-rose-200 p-2 text-rose-600 hover:bg-rose-50"
+                          aria-label="Remove pickup address"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ))}
               </div>
-            </div>
-          </div>
+            </section>
 
-          {/* Basic Information */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Basic Information
-              </h2>
-            </div>
-
-            <div className="p-6 space-y-5">
-              {/* Shop Name */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Shop Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.shopName}
-                  onChange={(e) => setFormData({ ...formData, shopName: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
-                  placeholder="Enter your shop name"
-                />
-              </div>
-
-              {/* Phone */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Phone Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
-                  placeholder="+880 1XXX-XXXXXX"
-                />
-              </div>
-
-              {/* Description/Bio */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Shop Description
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition resize-none"
-                  placeholder="Tell customers about your shop, products, and what makes you unique..."
-                  maxLength={500}
-                />
-                <p className="text-xs text-gray-500 mt-1 text-right">
-                  {formData.description.length}/500 characters
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Location Information */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Location Information
-              </h2>
-              <p className="text-orange-100 text-sm mt-1">Help customers find your shop</p>
-            </div>
-
-            <div className="p-6 space-y-5">
-              {/* Street Address */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Street Address
-                </label>
-                <input
-                  type="text"
-                  value={formData.address.street}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    address: { ...formData.address, street: e.target.value }
-                  })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
-                  placeholder="House/Building number, Street name"
-                />
-              </div>
-
-              {/* City & State */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    City/District
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.address.city}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      address: { ...formData.address, city: e.target.value }
-                    })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
-                    placeholder="e.g., Dhaka"
+            <div className="space-y-5">
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-slate-950">
+                  {editingPickupId ? "Edit pickup address" : "Add pickup address"}
+                </h2>
+                <form onSubmit={submitPickupAddress} className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Label"
+                    value={pickupForm.label}
+                    onChange={(value) => setPickupForm((form) => ({ ...form, label: value }))}
+                    placeholder="Dhaka warehouse"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    State/Division
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.address.state}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      address: { ...formData.address, state: e.target.value }
-                    })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
-                    placeholder="e.g., Dhaka Division"
+                  <Field
+                    label="Contact"
+                    value={pickupForm.contactName}
+                    onChange={(value) => setPickupForm((form) => ({ ...form, contactName: value }))}
+                    placeholder="Pickup contact"
                   />
-                </div>
-              </div>
-
-              {/* Zip Code & Country */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Zip/Postal Code
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.address.zipCode}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      address: { ...formData.address, zipCode: e.target.value }
-                    })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
-                    placeholder="e.g., 1200"
+                  <Field
+                    label="Phone"
+                    value={pickupForm.phone}
+                    onChange={(value) => setPickupForm((form) => ({ ...form, phone: value }))}
+                    placeholder="01XXXXXXXXX"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Country
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.address.country}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      address: { ...formData.address, country: e.target.value }
-                    })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition bg-gray-50"
-                    placeholder="Bangladesh"
+                  <Field
+                    label="District"
+                    value={pickupForm.district}
+                    onChange={(value) => setPickupForm((form) => ({ ...form, district: value }))}
+                    placeholder="Dhaka"
                   />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Settings */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h8m-8 4h8m-8 4h5M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
-                </svg>
-                Delivery Fees
-              </h2>
-              <p className="text-orange-100 text-sm mt-1">Control your own local delivery and pickup rules</p>
-            </div>
-
-            <div className="p-6 space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <label className="flex items-center justify-between rounded-lg border border-gray-200 p-4">
-                  <div>
-                    <p className="font-semibold text-gray-900">Vendor self delivery</p>
-                    <p className="text-xs text-gray-500">Use your fee rules for local delivery</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={formData.deliverySettings.selfDeliveryEnabled}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      deliverySettings: {
-                        ...formData.deliverySettings,
-                        selfDeliveryEnabled: e.target.checked,
-                      },
-                    })}
-                    className="h-5 w-5"
+                  <Field
+                    className="sm:col-span-2"
+                    label="Street"
+                    value={pickupForm.street}
+                    onChange={(value) => setPickupForm((form) => ({ ...form, street: value }))}
+                    placeholder="House, road, area"
                   />
-                </label>
-                <label className="flex items-center justify-between rounded-lg border border-gray-200 p-4">
-                  <div>
-                    <p className="font-semibold text-gray-900">Customer pickup</p>
-                    <p className="text-xs text-gray-500">Allow pickup from your shop</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={formData.deliverySettings.pickupEnabled}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      deliverySettings: {
-                        ...formData.deliverySettings,
-                        pickupEnabled: e.target.checked,
-                      },
-                    })}
-                    className="h-5 w-5"
+                  <Field
+                    label="Area"
+                    value={pickupForm.area}
+                    onChange={(value) => setPickupForm((form) => ({ ...form, area: value }))}
+                    placeholder="Mirpur"
                   />
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {[
-                  ['sameUnionFee', 'Same Union Fee'],
-                  ['sameUpazilaFee', 'Same Upazila Fee'],
-                  ['sameDistrictFee', 'Same District Fee'],
-                  ['outsideDistrictFee', 'Outside District Fee'],
-                  ['perishableFee', 'Fish/Vegetable/Frozen Extra Fee'],
-                  ['handlingFee', 'Packing/Handling Fee'],
-                  ['freeDeliveryThreshold', 'Free Delivery Above'],
-                ].map(([field, label]) => (
-                  <div key={field}>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {label} (BDT)
-                    </label>
+                  <Field
+                    label="City"
+                    value={pickupForm.city}
+                    onChange={(value) => setPickupForm((form) => ({ ...form, city: value }))}
+                    placeholder="Dhaka"
+                  />
+                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 sm:col-span-2">
                     <input
-                      type="number"
-                      min="0"
-                      value={formData.deliverySettings[field] || 0}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        deliverySettings: {
-                          ...formData.deliverySettings,
-                          [field]: parseFloat(e.target.value) || 0,
-                        },
-                      })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
+                      type="checkbox"
+                      checked={pickupForm.isDefault}
+                      onChange={(event) => setPickupForm((form) => ({ ...form, isDefault: event.target.checked }))}
+                      className="h-4 w-4 rounded border-slate-300 text-orange-600"
                     />
+                    Set as default pickup address
+                  </label>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 sm:col-span-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {editingPickupId ? "Update pickup address" : "Add pickup address"}
+                  </button>
+                </form>
+              </section>
+
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-slate-950">Return address</h2>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Contact"
+                    value={returnAddress.contactName}
+                    onChange={(value) => setReturnAddress((form) => ({ ...form, contactName: value }))}
+                    placeholder="Returns contact"
+                  />
+                  <Field
+                    label="Phone"
+                    value={returnAddress.phone}
+                    onChange={(value) => setReturnAddress((form) => ({ ...form, phone: value }))}
+                    placeholder="01XXXXXXXXX"
+                  />
+                  <Field
+                    className="sm:col-span-2"
+                    label="Street"
+                    value={returnAddress.street}
+                    onChange={(value) => setReturnAddress((form) => ({ ...form, street: value }))}
+                    placeholder="Separate return address"
+                  />
+                  <Field
+                    label="City"
+                    value={returnAddress.city}
+                    onChange={(value) => setReturnAddress((form) => ({ ...form, city: value }))}
+                    placeholder="City"
+                  />
+                  <Field
+                    label="District"
+                    value={returnAddress.district}
+                    onChange={(value) => setReturnAddress((form) => ({ ...form, district: value }))}
+                    placeholder="District"
+                  />
+                </div>
+              </section>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "vacation" && (
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">Holiday and vacation mode</h2>
+                <p className="text-sm text-slate-600">Pause new orders and show buyers a return message.</p>
+              </div>
+              <span
+                className={`inline-flex w-max rounded-full px-3 py-1 text-xs font-semibold ${
+                  vacationEnabled ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"
+                }`}
+              >
+                {vacationEnabled ? "Vacation active" : "Accepting orders"}
+              </span>
+            </div>
+
+            <form onSubmit={saveVacation} className="mt-5 grid gap-4 lg:grid-cols-2">
+              <Field
+                type="datetime-local"
+                label="Start"
+                value={vacationForm.vacationStart}
+                onChange={(value) => setVacationForm((form) => ({ ...form, vacationStart: value }))}
+              />
+              <Field
+                type="datetime-local"
+                label="Back on"
+                value={vacationForm.vacationEnd}
+                onChange={(value) => setVacationForm((form) => ({ ...form, vacationEnd: value }))}
+              />
+              <Field
+                label="Internal reason"
+                value={vacationForm.vacationReason}
+                onChange={(value) => setVacationForm((form) => ({ ...form, vacationReason: value }))}
+                placeholder="Eid holiday"
+              />
+              <Field
+                label="Buyer message"
+                value={vacationForm.buyerMessage}
+                onChange={(value) => setVacationForm((form) => ({ ...form, buyerMessage: value }))}
+                placeholder="Back on May 25"
+              />
+              <div className="flex flex-col gap-2 sm:flex-row lg:col-span-2">
+                <button
+                  type="submit"
+                  disabled={saving === "vacation"}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+                >
+                  {saving === "vacation" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarOff className="h-4 w-4" />}
+                  Save vacation mode
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelVacation}
+                  disabled={saving === "vacation"}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  Cancel vacation
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
+
+        {activeTab === "staff" && (
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">Staff accounts</h2>
+              <div className="mt-5 grid gap-3">
+                {staff.length === 0 && (
+                  <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+                    No staff accounts invited yet.
+                  </div>
+                )}
+                {staff.map((member) => (
+                  <div key={member._id || member.id || member.email} className="rounded-lg border border-slate-200 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="font-semibold text-slate-950">{member.name || member.email}</h3>
+                        <p className="text-sm text-slate-600">{member.email}</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {(member.permissions || []).map((permission) => (
+                            <span
+                              key={permission}
+                              className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
+                            >
+                              {permission}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => deleteStaff(member._id || member.id)}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 ))}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Preparation Time
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.deliverySettings.preparationTime || ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      deliverySettings: {
-                        ...formData.deliverySettings,
-                        preparationTime: e.target.value,
-                      },
-                    })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
-                    placeholder="e.g. 1-2 days, Same day"
-                  />
-                </div>
               </div>
-            </div>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">Invite team member</h2>
+              <form onSubmit={submitStaffInvite} className="mt-4 space-y-4">
+                <Field
+                  label="Name"
+                  value={staffForm.name}
+                  onChange={(value) => setStaffForm((form) => ({ ...form, name: value }))}
+                  placeholder="Team member name"
+                />
+                <Field
+                  label="Email"
+                  type="email"
+                  value={staffForm.email}
+                  onChange={(value) => setStaffForm((form) => ({ ...form, email: value }))}
+                  placeholder="name@example.com"
+                />
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">Role</label>
+                  <select
+                    value={staffForm.role}
+                    onChange={(event) => setStaffForm((form) => ({ ...form, role: event.target.value }))}
+                    className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                  >
+                    {staffRoles.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="submit"
+                  disabled={saving === "staff"}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                >
+                  {saving === "staff" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                  Invite staff
+                </button>
+              </form>
+            </section>
           </div>
+        )}
 
-          {/* Payment Settings */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-                Payment Settings
-              </h2>
-            </div>
-
-            <div className="p-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Preferred Payout Method
-              </label>
-              <select
-                value={formData.payoutMethod}
-                onChange={(e) => setFormData({ ...formData, payoutMethod: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
+        {activeTab === "notifications" && (
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">Notification preferences</h2>
+                <p className="text-sm text-slate-600">Choose which vendor events trigger email, SMS, or push alerts.</p>
+              </div>
+              <button
+                type="button"
+                onClick={saveNotifications}
+                disabled={saving === "notifications"}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
               >
-                <option value="">Select payout method</option>
-                <option value="bank">🏦 Bank Transfer</option>
-                <option value="bkash">💳 bKash</option>
-                <option value="nagad">💰 Nagad</option>
-                <option value="rocket">🚀 Rocket</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Account Status */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="bg-gray-100 px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-bold text-gray-900">Account Information</h2>
+                {saving === "notifications" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save notifications
+              </button>
             </div>
 
-            <div className="p-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Status</p>
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                    vendor.status === 'approved' ? 'bg-green-100 text-green-800' :
-                    vendor.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {vendor.status.charAt(0).toUpperCase() + vendor.status.slice(1)}
-                  </span>
+            <div className="mt-5 overflow-hidden rounded-lg border border-slate-200">
+              <div className="grid grid-cols-[minmax(210px,1fr)_repeat(3,86px)] bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+                <div className="px-4 py-3">Event</div>
+                {channels.map((channel) => (
+                  <div key={channel.key} className="px-3 py-3 text-center">
+                    {channel.label}
+                  </div>
+                ))}
+              </div>
+              {notificationEvents.map((event) => (
+                <div
+                  key={event.key}
+                  className="grid grid-cols-[minmax(210px,1fr)_repeat(3,86px)] border-t border-slate-200"
+                >
+                  <div className="px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-950">{event.label}</p>
+                    <p className="text-xs text-slate-500">{event.description}</p>
+                  </div>
+                  {channels.map((channel) => {
+                    const Icon = channel.icon;
+                    const checked = Boolean(notificationPreferences[event.key]?.[channel.key]);
+                    return (
+                      <div key={channel.key} className="flex items-center justify-center px-3 py-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleNotification(event.key, channel.key)}
+                          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border ${
+                            checked
+                              ? "border-orange-500 bg-orange-50 text-orange-700"
+                              : "border-slate-200 text-slate-400 hover:bg-slate-50"
+                          }`}
+                          aria-label={`${event.label} ${channel.label}`}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Shop Slug</p>
-                  <p className="font-medium text-gray-900">{vendor.slug}</p>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {activeTab === "security" && (
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">Two-factor authentication</h2>
+                <p className="text-sm text-slate-600">Protect finance, staff, and payout changes with authenticator codes.</p>
+              </div>
+              <span
+                className={`inline-flex w-max items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                  twoFactorEnabled ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                }`}
+              >
+                {twoFactorEnabled ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldOff className="h-3.5 w-3.5" />}
+                {twoFactorEnabled ? "Enabled" : "Disabled"}
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-5 lg:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                    <KeyRound className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-950">Authenticator app</h3>
+                    <p className="text-sm text-slate-600">TOTP codes work without a paid SMS API.</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Member Since</p>
-                  <p className="font-medium text-gray-900">
-                    {new Date(vendor.createdAt).toLocaleDateString('en-BD')}
+                {!twoFactorEnabled && (
+                  <button
+                    type="button"
+                    onClick={startTwoFactorSetup}
+                    disabled={saving === "security"}
+                    className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+                  >
+                    {saving === "security" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                    Start setup
+                  </button>
+                )}
+              </div>
+
+              {twoFactorEnabled ? (
+                <form onSubmit={turnOffTwoFactor} className="rounded-lg border border-slate-200 p-4">
+                  <h3 className="font-semibold text-slate-950">Disable 2FA</h3>
+                  <p className="mt-1 text-sm text-slate-600">Enter your current authenticator code to turn it off.</p>
+                  <Field
+                    className="mt-4"
+                    label="Authenticator code"
+                    value={disableCode}
+                    onChange={setDisableCode}
+                    placeholder="123456"
+                    inputMode="numeric"
+                  />
+                  <button
+                    type="submit"
+                    disabled={saving === "security"}
+                    className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                  >
+                    <ShieldOff className="h-4 w-4" />
+                    Disable 2FA
+                  </button>
+                </form>
+              ) : (
+                <div className="rounded-lg border border-slate-200 p-4">
+                  <h3 className="font-semibold text-slate-950">Setup status</h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Start setup to generate a QR code and manual secret for your authenticator app.
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Total Products</p>
-                  <p className="font-medium text-gray-900">{vendor.totalProducts || 0}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-4 sticky bottom-0 bg-gray-50 py-4 border-t border-gray-200">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 px-6 rounded-xl font-bold text-lg hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving Changes...
-                </>
-              ) : (
-                <>
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Save Changes
-                </>
               )}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/vendor/dashboard')}
-              className="px-8 py-4 border-2 border-gray-300 rounded-xl text-gray-700 font-semibold hover:bg-gray-100 hover:border-gray-400 transition-all"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
+            </div>
+
+            {twoFactorSetup && (
+              <form onSubmit={confirmTwoFactorSetup} className="mt-5 rounded-lg border border-orange-200 bg-orange-50 p-4">
+                <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+                  <div className="flex items-center justify-center rounded-lg bg-white p-4">
+                    {twoFactorSetup.qrCode ? (
+                      <img src={twoFactorSetup.qrCode} alt="2FA QR code" className="h-44 w-44" />
+                    ) : (
+                      <div className="text-center text-sm font-semibold text-orange-700">QR unavailable</div>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-950">Verify authenticator setup</h3>
+                    <p className="mt-2 text-sm text-slate-700">
+                      Manual key: <span className="font-mono font-semibold">{twoFactorSetup.manualEntryKey}</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard?.writeText(twoFactorSetup.manualEntryKey)}
+                      className="mt-2 inline-flex items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2 text-xs font-semibold text-orange-700 hover:bg-orange-100"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy key
+                    </button>
+                    <Field
+                      className="mt-4 max-w-xs"
+                      label="6-digit code"
+                      value={twoFactorCode}
+                      onChange={setTwoFactorCode}
+                      placeholder="123456"
+                      inputMode="numeric"
+                    />
+                    <button
+                      type="submit"
+                      disabled={saving === "security"}
+                      className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                    >
+                      {saving === "security" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      Verify and enable
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );
 };
+
+const Field = ({
+  label,
+  value,
+  onChange,
+  placeholder = "",
+  type = "text",
+  className = "",
+  inputMode,
+}) => (
+  <div className={className}>
+    <label className="text-sm font-semibold text-slate-700">{label}</label>
+    <input
+      type={type}
+      inputMode={inputMode}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+    />
+  </div>
+);
 
 export default VendorSettings;
