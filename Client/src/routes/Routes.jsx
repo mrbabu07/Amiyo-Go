@@ -5,6 +5,7 @@ import AdminLayout from "../layouts/AdminLayout";
 import VendorLayout from "../layouts/VendorLayout";
 import PrivateRoute from "../components/PrivateRoute";
 import AdminRoute from "../components/AdminRoute";
+import VendorRoute from "../components/VendorRoute";
 import Loading from "../components/Loading";
 
 const Home = lazy(() => import("../pages/Home"));
@@ -20,6 +21,8 @@ const Wishlist = lazy(() => import("../pages/Wishlist"));
 const SharedWishlist = lazy(() => import("../pages/SharedWishlist"));
 const Compare = lazy(() => import("../pages/Compare"));
 const Checkout = lazy(() => import("../pages/Checkout"));
+const GuestCheckout = lazy(() => import("../components/GuestCheckout"));
+const OrderConfirmation = lazy(() => import("../pages/OrderConfirmation"));
 const Orders = lazy(() => import("../pages/Orders"));
 const Profile = lazy(() => import("../pages/Profile"));
 const Messages = lazy(() => import("../pages/Messages"));
@@ -52,6 +55,7 @@ const VendorQA = lazy(() => import("../pages/vendor/VendorQA"));
 const VendorReturns = lazy(() => import("../pages/vendor/VendorReturns"));
 const VendorBulkUpload = lazy(() => import("../pages/vendor/VendorBulkUpload"));
 const VendorSupportChat = lazy(() => import("../pages/vendor/VendorSupportChat"));
+const VendorKyc = lazy(() => import("../pages/vendor/VendorKyc"));
 
 const AdminDashboard = lazy(() => import("../pages/admin/AdminDashboard"));
 const AdminDynamicCategories = lazy(() => import("../pages/admin/AdminDynamicCategories"));
@@ -77,9 +81,12 @@ const AdminVendors = lazy(() => import("../pages/admin/AdminVendorsEnhanced"));
 const AdminVendorDetail = lazy(() => import("../pages/admin/AdminVendorDetail"));
 const AdminPayouts = lazy(() => import("../pages/admin/AdminPayouts"));
 const AdminPayoutRequests = lazy(() => import("../pages/admin/AdminPayoutRequests"));
+const AdminPaymentVerifications = lazy(() => import("../pages/admin/AdminPaymentVerifications"));
 const AdminVendorChats = lazy(() => import("../pages/admin/AdminVendorChats"));
 const AdminChatDetail = lazy(() => import("../pages/admin/AdminChatDetail"));
 const VendorActivityDashboard = lazy(() => import("../pages/admin/VendorActivityDashboard"));
+const AdminVendorKyc = lazy(() => import("../pages/admin/AdminVendorKyc"));
+const AdminNewsletter = lazy(() => import("../pages/admin/AdminNewsletter"));
 
 const lazyElement = (Component) => (
   <Suspense fallback={<Loading />}>
@@ -120,6 +127,8 @@ const router = createBrowserRouter([
       { path: "/wishlist", element: privateElement(Wishlist) },
       { path: "/wishlist/shared/:shareId", element: lazyElement(SharedWishlist) },
       { path: "/checkout", element: privateElement(Checkout) },
+      { path: "/checkout/guest", element: lazyElement(GuestCheckout) },
+      { path: "/order-confirmation", element: lazyElement(OrderConfirmation) },
       { path: "/orders", element: privateElement(Orders) },
       { path: "/profile", element: privateElement(Profile) },
       { path: "/messages", element: privateElement(Messages) },
@@ -134,9 +143,9 @@ const router = createBrowserRouter([
   {
     path: "/vendor",
     element: (
-      <PrivateRoute>
+      <VendorRoute>
         <VendorLayout />
-      </PrivateRoute>
+      </VendorRoute>
     ),
     children: [
       { path: "dashboard", element: lazyElement(VendorHome) },
@@ -166,6 +175,7 @@ const router = createBrowserRouter([
       { path: "returns", element: lazyElement(VendorReturns) },
       { path: "qa", element: lazyElement(VendorQA) },
       { path: "support-chat", element: lazyElement(VendorSupportChat) },
+      { path: "kyc", element: lazyElement(VendorKyc) },
       { path: "category-requests", element: lazyElement(VendorCategoryRequests) },
       { path: "settings", element: lazyElement(VendorSettings) },
     ],
@@ -183,6 +193,7 @@ const router = createBrowserRouter([
       { path: "vendor-requests", element: lazyElement(AdminVendors) },
       { path: "vendors/:vendorId", element: lazyElement(AdminVendorDetail) },
       { path: "vendor-activity", element: lazyElement(VendorActivityDashboard) },
+      { path: "vendor-kyc", element: lazyElement(AdminVendorKyc) },
       { path: "chats", element: lazyElement(AdminVendorChats) },
       { path: "chat/:vendorId", element: lazyElement(AdminChatDetail) },
       { path: "products", element: lazyElement(AdminProducts) },
@@ -193,6 +204,8 @@ const router = createBrowserRouter([
       { path: "returns", element: lazyElement(AdminReturns) },
       { path: "payouts", element: lazyElement(AdminPayouts) },
       { path: "payout-requests", element: lazyElement(AdminPayoutRequests) },
+      { path: "payment-verifications", element: lazyElement(AdminPaymentVerifications) },
+      { path: "newsletter", element: lazyElement(AdminNewsletter) },
       { path: "categories", element: lazyElement(AdminDynamicCategories) },
       { path: "categories/manage", element: lazyElement(AdminCategoryManagement) },
       { path: "categories/:categoryId/attributes", element: lazyElement(AdminEditCategoryAttributes) },

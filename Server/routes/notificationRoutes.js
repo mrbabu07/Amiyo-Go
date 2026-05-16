@@ -12,12 +12,12 @@ const {
   markNotificationRead,
   markAllNotificationsRead,
 } = require("../controllers/notificationController");
-const { verifyToken } = require("../middleware/auth");
+const { verifyToken, verifyOptionalToken } = require("../middleware/auth");
 
 // Public routes (no auth required)
 router.get("/vapid-public-key", getVapidPublicKey);
-router.post("/subscribe", subscribe);
-router.post("/unsubscribe", unsubscribe);
+router.post("/subscribe", verifyOptionalToken, subscribe);
+router.post("/unsubscribe", verifyOptionalToken, unsubscribe);
 router.post("/test", sendTestNotificationPublic); // Public test endpoint
 
 // Protected routes (require authentication)

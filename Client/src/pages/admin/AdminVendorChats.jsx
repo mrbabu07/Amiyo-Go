@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
+import { subscribeRealtime } from '../../services/realtime';
 
 export default function AdminVendorChats() {
   const { user } = useAuth();
@@ -9,10 +10,25 @@ export default function AdminVendorChats() {
   const [filter, setFilter] = useState('all'); // 'all' or 'unread'
 
   useEffect(() => {
+    if (!user) return undefined;
     loadChats();
-    const interval = setInterval(loadChats, 10000); // Poll every 10 seconds
-    return () => clearInterval(interval);
-  }, [filter]);
+    let unsubscribe = () => {};
+    let disposed = false;
+
+    user.getIdToken().then((token) => {
+      if (disposed) return;
+      unsubscribe = subscribeRealtime({
+        token,
+        channel: "admin-vendor-chats",
+        onEvent: loadChats,
+      });
+    });
+
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [user, filter]);
 
   const loadChats = async () => {
     try {

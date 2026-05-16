@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
 const { verifyToken, verifyAdmin, requireRole, requireApprovedVendor } = require("../middleware/auth");
 const vendorController = require("../controllers/vendorController");
 const vendorDashboardController = require("../controllers/vendorDashboardController");
@@ -8,12 +9,42 @@ const adminFinanceController = require("../controllers/adminFinanceController");
 const vendorsFinanceController = require("../controllers/vendorsFinanceController");
 const vendorMarketingController = require("../controllers/vendorMarketingController");
 
+const memoryUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 8 * 1024 * 1024,
+    files: 3,
+  },
+  fileFilter: (req, file, cb) => {
+    const allowed = file.mimetype?.startsWith("image/") || file.mimetype === "application/pdf";
+    if (!allowed) return cb(new Error("Only images and PDF files are allowed"));
+    cb(null, true);
+  },
+});
+
 // Public vendor registration
 router.post("/register", verifyToken, vendorController.registerVendor);
 
+// Vendor KYC upload/review
+router.get("/kyc/me", verifyToken, vendorController.getMyKyc);
+router.post(
+  "/kyc",
+  verifyToken,
+  memoryUpload.fields([
+    { name: "nidFront", maxCount: 1 },
+    { name: "nidBack", maxCount: 1 },
+    { name: "tradeLicense", maxCount: 1 },
+  ]),
+  vendorController.submitVendorKyc,
+);
+router.get("/kyc/admin/pending", verifyToken, verifyAdmin, vendorController.getKycQueue);
+router.patch("/kyc/admin/:vendorId/review", verifyToken, verifyAdmin, vendorController.reviewVendorKyc);
+
 // Public vendor info (for product pages)
+router.get("/followed/feed", verifyToken, vendorController.getFollowedVendorFeed);
 router.get("/:id/public", vendorController.getVendorPublicInfo);
 router.get("/:id/public-marketing", vendorMarketingController.listPublicVendorMarketingItems);
+router.post("/:id/public-marketing/:itemId/event", vendorMarketingController.recordPublicVendorMarketingEvent);
 
 // Vendor follow/unfollow
 router.get("/:id/follow-status", verifyToken, vendorController.getFollowStatus);
@@ -23,8 +54,8 @@ router.delete("/:id/unfollow", verifyToken, vendorController.unfollowVendor);
 // Vendor profile management
 router.get("/me", verifyToken, vendorController.getMyVendorProfile);
 router.patch("/me", verifyToken, vendorController.updateVendorProfile);
-router.post("/upload-logo", verifyToken, vendorController.uploadLogo);
-router.post("/upload-banner", verifyToken, vendorController.uploadBanner);
+router.post("/upload-logo", verifyToken, memoryUpload.single("image"), vendorController.uploadLogo);
+router.post("/upload-banner", verifyToken, memoryUpload.single("image"), vendorController.uploadBanner);
 
 // Vendor allowed categories
 router.get("/my-categories", verifyToken, requireRole("vendor"), vendorController.getVendorAllowedCategories);

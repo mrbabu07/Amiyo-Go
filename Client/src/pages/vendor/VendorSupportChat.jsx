@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
+import { subscribeRealtime } from '../../services/realtime';
 
 export default function VendorSupportChat() {
   const { user } = useAuth();
@@ -14,10 +15,31 @@ export default function VendorSupportChat() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    if (!user) return undefined;
     loadChat();
-    const interval = setInterval(loadChat, 5000); // Poll every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
+    return undefined;
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !chat?.vendorId) return undefined;
+
+    let unsubscribe = () => {};
+    let disposed = false;
+
+    user.getIdToken().then((token) => {
+      if (disposed) return;
+      unsubscribe = subscribeRealtime({
+        token,
+        channel: `admin-vendor-chat:${chat.vendorId}`,
+        onEvent: loadChat,
+      });
+    });
+
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [user, chat?.vendorId]);
 
   const loadChat = async () => {
     try {

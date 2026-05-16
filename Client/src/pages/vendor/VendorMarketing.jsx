@@ -7,6 +7,7 @@ import {
   getActiveCoupons,
   getActivePopupOffer,
   getVendorMarketingItems,
+  joinPlatformCampaign,
   updateVendorMarketingItem,
 } from "../../services/api";
 import useAuth from "../../hooks/useAuth";
@@ -88,6 +89,7 @@ export default function VendorMarketing() {
   const [loadingPromotions, setLoadingPromotions] = useState(false);
   const [loadingItems, setLoadingItems] = useState(false);
   const [savingItem, setSavingItem] = useState(false);
+  const [joiningCampaignId, setJoiningCampaignId] = useState(null);
   const [editingItemId, setEditingItemId] = useState(null);
   const [formState, setFormState] = useState(initialFormByType);
 
@@ -136,6 +138,23 @@ export default function VendorMarketing() {
       setLoadingItems(false);
     }
   }, []);
+
+  const joinCampaign = async (campaignId) => {
+    setJoiningCampaignId(campaignId);
+    try {
+      await joinPlatformCampaign(campaignId);
+      toast.success("Campaign joined");
+      setCampaigns((current) =>
+        current.map((campaign) =>
+          campaign._id === campaignId ? { ...campaign, joined: true } : campaign,
+        ),
+      );
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to join campaign");
+    } finally {
+      setJoiningCampaignId(null);
+    }
+  };
 
   useEffect(() => {
     fetchCampaigns();
@@ -492,6 +511,20 @@ export default function VendorMarketing() {
                             <p className="font-semibold">{campaign.maxProductsPerVendor || 0}</p>
                           </div>
                         </div>
+                        <div className="mt-4 flex justify-end">
+                          <button
+                            type="button"
+                            disabled={campaign.joined || joiningCampaignId === campaign._id}
+                            onClick={() => joinCampaign(campaign._id)}
+                            className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+                              campaign.joined
+                                ? "bg-green-50 text-green-700"
+                                : "bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-60"
+                            }`}
+                          >
+                            {campaign.joined ? "Joined" : joiningCampaignId === campaign._id ? "Joining..." : "Join"}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -551,6 +584,24 @@ export default function VendorMarketing() {
                             {item.startDate ? new Date(item.startDate).toLocaleDateString() : "N/A"} - {item.endDate ? new Date(item.endDate).toLocaleDateString() : "N/A"}
                           </p>
                         </div>
+                        {item.status === "approved" ? (
+                          <>
+                            <div>
+                              <p className="text-xs uppercase text-gray-400">Views</p>
+                              <p>{item.viewCount || 0}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase text-gray-400">Clicks</p>
+                              <p>{item.clickCount || 0}</p>
+                            </div>
+                            {item.type === "voucher" ? (
+                              <div>
+                                <p className="text-xs uppercase text-gray-400">Uses</p>
+                                <p>{item.usedCount || 0}</p>
+                              </div>
+                            ) : null}
+                          </>
+                        ) : null}
                       </div>
 
                       {item.adminNotes ? (

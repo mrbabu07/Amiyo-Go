@@ -1,6 +1,7 @@
 const StockAlert = require("../models/StockAlert");
 const mongoose = require("mongoose");
 const emailService = require("./emailService");
+const NotificationService = require("./notificationService");
 
 const productSchema = new mongoose.Schema({}, { strict: false });
 const Product =
@@ -8,7 +9,7 @@ const Product =
 
 class StockAlertService {
   // Check and send back-in-stock alerts
-  async checkBackInStockAlerts() {
+  async checkBackInStockAlerts(models = null) {
     try {
       // Find products that are now in stock
       const products = await Product.find({ stock: { $gt: 0 } });
@@ -25,7 +26,7 @@ class StockAlertService {
       console.log(`Found ${alerts.length} back-in-stock alerts to send`);
 
       for (const alert of alerts) {
-        await this.sendBackInStockEmail(alert);
+        await this.sendBackInStockEmail(alert, models);
         alert.notified = true;
         alert.notifiedAt = new Date();
         await alert.save();
@@ -68,7 +69,7 @@ class StockAlertService {
   }
 
   // Check and send low stock warnings to customers
-  async checkLowStockAlerts() {
+  async checkLowStockAlerts(models = null) {
     try {
       // Find products with low stock (less than 10)
       const lowStockProducts = await Product.find({
@@ -87,7 +88,7 @@ class StockAlertService {
       console.log(`Found ${alerts.length} low stock alerts to send`);
 
       for (const alert of alerts) {
-        await this.sendLowStockEmail(alert);
+        await this.sendLowStockEmail(alert, models);
         alert.notified = true;
         alert.notifiedAt = new Date();
         await alert.save();
@@ -101,7 +102,7 @@ class StockAlertService {
   }
 
   // Send back-in-stock email
-  async sendBackInStockEmail(alert) {
+  async sendBackInStockEmail(alert, models = null) {
     try {
       const product = alert.productId;
       console.log(
@@ -124,8 +125,23 @@ class StockAlertService {
         `,
       };
 
-      // TODO: Integrate with actual email service (Nodemailer, SendGrid, etc.)
-      // await emailService.send(emailContent);
+      const productTitle = product.title || product.name || "Product";
+      await emailService.sendStockAlert({
+        userEmail: alert.email,
+        userName: "there",
+        productTitle,
+        productImage: product.images?.[0] || product.image || "",
+        productUrl: `${process.env.FRONTEND_URL || ""}/products/${product._id}`,
+      });
+
+      if (alert.userId) {
+        const productData = product.toObject?.() || product;
+        await NotificationService.sendBackInStockNotification(
+          { ...productData, title: productTitle },
+          [alert.userId],
+          models,
+        ).catch((error) => console.error("Back-in-stock push failed:", error.message));
+      }
 
       return true;
     } catch (error) {
@@ -163,8 +179,17 @@ class StockAlertService {
         `,
       };
 
-      // TODO: Integrate with actual email service
-      // await emailService.send(emailContent);
+      await emailService.sendEmail(emailContent.to, emailContent.subject, emailContent.html);
+
+      if (alert.userId) {
+        const productData = product.toObject?.() || product;
+        await NotificationService.sendStockAlertNotification(
+          "low_stock",
+          { ...productData, title: product.title || product.name || "Product" },
+          [alert.userId],
+          models,
+        ).catch((error) => console.error("Low-stock push failed:", error.message));
+      }
 
       return true;
     } catch (error) {
@@ -174,7 +199,7 @@ class StockAlertService {
   }
 
   // Send low stock email
-  async sendLowStockEmail(alert) {
+  async sendLowStockEmail(alert, models = null) {
     try {
       const product = alert.productId;
       console.log(
@@ -207,12 +232,12 @@ class StockAlertService {
   }
 
   // Check all alerts (to be run periodically)
-  async checkAllAlerts() {
+  async checkAllAlerts(models = null) {
     console.log("🔔 Checking all stock alerts...");
 
-    const backInStock = await this.checkBackInStockAlerts();
+    const backInStock = await this.checkBackInStockAlerts(models);
     const priceDrops = await this.checkPriceDropAlerts();
-    const lowStock = await this.checkLowStockAlerts();
+    const lowStock = await this.checkLowStockAlerts(models);
 
     console.log(
       `✅ Alerts sent: ${backInStock} back-in-stock, ${priceDrops} price drops, ${lowStock} low stock`,

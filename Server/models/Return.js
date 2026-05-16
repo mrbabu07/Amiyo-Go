@@ -49,7 +49,17 @@ class Return {
       vendorResponseDate: null,
       vendorResponseNotes: null,
       vendorEvidenceImages: [], // Photos/documents uploaded by vendor
+      vendorEvidenceFiles: [],
       disputeReason: null, // Why vendor disputes the return
+      timeline: [
+        {
+          status: "submitted",
+          label: "Return submitted",
+          at: new Date(),
+          actorRole: "user",
+          note: returnData.reason || "",
+        },
+      ],
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -84,7 +94,18 @@ class Return {
 
     return await this.collection.updateOne(
       { _id: new ObjectId(id) },
-      { $set: updateData },
+      {
+        $set: updateData,
+        $push: {
+          timeline: {
+            status,
+            label: `Return ${status}`,
+            at: new Date(),
+            actorRole: "admin",
+            note: adminNotes || "",
+          },
+        },
+      },
     );
   }
 
@@ -182,6 +203,15 @@ class Return {
           refundProcessedAt: new Date(),
           status: "completed",
           updatedAt: new Date(),
+        },
+        $push: {
+          timeline: {
+            status: "resolved",
+            label: "Refund processed",
+            at: new Date(),
+            actorRole: "admin",
+            note: refundMethod,
+          },
         },
       },
     );
@@ -316,7 +346,7 @@ class Return {
    * Vendor responds to return request (approve or dispute)
    */
   async vendorRespond(returnId, vendorId, response) {
-    const { action, notes, evidenceImages = [], disputeReason = null } = response;
+    const { action, notes, evidenceImages = [], evidenceFiles = [], disputeReason = null } = response;
 
     if (!['approved', 'disputed'].includes(action)) {
       throw new Error('Invalid vendor response action');
@@ -345,6 +375,7 @@ class Return {
       vendorResponseDate: new Date(),
       vendorResponseNotes: notes || null,
       vendorEvidenceImages: evidenceImages,
+      vendorEvidenceFiles: evidenceFiles.length ? evidenceFiles : evidenceImages,
       updatedAt: new Date(),
     };
 
@@ -364,7 +395,18 @@ class Return {
 
     return await this.collection.updateOne(
       { _id: new ObjectId(returnId) },
-      { $set: updateData }
+      {
+        $set: updateData,
+        $push: {
+          timeline: {
+            status: action === "disputed" ? "under_review" : "approved",
+            label: action === "disputed" ? "Vendor disputed return" : "Vendor approved return",
+            at: new Date(),
+            actorRole: "vendor",
+            note: notes || disputeReason || "",
+          },
+        },
+      }
     );
   }
 

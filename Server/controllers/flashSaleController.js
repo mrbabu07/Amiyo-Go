@@ -168,7 +168,7 @@ exports.createFlashSale = async (req, res) => {
           title: flashSale.title,
           discountPercentage: flashSale.discountPercentage,
           product: productDoc,
-        });
+        }, null, req.app.locals.models);
 
         console.log("✅ Flash sale notification sent successfully");
       } catch (notificationError) {

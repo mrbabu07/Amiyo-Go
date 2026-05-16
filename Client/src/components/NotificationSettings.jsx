@@ -4,6 +4,8 @@ import pushNotificationService, {
 } from "../services/pushNotifications";
 import useAuth from "../hooks/useAuth";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
 export default function NotificationSettings() {
   const { user } = useAuth();
   const [notificationStatus, setNotificationStatus] = useState({
@@ -36,9 +38,10 @@ export default function NotificationSettings() {
     if (!user) return;
 
     try {
-      const response = await fetch("/api/user/notification-preferences", {
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_URL}/user/notification-preferences`, {
         headers: {
-          Authorization: `Bearer ${user.accessToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -57,11 +60,12 @@ export default function NotificationSettings() {
     if (!user) return;
 
     try {
-      const response = await fetch("/api/user/notification-preferences", {
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_URL}/user/notification-preferences`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.accessToken}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(newPreferences),
       });

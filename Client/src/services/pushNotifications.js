@@ -1,3 +1,7 @@
+import { auth } from "../firebase/firebase.config";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
 // Push Notifications Service
 class PushNotificationService {
   constructor() {
@@ -6,11 +10,20 @@ class PushNotificationService {
     this.publicKey = null; // Will be fetched from server
   }
 
+  async getAuthHeaders() {
+    const headers = { "Content-Type": "application/json" };
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      headers.Authorization = `Bearer ${await currentUser.getIdToken()}`;
+    }
+    return headers;
+  }
+
   // Initialize service and fetch VAPID public key
   async initialize() {
     if (!this.publicKey) {
       try {
-        const response = await fetch("/api/notifications/vapid-public-key");
+        const response = await fetch(`${API_URL}/notifications/vapid-public-key`);
         const data = await response.json();
         if (data.success) {
           this.publicKey = data.publicKey;
@@ -146,11 +159,9 @@ class PushNotificationService {
   // Send subscription to server
   async sendSubscriptionToServer(subscription) {
     try {
-      const response = await fetch("/api/notifications/subscribe", {
+      const response = await fetch(`${API_URL}/notifications/subscribe`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({
           subscription: subscription.toJSON(),
           userAgent: navigator.userAgent,
@@ -172,11 +183,9 @@ class PushNotificationService {
   // Remove subscription from server
   async removeSubscriptionFromServer(subscription) {
     try {
-      const response = await fetch("/api/notifications/unsubscribe", {
+      const response = await fetch(`${API_URL}/notifications/unsubscribe`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: await this.getAuthHeaders(),
         body: JSON.stringify({
           subscription: subscription.toJSON(),
         }),

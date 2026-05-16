@@ -5,6 +5,11 @@ import { useCurrency } from "../../hooks/useCurrency";
 import Loading from "../../components/Loading";
 import toast, { Toaster } from "react-hot-toast";
 import { generateVendorPackingSlip } from "../../utils/vendorPackingSlip";
+import {
+  downloadVendorBarcodeLabel,
+  downloadVendorPackingSlip,
+  markOrderPickupReady,
+} from "../../services/api";
 
 const statusConfig = {
   pending: {
@@ -16,6 +21,11 @@ const statusConfig = {
     color: "bg-blue-100 text-blue-800 border-blue-200",
     icon: "🔄",
     label: "Processing",
+  },
+  pickup_ready: {
+    color: "bg-cyan-100 text-cyan-800 border-cyan-200",
+    icon: "PK",
+    label: "Pickup Ready",
   },
   shipped: {
     color: "bg-purple-100 text-purple-800 border-purple-200",
@@ -55,6 +65,29 @@ const getCancellationMessage = (order) => {
   return userCancelHistory ? "User cancelled this order." : "";
 };
 
+const getSlaStatus = (order, vendorProfile) => {
+  const rawHours = Number.parseInt(vendorProfile?.processingTime, 10);
+  const hours = Number.isFinite(rawHours) && rawHours > 0 ? rawHours : 24;
+  const start = new Date(order.acceptedAt || order.createdAt || Date.now()).getTime();
+  const dueAt = start + hours * 60 * 60 * 1000;
+  const remainingMs = dueAt - Date.now();
+  const absoluteHours = Math.ceil(Math.abs(remainingMs) / (60 * 60 * 1000));
+
+  if (["shipped", "delivered", "cancelled"].includes(order.status)) {
+    return { label: "SLA done", color: "bg-gray-100 text-gray-600" };
+  }
+
+  if (remainingMs < 0) {
+    return { label: `${absoluteHours}h overdue`, color: "bg-red-50 text-red-700" };
+  }
+
+  if (remainingMs <= 4 * 60 * 60 * 1000) {
+    return { label: `${absoluteHours}h left`, color: "bg-amber-50 text-amber-700" };
+  }
+
+  return { label: `${absoluteHours}h left`, color: "bg-green-50 text-green-700" };
+};
+
 export default function VendorOrders() {
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
@@ -72,6 +105,7 @@ export default function VendorOrders() {
     total: orders.length,
     pending: orders.filter((o) => o.status === "pending").length,
     processing: orders.filter((o) => o.status === "processing").length,
+    pickupReady: orders.filter((o) => o.status === "pickup_ready").length,
     delivered: orders.filter((o) => o.status === "delivered").length,
     cancelled: orders.filter((o) => o.status === "cancelled").length,
   };
@@ -196,6 +230,54 @@ export default function VendorOrders() {
   };
 
   // ── copy address ───────────────────────────────────────
+  const openPdfBlob = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.download = filename;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  };
+
+  const downloadPackingSlipPdf = async (orderId) => {
+    try {
+      const response = await downloadVendorPackingSlip(orderId);
+      openPdfBlob(response.data, `packing-slip-${orderId}.pdf`);
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to open packing slip");
+    }
+  };
+
+  const downloadBarcodePdf = async (orderId) => {
+    try {
+      const response = await downloadVendorBarcodeLabel(orderId);
+      openPdfBlob(response.data, `barcode-label-${orderId}.pdf`);
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to open barcode label");
+    }
+  };
+
+  const markPickupReady = async (orderId) => {
+    setUpdatingStatus(orderId);
+    const loadingToast = toast.loading("Marking pickup ready...");
+    try {
+      await markOrderPickupReady(orderId);
+      setOrders((prev) =>
+        prev.map((order) =>
+          order._id === orderId ? { ...order, status: "pickup_ready", pickupReadyAt: new Date().toISOString() } : order,
+        ),
+      );
+      toast.success("Pickup ready", { id: loadingToast });
+      fetchOrders();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to mark pickup ready", { id: loadingToast });
+    } finally {
+      setUpdatingStatus(null);
+    }
+  };
+
   const copyAddress = (shippingInfo) => {
     const addr = [
       shippingInfo.name,
@@ -286,11 +368,12 @@ export default function VendorOrders() {
         </div>
 
         {/* ── Stats Cards ────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
           {[
             { label: "Total Orders", value: stats.total, color: "text-gray-900" },
             { label: "Pending", value: stats.pending, color: "text-yellow-600" },
             { label: "Processing", value: stats.processing, color: "text-blue-600" },
+            { label: "Pickup Ready", value: stats.pickupReady, color: "text-cyan-600" },
             { label: "Delivered", value: stats.delivered, color: "text-green-600" },
             { label: "Cancelled", value: stats.cancelled, color: "text-red-600" },
           ].map((s) => (
@@ -329,7 +412,7 @@ export default function VendorOrders() {
 
           {/* Filter tabs */}
           <div className="flex flex-wrap gap-2">
-            {["all", "pending", "processing", "shipped", "delivered", "cancelled"].map(
+            {["all", "pending", "processing", "pickup_ready", "shipped", "delivered", "cancelled"].map(
               (status) => (
                 <button
                   key={status}
@@ -340,7 +423,7 @@ export default function VendorOrders() {
                       : "text-gray-600 hover:bg-gray-100"
                   }`}
                 >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                  {status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())}
                   {status !== "all" && (
                     <span className="ml-1.5 text-xs opacity-75">
                       ({orders.filter((o) => o.status === status).length})
@@ -388,6 +471,7 @@ export default function VendorOrders() {
               };
               const isExpanded = expandedOrder === order._id;
               const products = order.products || [];
+              const sla = getSlaStatus(order, vendorProfile);
 
               return (
                 <div
@@ -422,6 +506,9 @@ export default function VendorOrders() {
                                 {order.paymentMethod.toUpperCase()}
                               </span>
                             )}
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${sla.color}`}>
+                              {sla.label}
+                            </span>
                           </div>
                           <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
                             <span>
@@ -453,7 +540,7 @@ export default function VendorOrders() {
                       </div>
 
                       {/* Right — price + print + status dropdown + chevron */}
-                      <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-wrap items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
                         <div className="text-right">
                           <p className="text-xs text-gray-400">{products.length} item{products.length !== 1 ? "s" : ""}</p>
                           <p className="font-bold text-lg text-orange-600">
@@ -471,6 +558,29 @@ export default function VendorOrders() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                           </svg>
                         </button>
+                        <button
+                          onClick={() => downloadPackingSlipPdf(order._id)}
+                          className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                          title="Download PDF packing slip"
+                        >
+                          PDF
+                        </button>
+                        <button
+                          onClick={() => downloadBarcodePdf(order._id)}
+                          className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                          title="Print barcode label"
+                        >
+                          Barcode
+                        </button>
+                        {!["pickup_ready", "shipped", "delivered", "cancelled"].includes(order.status) && (
+                          <button
+                            onClick={() => markPickupReady(order._id)}
+                            disabled={updatingStatus === order._id || Boolean(getCancellationMessage(order))}
+                            className="rounded-lg bg-cyan-600 px-3 py-2 text-xs font-semibold text-white hover:bg-cyan-700 disabled:opacity-60"
+                          >
+                            Pickup Ready
+                          </button>
+                        )}
 
                         {/* Status dropdown */}
                         <select
@@ -484,6 +594,7 @@ export default function VendorOrders() {
                         >
                           <option value="pending">⏳ Pending</option>
                           <option value="processing">🔄 Processing</option>
+                          <option value="pickup_ready">Pickup Ready</option>
                           <option value="shipped">📦 Shipped</option>
                           <option value="delivered">✅ Delivered</option>
                           <option value="cancelled">❌ Cancelled</option>

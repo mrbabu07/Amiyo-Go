@@ -121,6 +121,16 @@ exports.sendVendorMessage = async (req, res) => {
       attachments,
     });
 
+    req.app.locals.realtime?.broadcast(`admin-vendor-chat:${vendorId}`, "message.created", {
+      vendorId: vendorId.toString(),
+      message: newMessage,
+    });
+    req.app.locals.realtime?.broadcast("admin-vendor-chats", "chat.updated", {
+      vendorId: vendorId.toString(),
+      senderType: "vendor",
+      message: newMessage,
+    });
+
     res.json({
       success: true,
       data: newMessage,
@@ -245,6 +255,16 @@ exports.sendAdminMessage = async (req, res) => {
       senderType: "admin",
       message: message?.trim() || "",
       attachments,
+    });
+
+    req.app.locals.realtime?.broadcast(`admin-vendor-chat:${vendorId}`, "message.created", {
+      vendorId: vendorId.toString(),
+      message: newMessage,
+    });
+    req.app.locals.realtime?.broadcast("admin-vendor-chats", "chat.updated", {
+      vendorId: vendorId.toString(),
+      senderType: "admin",
+      message: newMessage,
     });
 
     res.json({

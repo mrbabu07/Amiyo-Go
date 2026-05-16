@@ -3,7 +3,7 @@ import useAuth from "../hooks/useAuth";
 import Loading from "./Loading";
 
 export default function AdminRoute({ children }) {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading, isAdminStaff } = useAuth();
 
   if (loading) {
     return <Loading />;
@@ -13,5 +13,5 @@ export default function AdminRoute({ children }) {
     return <Navigate to="/login" />;
   }
 
-  return isAdmin ? children : <Navigate to="/" />;
+  return isAdminStaff ? children : <Navigate to="/" />;
 }

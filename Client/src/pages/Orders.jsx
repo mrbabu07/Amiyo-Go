@@ -178,7 +178,7 @@ export default function Orders() {
     setUploadingImages(true);
 
     try {
-      // Upload images to ImgBB if any are selected
+      // Upload images through the app storage endpoint if any are selected
       let imageUrls = [];
       if (selectedFiles.length > 0) {
         console.log("Uploading images...");

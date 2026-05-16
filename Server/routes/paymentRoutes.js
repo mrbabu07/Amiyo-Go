@@ -9,6 +9,9 @@ const {
   updatePaymentStatus,
   processRefund,
   getPaymentStats,
+  getManualPaymentQueue,
+  approveManualPayment,
+  rejectManualPayment,
   getOrderPayment,
   handleStripeWebhook,
   handleBkashWebhook,
@@ -31,6 +34,9 @@ router.post("/process", processPayment);
 // Admin routes
 router.get("/", verifyAdmin, getAllPayments);
 router.get("/stats", verifyAdmin, getPaymentStats);
+router.get("/manual-verifications", verifyAdmin, getManualPaymentQueue);
+router.patch("/manual-verifications/:orderId/approve", verifyAdmin, approveManualPayment);
+router.patch("/manual-verifications/:orderId/reject", verifyAdmin, rejectManualPayment);
 router.patch("/:id/status", verifyAdmin, updatePaymentStatus);
 router.post("/:id/refund", verifyAdmin, processRefund);
 

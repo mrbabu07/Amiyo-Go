@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { getVendorReturns, getVendorReturnStats, vendorRespondToReturn } from '../../services/api';
+import { getVendorReturns, getVendorReturnStats, uploadImages, vendorRespondToReturn } from '../../services/api';
 import { useCurrency } from '../../hooks/useCurrency';
 import Modal from '../../components/Modal';
 
@@ -89,12 +89,16 @@ export default function VendorReturns() {
   const handleEvidenceUpload = (e) => {
     const files = Array.from(e.target.files);
     if (files.length + evidenceImages.length > 5) {
-      toast.error('Maximum 5 images allowed');
+      toast.error('Maximum 5 evidence files allowed');
       return;
     }
 
     // Create preview URLs
-    const newPreviews = files.map(file => URL.createObjectURL(file));
+    const newPreviews = files.map(file => ({
+      url: URL.createObjectURL(file),
+      type: file.type,
+      name: file.name,
+    }));
     setEvidencePreview([...evidencePreview, ...newPreviews]);
     setEvidenceImages([...evidenceImages, ...files]);
   };
@@ -112,23 +116,17 @@ export default function VendorReturns() {
 
     setSubmitting(true);
     try {
-      // Upload evidence images if any
       let uploadedUrls = [];
       if (evidenceImages.length > 0) {
-        const formData = new FormData();
-        evidenceImages.forEach(file => {
-          formData.append('images', file);
-        });
-
-        // You'll need to implement image upload endpoint
-        // For now, we'll use placeholder URLs
-        uploadedUrls = evidenceImages.map((_, i) => `evidence_${Date.now()}_${i}.jpg`);
+        const uploadResponse = await uploadImages(evidenceImages, 'returns/vendor-evidence');
+        uploadedUrls = uploadResponse.data?.urls || [];
       }
 
       await vendorRespondToReturn(selectedReturn._id, {
         action: responseAction,
         notes: responseNotes || null,
         evidenceImages: uploadedUrls,
+        evidenceFiles: uploadedUrls,
         disputeReason: responseAction === 'disputed' ? disputeReason : null,
       });
 
@@ -535,7 +533,7 @@ export default function VendorReturns() {
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*,.pdf"
                     multiple
                     onChange={handleEvidenceUpload}
                     className="hidden"
@@ -548,8 +546,8 @@ export default function VendorReturns() {
                     <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <span className="text-sm text-gray-600">Click to upload photos/documents</span>
-                    <span className="text-xs text-gray-500 mt-1">Max 5 images</span>
+                    <span className="text-sm text-gray-600">Click to upload photos, videos, or PDFs</span>
+                    <span className="text-xs text-gray-500 mt-1">Max 5 files, 50MB each</span>
                   </label>
                 </div>
 
@@ -558,11 +556,17 @@ export default function VendorReturns() {
                   <div className="grid grid-cols-3 gap-2 mt-3">
                     {evidencePreview.map((preview, idx) => (
                       <div key={idx} className="relative group">
-                        <img
-                          src={preview}
-                          alt={`Evidence ${idx + 1}`}
-                          className="w-full h-24 object-cover rounded"
-                        />
+                        {preview.type?.startsWith('image/') ? (
+                          <img
+                            src={preview.url}
+                            alt={`Evidence ${idx + 1}`}
+                            className="w-full h-24 object-cover rounded"
+                          />
+                        ) : (
+                          <div className="flex h-24 items-center justify-center rounded bg-gray-100 px-2 text-center text-xs text-gray-600">
+                            {preview.name}
+                          </div>
+                        )}
                         <button
                           onClick={() => removeEvidence(idx)}
                           className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition"

@@ -8,41 +8,49 @@ import {
   signInWithPopup,
 } from "firebase/auth";
 import { auth } from "../firebase/firebase.config";
-import { getCurrentUser } from "../services/api";
+import { getCurrentUser, getMyVendorProfile } from "../services/api";
 
 export const AuthContext = createContext(null);
 
 const googleProvider = new GoogleAuthProvider();
+const ADMIN_ROLES = ["admin", "manager", "support", "moderator"];
 
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [dbUser, setDbUser] = useState(null);
+  const [jwtClaims, setJwtClaims] = useState({});
+  const [vendorProfile, setVendorProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdminStaff, setIsAdminStaff] = useState(false);
 
-  // register
   const createUser = (email, password) => {
     setLoading(true);
     return createUserWithEmailAndPassword(auth, email, password);
   };
 
-  // login
   const signIn = (email, password) => {
     setLoading(true);
     return signInWithEmailAndPassword(auth, email, password);
   };
 
-  // google login
   const googleLogin = () => {
     setLoading(true);
     return signInWithPopup(auth, googleProvider);
   };
 
-  // logout
+  const resetAuthMetadata = () => {
+    setDbUser(null);
+    setJwtClaims({});
+    setVendorProfile(null);
+    setIsAdmin(false);
+    setIsAdminStaff(false);
+  };
+
   const logOut = () => {
     setLoading(true);
-    setIsAdmin(false);
+    resetAuthMetadata();
 
-    // Clear all offer popup flags from sessionStorage
     Object.keys(sessionStorage).forEach((key) => {
       if (key.startsWith("offerPopupShown_")) {
         sessionStorage.removeItem(key);
@@ -52,45 +60,38 @@ const AuthProvider = ({ children }) => {
     return signOut(auth);
   };
 
-  // auth observer
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
 
       if (currentUser) {
         try {
-          console.log("🔍 Fetching user data for:", currentUser.email);
-          console.log("🔑 Current Firebase UID:", currentUser.uid);
-          
           const response = await getCurrentUser();
-          console.log("📦 User response:", response);
-          console.log("👤 User data:", response.data);
-          
-          // Extract role from nested data structure
-          const userData = response.data?.data;
-          const userRole = userData?.role;
-          
-          console.log("🎭 User role:", userRole);
-          console.log("📋 Full user object:", JSON.stringify(userData, null, 2));
-          
-          const isUserAdmin = userRole === "admin";
-          
-          setIsAdmin(isUserAdmin);
-          console.log("✅ isAdmin set to:", isUserAdmin);
-          
-          if (!isUserAdmin && currentUser.email === "admin@bazarbd.com") {
-            console.error("⚠️ WARNING: admin@bazarbd.com is not showing as admin!");
-            console.error("⚠️ This means the backend is returning wrong role");
-            console.error("⚠️ Check backend logs for user lookup");
+          const tokenResult = await currentUser.getIdTokenResult().catch(() => null);
+          const userData = response.data?.data || null;
+          const claims = tokenResult?.claims || {};
+          const userRole = userData?.role || claims.role || null;
+
+          setJwtClaims(claims);
+          setDbUser(userData);
+          setIsAdmin(userRole === "admin");
+          setIsAdminStaff(ADMIN_ROLES.includes(userRole));
+
+          try {
+            const vendorResponse = await getMyVendorProfile();
+            setVendorProfile(vendorResponse.data?.vendor || null);
+          } catch (vendorError) {
+            if (vendorError.response?.status !== 404) {
+              console.error("Failed to fetch vendor profile:", vendorError);
+            }
+            setVendorProfile(null);
           }
         } catch (error) {
-          console.error("❌ Failed to fetch user data:", error);
-          console.error("Error details:", error.response?.data);
-          setIsAdmin(false);
+          console.error("Failed to fetch user data:", error);
+          resetAuthMetadata();
         }
       } else {
-        console.log("👤 No user logged in");
-        setIsAdmin(false);
+        resetAuthMetadata();
       }
 
       setLoading(false);
@@ -101,8 +102,15 @@ const AuthProvider = ({ children }) => {
 
   const authInfo = {
     user,
+    dbUser,
+    jwtRole: jwtClaims.role || null,
+    role: dbUser?.role || jwtClaims.role || null,
+    permissions: dbUser?.permissions || {},
+    vendorProfile,
+    vendorStatus: vendorProfile?.status || null,
     loading,
     isAdmin,
+    isAdminStaff,
     createUser,
     signIn,
     googleLogin,

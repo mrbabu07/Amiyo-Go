@@ -401,7 +401,7 @@ const vendorRespondToReturn = async (req, res) => {
   try {
     const Return = req.app.locals.models.Return;
     const { id } = req.params;
-    const { action, notes, evidenceImages, disputeReason } = req.body;
+    const { action, notes, evidenceImages, evidenceFiles, disputeReason } = req.body;
     const vendorId = req.user.vendorId;
 
     if (!vendorId) {
@@ -429,6 +429,7 @@ const vendorRespondToReturn = async (req, res) => {
       action,
       notes,
       evidenceImages: evidenceImages || [],
+      evidenceFiles: evidenceFiles || evidenceImages || [],
       disputeReason,
     });
 

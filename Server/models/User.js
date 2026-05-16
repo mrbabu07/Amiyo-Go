@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const { getDefaultPermissions } = require("../config/permissions");
 
 class User {
   constructor(db) {
@@ -199,70 +200,7 @@ class User {
   }
 
   getDefaultPermissions(role) {
-    const permissions = {
-      customer: {
-        orders: ["read"],
-        profile: ["read", "update"],
-        wishlist: ["read", "create", "update", "delete"],
-        reviews: ["read", "create", "update", "delete"],
-        support: ["create", "read"],
-      },
-      vendor: {
-        orders: ["read", "update"],
-        profile: ["read", "update"],
-        products: ["read", "create", "update", "delete"],
-        inventory: ["read", "update"],
-        reviews: ["read"],
-        support: ["create", "read"],
-        vendor: ["read", "update"],
-        analytics: ["read"],
-      },
-      support: {
-        orders: ["read"],
-        users: ["read"],
-        products: ["read"],
-        support: ["read", "create", "update"],
-        chat: ["read", "create", "update"],
-        tickets: ["read", "create", "update"],
-      },
-      moderator: {
-        orders: ["read", "update"],
-        users: ["read", "update"],
-        products: ["read", "create", "update"],
-        reviews: ["read", "update", "delete"],
-        support: ["read", "create", "update", "delete"],
-        chat: ["read", "create", "update", "delete"],
-        tickets: ["read", "create", "update", "delete"],
-      },
-      manager: {
-        orders: ["read", "create", "update", "delete"],
-        users: ["read", "create", "update"],
-        products: ["read", "create", "update", "delete"],
-        categories: ["read", "create", "update", "delete"],
-        coupons: ["read", "create", "update", "delete"],
-        reviews: ["read", "create", "update", "delete"],
-        support: ["read", "create", "update", "delete"],
-        chat: ["read", "create", "update", "delete"],
-        tickets: ["read", "create", "update", "delete"],
-        analytics: ["read"],
-      },
-      admin: {
-        orders: ["read", "create", "update", "delete"],
-        users: ["read", "create", "update", "delete"],
-        vendors: ["read", "create", "update", "delete"],
-        products: ["read", "create", "update", "delete"],
-        categories: ["read", "create", "update", "delete"],
-        coupons: ["read", "create", "update", "delete"],
-        reviews: ["read", "create", "update", "delete"],
-        support: ["read", "create", "update", "delete"],
-        chat: ["read", "create", "update", "delete"],
-        tickets: ["read", "create", "update", "delete"],
-        analytics: ["read", "create", "update", "delete"],
-        system: ["read", "create", "update", "delete"],
-      },
-    };
-
-    return permissions[role] || permissions.customer;
+    return getDefaultPermissions(role);
   }
 
   async hasPermission(firebaseUid, resource, action) {

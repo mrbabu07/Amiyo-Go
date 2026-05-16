@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
 import useAuth from "../../hooks/useAuth";
+import {
+  createVendorBulkUploadJob,
+  downloadVendorBulkUploadReport,
+  getVendorBulkUploadJob,
+} from "../../services/api";
 
 const csvTemplate = `title,price,stock,category,description,images,sku,brand
 "Men's Casual Shirt",850,100,Fashion,"High quality cotton shirt","https://example.com/img1.jpg",SHIRT-001,Local Brand
@@ -76,6 +81,7 @@ export default function VendorBulkUpload() {
   const [categories, setCategories] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [results, setResults] = useState([]);
+  const [job, setJob] = useState(null);
   const fileRef = useRef();
 
   const categoryMap = useMemo(() => {
@@ -188,6 +194,7 @@ export default function VendorBulkUpload() {
     setFile(selectedFile);
     setRows(parsedRows);
     setResults([]);
+    setJob(null);
     toast.success(`${parsedRows.length} rows ready to upload`);
   };
 
@@ -208,56 +215,42 @@ export default function VendorBulkUpload() {
     }
 
     setUploading(true);
-    const token = await user.getIdToken();
-    const nextResults = [];
+    setResults([]);
 
-    for (const row of rows) {
-      const validationError = validateRow(row);
-      if (validationError) {
-        nextResults.push({ rowNumber: row.rowNumber, title: row.title || "Untitled", status: "failed", error: validationError });
-        continue;
+    try {
+      const response = await createVendorBulkUploadJob(file);
+      const jobId = response.data?.data?.jobId;
+      if (!jobId) throw new Error("Bulk upload job was not created");
+
+      toast.success("Bulk upload job started");
+      let latest = null;
+      for (let attempt = 0; attempt < 90; attempt += 1) {
+        const jobResponse = await getVendorBulkUploadJob(jobId);
+        latest = jobResponse.data?.data;
+        setJob(latest);
+        if (["completed", "failed"].includes(latest?.status)) break;
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
-      const category = categoryMap.get(normalize(row.category));
-      const payload = {
-        title: row.title,
-        price: Number(row.price),
-        stock: Number(row.stock),
-        categoryId: category._id,
-        description: row.description || "",
-        images: row.images ? row.images.split("|").map((url) => url.trim()).filter(Boolean) : [],
-        attributes: {
-          ...(row.sku ? { sku: row.sku } : {}),
-          ...(row.brand ? { brand: row.brand } : {}),
-        },
-      };
-
-      try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/vendor/products`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+      if (!latest || !["completed", "failed"].includes(latest.status)) {
+        toast("Import is still running. You can refresh this page later.");
+      } else if (latest.status === "failed") {
+        toast.error(latest.error || "Bulk upload failed");
+      } else {
+        setResults([
+          {
+            rowNumber: "-",
+            title: `${latest.imported || 0} imported, ${latest.failed || 0} failed`,
+            status: latest.failed ? "failed" : "success",
+            error: latest.failed ? "Download the validation report for row details." : "",
           },
-          body: JSON.stringify(payload),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Upload failed");
-        nextResults.push({ rowNumber: row.rowNumber, title: row.title, status: "success", error: "" });
-      } catch (error) {
-        nextResults.push({ rowNumber: row.rowNumber, title: row.title, status: "failed", error: error.message });
+        ]);
+        toast.success(`${latest.imported || 0} products imported for approval`);
       }
-
-      setResults([...nextResults]);
-    }
-
-    setUploading(false);
-    const successCount = nextResults.filter((result) => result.status === "success").length;
-    const failedCount = nextResults.length - successCount;
-    if (failedCount) {
-      toast.error(`${successCount} products uploaded, ${failedCount} rows failed`);
-    } else {
-      toast.success(`${successCount} products uploaded for approval`);
+    } catch (error) {
+      toast.error(error.response?.data?.error || error.message || "Bulk upload failed");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -271,14 +264,13 @@ export default function VendorBulkUpload() {
     URL.revokeObjectURL(url);
   };
 
-  const downloadErrorReport = () => {
-    const failed = results.filter((result) => result.status === "failed");
-    const csv = ["row,title,error", ...failed.map((result) => `${result.rowNumber},"${String(result.title).replace(/"/g, '""')}","${String(result.error).replace(/"/g, '""')}"`)].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
+  const downloadErrorReport = async () => {
+    if (!job?._id) return;
+    const response = await downloadVendorBulkUploadReport(job._id);
+    const url = URL.createObjectURL(response.data);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "bulk_upload_errors.csv";
+    anchor.download = "bulk_upload_report.csv";
     anchor.click();
     URL.revokeObjectURL(url);
   };

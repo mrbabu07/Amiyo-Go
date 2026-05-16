@@ -11,6 +11,7 @@ const {
   addOrderNote,
   regenerateInvoice,
   getUserOrders,
+  getOrderTimelineEvents,
   createOrder,
   updateOrderStatus,
   cancelOrder,
@@ -35,6 +36,7 @@ router.patch("/admin/:id/override-status", verifyToken, verifyAdmin, adminOverri
 
 // ── Shared detail (admin + owner) ─────────────────────────────
 router.get("/:id/detail", verifyToken, getAdminOrderById);
+router.get("/:id/timeline", verifyToken, getOrderTimelineEvents);
 
 // ── Admin order-specific actions ──────────────────────────────
 router.post("/:id/notes",            verifyToken, verifyAdmin, addOrderNote);

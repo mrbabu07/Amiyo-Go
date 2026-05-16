@@ -1,4 +1,7 @@
 const { ObjectId } = require("mongodb");
+const PDFDocument = require("pdfkit");
+const bwipjs = require("bwip-js");
+const { appendOrderEvent, getTimelineForOrder } = require("../../services/orderEventService");
 
 /**
  * Daraz-Style Vendor Order Management Controller
@@ -34,6 +37,38 @@ const updateVendorOrderSnapshot = async (db, orderId, vendorId, update) => {
   );
 };
 
+const getVendorOrderContext = async (req, orderId) => {
+  const Order = req.app.locals.models.Order;
+  const vendor = req.vendor;
+  if (!vendor) {
+    const error = new Error("Vendor not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const order = await Order.findById(orderId);
+  if (!order) {
+    const error = new Error("Order not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const vendorId = vendor._id.toString();
+  const vendorItems = (order.products || []).filter((product) => product.vendorId === vendorId);
+  if (vendorItems.length === 0) {
+    const error = new Error("No items for this vendor in order");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return { Order, order, vendor, vendorId, vendorItems };
+};
+
+const setPdfHeaders = (res, filename) => {
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+};
+
 // ─── Accept Order ──────────────────────────────────────────────
 exports.acceptOrder = async (req, res) => {
   try {
@@ -48,7 +83,7 @@ exports.acceptOrder = async (req, res) => {
     const user = await User.findByFirebaseUid(req.user.uid);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const vendor = await Vendor.findByUserId(user._id);
+    const vendor = req.vendor || await Vendor.findByUserId(user._id);
     if (!vendor) return res.status(404).json({ error: "Vendor not found" });
     if (vendor.status !== "approved") {
       return res.status(403).json({ error: "Vendor not approved" });
@@ -101,6 +136,17 @@ exports.acceptOrder = async (req, res) => {
       estimatedReadyTime: estimatedReadyTime || null,
     });
 
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      vendorId,
+      status: "accepted",
+      label: "Vendor accepted order",
+      actorId: req.user?.uid,
+      actorRole: "vendor",
+      note: estimatedReadyTime ? `Estimated ready time: ${estimatedReadyTime}` : "",
+    });
+
     await notifyCustomer(req, order, {
       type: "order_accepted",
       title: "Order accepted",
@@ -140,7 +186,7 @@ exports.rejectOrder = async (req, res) => {
     const user = await User.findByFirebaseUid(req.user.uid);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const vendor = await Vendor.findByUserId(user._id);
+    const vendor = req.vendor || await Vendor.findByUserId(user._id);
     if (!vendor) return res.status(404).json({ error: "Vendor not found" });
 
     const vendorId = vendor._id.toString();
@@ -184,6 +230,18 @@ exports.rejectOrder = async (req, res) => {
       rejectionNotes: notes || null,
     });
 
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      vendorId,
+      status: "cancelled",
+      label: "Vendor rejected order items",
+      actorId: req.user?.uid,
+      actorRole: "vendor",
+      note: notes || reason,
+      metadata: { reason },
+    });
+
     await notifyCustomer(req, order, {
       type: "order_rejected",
       title: "Order item cancelled",
@@ -218,7 +276,7 @@ exports.markReadyToShip = async (req, res) => {
     const user = await User.findByFirebaseUid(req.user.uid);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const vendor = await Vendor.findByUserId(user._id);
+    const vendor = req.vendor || await Vendor.findByUserId(user._id);
     if (!vendor) return res.status(404).json({ error: "Vendor not found" });
 
     const vendorId = vendor._id.toString();
@@ -264,6 +322,16 @@ exports.markReadyToShip = async (req, res) => {
       courierPickupStatus: "pending",
     });
 
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      vendorId,
+      status: "ready_to_ship",
+      label: "Ready to ship",
+      actorId: req.user?.uid,
+      actorRole: "vendor",
+    });
+
     await notifyCustomer(req, order, {
       type: "order_ready_to_ship",
       title: "Order ready to ship",
@@ -305,7 +373,7 @@ exports.shipOrder = async (req, res) => {
     const user = await User.findByFirebaseUid(req.user.uid);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const vendor = await Vendor.findByUserId(user._id);
+    const vendor = req.vendor || await Vendor.findByUserId(user._id);
     if (!vendor) return res.status(404).json({ error: "Vendor not found" });
 
     const vendorId = vendor._id.toString();
@@ -357,6 +425,19 @@ exports.shipOrder = async (req, res) => {
       courierSyncStatus: "manual_tracking",
     });
 
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      vendorId,
+      status: "shipped",
+      label: "Order shipped",
+      actorId: req.user?.uid,
+      actorRole: "vendor",
+      courierName: courierName.trim(),
+      trackingNumber: trackingNumber.trim(),
+      eta: estimatedDelivery ? new Date(estimatedDelivery) : null,
+    });
+
     await notifyCustomer(req, order, {
       type: "order_shipped",
       title: "Order shipped",
@@ -395,7 +476,7 @@ exports.markDelivered = async (req, res) => {
     const user = await User.findByFirebaseUid(req.user.uid);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const vendor = await Vendor.findByUserId(user._id);
+    const vendor = req.vendor || await Vendor.findByUserId(user._id);
     if (!vendor) return res.status(404).json({ error: "Vendor not found" });
 
     const vendorId = vendor._id.toString();
@@ -444,6 +525,17 @@ exports.markDelivered = async (req, res) => {
       payoutEligibleAt: new Date(),
     });
 
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      vendorId,
+      status: "delivered",
+      label: "Delivered",
+      actorId: req.user?.uid,
+      actorRole: "vendor",
+      note: deliveryNotes || "",
+    });
+
     await notifyCustomer(req, order, {
       type: "order_delivered",
       title: "Order delivered",
@@ -465,6 +557,157 @@ exports.markDelivered = async (req, res) => {
 };
 
 // ─── Get Order Timeline ────────────────────────────────────────
+exports.markPickupReady = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const db = req.app.locals.db;
+    const { Order, order, vendor, vendorId, vendorItems } = await getVendorOrderContext(req, orderId);
+
+    const invalidItems = vendorItems.some((item) =>
+      ["cancelled", "delivered", "returned"].includes(item.itemStatus),
+    );
+    if (invalidItems) {
+      return res.status(400).json({ error: "Cancelled, returned, or delivered items cannot be marked pickup ready" });
+    }
+
+    const now = new Date();
+    await db.collection("orders").updateOne(
+      { _id: new ObjectId(orderId) },
+      {
+        $set: {
+          "products.$[elem].itemStatus": "pickup_ready",
+          "products.$[elem].pickupReadyAt": now,
+        },
+      },
+      { arrayFilters: [{ "elem.vendorId": vendorId }] },
+    );
+
+    await Order.syncOrderStatus(orderId);
+    await updateVendorOrderSnapshot(db, orderId, vendorId, {
+      status: "pickup_ready",
+      pickupReadyAt: now,
+      courierPickupStatus: "ready",
+    });
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      vendorId,
+      status: "pickup_ready",
+      label: "Pickup ready",
+      actorId: req.user?.uid,
+      actorRole: "vendor",
+      note: "Vendor marked the package ready for pickup.",
+    });
+
+    await notifyCustomer(req, order, {
+      type: "order_pickup_ready",
+      title: "Order ready for pickup",
+      message: `${vendor.shopName || "Vendor"} marked your package ready for courier pickup.`,
+    });
+
+    res.json({
+      success: true,
+      message: "Order marked pickup ready",
+      data: { orderId, pickupReadyAt: now },
+    });
+  } catch (error) {
+    console.error("Error marking pickup ready:", error);
+    res.status(error.statusCode || 500).json({ error: error.message || "Failed to mark pickup ready" });
+  }
+};
+
+exports.downloadPackingSlip = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { order, vendor, vendorItems } = await getVendorOrderContext(req, orderId);
+
+    setPdfHeaders(res, `vendor-packing-slip-${orderId}.pdf`);
+    const doc = new PDFDocument({ margin: 36, size: "A4" });
+    doc.pipe(res);
+
+    doc.fontSize(18).text("Vendor Packing Slip", { align: "center" });
+    doc.moveDown(0.5);
+    doc.fontSize(10).text(`Order: ${orderId}`);
+    doc.text(`Vendor: ${vendor.shopName || vendor.businessName || "Vendor"}`);
+    doc.text(`Created: ${new Date(order.createdAt || Date.now()).toLocaleString()}`);
+    doc.moveDown();
+
+    doc.fontSize(12).text("Customer", { underline: true });
+    doc.fontSize(10);
+    doc.text(order.shippingInfo?.name || "Customer");
+    doc.text(order.shippingInfo?.phone || "");
+    doc.text([
+      order.shippingInfo?.address,
+      order.shippingInfo?.area,
+      order.shippingInfo?.city || order.shippingInfo?.district,
+      order.shippingInfo?.zipCode,
+    ].filter(Boolean).join(", "));
+    doc.moveDown();
+
+    doc.fontSize(12).text("Items", { underline: true });
+    doc.moveDown(0.25);
+    vendorItems.forEach((item, index) => {
+      doc
+        .fontSize(10)
+        .text(`${index + 1}. ${item.title || item.name || "Product"}`, { continued: true })
+        .text(`  Qty: ${item.quantity || 1}`, { align: "right" });
+      if (item.selectedSize || item.selectedColor) {
+        const color =
+          typeof item.selectedColor === "object"
+            ? item.selectedColor.name || item.selectedColor.value
+            : item.selectedColor;
+        doc.fontSize(9).fillColor("#555").text(
+          [item.selectedSize ? `Size: ${item.selectedSize}` : "", color ? `Color: ${color}` : ""]
+            .filter(Boolean)
+            .join(" | "),
+        );
+        doc.fillColor("#000");
+      }
+    });
+
+    doc.moveDown();
+    doc.fontSize(10).text(`Payment: ${order.paymentMethod || "N/A"} (${order.paymentStatus || "pending"})`);
+    doc.text(`Package status: ${vendorItems[0]?.itemStatus || order.status || "pending"}`);
+    doc.end();
+  } catch (error) {
+    console.error("Error generating vendor packing slip:", error);
+    if (!res.headersSent) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message || "Failed to generate packing slip" });
+    }
+  }
+};
+
+exports.downloadBarcodeLabel = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { order, vendor, vendorId } = await getVendorOrderContext(req, orderId);
+    const labelText = `${orderId.slice(-10).toUpperCase()}-${vendorId.slice(-6).toUpperCase()}`;
+    const barcode = await bwipjs.toBuffer({
+      bcid: "code128",
+      text: labelText,
+      scale: 3,
+      height: 16,
+      includetext: true,
+      textxalign: "center",
+    });
+
+    setPdfHeaders(res, `vendor-barcode-${labelText}.pdf`);
+    const doc = new PDFDocument({ margin: 20, size: [288, 180] });
+    doc.pipe(res);
+    doc.fontSize(10).text(vendor.shopName || "Vendor", { align: "center" });
+    doc.fontSize(9).text(`Order #${orderId.slice(-8).toUpperCase()}`, { align: "center" });
+    doc.image(barcode, 26, 52, { fit: [236, 78], align: "center" });
+    doc.fontSize(8).text(order.shippingInfo?.name || "Customer", 20, 142, { align: "center" });
+    doc.end();
+  } catch (error) {
+    console.error("Error generating vendor barcode label:", error);
+    if (!res.headersSent) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message || "Failed to generate barcode label" });
+    }
+  }
+};
+
 exports.getOrderTimeline = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -476,7 +719,7 @@ exports.getOrderTimeline = async (req, res) => {
     const user = await User.findByFirebaseUid(req.user.uid);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const vendor = await Vendor.findByUserId(user._id);
+    const vendor = req.vendor || await Vendor.findByUserId(user._id);
     if (!vendor) return res.status(404).json({ error: "Vendor not found" });
 
     const vendorId = vendor._id.toString();
@@ -489,6 +732,18 @@ exports.getOrderTimeline = async (req, res) => {
     );
     if (vendorItems.length === 0) {
       return res.status(403).json({ error: "No items for this vendor in order" });
+    }
+
+    const persistedEvents = (await getTimelineForOrder(req.app, orderId)).filter(
+      (event) => !event.vendorId || event.vendorId.toString() === vendorId,
+    );
+
+    if (persistedEvents.length > 0) {
+      return res.json({
+        success: true,
+        timeline: persistedEvents,
+        currentStatus: vendorItems[0]?.itemStatus || order.status || "pending",
+      });
     }
 
     // Build timeline from item data

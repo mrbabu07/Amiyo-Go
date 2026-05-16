@@ -102,6 +102,12 @@ const VendorLayout = () => {
       path: '/vendor/settings',
       description: 'Account settings',
     },
+    {
+      title: 'KYC Documents',
+      icon: 'ID',
+      path: '/vendor/kyc',
+      description: 'Verification documents',
+    },
   ];
 
   const [expandedMenus, setExpandedMenus] = useState({});

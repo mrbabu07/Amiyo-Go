@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const emailService = require("../services/emailService");
 
 const ACTIVE_PAYOUT_STATUSES = ["pending", "approved", "paid", "completed"];
 const PAYOUT_STATUS_PRIORITY = {
@@ -67,6 +68,26 @@ const dedupePayouts = (payouts = []) => {
 const isSameCycleWindow = (left, right) =>
   toDateKey(left?.periodStart) === toDateKey(right?.periodStart) &&
   toDateKey(left?.periodEnd) === toDateKey(right?.periodEnd);
+
+const notifyVendorPayout = async (req, payout, status, extra = {}) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const vendor = payout?.vendorId ? await Vendor.findById(payout.vendorId) : null;
+    const vendorEmail = vendor?.email || payout?.vendorEmail;
+
+    if (!vendorEmail) return;
+
+    await emailService.sendPayoutNotification({
+      vendorEmail,
+      vendorName: vendor?.shopName || payout?.vendorName || "Vendor",
+      amount: payout?.amount || 0,
+      status,
+      ...extra,
+    });
+  } catch (error) {
+    console.error("Failed to send payout email:", error.message);
+  }
+};
 
 /**
  * Calculate eligible payout for a vendor
@@ -366,6 +387,11 @@ exports.markPayoutPaid = async (req, res) => {
       }
     );
 
+    await notifyVendorPayout(req, payout, "paid", {
+      transactionId: transactionId || "",
+      note: note || "",
+    });
+
     res.json({
       success: true,
       message: "Payout marked as paid successfully",
@@ -415,6 +441,10 @@ exports.cancelPayout = async (req, res) => {
         },
       }
     );
+
+    await notifyVendorPayout(req, payout, "cancelled", {
+      reason: reason || "",
+    });
 
     res.json({
       success: true,
@@ -883,6 +913,10 @@ exports.approvePayoutRequest = async (req, res) => {
       );
     }
 
+    await notifyVendorPayout(req, payout, "approved", {
+      note: note || "",
+    });
+
     res.json({
       success: true,
       message: "Payout request approved successfully",
@@ -938,6 +972,8 @@ exports.rejectPayoutRequest = async (req, res) => {
     // Reject the request
     await VendorPayout.rejectPayout(payoutId, reason, req.user._id);
 
+    await notifyVendorPayout(req, payout, "rejected", { reason });
+
     res.json({
       success: true,
       message: "Payout request rejected",
@@ -989,6 +1025,11 @@ exports.markRequestPaid = async (req, res) => {
         },
       }
     );
+
+    await notifyVendorPayout(req, payout, "paid", {
+      transactionId: transactionId || "",
+      note: note || "",
+    });
 
     res.json({
       success: true,

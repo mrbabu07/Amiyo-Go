@@ -5,6 +5,7 @@ const vendorMarketingController = require("../controllers/vendorMarketingControl
 const router = express.Router();
 
 router.get("/", verifyToken, verifyAdmin, vendorMarketingController.listAdminMarketingItems);
+router.get("/analytics", verifyToken, verifyAdmin, vendorMarketingController.getCampaignVoucherAnalytics);
 router.patch("/:id/review", verifyToken, verifyAdmin, vendorMarketingController.reviewAdminMarketingItem);
 
 module.exports = router;

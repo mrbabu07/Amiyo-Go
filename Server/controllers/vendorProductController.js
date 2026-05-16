@@ -141,30 +141,51 @@ exports.createProduct = async (req, res) => {
     // Notify followers about new product
     try {
       const User = req.app.locals.models.User;
-      const followers = await User.collection.find({
-        followedVendors: req.vendor._id.toString()
-      }).toArray();
+      const vendorId = req.vendor._id.toString();
+      const [legacyFollowers, followRows] = await Promise.all([
+        User.collection.find({ followedVendors: vendorId }).toArray(),
+        req.app.locals.db.collection("vendorFollows").find({ vendorId, active: true }).toArray(),
+      ]);
+      const followersByUid = new Map();
+      legacyFollowers.forEach((follower) => {
+        if (follower.firebaseUid) followersByUid.set(follower.firebaseUid, follower);
+      });
+      followRows.forEach((follow) => {
+        if (follow.userId) followersByUid.set(follow.userId, follow);
+      });
+      const followers = Array.from(followersByUid.values());
 
       if (followers.length > 0) {
         const Notification = req.app.locals.models.Notification;
         const notifications = followers.map(follower => ({
-          userId: follower.firebaseUid,
+          userId: follower.firebaseUid || follower.userId,
           type: "vendor_new_product",
           title: "New Product Available",
           message: `${req.vendor.shopName} has added a new product: ${title}`,
+          link: `/products/${productId.toString()}`,
           data: {
-            vendorId: req.vendor._id.toString(),
+            vendorId,
             productId: productId.toString(),
             productTitle: title,
             vendorName: req.vendor.shopName
           },
-          read: false,
+          isRead: false,
           createdAt: new Date()
         }));
 
         if (Notification) {
           await Notification.collection.insertMany(notifications);
         }
+        followers.forEach((follower) => {
+          const userId = follower.firebaseUid || follower.userId;
+          if (!userId) return;
+          req.app.locals.realtime?.broadcast(`followed-vendor-feed:${userId}`, "vendor.product.created", {
+            vendorId,
+            productId: productId.toString(),
+            title,
+            vendorName: req.vendor.shopName,
+          });
+        });
       }
     } catch (notifError) {
       console.error("Error sending notifications:", notifError);

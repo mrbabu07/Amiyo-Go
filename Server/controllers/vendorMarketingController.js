@@ -1,6 +1,7 @@
 const { ObjectId } = require("mongodb");
 const Campaign = require("../models/Campaign");
 const { normalizeId } = require("../utils/vendorMarketingVoucher");
+const campaignVoucherAnalyticsService = require("../services/campaignVoucherAnalyticsService");
 
 const MARKETING_TYPES = ["promotion", "voucher", "campaign"];
 const DISCOUNT_TYPES = ["percentage", "fixed"];
@@ -233,6 +234,7 @@ exports.createVendorMarketingItem = async (req, res) => {
 
     const result = await db.collection("vendorMarketingItems").insertOne(payload);
     const created = await db.collection("vendorMarketingItems").findOne({ _id: result.insertedId });
+    await campaignVoucherAnalyticsService.rebuildVoucherAnalytics(db, result.insertedId).catch(() => null);
 
     res.status(201).json({
       success: true,
@@ -295,6 +297,7 @@ exports.updateVendorMarketingItem = async (req, res) => {
     const updated = await db.collection("vendorMarketingItems").findOne({
       _id: new ObjectId(id),
     });
+    await campaignVoucherAnalyticsService.rebuildVoucherAnalytics(db, id).catch(() => null);
 
     res.json({
       success: true,
@@ -436,6 +439,7 @@ exports.reviewAdminMarketingItem = async (req, res) => {
     );
 
     const updated = await collection.findOne({ _id: new ObjectId(id) });
+    await campaignVoucherAnalyticsService.rebuildVoucherAnalytics(db, id).catch(() => null);
     res.json({
       success: true,
       data: normalizeItem(updated),
@@ -487,6 +491,65 @@ exports.listPublicVendorMarketingItems = async (req, res) => {
     });
   } catch (error) {
     console.error("Error listing public vendor marketing items:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.recordPublicVendorMarketingEvent = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const { id, itemId } = req.params;
+    const event = String(req.body.event || "").trim().toLowerCase();
+
+    if (!ObjectId.isValid(id) || !ObjectId.isValid(itemId)) {
+      return res.status(400).json({ success: false, error: "Invalid vendor or marketing item id." });
+    }
+
+    if (!["view", "click"].includes(event)) {
+      return res.status(400).json({ success: false, error: "event must be view or click." });
+    }
+
+    const item = await db.collection("vendorMarketingItems").findOne({
+      _id: new ObjectId(itemId),
+      vendorId: id,
+      status: "approved",
+    });
+
+    if (!item) {
+      return res.status(404).json({ success: false, error: "Marketing item not found." });
+    }
+
+    const analytics = await campaignVoucherAnalyticsService.recordVendorMarketingEvent({
+      db,
+      itemId,
+      event,
+      userId: req.user?.uid || null,
+      sessionId: req.body.sessionId || req.headers["x-session-id"] || null,
+      ip: req.ip,
+      userAgent: req.get("user-agent") || "",
+    });
+
+    res.json({
+      success: true,
+      data: analytics,
+    });
+  } catch (error) {
+    console.error("Error recording vendor marketing event:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.getCampaignVoucherAnalytics = async (req, res) => {
+  try {
+    const analytics = await campaignVoucherAnalyticsService.listAnalytics({
+      db: req.app.locals.db,
+      vendorId: req.query.vendorId || "",
+      entityType: req.query.entityType || "",
+    });
+
+    res.json({ success: true, data: analytics });
+  } catch (error) {
+    console.error("Error loading vendor marketing analytics:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };

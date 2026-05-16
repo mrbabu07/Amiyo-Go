@@ -5,7 +5,7 @@ const {
 
 class NotificationService {
   // Send order status update notification
-  static async sendOrderStatusNotification(userId, orderData) {
+  static async sendOrderStatusNotification(userId, orderData, models = null) {
     try {
       const statusMessages = {
         pending: "Your order has been received and is being processed",
@@ -32,9 +32,7 @@ class NotificationService {
         },
       };
 
-      return await sendNotificationByType("order_status", notification, [
-        userId,
-      ]);
+      return await sendNotificationByType("order_status", notification, [userId], models);
     } catch (error) {
       console.error("Failed to send order status notification:", error);
       throw error;
@@ -42,7 +40,7 @@ class NotificationService {
   }
 
   // Send flash sale alert
-  static async sendFlashSaleAlert(flashSaleData, userIds = null) {
+  static async sendFlashSaleAlert(flashSaleData, userIds = null, models = null) {
     try {
       const notification = {
         title: "⚡ Flash Sale Alert!",
@@ -60,7 +58,7 @@ class NotificationService {
         },
       };
 
-      return await sendNotificationByType("flash_sale", notification, userIds);
+      return await sendNotificationByType("flash_sale", notification, userIds, models);
     } catch (error) {
       console.error("Failed to send flash sale notification:", error);
       throw error;
@@ -68,7 +66,7 @@ class NotificationService {
   }
 
   // Send back in stock notification
-  static async sendBackInStockNotification(productData, userIds) {
+  static async sendBackInStockNotification(productData, userIds, models = null) {
     try {
       const notification = {
         title: "📦 Back in Stock!",
@@ -89,9 +87,38 @@ class NotificationService {
         "back_in_stock",
         notification,
         userIds,
+        models,
       );
     } catch (error) {
       console.error("Failed to send back in stock notification:", error);
+      throw error;
+    }
+  }
+
+  static async sendStockAlertNotification(alertType, productData, userIds, models = null) {
+    try {
+      const isLowStock = alertType === "low_stock";
+      const notification = {
+        title: isLowStock ? "Low Stock Alert" : "Stock Alert",
+        body: isLowStock
+          ? `${productData.title || productData.name} is running low. Order before it sells out.`
+          : `${productData.title || productData.name} has a stock update.`,
+        icon: "/icons/icon-192x192.png",
+        badge: "/icons/icon-72x72.png",
+        tag: `${alertType}-${productData._id}`,
+        data: {
+          type: "back_in_stock",
+          alertType,
+          productId: productData._id.toString(),
+          productName: productData.title || productData.name,
+          url: `/products/${productData._id}`,
+          timestamp: new Date().toISOString(),
+        },
+      };
+
+      return await sendNotificationByType("back_in_stock", notification, userIds, models);
+    } catch (error) {
+      console.error("Failed to send stock alert notification:", error);
       throw error;
     }
   }

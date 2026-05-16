@@ -1,13 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const campaignController = require("../controllers/campaignController");
-const { verifyToken, verifyAdmin } = require("../middleware/auth");
+const { verifyToken, verifyAdmin, requireApprovedVendor, requireVendorPermission } = require("../middleware/auth");
 
 // Campaign Management Routes (Admin only)
 router.post("/", verifyToken, verifyAdmin, campaignController.createCampaign);
 router.get("/", verifyToken, verifyAdmin, campaignController.listCampaigns);
+router.get("/analytics/vouchers", verifyToken, verifyAdmin, campaignController.getCampaignVoucherAnalytics);
 router.get("/vendor/available", verifyToken, campaignController.listVendorCampaigns);
+router.get("/vendor/joins", verifyToken, requireApprovedVendor, campaignController.listMyCampaignJoins);
 router.get("/:id", campaignController.getCampaign);
+router.post("/:id/join", verifyToken, requireApprovedVendor, requireVendorPermission("marketing:manage"), campaignController.joinCampaign);
 router.put("/:id", verifyToken, verifyAdmin, campaignController.updateCampaign);
 router.post("/:id/publish", verifyToken, verifyAdmin, campaignController.publishCampaign);
 router.post("/:id/end", verifyToken, verifyAdmin, campaignController.endCampaign);

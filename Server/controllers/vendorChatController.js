@@ -24,8 +24,9 @@ exports.startConversation = async (req, res) => {
     );
 
     // Add initial message if provided
+    let newMessage = null;
     if ((initialMessage && initialMessage.trim()) || initialImage) {
-      await VendorChat.addMessage(conversation._id, {
+      newMessage = await VendorChat.addMessage(conversation._id, {
         senderId: userId,
         senderType: "user",
         message: initialMessage ? initialMessage.trim() : "",
@@ -37,6 +38,16 @@ exports.startConversation = async (req, res) => {
     const fullConversation = await VendorChat.getConversationById(
       conversation._id
     );
+
+    if (newMessage) {
+      req.app.locals.realtime?.broadcast(`vendor-chat:${conversation._id.toString()}`, "message.created", {
+        conversationId: conversation._id.toString(),
+        message: newMessage,
+      });
+      req.app.locals.realtime?.broadcast(`vendor-chat-list:vendor:${vendorId}`, "chat.updated", {
+        conversationId: conversation._id.toString(),
+      });
+    }
 
     res.json({
       success: true,
@@ -106,6 +117,20 @@ exports.sendMessage = async (req, res) => {
     }
 
     console.log('✅ Message sent successfully');
+
+    const conversation = await VendorChat.getConversationById(conversationId);
+    req.app.locals.realtime?.broadcast(`vendor-chat:${conversationId}`, "message.created", {
+      conversationId,
+      message: newMessage,
+    });
+    if (conversation) {
+      req.app.locals.realtime?.broadcast(`vendor-chat-list:user:${conversation.userId}`, "chat.updated", {
+        conversationId,
+      });
+      req.app.locals.realtime?.broadcast(`vendor-chat-list:vendor:${conversation.vendorId?.toString()}`, "chat.updated", {
+        conversationId,
+      });
+    }
 
     res.json({
       success: true,

@@ -1,4 +1,9 @@
 const admin = require("firebase-admin");
+const {
+  isStaffRole,
+  roleCan,
+  resolvePermissionFromRequest,
+} = require("../config/permissions");
 
 const debugAuth = process.env.DEBUG_AUTH === "true";
 const authDebug = (...args) => {
@@ -67,6 +72,20 @@ const attachDatabaseUser = async (req, decodedToken) => {
     }
   }
 
+  if (dbUser.role === "vendor_staff") {
+    const VendorStaff = req.app.locals.models.VendorStaff;
+    const Vendor = req.app.locals.models.Vendor;
+    const staff = VendorStaff ? await VendorStaff.findActiveForUser(dbUser) : null;
+    const vendor = staff ? await Vendor.findById(staff.vendorId) : null;
+    if (staff && vendor) {
+      req.user.vendorId = vendor._id;
+      req.user.vendorPermissions = staff.permissions || [];
+      req.vendor = vendor;
+      req.vendorStaff = staff;
+      authDebug("Vendor staff context attached");
+    }
+  }
+
   return dbUser;
 };
 
@@ -90,20 +109,88 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
+const verifyOptionalToken = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split("Bearer ")[1];
+    if (!token) return next();
+
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    req.user = decodedToken;
+    await attachDatabaseUser(req, decodedToken);
+  } catch (error) {
+    if (debugAuth) console.error("Optional token verification skipped:", error.message);
+  }
+  next();
+};
+
 const verifyAdmin = async (req, res, next) => {
   try {
     const User = req.app.locals.models.User;
-    const user = await User.findByFirebaseUid(req.user.uid);
+    const Permission = req.app.locals.models.Permission;
 
-    if (!user || user.role !== "admin") {
-      return res.status(403).json({ error: "Admin access required" });
+    if (!req.user?.uid) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const user = req.dbUser || await User.findByFirebaseUid(req.user.uid);
+
+    if (!user || !isStaffRole(user.role)) {
+      return res.status(403).json({ error: "Admin or staff access required" });
+    }
+
+    const permission = resolvePermissionFromRequest(req);
+    const permissionDoc = Permission ? await Permission.findByRole(user.role) : null;
+
+    if (!roleCan(user, permission.resource, permission.action, permissionDoc)) {
+      return res.status(403).json({
+        error: "Permission denied",
+        required: permission,
+        role: user.role,
+      });
     }
 
     req.dbUser = user;
+    req.user._id = user._id;
+    req.user.role = user.role;
     next();
   } catch {
     return res.status(500).json({ error: "Authorization failed" });
   }
+};
+
+const requirePermission = (resource, action) => {
+  return async (req, res, next) => {
+    try {
+      const User = req.app.locals.models.User;
+      const Permission = req.app.locals.models.Permission;
+
+      if (!req.user?.uid) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const user = req.dbUser || await User.findByFirebaseUid(req.user.uid);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const permissionDoc = Permission ? await Permission.findByRole(user.role) : null;
+      if (!roleCan(user, resource, action, permissionDoc)) {
+        return res.status(403).json({
+          error: "Permission denied",
+          required: { resource, action },
+          role: user.role,
+        });
+      }
+
+      req.dbUser = user;
+      req.user._id = user._id;
+      req.user.role = user.role;
+      next();
+    } catch (error) {
+      if (debugAuth) console.error("Permission authorization error:", error);
+      return res.status(500).json({ error: "Authorization failed" });
+    }
+  };
 };
 
 const requireRole = (role) => {
@@ -147,13 +234,20 @@ const requireApprovedVendor = async (req, res, next) => {
   try {
     const User = req.app.locals.models.User;
     const Vendor = req.app.locals.models.Vendor;
+    const VendorStaff = req.app.locals.models.VendorStaff;
 
     const user = await User.findByFirebaseUid(req.user.uid);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const vendor = await Vendor.findByUserId(user._id);
+    let vendor = await Vendor.findByUserId(user._id);
+    let staff = null;
+    if (!vendor && user.role === "vendor_staff" && VendorStaff) {
+      staff = await VendorStaff.findActiveForUser(user);
+      vendor = staff ? await Vendor.findById(staff.vendorId) : null;
+    }
+
     if (!vendor) {
       return res.status(404).json({ error: "Vendor profile not found" });
     }
@@ -167,7 +261,11 @@ const requireApprovedVendor = async (req, res, next) => {
 
     req.dbUser = user;
     req.user._id = user._id;
+    req.user.role = user.role;
+    req.user.vendorId = vendor._id;
+    req.user.vendorPermissions = staff?.permissions || [];
     req.vendor = vendor;
+    req.vendorStaff = staff;
     next();
   } catch (error) {
     if (debugAuth) console.error("Vendor authorization error:", error);
@@ -175,4 +273,34 @@ const requireApprovedVendor = async (req, res, next) => {
   }
 };
 
-module.exports = { verifyToken, verifyAdmin, requireRole, requireApprovedVendor };
+const requireVendorPermission = (permission) => {
+  return (req, res, next) => {
+    if (!req.vendorStaff) return next();
+
+    const permissions = req.vendorStaff.permissions || [];
+    const [resource] = permission.split(":");
+    const allowed =
+      permissions.includes("*") ||
+      permissions.includes(permission) ||
+      permissions.includes(`${resource}:*`);
+
+    if (!allowed) {
+      return res.status(403).json({
+        error: "Vendor staff permission denied",
+        required: permission,
+      });
+    }
+
+    next();
+  };
+};
+
+module.exports = {
+  verifyToken,
+  verifyOptionalToken,
+  verifyAdmin,
+  requireRole,
+  requireApprovedVendor,
+  requirePermission,
+  requireVendorPermission,
+};

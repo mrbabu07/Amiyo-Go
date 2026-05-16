@@ -6,7 +6,7 @@ import { useCurrency } from "../hooks/useCurrency";
 import BackButton from "../components/BackButton";
 import useAuth from "../hooks/useAuth";
 import { auth } from "../firebase/firebase.config";
-import { getPublicVendorMarketingItems } from "../services/api";
+import { getPublicVendorMarketingItems, recordVendorMarketingEvent } from "../services/api";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const CHECKOUT_VOUCHER_KEY = "hnilabazar_selected_voucher";
@@ -132,7 +132,14 @@ export default function VendorStore() {
     try {
       setMarketingLoading(true);
       const response = await getPublicVendorMarketingItems(vendorId);
-      setStoreMarketing(response.data.data || []);
+      const items = response.data.data || [];
+      setStoreMarketing(items);
+      items.forEach((item) => {
+        recordVendorMarketingEvent(vendorId, item._id, {
+          event: "view",
+          sessionId: sessionStorage.getItem("amiyo_session_id") || "",
+        }).catch(() => null);
+      });
     } catch (error) {
       console.error("Failed to fetch vendor marketing:", error);
       setStoreMarketing([]);
@@ -276,17 +283,20 @@ export default function VendorStore() {
     }
   };
 
-  const copyVoucherCode = async (code) => {
+  const copyVoucherCode = async (voucher) => {
     try {
+      const code = voucher.code;
       await navigator.clipboard.writeText(code);
       setCopiedVoucherCode(code);
       window.setTimeout(() => setCopiedVoucherCode(""), 1800);
+      recordVendorMarketingEvent(vendorId, voucher._id, { event: "click" }).catch(() => null);
     } catch (error) {
       console.error("Failed to copy voucher code:", error);
     }
   };
 
   const useVoucherNow = (voucher) => {
+    recordVendorMarketingEvent(vendorId, voucher._id, { event: "click" }).catch(() => null);
     const selectedVoucher = {
       code: voucher.code,
       vendorId,
@@ -655,7 +665,7 @@ export default function VendorStore() {
 
                         <div className="mt-4 flex items-center gap-3">
                           <button
-                            onClick={() => copyVoucherCode(voucher.code)}
+                            onClick={() => copyVoucherCode(voucher)}
                             className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700"
                           >
                             {copiedVoucherCode === voucher.code ? "Copied" : "Copy Code"}

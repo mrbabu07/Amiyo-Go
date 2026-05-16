@@ -1,3 +1,7 @@
+const { ObjectId } = require("mongodb");
+
+const MANUAL_PAYMENT_METHODS = ["bkash", "nagad", "cod"];
+
 const getAllPayments = async (req, res) => {
   try {
     const Payment = req.app.locals.models.Payment;
@@ -255,6 +259,303 @@ const getPaymentStats = async (req, res) => {
   }
 };
 
+const getDuplicateTransactionMap = async (ordersCollection) => {
+  const duplicates = await ordersCollection
+    .aggregate([
+      {
+        $match: {
+          transactionId: { $nin: [null, ""] },
+          paymentMethod: { $in: ["bkash", "nagad"] },
+        },
+      },
+      {
+        $group: {
+          _id: "$transactionId",
+          count: { $sum: 1 },
+          orderIds: { $push: "$_id" },
+        },
+      },
+      { $match: { count: { $gt: 1 } } },
+    ])
+    .toArray();
+
+  return duplicates.reduce((map, item) => {
+    map[item._id] = {
+      count: item.count,
+      orderIds: item.orderIds.map((id) => id.toString()),
+    };
+    return map;
+  }, {});
+};
+
+const normalizeManualPayment = (order, duplicateMap) => {
+  const duplicate = order.transactionId ? duplicateMap[order.transactionId] : null;
+
+  return {
+    orderId: order._id,
+    orderNumber: order._id.toString().slice(-8).toUpperCase(),
+    customerName: order.shippingInfo?.name || "Guest",
+    customerEmail: order.shippingInfo?.email || "",
+    customerPhone: order.shippingInfo?.phone || "",
+    isGuest: Boolean(order.isGuest),
+    amount: order.total,
+    paymentMethod: order.paymentMethod,
+    paymentStatus: order.paymentStatus,
+    transactionId: order.transactionId || null,
+    duplicate: Boolean(duplicate),
+    duplicateCount: duplicate?.count || 0,
+    duplicateOrderIds: duplicate?.orderIds || [],
+    manualPaymentVerification: order.manualPaymentVerification || null,
+    createdAt: order.createdAt,
+  };
+};
+
+const getManualPaymentQueue = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const { status = "pending", method = "all", page = 1, limit = 50 } = req.query;
+    const query = {
+      paymentMethod: { $in: MANUAL_PAYMENT_METHODS },
+    };
+
+    if (method !== "all" && MANUAL_PAYMENT_METHODS.includes(method)) {
+      query.paymentMethod = method;
+    }
+
+    if (status === "pending") {
+      query.paymentStatus = { $in: ["pending", "pending_verification", "manual_review"] };
+    } else if (status === "approved") {
+      query.paymentStatus = "paid";
+      query["manualPaymentVerification.status"] = "approved";
+    } else if (status === "rejected") {
+      query.paymentStatus = "payment_rejected";
+    }
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
+    const duplicateMap = await getDuplicateTransactionMap(Order.collection);
+
+    const [orders, total] = await Promise.all([
+      Order.collection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .toArray(),
+      Order.collection.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: orders.map((order) => normalizeManualPayment(order, duplicateMap)),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching manual payment queue:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const approveManualPayment = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const Payment = req.app.locals.models.Payment;
+    const { orderId } = req.params;
+    const { note = "", allowDuplicate = false } = req.body;
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ success: false, error: "Order not found" });
+    }
+
+    if (!MANUAL_PAYMENT_METHODS.includes(order.paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        error: "Only bKash, Nagad, and COD orders can be manually verified",
+      });
+    }
+
+    const duplicateMap = await getDuplicateTransactionMap(Order.collection);
+    const duplicate = order.transactionId ? duplicateMap[order.transactionId] : null;
+
+    if (duplicate && !allowDuplicate) {
+      return res.status(409).json({
+        success: false,
+        error: "Duplicate transaction ID found",
+        duplicate,
+      });
+    }
+
+    const now = new Date();
+    const update = {
+      paymentStatus: "paid",
+      status: order.status === "pending" ? "processing" : order.status,
+      updatedAt: now,
+      manualPaymentVerification: {
+        status: "approved",
+        reviewedBy: req.user?.uid || req.dbUser?._id?.toString() || "admin",
+        reviewedAt: now,
+        note,
+        duplicateAcknowledged: Boolean(duplicate && allowDuplicate),
+      },
+    };
+
+    await Order.collection.updateOne(
+      { _id: new ObjectId(orderId) },
+      {
+        $set: update,
+        $push: {
+          statusHistory: {
+            status: update.status,
+            changedAt: now,
+            changedBy: req.user?.uid || "admin",
+            note: "Manual payment approved",
+          },
+        },
+      },
+    );
+
+    await Order.collection.db.collection("vendorOrders").updateMany(
+      { parentOrderId: orderId },
+      {
+        $set: {
+          paymentStatus: "paid",
+          status: update.status,
+          updatedAt: now,
+        },
+      },
+    );
+
+    await Payment.collection.updateOne(
+      { orderId },
+      {
+        $set: {
+          userId: order.userId || null,
+          orderId,
+          amount: Number(order.total || 0),
+          currency: "bdt",
+          paymentMethod: order.paymentMethod,
+          transactionId: order.transactionId || null,
+          status: "completed",
+          manualVerification: update.manualPaymentVerification,
+          completedAt: now,
+          updatedAt: now,
+        },
+        $setOnInsert: {
+          createdAt: now,
+        },
+      },
+      { upsert: true },
+    );
+
+    const updatedOrder = await Order.findById(orderId);
+    res.json({
+      success: true,
+      message: "Manual payment approved",
+      data: normalizeManualPayment(updatedOrder, duplicateMap),
+    });
+  } catch (error) {
+    console.error("Error approving manual payment:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const rejectManualPayment = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const Payment = req.app.locals.models.Payment;
+    const { orderId } = req.params;
+    const { reason = "" } = req.body;
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ success: false, error: "Order not found" });
+    }
+
+    if (!MANUAL_PAYMENT_METHODS.includes(order.paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        error: "Only bKash, Nagad, and COD orders can be manually verified",
+      });
+    }
+
+    const now = new Date();
+    const manualPaymentVerification = {
+      status: "rejected",
+      reviewedBy: req.user?.uid || req.dbUser?._id?.toString() || "admin",
+      reviewedAt: now,
+      reason,
+    };
+
+    await Order.collection.updateOne(
+      { _id: new ObjectId(orderId) },
+      {
+        $set: {
+          paymentStatus: "payment_rejected",
+          manualPaymentVerification,
+          updatedAt: now,
+        },
+        $push: {
+          statusHistory: {
+            status: order.status,
+            changedAt: now,
+            changedBy: req.user?.uid || "admin",
+            note: `Manual payment rejected${reason ? `: ${reason}` : ""}`,
+          },
+        },
+      },
+    );
+
+    await Order.collection.db.collection("vendorOrders").updateMany(
+      { parentOrderId: orderId },
+      {
+        $set: {
+          paymentStatus: "payment_rejected",
+          updatedAt: now,
+        },
+      },
+    );
+
+    await Payment.collection.updateOne(
+      { orderId },
+      {
+        $set: {
+          userId: order.userId || null,
+          orderId,
+          amount: Number(order.total || 0),
+          currency: "bdt",
+          paymentMethod: order.paymentMethod,
+          transactionId: order.transactionId || null,
+          status: "failed",
+          manualVerification: manualPaymentVerification,
+          failedAt: now,
+          updatedAt: now,
+        },
+        $setOnInsert: {
+          createdAt: now,
+        },
+      },
+      { upsert: true },
+    );
+
+    const duplicateMap = await getDuplicateTransactionMap(Order.collection);
+    const updatedOrder = await Order.findById(orderId);
+    res.json({
+      success: true,
+      message: "Manual payment rejected",
+      data: normalizeManualPayment(updatedOrder, duplicateMap),
+    });
+  } catch (error) {
+    console.error("Error rejecting manual payment:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 const getOrderPayment = async (req, res) => {
   try {
     const Payment = req.app.locals.models.Payment;
@@ -338,6 +639,9 @@ module.exports = {
   updatePaymentStatus,
   processRefund,
   getPaymentStats,
+  getManualPaymentQueue,
+  approveManualPayment,
+  rejectManualPayment,
   getOrderPayment,
   handleStripeWebhook,
   handleBkashWebhook,

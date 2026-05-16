@@ -60,7 +60,7 @@ const getVendorOrderRows = async (db, vendorId) => {
         ? "cancelled"
         : statuses.includes("shipped")
           ? "shipped"
-          : statuses.some((value) => ["processing", "packed"].includes(value))
+          : statuses.some((value) => ["accepted", "processing", "packed", "ready_to_ship", "pickup_ready"].includes(value))
             ? "processing"
             : "pending";
 
@@ -312,7 +312,9 @@ exports.getVendorOrders = async (req, res) => {
         vendorOrderStatus = 'delivered';
       } else if (itemStatuses.some(s => s === 'shipped')) {
         vendorOrderStatus = 'shipped';
-      } else if (itemStatuses.some(s => s === 'processing' || s === 'packed')) {
+      } else if (itemStatuses.some(s => s === 'pickup_ready')) {
+        vendorOrderStatus = 'pickup_ready';
+      } else if (itemStatuses.some(s => ['accepted', 'processing', 'packed', 'ready_to_ship'].includes(s))) {
         vendorOrderStatus = 'processing';
       } else if (itemStatuses.every(s => s === 'cancelled')) {
         vendorOrderStatus = 'cancelled';
@@ -399,7 +401,7 @@ exports.updateOrderStatus = async (req, res) => {
     const User = req.app.locals.models.User;
     const db = req.app.locals.db;
 
-    const validStatuses = ["pending", "processing", "packed", "shipped", "delivered", "cancelled"];
+    const validStatuses = ["pending", "processing", "packed", "pickup_ready", "shipped", "delivered", "cancelled"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: `Status must be one of: ${validStatuses.join(", ")}` });
     }
@@ -437,6 +439,7 @@ exports.updateOrderStatus = async (req, res) => {
     const timestampFields = {
       ...(status === "processing" ? { "products.$[elem].processingAt": now } : {}),
       ...(status === "packed" ? { "products.$[elem].packedAt": now } : {}),
+      ...(status === "pickup_ready" ? { "products.$[elem].pickupReadyAt": now } : {}),
       ...(status === "shipped" ? { "products.$[elem].shippedAt": now } : {}),
       ...(status === "delivered" ? { "products.$[elem].deliveredAt": now } : {}),
       ...(status === "cancelled" ? { "products.$[elem].cancelledAt": now } : {}),
@@ -473,6 +476,7 @@ exports.updateOrderStatus = async (req, res) => {
         products: updatedVendorProducts,
         ...(status === "processing" ? { processingAt: now } : {}),
         ...(status === "packed" ? { packedAt: now } : {}),
+        ...(status === "pickup_ready" ? { pickupReadyAt: now, courierPickupStatus: "ready" } : {}),
         ...(status === "shipped" ? { shippedAt: now } : {}),
         ...(status === "delivered" ? { deliveredAt: now } : {}),
         ...(status === "cancelled" ? { cancelledAt: now } : {}),

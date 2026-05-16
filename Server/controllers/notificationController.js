@@ -17,7 +17,7 @@ if (
 ) {
   try {
     webpush.setVapidDetails(
-      process.env.VAPID_EMAIL || "mailto:admin@amiyo-go.com",
+      process.env.VAPID_EMAIL || process.env.VAPID_SUBJECT || "mailto:admin@amiyo-go.com",
       vapidKeys.publicKey,
       vapidKeys.privateKey,
     );

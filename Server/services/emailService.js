@@ -8,25 +8,26 @@ class EmailService {
 
   initializeTransporter() {
     try {
+      const smtpHost = process.env.BREVO_SMTP_HOST || process.env.SMTP_HOST || "smtp-relay.brevo.com";
+      const smtpPort = parseInt(process.env.BREVO_SMTP_PORT || process.env.SMTP_PORT || "587", 10);
+      const smtpUser = process.env.BREVO_SMTP_USER || process.env.SMTP_USER;
+      const smtpPass = process.env.BREVO_SMTP_KEY || process.env.SMTP_PASS;
+
       // Check if SMTP credentials are configured
-      if (
-        !process.env.SMTP_HOST ||
-        !process.env.SMTP_USER ||
-        !process.env.SMTP_PASS
-      ) {
+      if (!smtpUser || !smtpPass) {
         console.log(
-          "ðŸ“§ Email service initialized (mock mode - no SMTP config)",
+          "ðŸ“§ Email service initialized (mock mode - no Brevo/SMTP config)",
         );
         return;
       }
 
       this.transporter = createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: false, // true for 465, false for other ports
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
         auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
+          user: smtpUser,
+          pass: smtpPass,
         },
       });
 
@@ -58,7 +59,7 @@ class EmailService {
       }
 
       const mailOptions = {
-        from: `${process.env.APP_NAME} <${process.env.APP_EMAIL}>`,
+        from: `${process.env.APP_NAME || "Amiyo Go"} <${process.env.EMAIL_FROM || process.env.APP_EMAIL || process.env.SMTP_USER || process.env.BREVO_SMTP_USER}>`,
         to,
         subject,
         html,
@@ -553,6 +554,61 @@ class EmailService {
       `Low Stock Alert - ${productTitle}`,
       html,
     );
+  }
+
+  async sendOtpEmail(data) {
+    const { userEmail, userName = "there", otp, purpose = "verification", expiresInMinutes = 10 } = data;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+      <body style="font-family: Arial, sans-serif; color: #111827; max-width: 560px; margin: 0 auto; padding: 24px;">
+        <h2 style="margin: 0 0 12px;">Your ${purpose} code</h2>
+        <p>Hi ${userName},</p>
+        <p>Use this one-time code to continue:</p>
+        <div style="font-size: 32px; letter-spacing: 6px; font-weight: 700; background: #f3f4f6; padding: 18px 20px; border-radius: 8px; text-align: center; margin: 22px 0;">${otp}</div>
+        <p style="color: #4b5563;">This code expires in ${expiresInMinutes} minutes. If you did not request it, you can ignore this email.</p>
+        <p style="color: #6b7280; font-size: 13px;">${process.env.APP_NAME || "Amiyo Go"}</p>
+      </body>
+      </html>
+    `;
+
+    return this.sendEmail(userEmail, `${process.env.APP_NAME || "Amiyo Go"} ${purpose} code`, html);
+  }
+
+  async sendPayoutNotification(data) {
+    const {
+      vendorEmail,
+      vendorName = "Vendor",
+      amount = 0,
+      status,
+      transactionId = "",
+      note = "",
+      reason = "",
+    } = data;
+
+    const statusLabel = String(status || "updated").replace(/_/g, " ");
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+      <body style="font-family: Arial, sans-serif; color: #111827; max-width: 600px; margin: 0 auto; padding: 24px;">
+        <h2 style="margin: 0 0 12px;">Payout ${statusLabel}</h2>
+        <p>Hi ${vendorName},</p>
+        <p>Your payout has been marked as <strong>${statusLabel}</strong>.</p>
+        <div style="background: #f9fafb; border-left: 4px solid #10b981; padding: 16px; margin: 20px 0;">
+          <p style="margin: 4px 0;"><strong>Amount:</strong> ৳${Math.round(Number(amount || 0))}</p>
+          ${transactionId ? `<p style="margin: 4px 0;"><strong>Transaction ID:</strong> ${transactionId}</p>` : ""}
+          ${note ? `<p style="margin: 4px 0;"><strong>Note:</strong> ${note}</p>` : ""}
+          ${reason ? `<p style="margin: 4px 0;"><strong>Reason:</strong> ${reason}</p>` : ""}
+        </div>
+        <p style="color: #6b7280;">You can view payout details from your vendor dashboard.</p>
+      </body>
+      </html>
+    `;
+
+    return this.sendEmail(vendorEmail, `Payout ${statusLabel}`, html);
   }
 }
 

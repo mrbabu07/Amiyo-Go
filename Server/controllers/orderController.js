@@ -3,6 +3,7 @@ const invoiceService = require("../services/invoiceService");
 const { ObjectId } = require("mongodb");
 const DeliverySettings = require("../models/DeliverySettings");
 const { calculateDeliveryBreakdown } = require("../utils/deliveryCalculator");
+const { appendOrderEvent, getTimelineForOrder } = require("../services/orderEventService");
 
 const normalizeId = (id) => {
   if (!id) return null;
@@ -363,6 +364,65 @@ const getUserOrders = async (req, res) => {
   }
 };
 
+const getOrderTimelineEvents = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const { id } = req.params;
+    const order = await Order.findById(id);
+
+    if (!order) {
+      return res.status(404).json({ success: false, error: "Order not found" });
+    }
+
+    const role = req.dbUser?.role || req.user?.role;
+    const isStaff = ["admin", "manager", "support", "moderator"].includes(role);
+    const isOwner = order.userId && order.userId === req.user.uid;
+    const vendorId = req.user.vendorId?.toString();
+    const isVendorOrder = vendorId && (order.products || []).some(
+      (product) => product.vendorId?.toString() === vendorId,
+    );
+
+    if (!isStaff && !isOwner && !isVendorOrder) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    let events = await getTimelineForOrder(req.app, id);
+    if (events.length === 0) {
+      events = [
+        {
+          orderId: id,
+          status: order.status || "pending",
+          label: "Order placed",
+          createdAt: order.createdAt,
+          courierName: order.courierName || "",
+          trackingNumber: order.trackingNumber || "",
+          eta: order.estimatedDelivery || null,
+        },
+        ...(order.statusHistory || []).map((item) => ({
+          orderId: id,
+          status: item.status,
+          label: `Order ${item.status}`,
+          createdAt: item.changedAt,
+          actorId: item.changedBy,
+          note: item.note || "",
+        })),
+      ];
+    }
+
+    res.json({
+      success: true,
+      data: events,
+      currentStatus: order.status,
+      courierName: order.courierName || "",
+      trackingNumber: order.trackingNumber || "",
+      eta: order.estimatedDelivery || null,
+    });
+  } catch (error) {
+    console.error("Error loading order timeline:", error);
+    res.status(500).json({ success: false, error: "Failed to load order timeline" });
+  }
+};
+
 const createOrder = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
@@ -545,6 +605,16 @@ const createOrder = async (req, res) => {
 
     // Get the created order to access calculated values
     const createdOrder = await Order.findById(orderId);
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId: orderId.toString(),
+      status: "pending",
+      label: "Order placed",
+      actorId: req.user?.uid || null,
+      actorRole: req.user?.uid ? "user" : "guest",
+      note: "Order received",
+    });
 
     // Group products by vendorId (Daraz-style split)
     const vendorGroups = {};
@@ -809,6 +879,17 @@ const updateOrderStatus = async (req, res) => {
       trackingNumber,
     });
 
+    await appendOrderEvent({
+      app: req.app,
+      orderId: id,
+      status,
+      label: `Order ${status}`,
+      actorId: req.user?.uid || "admin",
+      actorRole: "admin",
+      trackingNumber,
+      note: req.body.note || "",
+    });
+
     if (Notification) {
       await Notification.create({
         userId: order.userId,
@@ -858,7 +939,7 @@ const updateOrderStatus = async (req, res) => {
         status,
         trackingNumber,
         ...order,
-      });
+      }, req.app.locals.models);
 
       console.log("✅ Push notification sent successfully");
     } catch (notificationError) {
@@ -953,6 +1034,16 @@ const cancelOrder = async (req, res) => {
       syncVendorOrdersForCustomerCancellation({ db, order: cancelledOrder }),
       restoreStockForCancelledOrder({ Product, products: order?.products || [] }),
     ]);
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId: id,
+      status: "cancelled",
+      label: "Order cancelled",
+      actorId: userId,
+      actorRole: "user",
+      note: "Customer cancelled within the cancellation window",
+    });
 
     if (Notification) {
       const vendorIds = [
@@ -1483,6 +1574,16 @@ const adminOverrideStatus = async (req, res) => {
       note: note || "Status overridden by admin",
     });
 
+    await appendOrderEvent({
+      app: req.app,
+      orderId: id,
+      status,
+      label: `Order ${status}`,
+      actorId: req.user?.uid || "admin",
+      actorRole: "admin",
+      note: note || "Status overridden by admin",
+    });
+
     res.json({ success: true, message: `Order status overridden to "${status}"` });
   } catch (error) {
     console.error("Error in adminOverrideStatus:", error);
@@ -1500,6 +1601,7 @@ module.exports = {
   addOrderNote,
   regenerateInvoice,
   getUserOrders,
+  getOrderTimelineEvents,
   createOrder,
   updateOrderStatus,
   cancelOrder,

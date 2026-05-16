@@ -50,9 +50,40 @@ export const createGuestOrder = (data) => api.post("/orders/guest", data);
 export const updateOrderStatus = (id, status, trackingNumber) =>
   api.patch(`/orders/${id}/status`, { status, trackingNumber });
 export const cancelOrder = (id) => api.post(`/orders/${id}/cancel`);
+export const getOrderTimeline = (id) => api.get(`/orders/${id}/timeline`);
 
 // User
 export const getCurrentUser = () => api.get("/user/me");
+
+// Vendor profile
+export const getMyVendorProfile = () => api.get("/vendors/me");
+export const updateMyVendorProfile = (data) => api.patch("/vendors/me", data);
+export const getMyVendorCategories = () => api.get("/vendors/my-categories");
+export const getMyVendorKyc = () => api.get("/vendors/kyc/me");
+export const submitVendorKyc = (formData) =>
+  api.post("/vendors/kyc", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+export const uploadImages = (files, folder = "general") => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images", file));
+  formData.append("folder", folder);
+
+  return api.post("/uploads/images", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+export const createVendorBulkUploadJob = (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return api.post("/vendor/products/bulk-jobs", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+export const getVendorBulkUploadJob = (jobId) =>
+  api.get(`/vendor/products/bulk-jobs/${jobId}`);
+export const downloadVendorBulkUploadReport = (jobId) =>
+  api.get(`/vendor/products/bulk-jobs/${jobId}/report`, { responseType: "blob" });
 
 // Wishlist
 export const getWishlist = () => api.get("/wishlist");
@@ -77,6 +108,14 @@ export const addVendorReviewReply = (id, reply) =>
 // Newsletter
 export const subscribeNewsletter = (email, source = "web") =>
   api.post("/newsletter/subscribe", { email, source });
+export const getNewsletterSubscribers = (params = {}) =>
+  api.get("/newsletter/subscribers", { params });
+export const getNewsletterBroadcasts = (params = {}) =>
+  api.get("/newsletter/broadcasts", { params });
+export const createNewsletterBroadcast = (data) =>
+  api.post("/newsletter/broadcasts", data);
+export const sendNewsletterBroadcast = (id) =>
+  api.post(`/newsletter/broadcasts/${id}/send`);
 
 // Coupons
 export const getActiveCoupons = () => api.get("/coupons/active");
@@ -121,6 +160,12 @@ export const getOrderPayment = (orderId) =>
   api.get(`/payments/order/${orderId}`);
 export const getAllPayments = () => api.get("/payments");
 export const getPaymentStats = () => api.get("/payments/stats");
+export const getManualPaymentQueue = (params = {}) =>
+  api.get("/payments/manual-verifications", { params });
+export const approveManualPayment = (orderId, data = {}) =>
+  api.patch(`/payments/manual-verifications/${orderId}/approve`, data);
+export const rejectManualPayment = (orderId, data = {}) =>
+  api.patch(`/payments/manual-verifications/${orderId}/reject`, data);
 
 // Offers
 export const getActivePopupOffer = () => api.get("/offers/active-popup");
@@ -197,6 +242,23 @@ export const getAdminCommissionSummary = (params = {}) =>
   api.get("/admin/finance/commission-summary", { params });
 
 export const getAdminAlertSummary = () => api.get("/admin/alerts/summary");
+export const getAdminAnalyticsSummary = (params = {}) =>
+  api.get("/admin/analytics/summary", { params });
+export const rebuildAdminAnalyticsSummary = (data = {}) =>
+  api.post("/admin/analytics/rebuild", data);
+export const getDispatchAssignments = (params = {}) =>
+  api.get("/admin/dispatch/assignments", { params });
+export const createDispatchAssignment = (data) =>
+  api.post("/admin/dispatch/assignments", data);
+export const updateDispatchStatus = (id, data) =>
+  api.patch(`/admin/dispatch/assignments/${id}/status`, data);
+export const getVendorStaff = () => api.get("/vendors/staff");
+export const inviteVendorStaff = (data) => api.post("/vendors/staff", data);
+export const updateVendorStaff = (id, data) => api.patch(`/vendors/staff/${id}`, data);
+export const removeVendorStaff = (id) => api.delete(`/vendors/staff/${id}`);
+export const exportAccountData = () => api.get("/account/export", { responseType: "blob" });
+export const scheduleAccountDeletion = (data = {}) => api.post("/account/delete", data);
+export const cancelAccountDeletion = () => api.post("/account/delete/cancel");
 
 // ── Admin: Vendor orders ──────────────────────────────────────
 export const getAdminVendorOrders = (vendorId, params = {}) =>
@@ -321,9 +383,27 @@ export const getAdminVendorMarketingItems = (params = {}) =>
 
 export const reviewAdminVendorMarketingItem = (id, data) =>
   api.patch(`/admin/vendor-marketing/${id}/review`, data);
+export const getCampaignVoucherAnalytics = (params = {}) =>
+  api.get("/admin/vendor-marketing/analytics", { params });
+export const joinPlatformCampaign = (campaignId) =>
+  api.post(`/campaigns/${campaignId}/join`);
+export const getMyCampaignJoins = () =>
+  api.get("/campaigns/vendor/joins");
 
 export const getPublicVendorMarketingItems = (vendorId, params = {}) =>
   api.get(`/vendors/${vendorId}/public-marketing`, { params });
+export const recordVendorMarketingEvent = (vendorId, itemId, data) =>
+  api.post(`/vendors/${vendorId}/public-marketing/${itemId}/event`, data);
+export const getFollowedVendorFeed = (params = {}) =>
+  api.get("/vendors/followed/feed", { params });
+export const getYouMayAlsoLike = (params = {}) =>
+  api.get("/recommendations/you-may-also-like", { params });
+
+export const getAdminVendorKycQueue = (params = {}) =>
+  api.get("/vendors/kyc/admin/pending", { params });
+
+export const reviewAdminVendorKyc = (vendorId, data) =>
+  api.patch(`/vendors/kyc/admin/${vendorId}/review`, data);
 
 
 // ── Vendor Order Management (Daraz-style) ─────────────────────
@@ -335,6 +415,12 @@ export const rejectVendorOrder = (orderId, data) =>
 
 export const markOrderReadyToShip = (orderId) =>
   api.post(`/vendors/orders/${orderId}/ready-to-ship`);
+export const markOrderPickupReady = (orderId) =>
+  api.post(`/vendors/orders/${orderId}/pickup-ready`);
+export const downloadVendorPackingSlip = (orderId) =>
+  api.get(`/vendors/orders/${orderId}/packing-slip`, { responseType: "blob" });
+export const downloadVendorBarcodeLabel = (orderId) =>
+  api.get(`/vendors/orders/${orderId}/barcode-label`, { responseType: "blob" });
 
 export const shipVendorOrder = (orderId, data) =>
   api.post(`/vendors/orders/${orderId}/ship`, data);

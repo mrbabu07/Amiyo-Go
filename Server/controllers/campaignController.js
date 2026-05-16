@@ -4,6 +4,8 @@ const ProductManagerService = require("../services/ProductManagerService");
 const DiscountCalculatorService = require("../services/DiscountCalculatorService");
 const Campaign = require("../models/Campaign");
 const CampaignAuditLog = require("../models/CampaignAuditLog");
+const { ObjectId } = require("mongodb");
+const campaignVoucherAnalyticsService = require("../services/campaignVoucherAnalyticsService");
 
 // Create campaign
 exports.createCampaign = async (req, res) => {
@@ -134,15 +136,141 @@ exports.listVendorCampaigns = async (req, res) => {
       .limit(100)
       .lean();
 
+    let joinedCampaignIds = new Set();
+    const vendorId = req.user?.vendorId?.toString?.() || req.user?.vendorId;
+    if (vendorId && req.app?.locals?.db) {
+      const joins = await req.app.locals.db
+        .collection("campaignVendorJoins")
+        .find({ vendorId: vendorId.toString(), status: { $ne: "left" } })
+        .project({ campaignId: 1 })
+        .toArray();
+      joinedCampaignIds = new Set(joins.map((join) => join.campaignId?.toString?.()));
+    }
+
     res.status(200).json({
       success: true,
-      data: campaigns,
+      data: campaigns.map((campaign) => ({
+        ...campaign,
+        joined: joinedCampaignIds.has(campaign._id.toString()),
+      })),
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       message: error.message,
     });
+  }
+};
+
+// Vendor joins a published admin campaign
+exports.joinCampaign = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid campaign id" });
+    }
+
+    const campaign = await Campaign.findById(id).lean();
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: "Campaign not found" });
+    }
+
+    if (!["Scheduled", "Active"].includes(campaign.status)) {
+      return res.status(400).json({ success: false, message: "Only scheduled or active campaigns can be joined" });
+    }
+
+    const vendor = req.vendor;
+    if (!vendor) {
+      return res.status(403).json({ success: false, message: "Approved vendor access required" });
+    }
+
+    const now = new Date();
+    const campaignId = new ObjectId(id);
+    const vendorId = vendor._id.toString();
+    const db = req.app.locals.db;
+    await campaignVoucherAnalyticsService.ensureIndexes(db);
+
+    await db.collection("campaignVendorJoins").updateOne(
+      { campaignId, vendorId },
+      {
+        $setOnInsert: {
+          campaignId,
+          vendorId,
+          vendorUserId: req.user?._id || req.user?.uid || null,
+          vendorName: vendor.shopName || vendor.businessName || "Vendor",
+          joinedAt: now,
+          createdAt: now,
+        },
+        $set: {
+          status: "joined",
+          updatedAt: now,
+        },
+      },
+      { upsert: true },
+    );
+
+    await campaignVoucherAnalyticsService.rebuildCampaignAnalytics(db, campaignId);
+
+    const join = await db.collection("campaignVendorJoins").findOne({ campaignId, vendorId });
+    res.json({
+      success: true,
+      data: join,
+      message: "Campaign joined successfully",
+    });
+  } catch (error) {
+    console.error("Error joining campaign:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.listMyCampaignJoins = async (req, res) => {
+  try {
+    const vendorId = req.user?.vendorId?.toString?.() || req.user?.vendorId;
+    if (!vendorId) {
+      return res.status(403).json({ success: false, message: "Vendor access required" });
+    }
+
+    const db = req.app.locals.db;
+    const joins = await db
+      .collection("campaignVendorJoins")
+      .find({ vendorId: vendorId.toString(), status: { $ne: "left" } })
+      .sort({ joinedAt: -1 })
+      .toArray();
+
+    const campaignIds = joins.map((join) => join.campaignId).filter(Boolean);
+    const campaigns = campaignIds.length
+      ? await Campaign.find({ _id: { $in: campaignIds } }).lean()
+      : [];
+    const campaignMap = new Map(campaigns.map((campaign) => [campaign._id.toString(), campaign]));
+
+    res.json({
+      success: true,
+      data: joins.map((join) => ({
+        ...join,
+        campaign: campaignMap.get(join.campaignId?.toString?.()) || null,
+      })),
+    });
+  } catch (error) {
+    console.error("Error listing campaign joins:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.getCampaignVoucherAnalytics = async (req, res) => {
+  try {
+    const analytics = await campaignVoucherAnalyticsService.listAnalytics({
+      db: req.app.locals.db,
+      vendorId: req.query.vendorId || "",
+      entityType: req.query.entityType || "",
+    });
+
+    res.json({
+      success: true,
+      data: analytics,
+    });
+  } catch (error) {
+    console.error("Error fetching campaign and voucher analytics:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 

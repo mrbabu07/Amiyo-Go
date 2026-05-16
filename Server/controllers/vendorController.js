@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const { uploadFile } = require("../services/storageService");
 
 // Public: Get vendor public information (for product pages)
 exports.getVendorPublicInfo = async (req, res) => {
@@ -129,7 +130,12 @@ exports.getFollowStatus = async (req, res) => {
     const User = req.app.locals.models.User;
 
     const user = await User.findById(req.user._id);
-    const isFollowing = user.followedVendors?.includes(id) || false;
+    const follow = await req.app.locals.db.collection("vendorFollows").findOne({
+      userId: req.user.uid,
+      vendorId: id,
+      active: true,
+    });
+    const isFollowing = Boolean(follow) || Boolean(user?.followedVendors?.includes(id));
 
     res.json({ success: true, isFollowing });
   } catch (error) {
@@ -151,23 +157,53 @@ exports.followVendor = async (req, res) => {
       return res.status(404).json({ success: false, error: "Vendor not found" });
     }
 
+    const now = new Date();
+    const follows = req.app.locals.db.collection("vendorFollows");
+    await follows.createIndex({ userId: 1, vendorId: 1 }, { unique: true });
+    const user = await User.findById(req.user._id);
+    const wasFollowingInProfile = Boolean(user?.followedVendors?.includes(id));
+    const existingFollow = await follows.findOne({
+      userId: req.user.uid,
+      vendorId: id,
+      active: true,
+    });
+
     // Add vendor to user's followed list
     await User.collection.updateOne(
       { _id: req.user._id },
       { 
         $addToSet: { followedVendors: id },
-        $set: { updatedAt: new Date() }
+        $set: { updatedAt: now }
       }
     );
 
-    // Increment vendor's follower count
-    await Vendor.collection.updateOne(
-      { _id: vendor._id },
-      { 
-        $inc: { followerCount: 1 },
-        $set: { updatedAt: new Date() }
-      }
+    await follows.updateOne(
+      { userId: req.user.uid, vendorId: id },
+      {
+        $setOnInsert: {
+          userObjectId: req.user._id,
+          vendorObjectId: vendor._id,
+          createdAt: now,
+        },
+        $set: {
+          active: true,
+          followedAt: now,
+          updatedAt: now,
+        },
+      },
+      { upsert: true },
     );
+
+    // Increment vendor's follower count
+    if (!existingFollow && !wasFollowingInProfile) {
+      await Vendor.collection.updateOne(
+        { _id: vendor._id },
+        {
+          $inc: { followerCount: 1 },
+          $set: { updatedAt: now },
+        },
+      );
+    }
 
     res.json({ 
       success: true, 
@@ -186,6 +222,13 @@ exports.unfollowVendor = async (req, res) => {
     const { id } = req.params;
     const User = req.app.locals.models.User;
     const Vendor = req.app.locals.models.Vendor;
+    const user = await User.findById(req.user._id);
+    const wasFollowingInProfile = Boolean(user?.followedVendors?.includes(id));
+    const existingFollow = await req.app.locals.db.collection("vendorFollows").findOne({
+      userId: req.user.uid,
+      vendorId: id,
+      active: true,
+    });
 
     // Remove vendor from user's followed list
     await User.collection.updateOne(
@@ -196,14 +239,31 @@ exports.unfollowVendor = async (req, res) => {
       }
     );
 
-    // Decrement vendor's follower count
-    await Vendor.collection.updateOne(
-      { _id: new ObjectId(id) },
-      { 
-        $inc: { followerCount: -1 },
-        $set: { updatedAt: new Date() }
-      }
+    await req.app.locals.db.collection("vendorFollows").updateOne(
+      { userId: req.user.uid, vendorId: id },
+      {
+        $set: {
+          active: false,
+          unfollowedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      },
     );
+
+    if (existingFollow || wasFollowingInProfile) {
+      // Decrement vendor's follower count
+      await Vendor.collection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $inc: { followerCount: -1 },
+          $set: { updatedAt: new Date() },
+        },
+      );
+      await Vendor.collection.updateOne(
+        { _id: new ObjectId(id), followerCount: { $lt: 0 } },
+        { $set: { followerCount: 0 } },
+      );
+    }
 
     res.json({ 
       success: true, 
@@ -213,6 +273,91 @@ exports.unfollowVendor = async (req, res) => {
   } catch (error) {
     console.error("Error unfollowing vendor:", error);
     res.status(500).json({ success: false, error: "Failed to unfollow vendor" });
+  }
+};
+
+exports.getFollowedVendorFeed = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const User = req.app.locals.models.User;
+    const Product = req.app.locals.models.Product;
+    const Vendor = req.app.locals.models.Vendor;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 24, 60);
+
+    await db.collection("vendorFollows").createIndex({ userId: 1, active: 1, followedAt: -1 });
+
+    const [followRows, user] = await Promise.all([
+      db.collection("vendorFollows").find({ userId: req.user.uid, active: true }).sort({ followedAt: -1 }).toArray(),
+      User.findById(req.user._id),
+    ]);
+
+    const followedVendorIds = [
+      ...followRows.map((follow) => follow.vendorId),
+      ...(user?.followedVendors || []),
+    ]
+      .filter(Boolean)
+      .map((vendorId) => vendorId.toString());
+
+    const uniqueVendorIds = [...new Set(followedVendorIds)];
+    if (uniqueVendorIds.length === 0) {
+      return res.json({ success: true, data: [], followedVendorIds: [], unreadCount: 0 });
+    }
+
+    const objectIds = uniqueVendorIds.filter(ObjectId.isValid).map((vendorId) => new ObjectId(vendorId));
+    const products = await Product.collection
+      .find({
+        $and: [
+          { isActive: { $ne: false } },
+          {
+            $or: [
+              { approvalStatus: "approved" },
+              { approvalStatus: { $exists: false } },
+              { approvalStatus: null },
+            ],
+          },
+          {
+            $or: [
+              { vendorId: { $in: uniqueVendorIds } },
+              { vendorId: { $in: objectIds } },
+            ],
+          },
+        ],
+      })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .toArray();
+
+    const vendors = objectIds.length
+      ? await Vendor.collection
+          .find({ _id: { $in: objectIds } })
+          .project({ shopName: 1, slug: 1, logo: 1, status: 1 })
+          .toArray()
+      : [];
+    const vendorMap = new Map(vendors.map((vendor) => [vendor._id.toString(), vendor]));
+    const Notification = req.app.locals.models.Notification;
+    const unreadCount = Notification
+      ? await Notification.collection.countDocuments({
+          userId: req.user.uid,
+          type: "vendor_new_product",
+          isRead: false,
+        })
+      : 0;
+
+    res.json({
+      success: true,
+      followedVendorIds: uniqueVendorIds,
+      unreadCount,
+      data: products.map((product) => {
+        const vendorId = product.vendorId?.toString?.() || product.vendorId;
+        return {
+          ...product,
+          vendor: vendorMap.get(vendorId) || null,
+        };
+      }),
+    });
+  } catch (error) {
+    console.error("Error loading followed vendor feed:", error);
+    res.status(500).json({ success: false, error: "Failed to load followed vendor feed" });
   }
 };
 
@@ -277,6 +422,9 @@ exports.registerVendor = async (req, res) => {
     };
 
     const vendor = await Vendor.create(vendorData);
+    if (req.app.locals.models.VendorShop) {
+      await req.app.locals.models.VendorShop.upsertForVendor(vendor, vendorData);
+    }
 
     res.status(201).json({
       message: "Vendor registration submitted successfully. Pending admin approval.",
@@ -292,13 +440,34 @@ exports.registerVendor = async (req, res) => {
 exports.getMyVendorProfile = async (req, res) => {
   try {
     const Vendor = req.app.locals.models.Vendor;
+    const VendorShop = req.app.locals.models.VendorShop;
     const vendor = await Vendor.findByUserId(req.user._id);
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor profile not found" });
     }
 
-    res.json({ vendor });
+    const vendorShop = VendorShop ? await VendorShop.findByVendorId(vendor._id) : null;
+    const mergedVendor = vendorShop
+      ? {
+          ...vendor,
+          shopName: vendorShop.shopName ?? vendor.shopName,
+          slug: vendorShop.slug ?? vendor.slug,
+          description: vendorShop.description ?? vendor.description,
+          phone: vendorShop.phone ?? vendor.phone,
+          whatsapp: vendorShop.whatsapp ?? vendor.whatsapp,
+          email: vendorShop.email ?? vendor.email,
+          address: vendorShop.address ?? vendor.address,
+          returnPolicy: vendorShop.returnPolicy ?? vendor.returnPolicy,
+          processingTime: vendorShop.processingTime ?? vendor.processingTime,
+          logo: vendorShop.logo ?? vendor.logo,
+          banner: vendorShop.banner ?? vendor.banner,
+          shopDecoration: vendorShop.shopDecoration ?? vendor.shopDecoration,
+          vendorShopId: vendorShop._id,
+        }
+      : vendor;
+
+    res.json({ vendor: mergedVendor });
   } catch (error) {
     console.error("Error fetching vendor profile:", error);
     res.status(500).json({ error: "Failed to fetch vendor profile" });
@@ -314,6 +483,11 @@ exports.updateVendorProfile = async (req, res) => {
       email,
       description,
       address, 
+      slug,
+      whatsapp,
+      returnPolicy,
+      processingTime,
+      shopDecoration,
       logo,
       banner,
       payoutMethod,
@@ -336,10 +510,32 @@ exports.updateVendorProfile = async (req, res) => {
     // Vendors cannot change their allowed categories after registration
     const updateData = {};
     if (shopName) updateData.shopName = shopName;
+    if (slug !== undefined) {
+      const safeSlug = String(slug)
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      if (!safeSlug) {
+        return res.status(400).json({ error: "Shop slug cannot be empty" });
+      }
+
+      const existing = await Vendor.findBySlug(safeSlug);
+      if (existing && existing._id.toString() !== vendor._id.toString()) {
+        return res.status(409).json({ error: "Shop slug is already in use" });
+      }
+
+      updateData.slug = safeSlug;
+    }
     if (phone !== undefined) updateData.phone = phone;
     if (email !== undefined) updateData.email = email;
     if (description !== undefined) updateData.description = description;
     if (address !== undefined) updateData.address = address;
+    if (whatsapp !== undefined) updateData.whatsapp = whatsapp;
+    if (returnPolicy !== undefined) updateData.returnPolicy = returnPolicy;
+    if (processingTime !== undefined) updateData.processingTime = processingTime;
+    if (shopDecoration !== undefined) updateData.shopDecoration = shopDecoration;
     if (logo !== undefined) updateData.logo = logo;
     if (banner !== undefined) updateData.banner = banner;
     if (payoutMethod) updateData.payoutMethod = payoutMethod;
@@ -357,6 +553,10 @@ exports.updateVendorProfile = async (req, res) => {
     await Vendor.update(vendor._id, updateData);
 
     const updatedVendor = await Vendor.findById(vendor._id);
+    if (req.app.locals.models.VendorShop) {
+      await req.app.locals.models.VendorShop.upsertForVendor(updatedVendor, updateData);
+    }
+
     res.json({ 
       message: "Vendor profile updated successfully",
       vendor: updatedVendor 
@@ -742,11 +942,191 @@ exports.getVendorAllowedCategories = async (req, res) => {
   }
 };
 
-// Upload vendor logo (simplified - stores URL)
+exports.submitVendorKyc = async (req, res) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const vendor = await Vendor.findByUserId(req.user._id);
+
+    if (!vendor) {
+      return res.status(404).json({ success: false, error: "Vendor profile not found" });
+    }
+
+    const documentFields = ["nidFront", "nidBack", "tradeLicense"];
+    const documents = {};
+
+    for (const field of documentFields) {
+      const file = req.files?.[field]?.[0];
+      if (!file) continue;
+
+      documents[field] = await uploadFile({
+        req,
+        file,
+        folder: `kyc/${vendor._id}/${field}`,
+      });
+    }
+
+    if (Object.keys(documents).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "At least one KYC document is required",
+      });
+    }
+
+    const existingDocuments = vendor.kyc?.documents || {};
+    const now = new Date();
+    const kyc = {
+      ...(vendor.kyc || {}),
+      status: "pending",
+      submittedAt: now,
+      submittedBy: req.user.uid,
+      notes: req.body.notes || vendor.kyc?.notes || "",
+      documents: {
+        ...existingDocuments,
+        ...documents,
+      },
+    };
+
+    await Vendor.collection.updateOne(
+      { _id: vendor._id },
+      {
+        $set: {
+          kyc,
+          verificationLevel: "kyc_pending",
+          updatedAt: now,
+        },
+      },
+    );
+
+    res.json({
+      success: true,
+      message: "KYC documents submitted for review",
+      data: kyc,
+    });
+  } catch (error) {
+    console.error("Error submitting vendor KYC:", error);
+    res.status(500).json({ success: false, error: "Failed to submit KYC documents" });
+  }
+};
+
+exports.getMyKyc = async (req, res) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const vendor = await Vendor.findByUserId(req.user._id);
+
+    if (!vendor) {
+      return res.status(404).json({ success: false, error: "Vendor profile not found" });
+    }
+
+    res.json({ success: true, data: vendor.kyc || { status: "not_submitted", documents: {} } });
+  } catch (error) {
+    console.error("Error fetching vendor KYC:", error);
+    res.status(500).json({ success: false, error: "Failed to fetch KYC status" });
+  }
+};
+
+exports.getKycQueue = async (req, res) => {
+  try {
+    const Vendor = req.app.locals.models.Vendor;
+    const { status = "pending", page = 1, limit = 25 } = req.query;
+    const query = {};
+
+    if (status !== "all") {
+      query["kyc.status"] = status;
+    } else {
+      query["kyc.status"] = { $exists: true };
+    }
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
+
+    const [vendors, total] = await Promise.all([
+      Vendor.collection
+        .find(query)
+        .sort({ "kyc.submittedAt": -1, updatedAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .toArray(),
+      Vendor.collection.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: vendors.map((vendor) => ({
+        vendorId: vendor._id,
+        shopName: vendor.shopName,
+        slug: vendor.slug,
+        status: vendor.status,
+        phone: vendor.phone,
+        email: vendor.email,
+        kyc: vendor.kyc,
+        submittedAt: vendor.kyc?.submittedAt,
+      })),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching KYC queue:", error);
+    res.status(500).json({ success: false, error: "Failed to fetch KYC queue" });
+  }
+};
+
+exports.reviewVendorKyc = async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { status, reason = "" } = req.body;
+    const Vendor = req.app.locals.models.Vendor;
+
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: "status must be approved or rejected",
+      });
+    }
+
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({ success: false, error: "Vendor not found" });
+    }
+
+    const now = new Date();
+    await Vendor.collection.updateOne(
+      { _id: new ObjectId(vendorId) },
+      {
+        $set: {
+          "kyc.status": status,
+          "kyc.reviewedAt": now,
+          "kyc.reviewedBy": req.user?.uid || "admin",
+          "kyc.reviewReason": reason,
+          verificationLevel: status === "approved" ? "verified" : "basic",
+          updatedAt: now,
+        },
+      },
+    );
+
+    res.json({
+      success: true,
+      message: `KYC ${status}`,
+      vendor: await Vendor.findById(vendorId),
+    });
+  } catch (error) {
+    console.error("Error reviewing vendor KYC:", error);
+    res.status(500).json({ success: false, error: "Failed to review vendor KYC" });
+  }
+};
+
 exports.uploadLogo = async (req, res) => {
   try {
     const Vendor = req.app.locals.models.Vendor;
-    const vendorId = req.user.vendorId;
+    let vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      const vendor = await Vendor.findByUserId(req.user._id);
+      vendorId = vendor?._id;
+    }
 
     if (!vendorId) {
       return res.status(403).json({
@@ -755,8 +1135,15 @@ exports.uploadLogo = async (req, res) => {
       });
     }
 
-    // For now, accept a URL. In production, you'd use multer + cloud storage
-    const { url } = req.body;
+    let { url } = req.body;
+    if (req.file) {
+      const upload = await uploadFile({
+        req,
+        file: req.file,
+        folder: `shops/${vendorId}/logo`,
+      });
+      url = upload.url;
+    }
     
     if (!url) {
       return res.status(400).json({
@@ -769,6 +1156,10 @@ exports.uploadLogo = async (req, res) => {
       { _id: new ObjectId(vendorId) },
       { $set: { logo: url, updatedAt: new Date() } }
     );
+    if (req.app.locals.models.VendorShop) {
+      const vendor = await Vendor.findById(vendorId);
+      await req.app.locals.models.VendorShop.upsertForVendor(vendor, { logo: url });
+    }
 
     res.json({
       success: true,
@@ -784,11 +1175,15 @@ exports.uploadLogo = async (req, res) => {
   }
 };
 
-// Upload vendor banner (simplified - stores URL)
 exports.uploadBanner = async (req, res) => {
   try {
     const Vendor = req.app.locals.models.Vendor;
-    const vendorId = req.user.vendorId;
+    let vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      const vendor = await Vendor.findByUserId(req.user._id);
+      vendorId = vendor?._id;
+    }
 
     if (!vendorId) {
       return res.status(403).json({
@@ -797,8 +1192,15 @@ exports.uploadBanner = async (req, res) => {
       });
     }
 
-    // For now, accept a URL. In production, you'd use multer + cloud storage
-    const { url } = req.body;
+    let { url } = req.body;
+    if (req.file) {
+      const upload = await uploadFile({
+        req,
+        file: req.file,
+        folder: `shops/${vendorId}/banner`,
+      });
+      url = upload.url;
+    }
     
     if (!url) {
       return res.status(400).json({
@@ -811,6 +1213,10 @@ exports.uploadBanner = async (req, res) => {
       { _id: new ObjectId(vendorId) },
       { $set: { banner: url, updatedAt: new Date() } }
     );
+    if (req.app.locals.models.VendorShop) {
+      const vendor = await Vendor.findById(vendorId);
+      await req.app.locals.models.VendorShop.upsertForVendor(vendor, { banner: url });
+    }
 
     res.json({
       success: true,

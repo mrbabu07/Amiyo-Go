@@ -5,6 +5,7 @@ const {
   getApprovedVendorVoucher,
   calculateVendorVoucherDiscount,
 } = require("../utils/vendorMarketingVoucher");
+const campaignVoucherAnalyticsService = require("../services/campaignVoucherAnalyticsService");
 
 class Order {
   constructor(db) {
@@ -264,6 +265,9 @@ class Order {
                   $set: { updatedAt: new Date() },
                 },
               );
+              campaignVoucherAnalyticsService
+                .rebuildVoucherAnalytics(this.collection.db, vendorVoucher._id)
+                .catch((error) => console.error("Failed to refresh voucher analytics:", error.message));
 
               couponApplied = {
                 couponId: vendorVoucher._id,
@@ -487,8 +491,11 @@ class Order {
     // Count each status
     const counts = {
       pending: statuses.filter(s => s === "pending").length,
+      accepted: statuses.filter(s => s === "accepted").length,
       processing: statuses.filter(s => s === "processing").length,
       packed: statuses.filter(s => s === "packed").length,
+      ready_to_ship: statuses.filter(s => s === "ready_to_ship").length,
+      pickup_ready: statuses.filter(s => s === "pickup_ready").length,
       shipped: statuses.filter(s => s === "shipped").length,
       delivered: statuses.filter(s => s === "delivered").length,
       cancelled: statuses.filter(s => s === "cancelled").length,
@@ -525,11 +532,11 @@ class Order {
       derivedStatus = "partially_shipped";
     }
     // Priority 7: All processing/packed
-    else if ((counts.processing + counts.packed) === nonCancelled) {
+    else if ((counts.processing + counts.packed + counts.accepted + counts.ready_to_ship + counts.pickup_ready) === nonCancelled) {
       derivedStatus = "processing";
     }
     // Priority 8: Some processing/packed
-    else if (counts.processing > 0 || counts.packed > 0) {
+    else if (counts.processing > 0 || counts.packed > 0 || counts.accepted > 0 || counts.ready_to_ship > 0 || counts.pickup_ready > 0) {
       derivedStatus = "partially_processing";
     }
     // Priority 9: All pending

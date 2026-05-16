@@ -1,0 +1,169 @@
+const STAFF_ROLES = ["admin", "manager", "support", "moderator"];
+
+const DEFAULT_ROLE_PERMISSIONS = {
+  customer: {
+    orders: ["read"],
+    profile: ["read", "update"],
+    wishlist: ["read", "create", "update", "delete"],
+    reviews: ["read", "create", "update", "delete"],
+    support: ["create", "read"],
+  },
+  vendor: {
+    orders: ["read", "update"],
+    profile: ["read", "update"],
+    products: ["read", "create", "update", "delete"],
+    inventory: ["read", "update"],
+    reviews: ["read"],
+    returns: ["read", "update"],
+    support: ["create", "read"],
+    vendor: ["read", "update"],
+    vendors: ["read", "update"],
+    analytics: ["read"],
+    finance: ["read", "create"],
+  },
+  vendor_staff: {
+    vendor: ["read"],
+    orders: ["read", "update"],
+    products: ["read"],
+    returns: ["read", "update"],
+  },
+  support: {
+    orders: ["read"],
+    users: ["read"],
+    vendors: ["read"],
+    products: ["read"],
+    returns: ["read", "update"],
+    support: ["read", "create", "update"],
+    chat: ["read", "create", "update"],
+    tickets: ["read", "create", "update"],
+    payments: ["read"],
+  },
+  moderator: {
+    orders: ["read", "update"],
+    users: ["read", "update"],
+    vendors: ["read", "update"],
+    products: ["read", "create", "update"],
+    inventory: ["read", "update"],
+    categories: ["read", "create", "update"],
+    reviews: ["read", "update", "delete"],
+    returns: ["read", "update"],
+    support: ["read", "create", "update", "delete"],
+    chat: ["read", "create", "update", "delete"],
+    tickets: ["read", "create", "update", "delete"],
+    payments: ["read", "update"],
+  },
+  manager: {
+    orders: ["read", "create", "update", "delete"],
+    users: ["read", "create", "update"],
+    vendors: ["read", "create", "update"],
+    products: ["read", "create", "update", "delete"],
+    inventory: ["read", "update"],
+    categories: ["read", "create", "update", "delete"],
+    coupons: ["read", "create", "update", "delete"],
+    reviews: ["read", "create", "update", "delete"],
+    returns: ["read", "create", "update", "delete"],
+    support: ["read", "create", "update", "delete"],
+    chat: ["read", "create", "update", "delete"],
+    tickets: ["read", "create", "update", "delete"],
+    payments: ["read", "update"],
+    finance: ["read", "create", "update"],
+    analytics: ["read"],
+  },
+  admin: {
+    orders: ["read", "create", "update", "delete"],
+    users: ["read", "create", "update", "delete"],
+    vendors: ["read", "create", "update", "delete"],
+    products: ["read", "create", "update", "delete"],
+    inventory: ["read", "create", "update", "delete"],
+    categories: ["read", "create", "update", "delete"],
+    coupons: ["read", "create", "update", "delete"],
+    reviews: ["read", "create", "update", "delete"],
+    returns: ["read", "create", "update", "delete"],
+    support: ["read", "create", "update", "delete"],
+    chat: ["read", "create", "update", "delete"],
+    tickets: ["read", "create", "update", "delete"],
+    payments: ["read", "create", "update", "delete"],
+    finance: ["read", "create", "update", "delete"],
+    analytics: ["read", "create", "update", "delete"],
+    audit_logs: ["read"],
+    system: ["read", "create", "update", "delete"],
+  },
+};
+
+const METHOD_ACTION = {
+  GET: "read",
+  POST: "create",
+  PUT: "update",
+  PATCH: "update",
+  DELETE: "delete",
+};
+
+const RESOURCE_BY_PATH = [
+  [/\/admin\/users|\/admin($|\/users)/, "users"],
+  [/\/admin\/vendors|\/vendors/, "vendors"],
+  [/\/admin\/products|\/vendor\/products|\/products|\/inventory/, "products"],
+  [/\/category|\/categories|\/dynamic-categories|\/category-fields|\/category-requests/, "categories"],
+  [/\/coupon/, "coupons"],
+  [/\/review/, "reviews"],
+  [/\/return/, "returns"],
+  [/\/support/, "support"],
+  [/\/chat|\/vendor-chat/, "chat"],
+  [/\/payment|\/payout|\/finance/, "payments"],
+  [/\/dispatch/, "orders"],
+  [/\/analytics/, "analytics"],
+  [/\/order/, "orders"],
+  [/\/campaign|\/offer|\/flash-sales|\/newsletter/, "system"],
+  [/\/audit/, "audit_logs"],
+];
+
+const clonePermissions = (permissions) => JSON.parse(JSON.stringify(permissions || {}));
+
+const getDefaultPermissions = (role) =>
+  clonePermissions(DEFAULT_ROLE_PERMISSIONS[role] || DEFAULT_ROLE_PERMISSIONS.customer);
+
+const isStaffRole = (role) => STAFF_ROLES.includes(role);
+
+const getEffectivePermissions = (user = {}, permissionDoc = null) => {
+  if (permissionDoc?.permissions) {
+    return permissionDoc.permissions;
+  }
+
+  if (user.permissions) {
+    return user.permissions;
+  }
+
+  return DEFAULT_ROLE_PERMISSIONS[user.role] || {};
+};
+
+const hasPermission = (permissions, resource, action) => {
+  const allowed = permissions?.[resource] || [];
+  return allowed.includes(action) || allowed.includes("*");
+};
+
+const roleCan = (user, resource, action, permissionDoc = null) => {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+
+  const effectivePermissions = getEffectivePermissions(user, permissionDoc);
+  return hasPermission(effectivePermissions, resource, action);
+};
+
+const resolvePermissionFromRequest = (req) => {
+  const path = `${req.baseUrl || ""}${req.route?.path || req.path || ""}`;
+  const action = METHOD_ACTION[req.method] || "read";
+  const match = RESOURCE_BY_PATH.find(([pattern]) => pattern.test(path));
+
+  return {
+    resource: req.permissionResource || match?.[1] || "system",
+    action: req.permissionAction || action,
+  };
+};
+
+module.exports = {
+  STAFF_ROLES,
+  DEFAULT_ROLE_PERMISSIONS,
+  getDefaultPermissions,
+  isStaffRole,
+  roleCan,
+  resolvePermissionFromRequest,
+};

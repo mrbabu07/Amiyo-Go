@@ -30,7 +30,7 @@ class Payment {
   async create(paymentData) {
     const payment = {
       ...paymentData,
-      status: 'pending', // pending, processing, completed, failed, refunded
+      status: paymentData.status || 'pending', // pending, processing, completed, failed, refunded
       createdAt: new Date(),
       updatedAt: new Date()
     };

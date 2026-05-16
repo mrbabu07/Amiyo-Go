@@ -106,7 +106,7 @@ exports.getUserAlerts = async (req, res) => {
 // Check and send alerts (Admin only)
 exports.checkAndSendAlerts = async (req, res) => {
   try {
-    const result = await stockAlertService.checkAllAlerts();
+    const result = await stockAlertService.checkAllAlerts(req.app.locals.models);
 
     res.json({
       success: true,

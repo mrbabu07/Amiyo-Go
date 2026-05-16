@@ -1,12 +1,128 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Bell,
+  ChevronDown,
+  ClipboardList,
+  CreditCard,
+  DollarSign,
+  FileCheck,
+  Home,
+  LayoutDashboard,
+  LogOut,
+  Megaphone,
+  Menu,
+  Package,
+  Settings,
+  ShoppingBag,
+  Store,
+  Users,
+  X,
+} from 'lucide-react';
 import useAuth from '../hooks/useAuth';
 import { getAdminAlertSummary } from '../services/api';
+
+const navigation = [
+  {
+    name: 'Dashboard',
+    icon: LayoutDashboard,
+    path: '/admin',
+    exact: true,
+    alertKey: 'dashboard',
+  },
+  {
+    name: 'Vendors',
+    icon: Store,
+    children: [
+      { name: 'Requests', path: '/admin/vendor-requests', exact: true, alertKey: 'vendors' },
+      { name: 'KYC Review', path: '/admin/vendor-kyc', exact: true },
+      { name: 'All Vendors', path: '/admin/vendors' },
+      { name: 'Activity', path: '/admin/vendor-activity', exact: true, alertKey: 'vendorActivity' },
+      { name: 'Vendor Chats', path: '/admin/chats', exact: true, alertKey: 'vendorChats' },
+    ],
+  },
+  {
+    name: 'Catalog',
+    icon: Package,
+    children: [
+      { name: 'Products', path: '/admin/products', exact: true, activePaths: ['/admin/products/edit'] },
+      { name: 'Add Product', path: '/admin/products/add', exact: true },
+      { name: 'Inventory', path: '/admin/inventory', exact: true, alertKey: 'products' },
+      { name: 'Categories', path: '/admin/categories' },
+      { name: 'Category Requests', path: '/admin/category-requests', exact: true, alertKey: 'categories' },
+    ],
+  },
+  {
+    name: 'Orders',
+    icon: ShoppingBag,
+    children: [
+      { name: 'All Orders', path: '/admin/orders', exact: true, alertKey: 'orders' },
+      { name: 'Returns', path: '/admin/returns', exact: true, alertKey: 'returns' },
+      { name: 'Support Tickets', path: '/admin/support', exact: true, alertKey: 'support' },
+    ],
+  },
+  {
+    name: 'Marketing',
+    icon: Megaphone,
+    children: [
+      { name: 'Coupons', path: '/admin/coupons', exact: true },
+      { name: 'Flash Sales', path: '/admin/flash-sales', exact: true },
+      { name: 'Offers', path: '/admin/offers' },
+      { name: 'Newsletter', path: '/admin/newsletter', exact: true },
+    ],
+  },
+  {
+    name: 'Finance',
+    icon: DollarSign,
+    children: [
+      { name: 'Vendor Payouts', path: '/admin/payouts', exact: true, alertKey: 'payouts' },
+      { name: 'Payout Requests', path: '/admin/payout-requests', exact: true, alertKey: 'payoutRequests' },
+      { name: 'Manual Payments', path: '/admin/payment-verifications', exact: true, alertKey: 'payments' },
+    ],
+  },
+  {
+    name: 'Customers',
+    icon: Users,
+    children: [
+      { name: 'Users', path: '/admin/users', exact: true, alertKey: 'users' },
+      { name: 'Insights', path: '/admin/insights', exact: true },
+      { name: 'Reviews', path: '/admin/reviews', exact: true },
+      { name: 'Q&A', path: '/admin/qa', exact: true },
+    ],
+  },
+  {
+    name: 'Delivery Settings',
+    icon: Settings,
+    path: '/admin/delivery-settings',
+    exact: true,
+  },
+];
+
+const quickLinks = [
+  { name: 'Store', path: '/', icon: Home },
+  { name: 'Orders', path: '/admin/orders', icon: ClipboardList },
+  { name: 'Vendors', path: '/admin/vendor-requests', icon: FileCheck },
+  { name: 'Payments', path: '/admin/payment-verifications', icon: CreditCard },
+];
+
+const matchesRoute = (pathname, item) => {
+  if (!item.path && !item.activePaths) return false;
+
+  const paths = [item.path, ...(item.activePaths || [])].filter(Boolean);
+
+  return paths.some((path) => {
+    if (item.exact && path === item.path) {
+      return pathname === path;
+    }
+
+    return pathname === path || pathname.startsWith(`${path}/`);
+  });
+};
 
 const AlertBadge = ({ count }) => {
   if (!count) return null;
   return (
-    <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white">
+    <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold leading-none text-white">
       {count > 99 ? '99+' : count}
     </span>
   );
@@ -15,9 +131,12 @@ const AlertBadge = ({ count }) => {
 const AdminLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { user, role, logout } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(() => (
+    typeof window === 'undefined' ? false : window.innerWidth >= 1024
+  ));
   const [alertCounts, setAlertCounts] = useState({});
+  const [expandedSections, setExpandedSections] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -47,185 +166,35 @@ const AdminLayout = () => {
     };
   }, [user]);
 
-  const getAlertCount = (path) => {
-    const keyByPath = {
-      '/admin': 'dashboard',
-      '/admin/vendor-activity': 'vendorActivity',
-      '/admin/vendors': 'vendors',
-      '/admin/vendor-requests': 'vendors',
-      '/admin/chats': 'vendorChats',
-      '/admin/products': 'products',
-      '/admin/inventory': 'products',
-      '/admin/orders': 'orders',
-      '/admin/returns': 'returns',
-      '/admin/payouts': 'payouts',
-      '/admin/payout-requests': 'payoutRequests',
-      '/admin/categories': 'categories',
-      '/admin/category-requests': 'categories',
-      '/admin/support': 'support',
-      '/admin/users': 'users',
-    };
-    return alertCounts[keyByPath[path]] || 0;
+  const getAlertCount = (item) => {
+    if (!item?.alertKey) return 0;
+    return alertCounts[item.alertKey] || 0;
   };
 
-  const navigation = [
-    {
-      name: 'Dashboard',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
-      ),
-      path: '/admin',
-      exact: true,
-    },
-    {
-      name: 'Vendor Management',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-      ),
-      children: [
-        { name: 'Requests & Approvals', path: '/admin/vendor-requests' },
-        { name: 'Vendor Activity', path: '/admin/vendor-activity' },
-        { name: 'All Vendors', path: '/admin/vendors' },
-        { name: 'Vendor Chats', path: '/admin/chats' },
-      ],
-    },
-    {
-      name: 'Product Management',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-        </svg>
-      ),
-      children: [
-        { name: 'All Products', path: '/admin/products' },
-        { name: 'Inventory', path: '/admin/inventory' },
-        { name: 'Add Product', path: '/admin/products/add' },
-      ],
-    },
-    {
-      name: 'Order Management',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        </svg>
-      ),
-      children: [
-        { name: 'All Orders', path: '/admin/orders' },
-        { name: 'Return Requests', path: '/admin/returns' },
-      ],
-    },
-    {
-      name: 'Finance Control',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      children: [
-        { name: 'Vendor Payouts', path: '/admin/payouts' },
-        { name: 'Payout Requests', path: '/admin/payout-requests' },
-      ],
-    },
-    {
-      name: 'Marketplace Settings',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-      children: [
-        { name: 'Categories', path: '/admin/categories' },
-        { name: 'Category Requests', path: '/admin/category-requests' },
-        { name: 'Coupons', path: '/admin/coupons' },
-        { name: 'Flash Sales', path: '/admin/flash-sales' },
-        { name: 'Offers', path: '/admin/offers' },
-        { name: 'Delivery Settings', path: '/admin/delivery-settings' },
-      ],
-    },
-    {
-      name: 'User Management',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-        </svg>
-      ),
-      children: [
-        { name: 'All Users', path: '/admin/users' },
-        { name: 'User Reports', path: '/admin/insights' },
-        { name: 'Support Tickets', path: '/admin/support' },
-      ],
-    },
-    {
-      name: 'Reports & Messaging',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-        </svg>
-      ),
-      children: [
-        { name: 'Vendor Reports', path: '/admin/vendor-activity' },
-        { name: 'User Reports', path: '/admin/insights' },
-        { name: 'Vendor Messaging', path: '/admin/chats' },
-        { name: 'Support Messaging', path: '/admin/support' },
-      ],
-    },
-    {
-      name: 'Content & Reviews',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-        </svg>
-      ),
-      children: [
-        { name: 'Reviews', path: '/admin/reviews' },
-        { name: 'Q&A', path: '/admin/qa' },
-      ],
-    },
-    {
-      name: 'Owner Controls',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-        </svg>
-      ),
-      children: [
-        { name: 'Owner Products', path: '/admin/products/add' },
-        { name: 'Admin & Staff', path: '/admin/users' },
-        { name: 'Platform Categories', path: '/admin/categories' },
-        { name: 'Storefront Settings', path: '/admin/delivery-settings' },
-      ],
-    },
-  ];
+  const getSectionAlertCount = (item) => {
+    if (!item.children) return getAlertCount(item);
 
-  const [expandedSections, setExpandedSections] = useState(
-    navigation.reduce((acc, item) => {
-      if (item.children) {
-        acc[item.name] = item.children.some(child => location.pathname === child.path);
-      }
-      return acc;
-    }, {})
-  );
+    const seenKeys = new Set();
+    return item.children.reduce((sum, child) => {
+      if (!child.alertKey || seenKeys.has(child.alertKey)) return sum;
+      seenKeys.add(child.alertKey);
+      return sum + getAlertCount(child);
+    }, 0);
+  };
 
   const toggleSection = (sectionName) => {
-    setExpandedSections(prev => ({
+    setExpandedSections((prev) => ({
       ...prev,
       [sectionName]: !prev[sectionName],
     }));
   };
 
-  const isActive = (path, exact = false) => {
-    if (exact) return location.pathname === path;
-    return location.pathname.startsWith(path);
-  };
+  const isActive = (item) => matchesRoute(location.pathname, item);
 
-  const getSectionAlertCount = (item) => {
-    if (!item.children) return getAlertCount(item.path);
-    return item.children.reduce((sum, child) => sum + getAlertCount(child.path), 0);
+  const closeSidebarOnMobile = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -234,151 +203,197 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Top Navigation Bar */}
-      <div className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-30">
-        <div className="h-full px-4 flex items-center justify-between">
-          {/* Left: Logo & Menu Toggle */}
-          <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
+      <header className="fixed inset-x-0 top-0 z-30 h-16 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
+        <div className="flex h-full items-center justify-between px-4 lg:px-6">
+          <div className="flex min-w-0 items-center gap-3">
             <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 lg:hidden"
+              type="button"
+              onClick={() => setSidebarOpen((open) => !open)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:text-gray-200 dark:hover:bg-gray-800 lg:hidden"
+              aria-label={sidebarOpen ? 'Close admin menu' : 'Open admin menu'}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
-            <Link to="/admin" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">B</span>
-              </div>
-              <span className="text-xl font-bold text-gray-900 dark:text-white hidden sm:block">
-                BazarBD Admin
+            <Link to="/admin" className="flex min-w-0 items-center gap-3" onClick={closeSidebarOnMobile}>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-600 text-sm font-bold text-white shadow-sm">
+                AG
+              </span>
+              <span className="truncate text-lg font-bold text-gray-950 dark:text-white sm:text-xl">
+                Amiyo-Go Admin
               </span>
             </Link>
           </div>
 
-          {/* Right: User Menu */}
-          <div className="flex items-center gap-4">
-            <Link
-              to="/"
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-              title="View Store"
-            >
-              <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-            </Link>
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {quickLinks.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.path}
+                  className="hidden h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:text-gray-300 dark:hover:bg-orange-900/20 dark:hover:text-orange-300 sm:inline-flex"
+                  title={item.name}
+                  aria-label={item.name}
+                >
+                  <Icon className="h-5 w-5" />
+                </Link>
+              );
+            })}
+            <div className="hidden items-center gap-3 border-l border-gray-200 pl-4 dark:border-gray-800 sm:flex">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 text-sm font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                {(user?.displayName || user?.email || 'A').charAt(0).toUpperCase()}
+              </span>
+              <div className="max-w-40 text-right">
+                <p className="truncate text-sm font-semibold text-gray-950 dark:text-white">
                   {user?.displayName || 'Admin'}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Administrator</p>
+                <p className="truncate text-xs capitalize text-gray-500 dark:text-gray-400">
+                  {role || 'staff'}
+                </p>
               </div>
-              <button
-                onClick={handleLogout}
-                className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition"
-                title="Logout"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
             </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500/30 dark:text-red-400 dark:hover:bg-red-950/30"
+              title="Logout"
+              aria-label="Logout"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Sidebar */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-10 bg-gray-950/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Close admin menu"
+        />
+      )}
+
       <aside
-        className={`fixed top-16 left-0 bottom-0 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-transform duration-300 z-20 overflow-y-auto ${
+        className={`fixed bottom-0 left-0 top-16 z-20 flex w-72 flex-col border-r border-gray-200 bg-white transition-transform duration-300 dark:border-gray-800 dark:bg-gray-900 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0`}
+        aria-label="Admin navigation"
       >
-        <nav className="p-4 space-y-1">
-          {navigation.map((item) => (
-            <div key={item.name}>
-              {item.children ? (
-                <div>
+        <div className="border-b border-gray-100 px-4 py-4 dark:border-gray-800">
+          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-gray-800/80">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-gray-950 dark:text-white">
+                Admin workspace
+              </p>
+              <p className="truncate text-xs capitalize text-gray-500 dark:text-gray-400">
+                {role || 'staff'} access
+              </p>
+            </div>
+            <Bell className="h-5 w-5 shrink-0 text-orange-600 dark:text-orange-400" />
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+          {navigation.map((item) => {
+            const Icon = item.icon;
+            const sectionActive = item.children
+              ? item.children.some((child) => isActive(child))
+              : isActive(item);
+            const sectionAlerts = getSectionAlertCount(item);
+
+            if (item.children) {
+              const expanded = expandedSections[item.name] || sectionActive;
+
+              return (
+                <div key={item.name}>
                   <button
+                    type="button"
                     onClick={() => toggleSection(item.name)}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition ${
-                      item.children.some(child => isActive(child.path))
-                        ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-orange-500/25 ${
+                      sectionActive
+                        ? 'bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-300'
+                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
                     }`}
+                    aria-expanded={expanded}
                   >
-                    <div className="flex items-center gap-3">
-                      {item.icon}
-                      <span>{item.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <AlertBadge count={getSectionAlertCount(item)} />
-                      <svg
-                        className={`w-4 h-4 transition-transform ${expandedSections[item.name] ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
+                    <Icon className="h-5 w-5 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate text-left">{item.name}</span>
+                    <AlertBadge count={sectionAlerts} />
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                    />
                   </button>
-                  {expandedSections[item.name] && (
-                    <div className="ml-4 mt-1 space-y-1">
-                      {item.children.map((child) => (
-                        <Link
-                          key={child.path}
-                          to={child.path}
-                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${
-                            isActive(child.path)
-                              ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 font-medium'
-                              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                          }`}
-                        >
-                          <span>{child.name}</span>
-                          <AlertBadge count={getAlertCount(child.path)} />
-                        </Link>
-                      ))}
+
+                  {expanded && (
+                    <div className="mt-1 space-y-1 border-l border-gray-200 py-1 pl-4 dark:border-gray-800">
+                      {item.children.map((child) => {
+                        const childActive = isActive(child);
+
+                        return (
+                          <Link
+                            key={child.path}
+                            to={child.path}
+                            onClick={closeSidebarOnMobile}
+                            aria-current={childActive ? 'page' : undefined}
+                            className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-orange-500/25 ${
+                              childActive
+                                ? 'bg-orange-50 font-semibold text-orange-700 dark:bg-orange-950/30 dark:text-orange-300'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
+                            }`}
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                childActive ? 'bg-orange-600 dark:bg-orange-300' : 'bg-gray-300 dark:bg-gray-600'
+                              }`}
+                            />
+                            <span className="min-w-0 flex-1 truncate">{child.name}</span>
+                            <AlertBadge count={getAlertCount(child)} />
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
-              ) : (
-                <Link
-                  to={item.path}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                    isActive(item.path, item.exact)
-                      ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {item.icon}
-                  <span>{item.name}</span>
-                  <AlertBadge count={getAlertCount(item.path)} />
-                </Link>
-              )}
-            </div>
-          ))}
+              );
+            }
+
+            return (
+              <Link
+                key={item.name}
+                to={item.path}
+                onClick={closeSidebarOnMobile}
+                aria-current={sectionActive ? 'page' : undefined}
+                className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-orange-500/25 ${
+                  sectionActive
+                    ? 'bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-300'
+                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
+                }`}
+              >
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                <AlertBadge count={getAlertCount(item)} />
+              </Link>
+            );
+          })}
         </nav>
+
+        <div className="border-t border-gray-100 p-3 dark:border-gray-800">
+          <Link
+            to="/"
+            onClick={closeSidebarOnMobile}
+            className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-orange-50 hover:text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/25 dark:text-gray-300 dark:hover:bg-orange-950/30 dark:hover:text-orange-300"
+          >
+            <Home className="h-5 w-5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">View storefront</span>
+          </Link>
+        </div>
       </aside>
 
-      {/* Main Content */}
-      <main
-        className={`pt-16 transition-all duration-300 ${
-          sidebarOpen ? 'lg:ml-64' : 'lg:ml-0'
-        }`}
-      >
+      <main className="min-h-screen pt-16 transition-all duration-300 lg:ml-72">
         <Outlet />
       </main>
-
-      {/* Mobile Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-10 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
     </div>
   );
 };

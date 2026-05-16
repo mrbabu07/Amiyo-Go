@@ -11,7 +11,7 @@ class Review {
       productId: new ObjectId(reviewData.productId),
       userId: reviewData.userId,
       rating: parseInt(reviewData.rating),
-      images: reviewData.images || [], // Array of image URLs from ImgBB
+      images: reviewData.images || [], // Array of uploaded image URLs
       createdAt: new Date(),
       updatedAt: new Date(),
       helpful: 0,

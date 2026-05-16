@@ -2,9 +2,12 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const cron = require("node-cron");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const fs = require("fs");
 const path = require("path");
+const { auditSensitiveOperations } = require("./middleware/audit");
+const realtimeService = require("./services/realtimeService");
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, "uploads");
@@ -45,6 +48,17 @@ const Recommendation = require("./models/Recommendation");
 const SellerProfile = require("./models/SellerProfile");
 const StockAlert = require("./models/StockAlert");
 const StoreLocation = require("./models/StoreLocation");
+const Permission = require("./models/Permission");
+const AuditLog = require("./models/AuditLog");
+const VendorShop = require("./models/VendorShop");
+const AnalyticsSummary = require("./models/AnalyticsSummary");
+const OrderEvent = require("./models/OrderEvent");
+const DispatchAssignment = require("./models/DispatchAssignment");
+const VendorStaff = require("./models/VendorStaff");
+const { DEFAULT_ROLE_PERMISSIONS } = require("./config/permissions");
+const analyticsService = require("./services/analyticsService");
+const { initBulkUploadQueue } = require("./services/bulkUploadQueue");
+const newsletterBroadcastService = require("./services/newsletterBroadcastService");
 
 // Campaign Manager models
 const Campaign = require("./models/Campaign");
@@ -98,6 +112,12 @@ const categoryFieldRoutes = require("./routes/categoryFieldRoutes");
 const storeLocationRoutes = require("./routes/storeLocationRoutes");
 const newsletterRoutes = require("./routes/newsletterRoutes");
 const rewardRoutes = require("./routes/rewardRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
+const auditRoutes = require("./routes/auditRoutes");
+const analyticsRoutes = require("./routes/analyticsRoutes");
+const dispatchRoutes = require("./routes/dispatchRoutes");
+const vendorStaffRoutes = require("./routes/vendorStaffRoutes");
+const accountRoutes = require("./routes/accountRoutes");
 
 // Campaign Manager routes
 const campaignRoutes = require("./routes/campaignRoutes");
@@ -192,7 +212,17 @@ async function run() {
       SellerProfile: new SellerProfile(db),
       StockAlert: new StockAlert(db),
       StoreLocation: new StoreLocation(db),
+      Permission: new Permission(db),
+      AuditLog: new AuditLog(db),
+      VendorShop: new VendorShop(db),
+      AnalyticsSummary: new AnalyticsSummary(db),
+      OrderEvent: new OrderEvent(db),
+      DispatchAssignment: new DispatchAssignment(db),
+      VendorStaff: new VendorStaff(db),
     };
+
+    await app.locals.models.Permission.syncDefaults(DEFAULT_ROLE_PERMISSIONS);
+    initBulkUploadQueue(app);
 
     // Store db reference for controllers that need it
     app.locals.db = db;
@@ -219,6 +249,7 @@ async function run() {
     });
 
     console.log("🔧 Registering routes...");
+    app.use(auditSensitiveOperations);
 
     app.use("/api/products", productRoutes);
     console.log("✅ Products routes registered");
@@ -230,6 +261,7 @@ async function run() {
     console.log("✅ Orders routes registered");
 
     app.use("/api/user", userRoutes);
+    app.use("/api/account", accountRoutes);
     console.log("✅ User routes registered");
 
     app.use("/api/wishlist", wishlistRoutes);
@@ -278,6 +310,7 @@ async function run() {
     app.use("/api/delivery-settings", deliverySettingsRoutes);
     console.log("✅ Delivery Settings routes registered");
 
+    app.use("/api/vendors/staff", vendorStaffRoutes);
     app.use("/api/vendors", vendorRoutes);
     console.log("✅ Vendor routes registered");
 
@@ -326,6 +359,10 @@ async function run() {
     app.use("/api/store-locations", storeLocationRoutes);
     app.use("/api/newsletter", newsletterRoutes);
     app.use("/api/rewards", rewardRoutes);
+    app.use("/api/uploads", uploadRoutes);
+    app.use("/api/admin/audit-logs", auditRoutes);
+    app.use("/api/admin/analytics", analyticsRoutes);
+    app.use("/api/admin/dispatch", dispatchRoutes);
     console.log("✅ Store Locations routes registered");
 
     // Dynamic Category & Product routes
@@ -344,6 +381,23 @@ async function run() {
     console.log("✅ Campaign Cache Service initialized");
 
     campaignScheduler.initializeJobs();
+    cron.schedule("17 * * * *", () => {
+      analyticsService
+        .rebuildDailySummary({
+          db,
+          AnalyticsSummary: app.locals.models.AnalyticsSummary,
+          start: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
+          end: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        })
+        .catch((error) => console.error("Analytics summary rebuild failed:", error.message));
+    });
+    cron.schedule("* * * * *", () => {
+      newsletterBroadcastService
+        .sendDueBroadcasts(app)
+        .catch((error) => console.error("Newsletter broadcast scheduler failed:", error.message));
+    });
+    console.log("Analytics summary cron scheduled");
+    console.log("Newsletter broadcast cron scheduled");
     console.log("✅ Campaign Scheduler initialized");
 
     // Error handling middleware
@@ -353,9 +407,10 @@ async function run() {
     });
 
     // Start server
-    app.listen(port, () => {
+    const server = app.listen(port, () => {
       console.log(`🔥 Server running on port ${port}`);
     });
+    realtimeService.attach(server, app);
   } catch (error) {
     console.error("❌ MongoDB connection failed:", error.message);
   }
