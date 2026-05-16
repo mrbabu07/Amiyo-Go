@@ -1,132 +1,119 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+
+const MotionDiv = motion.div;
+
+const uniqueValues = (items) => [...new Set(items.filter(Boolean))];
 
 export default function ProductVariantSelector({
   product,
   onVariantChange,
   selectedVariant: initialVariant,
 }) {
-  const [selectedSize, setSelectedSize] = useState(null);
-  const [selectedColor, setSelectedColor] = useState(null);
-  const [currentVariant, setCurrentVariant] = useState(null);
-  const [availableColors, setAvailableColors] = useState([]);
-  const [availableSizes, setAvailableSizes] = useState([]);
+  const variants = useMemo(() => product.variants || [], [product.variants]);
+  const firstVariant = initialVariant || variants[0] || null;
+  const [selectedSize, setSelectedSize] = useState(firstVariant?.size || null);
+  const [selectedColor, setSelectedColor] = useState(firstVariant?.color || null);
+  const onVariantChangeRef = useRef(onVariantChange);
 
-  // Initialize variants from product
   useEffect(() => {
-    if (product.variants && product.variants.length > 0) {
-      // Get unique sizes and colors
-      const sizes = [...new Set(product.variants.map((v) => v.size))].filter(
-        Boolean,
-      );
-      const colors = [...new Set(product.variants.map((v) => v.color))].filter(
-        Boolean,
-      );
+    onVariantChangeRef.current = onVariantChange;
+  }, [onVariantChange]);
 
-      setAvailableSizes(sizes);
-      setAvailableColors(colors);
+  const allSizes = useMemo(
+    () => uniqueValues(variants.map((variant) => variant.size)),
+    [variants],
+  );
+  const allColors = useMemo(
+    () => uniqueValues(variants.map((variant) => variant.color)),
+    [variants],
+  );
 
-      // Set initial selection
-      if (initialVariant) {
-        setSelectedSize(initialVariant.size);
-        setSelectedColor(initialVariant.color);
-        setCurrentVariant(initialVariant);
-      } else if (product.variants[0]) {
-        const firstVariant = product.variants[0];
-        setSelectedSize(firstVariant.size);
-        setSelectedColor(firstVariant.color);
-        setCurrentVariant(firstVariant);
-      }
-    }
-  }, [product, initialVariant]);
+  const availableSizes = useMemo(() => {
+    if (!selectedColor) return allSizes;
+    return uniqueValues(
+      variants
+        .filter((variant) => variant.color === selectedColor)
+        .map((variant) => variant.size),
+    );
+  }, [allSizes, selectedColor, variants]);
 
-  // Update variant when size or color changes
-  useEffect(() => {
-    if (selectedSize || selectedColor) {
-      const variant = product.variants?.find((v) => {
-        const sizeMatch = !selectedSize || v.size === selectedSize;
-        const colorMatch = !selectedColor || v.color === selectedColor;
+  const availableColors = useMemo(() => {
+    if (!selectedSize) return allColors;
+    return uniqueValues(
+      variants
+        .filter((variant) => variant.size === selectedSize)
+        .map((variant) => variant.color),
+    );
+  }, [allColors, selectedSize, variants]);
+
+  const currentVariant = useMemo(() => {
+    if (variants.length === 0) return null;
+    return (
+      variants.find((variant) => {
+        const sizeMatch = !selectedSize || variant.size === selectedSize;
+        const colorMatch = !selectedColor || variant.color === selectedColor;
         return sizeMatch && colorMatch;
-      });
+      }) || variants[0]
+    );
+  }, [selectedColor, selectedSize, variants]);
 
-      if (variant) {
-        setCurrentVariant(variant);
-        onVariantChange?.(variant);
-      }
+  useEffect(() => {
+    if (currentVariant) {
+      onVariantChangeRef.current?.(currentVariant);
     }
-  }, [selectedSize, selectedColor, product.variants]);
+  }, [currentVariant]);
 
   const handleSizeSelect = (size) => {
     setSelectedSize(size);
 
-    // Update available colors for this size
-    const colorsForSize = product.variants
-      ?.filter((v) => v.size === size)
-      .map((v) => v.color)
-      .filter(Boolean);
+    const colorsForSize = uniqueValues(
+      variants
+        .filter((variant) => variant.size === size)
+        .map((variant) => variant.color),
+    );
 
-    if (colorsForSize && colorsForSize.length > 0) {
-      setAvailableColors([...new Set(colorsForSize)]);
-
-      // If current color not available, select first available
-      if (!colorsForSize.includes(selectedColor)) {
-        setSelectedColor(colorsForSize[0]);
-      }
+    if (colorsForSize.length > 0 && !colorsForSize.includes(selectedColor)) {
+      setSelectedColor(colorsForSize[0]);
     }
   };
 
   const handleColorSelect = (color) => {
     setSelectedColor(color);
 
-    // Update available sizes for this color
-    const sizesForColor = product.variants
-      ?.filter((v) => v.color === color)
-      .map((v) => v.size)
-      .filter(Boolean);
+    const sizesForColor = uniqueValues(
+      variants
+        .filter((variant) => variant.color === color)
+        .map((variant) => variant.size),
+    );
 
-    if (sizesForColor && sizesForColor.length > 0) {
-      setAvailableSizes([...new Set(sizesForColor)]);
-
-      // If current size not available, select first available
-      if (!sizesForColor.includes(selectedSize)) {
-        setSelectedSize(sizesForColor[0]);
-      }
+    if (sizesForColor.length > 0 && !sizesForColor.includes(selectedSize)) {
+      setSelectedSize(sizesForColor[0]);
     }
   };
 
   const isVariantAvailable = (size, color) => {
-    const variant = product.variants?.find((v) => {
-      const sizeMatch = !size || v.size === size;
-      const colorMatch = !color || v.color === color;
+    const variant = variants.find((item) => {
+      const sizeMatch = !size || item.size === size;
+      const colorMatch = !color || item.color === color;
       return sizeMatch && colorMatch;
     });
-    return variant && variant.stock > 0;
+    return variant && (variant.stock > 0 || product.allowBackorder);
   };
 
-  const getVariantPrice = () => {
-    if (currentVariant && currentVariant.price) {
-      return currentVariant.price;
-    }
-    return product.price;
-  };
+  const variantPrice = Number(currentVariant?.price || product.price || 0);
+  const productPrice = Number(product.price || 0);
+  const variantStock = Number(currentVariant?.stock || product.stock || 0);
 
-  const getVariantStock = () => {
-    if (currentVariant) {
-      return currentVariant.stock || 0;
-    }
-    return product.stock || 0;
-  };
-
-  if (!product.variants || product.variants.length === 0) {
+  if (variants.length === 0) {
     return null;
   }
 
   return (
     <div className="space-y-6">
-      {/* Size Selector */}
       {availableSizes.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="mb-3 flex items-center justify-between">
             <label className="text-sm font-semibold text-gray-900 dark:text-white">
               Size
             </label>
@@ -146,18 +133,18 @@ export default function ProductVariantSelector({
                   key={size}
                   onClick={() => available && handleSizeSelect(size)}
                   disabled={!available}
-                  className={`relative px-6 py-3 rounded-lg border-2 font-medium transition-all ${
+                  className={`relative rounded-lg border-2 px-6 py-3 font-medium transition-all ${
                     isSelected
-                      ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 scale-105"
+                      ? "scale-105 border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400"
                       : available
-                        ? "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-primary-300 dark:hover:border-primary-700 hover:scale-105"
-                        : "border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-50"
+                        ? "border-gray-300 text-gray-700 hover:scale-105 hover:border-primary-300 dark:border-gray-600 dark:text-gray-300 dark:hover:border-primary-700"
+                        : "cursor-not-allowed border-gray-200 text-gray-400 opacity-50 dark:border-gray-700 dark:text-gray-600"
                   }`}
                 >
                   {size}
                   {!available && (
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-full h-0.5 bg-gray-400 dark:bg-gray-600 rotate-45"></div>
+                      <div className="h-0.5 w-full rotate-45 bg-gray-400 dark:bg-gray-600" />
                     </div>
                   )}
                 </button>
@@ -167,10 +154,9 @@ export default function ProductVariantSelector({
         </div>
       )}
 
-      {/* Color Selector */}
       {availableColors.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="mb-3 flex items-center justify-between">
             <label className="text-sm font-semibold text-gray-900 dark:text-white">
               Color
             </label>
@@ -191,22 +177,22 @@ export default function ProductVariantSelector({
                   key={color}
                   onClick={() => available && handleColorSelect(color)}
                   disabled={!available}
-                  className={`relative group ${!available ? "cursor-not-allowed opacity-50" : ""}`}
+                  className={`group relative ${!available ? "cursor-not-allowed opacity-50" : ""}`}
                   title={color}
                 >
                   <div
-                    className={`w-12 h-12 rounded-full border-4 transition-all ${
+                    className={`h-12 w-12 rounded-full border-4 transition-all ${
                       isSelected
-                        ? "border-primary-500 scale-110 shadow-lg"
+                        ? "scale-110 border-primary-500 shadow-lg"
                         : available
-                          ? "border-gray-300 dark:border-gray-600 hover:scale-105 hover:border-primary-300 dark:hover:border-primary-700"
+                          ? "border-gray-300 hover:scale-105 hover:border-primary-300 dark:border-gray-600 dark:hover:border-primary-700"
                           : "border-gray-200 dark:border-gray-700"
                     }`}
                     style={{ backgroundColor: colorHex }}
                   >
                     {isSelected && (
                       <svg
-                        className="w-6 h-6 text-white absolute inset-0 m-auto drop-shadow-lg"
+                        className="absolute inset-0 m-auto h-6 w-6 text-white drop-shadow-lg"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -221,11 +207,11 @@ export default function ProductVariantSelector({
                     )}
                     {!available && (
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-full h-0.5 bg-gray-400 dark:bg-gray-600 rotate-45"></div>
+                        <div className="h-0.5 w-full rotate-45 bg-gray-400 dark:bg-gray-600" />
                       </div>
                     )}
                   </div>
-                  <span className="text-xs text-gray-600 dark:text-gray-400 mt-1 block text-center">
+                  <span className="mt-1 block text-center text-xs text-gray-600 dark:text-gray-400">
                     {color}
                   </span>
                 </button>
@@ -235,74 +221,75 @@ export default function ProductVariantSelector({
         </div>
       )}
 
-      {/* Variant Info */}
       {currentVariant && (
-        <motion.div
+        <MotionDiv
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700"
+          className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+              <p className="mb-1 text-sm text-gray-600 dark:text-gray-400">
                 Selected Variant
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                ৳{getVariantPrice().toFixed(2)}
+                BDT {variantPrice.toFixed(2)}
               </p>
-              {currentVariant.price !== product.price && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 line-through">
-                  ৳{product.price.toFixed(2)}
+              {variantPrice !== productPrice && (
+                <p className="text-sm text-gray-500 line-through dark:text-gray-400">
+                  BDT {productPrice.toFixed(2)}
                 </p>
               )}
             </div>
             <div className="text-right">
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+              <p className="mb-1 text-sm text-gray-600 dark:text-gray-400">
                 Stock
               </p>
               <p
                 className={`text-lg font-semibold ${
-                  getVariantStock() > 10
+                  variantStock > 10
                     ? "text-green-600 dark:text-green-400"
-                    : getVariantStock() > 0
+                    : variantStock > 0
                       ? "text-yellow-600 dark:text-yellow-400"
-                      : "text-red-600 dark:text-red-400"
+                      : product.allowBackorder
+                        ? "text-blue-600 dark:text-blue-400"
+                        : "text-red-600 dark:text-red-400"
                 }`}
               >
-                {getVariantStock() > 0
-                  ? `${getVariantStock()} available`
-                  : "Out of stock"}
+                {variantStock > 0
+                  ? `${variantStock} available`
+                  : product.allowBackorder
+                    ? "Backorder"
+                    : "Out of stock"}
               </p>
             </div>
           </div>
 
           {currentVariant.sku && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
               SKU: {currentVariant.sku}
             </p>
           )}
-        </motion.div>
+        </MotionDiv>
       )}
 
-      {/* Variant Image */}
       {currentVariant?.image && currentVariant.image !== product.image && (
-        <motion.div
+        <MotionDiv
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"
+          className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
         >
           <img
             src={currentVariant.image}
-            alt={`${selectedSize} ${selectedColor}`}
-            className="w-full h-48 object-cover"
+            alt={`${selectedSize || ""} ${selectedColor || ""}`.trim()}
+            className="h-48 w-full object-cover"
           />
-        </motion.div>
+        </MotionDiv>
       )}
     </div>
   );
 }
 
-// Helper function to get color hex codes
 function getColorHex(colorName) {
   const colorMap = {
     Black: "#000000",

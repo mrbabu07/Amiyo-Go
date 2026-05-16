@@ -70,6 +70,22 @@ const parseVariants = (value) => {
   }
 };
 
+const parseBoolean = (value) =>
+  ["1", "true", "yes", "y"].includes(String(value || "").trim().toLowerCase());
+
+const parseOptionalDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const parseKeywords = (value) =>
+  String(value || "")
+    .split(/[|,]/)
+    .map((keyword) => keyword.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+
 const validateRow = (row, rowNumber, categoryMap) => {
   const errors = [];
   const price = Number(row.price);
@@ -144,8 +160,19 @@ const processJob = async (jobId) => {
         description: row.description || "",
         price: validation.price,
         stock: validation.stock,
+        sku: row.sku || "",
         images: row.images ? row.images.split("|").map((url) => url.trim()).filter(Boolean) : [],
         variants,
+        seo: {
+          metaTitle: row.metaTitle || "",
+          metaDescription: row.metaDescription || "",
+          searchKeywords: parseKeywords(row.searchKeywords),
+        },
+        lowStockThreshold: row.lowStockThreshold ? Number(row.lowStockThreshold) || 5 : 5,
+        allowBackorder: parseBoolean(row.allowBackorder),
+        restockDate: parseOptionalDate(row.restockDate),
+        preorderEnabled: parseBoolean(row.preorderEnabled),
+        expectedShipDate: parseOptionalDate(row.expectedShipDate),
         attributes: {
           ...(row.sku ? { sku: row.sku } : {}),
           ...(row.brand ? { brand: row.brand } : {}),

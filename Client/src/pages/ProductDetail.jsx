@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { getProductById } from "../services/api";
 import useCart from "../hooks/useCart";
@@ -34,12 +34,13 @@ export default function ProductDetail() {
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [categoryPath, setCategoryPath] = useState([]);
+  const addToRecentlyViewedRef = useRef(addToRecentlyViewed);
 
   useEffect(() => {
-    fetchProduct();
-  }, [id]);
+    addToRecentlyViewedRef.current = addToRecentlyViewed;
+  }, [addToRecentlyViewed]);
 
-  const fetchCategoryPath = async (categoryId) => {
+  const fetchCategoryPath = useCallback(async (categoryId) => {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/categories/${categoryId}/path`);
       if (response.ok) {
@@ -48,14 +49,10 @@ export default function ProductDetail() {
       }
     } catch (error) {
       console.error("Failed to fetch category path:", error);
-      // Fallback: just show the category name if available
-      if (product?.categoryName) {
-        setCategoryPath([{ name: product.categoryName }]);
-      }
     }
-  };
+  }, []);
 
-  const fetchProduct = async () => {
+  const fetchProduct = useCallback(async () => {
     try {
       // Validate product ID format
       if (!id || id.length !== 24) {
@@ -75,7 +72,7 @@ export default function ProductDetail() {
       }
 
       // Add to recently viewed
-      addToRecentlyViewed(data);
+      addToRecentlyViewedRef.current(data);
 
       // Set initial selected image
       const initialImage = data.image || (data.images && data.images[0]) || "";
@@ -107,10 +104,16 @@ export default function ProductDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchCategoryPath, id]);
+
+  useEffect(() => {
+    fetchProduct();
+  }, [fetchProduct]);
 
   const handleVariantChange = (variant) => {
     setSelectedVariant(variant);
+    if (variant.size) setSelectedSize(variant.size);
+    if (variant.color) setSelectedColor(variant.color);
     if (variant.image) {
       setSelectedImage(variant.image);
       setImageLoaded(false);
@@ -157,9 +160,21 @@ export default function ProductDetail() {
 
   const displayImages = allImages.length > 0 ? allImages : [fallbackImage];
 
+  const getImageFocus = (imageUrl) =>
+    product?.imageSettings?.crops?.[imageUrl]?.objectPosition || "center";
+
   const getStockStatus = () => {
     const stock = selectedVariant ? selectedVariant.stock : product?.stock;
+    const allowsBackorder = Boolean(product?.allowBackorder);
 
+    if (stock === 0 && allowsBackorder)
+      return {
+        text: "Backorder",
+        color: "text-blue-600",
+        bgColor: "bg-blue-50",
+        available: true,
+        isBackorder: true,
+      };
     if (stock === 0)
       return {
         text: "Out of Stock",
@@ -187,6 +202,17 @@ export default function ProductDetail() {
       bgColor: "bg-green-50",
       available: true,
     };
+  };
+
+  const formatListingDate = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleDateString("en-BD", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   if (loading) return <ProductDetailSkeleton />;
@@ -247,6 +273,10 @@ export default function ProductDetail() {
   }
 
   const stockStatus = getStockStatus();
+  const currentStock = Number(selectedVariant ? selectedVariant.stock : product.stock) || 0;
+  const maxPurchasable = stockStatus.isBackorder ? 99 : Math.max(currentStock, 1);
+  const restockDateLabel = formatListingDate(product.restockDate);
+  const preorderDateLabel = formatListingDate(product.expectedShipDate);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -318,6 +348,7 @@ export default function ProductDetail() {
             <img
               src={selectedImage || displayImages[0]}
               alt={product.title}
+              style={{ objectPosition: getImageFocus(selectedImage || displayImages[0]) }}
               className={`w-full h-full object-cover cursor-zoom-in transition-opacity duration-300 ${
                 imageLoaded ? "opacity-100" : "opacity-0"
               }`}
@@ -362,6 +393,7 @@ export default function ProductDetail() {
                   <img
                     src={img}
                     alt={`View ${index + 1}`}
+                    style={{ objectPosition: getImageFocus(img) }}
                     className="w-full h-full object-cover"
                   />
                 </button>
@@ -550,6 +582,22 @@ export default function ProductDetail() {
             </div>
           )}
 
+          {stockStatus.isBackorder && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <p className="text-sm font-medium text-blue-800">
+                Backorder available{restockDateLabel ? `, restock expected ${restockDateLabel}` : ""}.
+              </p>
+            </div>
+          )}
+
+          {product.preorderEnabled && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-medium text-amber-800">
+                Pre-order{preorderDateLabel ? `, expected ship date ${preorderDateLabel}` : ""}.
+              </p>
+            </div>
+          )}
+
           {/* Quantity & Actions */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-6 space-y-6">
             <div className="flex items-center gap-4">
@@ -570,13 +618,13 @@ export default function ProductDetail() {
                   onClick={() =>
                     setQuantity(
                       Math.min(
-                        selectedVariant?.stock || product.stock,
+                        maxPurchasable,
                         quantity + 1,
                       ),
                     )
                   }
                   disabled={
-                    quantity >= (selectedVariant?.stock || product.stock)
+                    quantity >= maxPurchasable
                   }
                   className="w-12 h-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >

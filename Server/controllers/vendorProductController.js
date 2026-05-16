@@ -60,6 +60,113 @@ const getDeliveryMetaForCategory = (category = {}) => {
   return { deliveryClass: "", isPerishable: false };
 };
 
+const sanitizeKeywords = (keywords) => {
+  if (Array.isArray(keywords)) {
+    return keywords.map((keyword) => String(keyword || "").trim()).filter(Boolean).slice(0, 20);
+  }
+
+  return String(keywords || "")
+    .split(",")
+    .map((keyword) => keyword.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+};
+
+const sanitizeSeo = (seo = {}, body = {}) => ({
+  metaTitle: String(seo.metaTitle || body.metaTitle || "").trim().slice(0, 70),
+  metaDescription: String(seo.metaDescription || body.metaDescription || "").trim().slice(0, 160),
+  searchKeywords: sanitizeKeywords(seo.searchKeywords || body.searchKeywords),
+});
+
+const sanitizeDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const sanitizeVariants = (variants = []) => {
+  if (!Array.isArray(variants)) return [];
+
+  return variants.slice(0, 200).map((variant) => ({
+    color: String(variant.color || "").trim(),
+    size: String(variant.size || "").trim(),
+    sku: String(variant.sku || "").trim(),
+    price: variant.price !== undefined ? parseFloat(variant.price) || 0 : 0,
+    stock: variant.stock !== undefined ? parseInt(variant.stock, 10) || 0 : 0,
+    image: String(variant.image || "").trim(),
+    status: variant.status === "inactive" ? "inactive" : "active",
+  }));
+};
+
+const getListingState = (status) => {
+  if (status === "draft") {
+    return {
+      status: "draft",
+      approvalStatus: "draft",
+      isActive: true,
+      lastSubmittedAt: null,
+      approvedAt: null,
+      approvedBy: null,
+      rejectionReason: null,
+    };
+  }
+
+  if (status === "inactive" || status === "delisted") {
+    return {
+      status: "inactive",
+      isActive: false,
+    };
+  }
+
+  return {
+    status: "active",
+    isActive: true,
+  };
+};
+
+const buildExtendedProductFields = (body = {}, { includeDefaults = false } = {}) => {
+  const fields = {};
+  const lowStockThreshold = parseInt(body.lowStockThreshold, 10);
+
+  if (body.sku !== undefined) fields.sku = String(body.sku || "").trim();
+
+  if (
+    includeDefaults ||
+    body.seo !== undefined ||
+    body.metaTitle !== undefined ||
+    body.metaDescription !== undefined ||
+    body.searchKeywords !== undefined
+  ) {
+    fields.seo = sanitizeSeo(body.seo || {}, body);
+  }
+
+  if (includeDefaults || body.lowStockThreshold !== undefined) {
+    fields.lowStockThreshold = Number.isNaN(lowStockThreshold) ? 5 : Math.max(0, lowStockThreshold);
+  }
+
+  if (includeDefaults || body.allowBackorder !== undefined) {
+    fields.allowBackorder = Boolean(body.allowBackorder);
+  }
+
+  if (includeDefaults || body.restockDate !== undefined) {
+    fields.restockDate = sanitizeDate(body.restockDate);
+  }
+
+  if (includeDefaults || body.preorderEnabled !== undefined) {
+    fields.preorderEnabled = Boolean(body.preorderEnabled);
+  }
+
+  if (includeDefaults || body.expectedShipDate !== undefined) {
+    fields.expectedShipDate = sanitizeDate(body.expectedShipDate);
+  }
+
+  if (includeDefaults || body.imageSettings !== undefined) {
+    fields.imageSettings = body.imageSettings && typeof body.imageSettings === "object" ? body.imageSettings : {};
+  }
+
+  return fields;
+};
+
 // ─── Get vendor's products (paginated, filterable by status) ───
 exports.getVendorProducts = async (req, res) => {
   try {
@@ -91,6 +198,7 @@ exports.createProduct = async (req, res) => {
       stock,
       variants,
       attributes,
+      status,
     } = req.body;
 
     const Product = req.app.locals.models.Product;
@@ -122,6 +230,7 @@ exports.createProduct = async (req, res) => {
 
     // Create product — vendorId always comes from auth, never frontend
     const deliveryMeta = getDeliveryMetaForCategory(category);
+    const listingState = getListingState(status);
     const productData = {
       vendorId: req.vendor._id,
       categoryId,
@@ -130,8 +239,10 @@ exports.createProduct = async (req, res) => {
       price: parseFloat(price),
       images: images || [],
       stock: stock !== undefined ? parseInt(stock) : 0,
-      variants: variants || [],
+      variants: sanitizeVariants(variants),
       attributes: attributes || {},
+      ...buildExtendedProductFields(req.body, { includeDefaults: true }),
+      ...listingState,
       ...deliveryMeta,
     };
 
@@ -216,6 +327,7 @@ exports.updateProduct = async (req, res) => {
       stock,
       variants,
       attributes,
+      status,
     } = req.body;
 
     const Product = req.app.locals.models.Product;
@@ -259,8 +371,33 @@ exports.updateProduct = async (req, res) => {
     if (price !== undefined) updateData.price = parseFloat(price);
     if (images !== undefined) updateData.images = images;
     if (stock !== undefined) updateData.stock = parseInt(stock);
-    if (variants !== undefined) updateData.variants = variants;
+    if (variants !== undefined) updateData.variants = sanitizeVariants(variants);
     if (attributes !== undefined) updateData.attributes = attributes;
+    if (
+      req.body.sku !== undefined ||
+      req.body.seo !== undefined ||
+      req.body.metaTitle !== undefined ||
+      req.body.metaDescription !== undefined ||
+      req.body.searchKeywords !== undefined ||
+      req.body.lowStockThreshold !== undefined ||
+      req.body.allowBackorder !== undefined ||
+      req.body.restockDate !== undefined ||
+      req.body.preorderEnabled !== undefined ||
+      req.body.expectedShipDate !== undefined ||
+      req.body.imageSettings !== undefined
+    ) {
+      Object.assign(updateData, buildExtendedProductFields(req.body));
+    }
+    if (status !== undefined) {
+      Object.assign(updateData, getListingState(status));
+      if (status === "active" && ["draft", "rejected"].includes(product.approvalStatus)) {
+        updateData.approvalStatus = "pending";
+        updateData.lastSubmittedAt = new Date();
+        updateData.approvedAt = null;
+        updateData.approvedBy = null;
+        updateData.rejectionReason = null;
+      }
+    }
 
     if (categoryId && categoryId !== product.categoryId.toString()) {
       const category = await Category.findById(categoryId);
@@ -268,7 +405,7 @@ exports.updateProduct = async (req, res) => {
     }
 
     // Re-approval logic: if product is approved and a critical field changed, reset to pending
-    if (product.approvalStatus === "approved") {
+    if (product.approvalStatus === "approved" && updateData.approvalStatus !== "draft") {
       const criticalChanged = CRITICAL_FIELDS.some((field) => updateData[field] !== undefined);
       if (criticalChanged) {
         updateData.approvalStatus = "pending";
@@ -320,6 +457,8 @@ exports.submitForApproval = async (req, res) => {
     }
 
     await Product.update(id, {
+      status: "active",
+      isActive: true,
       approvalStatus: "pending",
       rejectionReason: null,
       lastSubmittedAt: new Date(),
@@ -354,7 +493,7 @@ exports.archiveProduct = async (req, res) => {
       });
     }
 
-    await Product.update(id, { isActive: false });
+    await Product.update(id, { isActive: false, status: "inactive" });
 
     res.json({ success: true, message: "Product archived (hidden from public listing)." });
   } catch (error) {

@@ -8,9 +8,9 @@ import {
   getVendorBulkUploadJob,
 } from "../../services/api";
 
-const csvTemplate = `title,price,stock,category,description,images,sku,brand
-"Men's Casual Shirt",850,100,Fashion,"High quality cotton shirt","https://example.com/img1.jpg",SHIRT-001,Local Brand
-"Fresh Fish Pack",450,30,Fish,"Fresh local fish cleaned and packed","https://example.com/fish.jpg",FISH-001,Hnila Fresh`;
+const csvTemplate = `title,price,stock,category,description,images,sku,brand,variants,metaTitle,metaDescription,searchKeywords,lowStockThreshold,allowBackorder,restockDate,preorderEnabled,expectedShipDate
+"Men's Casual Shirt",850,100,Fashion,"High quality cotton shirt","https://example.com/img1.jpg",SHIRT-001,Local Brand,"[{""color"":""Black"",""size"":""M"",""sku"":""SHIRT-BLK-M"",""price"":850,""stock"":40}]","Men's Casual Shirt","Cotton casual shirt in Bangladesh","shirt|cotton|men",5,false,,false,
+"Fresh Fish Pack",450,30,Fish,"Fresh local fish cleaned and packed","https://example.com/fish.jpg",FISH-001,Hnila Fresh,,"Fresh Fish Pack","Cleaned fresh fish delivery","fish|fresh",3,true,2026-06-01,false,`;
 
 const fieldGuide = [
   { field: "title", required: true, type: "Text", desc: "Product name" },
@@ -21,6 +21,15 @@ const fieldGuide = [
   { field: "images", required: false, type: "URL", desc: "Image URLs separated by |" },
   { field: "sku", required: false, type: "Text", desc: "Internal product code" },
   { field: "brand", required: false, type: "Text", desc: "Brand name" },
+  { field: "variants", required: false, type: "JSON", desc: "Array of color, size, sku, price, stock, image" },
+  { field: "metaTitle", required: false, type: "Text", desc: "SEO title" },
+  { field: "metaDescription", required: false, type: "Text", desc: "SEO description" },
+  { field: "searchKeywords", required: false, type: "Text", desc: "Keywords separated by |" },
+  { field: "lowStockThreshold", required: false, type: "Number", desc: "Vendor stock alert threshold" },
+  { field: "allowBackorder", required: false, type: "Boolean", desc: "true or false" },
+  { field: "restockDate", required: false, type: "Date", desc: "YYYY-MM-DD" },
+  { field: "preorderEnabled", required: false, type: "Boolean", desc: "true or false" },
+  { field: "expectedShipDate", required: false, type: "Date", desc: "YYYY-MM-DD" },
 ];
 
 const parseCsvLine = (line) => {
@@ -143,11 +152,6 @@ export default function VendorBulkUpload() {
     });
   }, [categoryMap, rows]);
 
-  const rowDiagnosticsMap = useMemo(
-    () => new Map(rowDiagnostics.map((item) => [item.rowNumber, item])),
-    [rowDiagnostics],
-  );
-
   const uploadSummary = useMemo(
     () => ({
       totalRows: rowDiagnostics.length,
@@ -202,10 +206,6 @@ export default function VendorBulkUpload() {
     event.preventDefault();
     setDragging(false);
     handleFile(event.dataTransfer.files[0]);
-  };
-
-  const validateRow = (row) => {
-    return rowDiagnosticsMap.get(row.rowNumber)?.issues?.[0] || "";
   };
 
   const uploadRows = async () => {

@@ -35,8 +35,17 @@ export default function ProductCard({ product }) {
 
   const displayImage =
     product.image || (product.images && product.images[0]) || fallbackImage;
+  const imageFocus =
+    product.imageSettings?.crops?.[displayImage]?.objectPosition || "center";
 
   const getStockStatus = () => {
+    if (product.stock === 0 && product.allowBackorder)
+      return {
+        text: "Backorder",
+        color: "text-blue-600",
+        bgColor: "bg-blue-100",
+        available: true,
+      };
     if (product.stock === 0)
       return {
         text: "Out of Stock",
@@ -117,6 +126,7 @@ export default function ProductCard({ product }) {
               <img
                 src={displayImage}
                 alt={product.title}
+                style={{ objectPosition: imageFocus }}
                 className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${
                   imageLoaded ? "opacity-100" : "opacity-0"
                 }`}

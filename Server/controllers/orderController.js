@@ -531,7 +531,7 @@ const createOrder = async (req, res) => {
         });
       }
 
-      if (product.stock < item.quantity) {
+      if (product.stock < item.quantity && !product.allowBackorder) {
         console.error("❌ Order creation failed: Insufficient stock", {
           product: product.title,
           available: product.stock,
@@ -563,6 +563,10 @@ const createOrder = async (req, res) => {
         weight: Number(product.weight || 0),
         isPerishable: Boolean(product.isPerishable),
         deliveryClass: product.deliveryClass || "",
+        allowBackorder: Boolean(product.allowBackorder),
+        restockDate: product.restockDate || null,
+        preorderEnabled: Boolean(product.preorderEnabled),
+        expectedShipDate: product.expectedShipDate || null,
       });
     }
 
