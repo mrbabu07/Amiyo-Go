@@ -341,6 +341,36 @@ export const bulkAdminVendorAction = (data) =>
 
 export const getAdminCommissionSummary = (params = {}) =>
   api.get("/admin/finance/commission-summary", { params });
+export const getFinanceOperationsOverview = () =>
+  api.get("/admin/finance/operations");
+export const getFinancePayoutSchedule = () =>
+  api.get("/admin/finance/payout-schedule");
+export const updateFinancePayoutSchedule = (data) =>
+  api.put("/admin/finance/payout-schedule", data);
+export const getFinancePayoutQueue = (params = {}) =>
+  api.get("/admin/finance/payout-queue", { params });
+export const getFinanceCommissionRules = () =>
+  api.get("/admin/finance/commission-rules");
+export const saveFinanceCommissionRule = (data) =>
+  data.ruleId
+    ? api.patch(`/admin/finance/commission-rules/${data.ruleId}`, data)
+    : api.post("/admin/finance/commission-rules", data);
+export const getFinanceLedger = (params = {}) =>
+  api.get("/admin/finance/ledger", { params });
+export const getFinanceRefundWorkflow = (params = {}) =>
+  api.get("/admin/finance/refunds", { params });
+export const reviewFinanceRefund = (returnId, data) =>
+  api.patch(`/admin/finance/refunds/${returnId}/review`, data);
+export const getFinanceRevenueReports = (params = {}) =>
+  api.get("/admin/finance/revenue-reports", { params });
+export const downloadFinanceRevenueReport = (params = {}) =>
+  api.get("/admin/finance/revenue-reports/export", { params, responseType: "blob" });
+export const getFinanceEscrowRules = () =>
+  api.get("/admin/finance/escrow-rules");
+export const updateFinanceEscrowRules = (data) =>
+  api.put("/admin/finance/escrow-rules", data);
+export const getFinanceAuditLog = () =>
+  api.get("/admin/finance/audit-log");
 
 export const getAdminAlertSummary = () => api.get("/admin/alerts/summary");
 export const getAdminDashboardOverview = (params = {}) =>

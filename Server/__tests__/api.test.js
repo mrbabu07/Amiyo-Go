@@ -163,6 +163,34 @@ jest.mock("../controllers/adminVendorPerformanceController", () => ({
 }));
 
 jest.mock("../controllers/adminFinanceController", () => ({
+  getFinanceOverview: (req, res) => res.json({ route: "admin-finance:overview" }),
+  getCommissionSummary: (req, res) => res.json({ route: "admin-finance:commission-summary" }),
+  getFinanceOperationsOverview: (req, res) => res.json({ route: "admin-finance:operations" }),
+  getPayoutSchedule: (req, res) =>
+    res.json({ route: "admin-finance:payout-schedule", frequency: req.body?.frequency || "weekly" }),
+  upsertPayoutSchedule: (req, res) =>
+    res.json({ route: "admin-finance:update-payout-schedule", frequency: req.body.frequency }),
+  getPayoutQueue: (req, res) => res.json({ route: "admin-finance:payout-queue" }),
+  getCommissionRules: (req, res) => res.json({ route: "admin-finance:commission-rules" }),
+  saveCommissionRule: (req, res) =>
+    res.status(req.params.ruleId ? 200 : 201).json({
+      route: "admin-finance:save-commission-rule",
+      ruleId: req.params.ruleId || null,
+      commissionRate: req.body.commissionRate,
+    }),
+  getFinanceLedger: (req, res) => res.json({ route: "admin-finance:ledger", type: req.query.type || "all" }),
+  getRefundWorkflow: (req, res) => res.json({ route: "admin-finance:refunds", status: req.query.status || "pending" }),
+  reviewFinanceRefund: (req, res) =>
+    res.json({ route: "admin-finance:review-refund", id: req.params.returnId, decision: req.body.decision }),
+  getRevenueReports: (req, res) => res.json({ route: "admin-finance:revenue-reports" }),
+  downloadRevenueReport: (req, res) => {
+    res.set("Content-Type", req.query.format === "pdf" ? "application/pdf" : "text/csv");
+    res.send(req.query.format === "pdf" ? "%PDF-1.3" : "Bucket,GMV\n2026-05-01,2000");
+  },
+  getEscrowRules: (req, res) => res.json({ route: "admin-finance:escrow-rules" }),
+  upsertEscrowRules: (req, res) =>
+    res.json({ route: "admin-finance:update-escrow-rules", holdPercentage: req.body.holdPercentage }),
+  getFinanceAuditLog: (req, res) => res.json({ route: "admin-finance:audit-log" }),
   getVendorFinanceSummary: (req, res) => res.json({ route: "vendors:finance-summary", id: req.params.vendorId }),
   getVendorFinanceTransactions: (req, res) => res.json({ route: "vendors:finance-transactions", id: req.params.vendorId }),
 }));
@@ -258,6 +286,7 @@ const buildApp = () => {
   app.use("/api/admin/dashboard", require("../routes/adminDashboardRoutes"));
   app.use("/api/admin/products", require("../routes/adminProductRoutes"));
   app.use("/api/admin/payouts", require("../routes/adminPayoutRoutes"));
+  app.use("/api/admin/finance", require("../routes/adminFinanceRoutes"));
   app.use("/api/admin/vendors", require("../routes/adminVendorRoutes"));
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
   return app;
@@ -591,6 +620,83 @@ describe("Black-box API tests", () => {
     test("GET /api/admin/vendors/:vendorId/management rejects vendor access", async () => {
       const response = await request(app)
         .get("/api/admin/vendors/vendor-1/management")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "Admin access required" });
+    });
+  });
+
+  describe("admin finance API behavior", () => {
+    test("GET /api/admin/finance/payout-queue uses the payout queue route", async () => {
+      const response = await request(app)
+        .get("/api/admin/finance/payout-queue")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-finance:payout-queue" });
+    });
+
+    test("PUT /api/admin/finance/payout-schedule updates the payout cycle", async () => {
+      const response = await request(app)
+        .put("/api/admin/finance/payout-schedule")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ frequency: "biweekly", cutoffDay: 5 });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "admin-finance:update-payout-schedule",
+        frequency: "biweekly",
+      });
+    });
+
+    test("POST /api/admin/finance/commission-rules creates a commission rule", async () => {
+      const response = await request(app)
+        .post("/api/admin/finance/commission-rules")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ name: "Fashion preferred", commissionRate: 8.5 });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        route: "admin-finance:save-commission-rule",
+        ruleId: null,
+        commissionRate: 8.5,
+      });
+    });
+
+    test("PATCH /api/admin/finance/refunds/:returnId/review uses the finance refund workflow", async () => {
+      const response = await request(app)
+        .patch("/api/admin/finance/refunds/return-1/review")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ decision: "approve", refundMethod: "store_credit" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "admin-finance:review-refund",
+        id: "return-1",
+        decision: "approve",
+      });
+    });
+
+    test("GET /api/admin/finance/revenue-reports/export downloads a CSV report", async () => {
+      const response = await request(app)
+        .get("/api/admin/finance/revenue-reports/export?format=csv")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["content-type"]).toContain("text/csv");
+      expect(response.text).toContain("Bucket,GMV");
+    });
+
+    test("GET /api/admin/finance/payout-queue rejects vendor access", async () => {
+      const response = await request(app)
+        .get("/api/admin/finance/payout-queue")
         .set("Authorization", "Bearer test")
         .set("x-test-role", "vendor");
 

@@ -1,659 +1,678 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import toast from 'react-hot-toast';
-import { 
-  getAllPayouts, 
-  getPayoutStats, 
-  markPayoutPaid, 
-  cancelPayout,
-  getWeeklyPayoutList,
-  createBulkPayouts 
-} from '../../services/api';
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  Banknote,
+  CalendarClock,
+  Download,
+  FileSpreadsheet,
+  Landmark,
+  ListChecks,
+  LockKeyhole,
+  ReceiptText,
+  RefreshCw,
+  Scale,
+  ShieldCheck,
+  Wallet,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import useCurrency from "../../hooks/useCurrency";
+import {
+  createVendorPayout,
+  downloadFinanceRevenueReport,
+  getAllPayouts,
+  getFinanceAuditLog,
+  getFinanceCommissionRules,
+  getFinanceEscrowRules,
+  getFinanceLedger,
+  getFinanceOperationsOverview,
+  getFinancePayoutQueue,
+  getFinancePayoutSchedule,
+  getFinanceRefundWorkflow,
+  getFinanceRevenueReports,
+  markPayoutPaid,
+  reviewFinanceRefund,
+  saveFinanceCommissionRule,
+  updateFinanceEscrowRules,
+  updateFinancePayoutSchedule,
+} from "../../services/api";
 
-const getBulkFailureSummary = (errors = []) => {
-  if (!Array.isArray(errors) || errors.length === 0) return '';
-  const messages = errors
-    .slice(0, 3)
-    .map((entry) => entry?.error)
-    .filter(Boolean);
+const tabs = [
+  { key: "queue", label: "Payout Queue", icon: Wallet },
+  { key: "ledger", label: "Ledger", icon: ReceiptText },
+  { key: "rules", label: "Commission Rules", icon: Scale },
+  { key: "refunds", label: "Refunds", icon: ListChecks },
+  { key: "reports", label: "Reports", icon: FileSpreadsheet },
+  { key: "settings", label: "Cycle & Escrow", icon: CalendarClock },
+  { key: "audit", label: "Audit Log", icon: ShieldCheck },
+];
 
-  if (messages.length === 0) return '';
-  return messages.join(' | ');
+const dayOptions = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+const ruleDefaults = {
+  name: "",
+  categoryId: "",
+  vendorTier: "all",
+  campaignType: "all",
+  commissionRate: "",
+  effectiveFrom: "",
+  effectiveTo: "",
+  priority: 0,
 };
 
-const StatusBadge = ({ status }) => {
-  const colors = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    paid: 'bg-green-100 text-green-800',
-    cancelled: 'bg-red-100 text-red-800',
-  };
+const formatDate = (value) => {
+  if (!value) return "N/A";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "N/A";
+  return date.toLocaleDateString("en-BD", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+const shortId = (value = "") => value.toString().slice(-8).toUpperCase();
+
+const statusClass = {
+  pending: "border-yellow-200 bg-yellow-50 text-yellow-800",
+  approved: "border-blue-200 bg-blue-50 text-blue-800",
+  paid: "border-green-200 bg-green-50 text-green-800",
+  completed: "border-green-200 bg-green-50 text-green-800",
+  cancelled: "border-red-200 bg-red-50 text-red-800",
+  rejected: "border-red-200 bg-red-50 text-red-800",
+  active: "border-green-200 bg-green-50 text-green-800",
+};
+
+function Badge({ value }) {
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] || 'bg-gray-100 text-gray-600'}`}>
-      {status}
+    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass[value] || "border-gray-200 bg-gray-50 text-gray-700"}`}>
+      {String(value || "unknown").replace(/_/g, " ")}
     </span>
   );
-};
+}
+
+function Metric({ icon: Icon, label, value, tone = "text-gray-900" }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-gray-500">{label}</p>
+        <Icon className="h-4 w-4 text-gray-400" />
+      </div>
+      <p className={`mt-2 text-2xl font-bold ${tone}`}>{value}</p>
+    </div>
+  );
+}
 
 export default function AdminPayouts() {
-  const [activeTab, setActiveTab] = useState('history'); // 'history' or 'weekly'
-  const [payouts, setPayouts] = useState([]);
-  const [stats, setStats] = useState(null);
+  const { formatPrice } = useCurrency();
+  const [activeTab, setActiveTab] = useState("queue");
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [showPaymentModal, setShowPaymentModal] = useState(null);
-  const [transactionId, setTransactionId] = useState('');
-  const [paymentNote, setPaymentNote] = useState('');
-  
-  // Weekly payout state
-  const [weeklyData, setWeeklyData] = useState(null);
-  const [selectedVendors, setSelectedVendors] = useState([]);
-  const [processingBulk, setProcessingBulk] = useState(false);
+  const [overview, setOverview] = useState(null);
+  const [queue, setQueue] = useState({ vendors: [], summary: {}, schedule: {} });
+  const [payouts, setPayouts] = useState([]);
+  const [ledger, setLedger] = useState({ data: [], summary: {} });
+  const [rules, setRules] = useState([]);
+  const [refunds, setRefunds] = useState([]);
+  const [reports, setReports] = useState(null);
+  const [auditLog, setAuditLog] = useState([]);
+  const [scheduleForm, setScheduleForm] = useState({
+    frequency: "weekly",
+    cutoffDay: 0,
+    processingDay: 1,
+    minimumPayout: 1000,
+    timezone: "Asia/Dhaka",
+  });
+  const [escrowForm, setEscrowForm] = useState({
+    holdPercentage: 15,
+    holdDaysAfterDelivery: 7,
+    disputeHoldPercentage: 100,
+    releaseAfterReturnWindow: true,
+  });
+  const [ruleForm, setRuleForm] = useState(ruleDefaults);
+  const [payModal, setPayModal] = useState(null);
+  const [paymentForm, setPaymentForm] = useState({ transactionId: "", note: "" });
+  const [refundForm, setRefundForm] = useState({ refundMethod: "manual_transfer", amount: "", note: "" });
 
-  const selectableVendorIds = (weeklyData?.vendors || [])
-    .filter((vendor) => vendor.canCreatePayout !== false)
-    .map((vendor) => vendor.vendorId);
+  const topMetrics = useMemo(() => {
+    const revenue = overview?.revenueSummary || reports?.summary || {};
+    const payoutSummary = queue.summary || {};
+    return {
+      commission: revenue.commission || 0,
+      payable: payoutSummary.totalPayable || overview?.payoutQueue?.totalPayable || 0,
+      withheld: payoutSummary.totalWithheld || 0,
+      refunds: overview?.pendingRefunds || refunds.length || 0,
+    };
+  }, [overview, queue, reports, refunds]);
 
-  useEffect(() => {
-    if (activeTab === 'history') {
-      loadData();
-    } else if (activeTab === 'weekly') {
-      loadWeeklyData();
-    }
-  }, [statusFilter, page, activeTab]);
-
-  const loadData = async () => {
+  const loadAll = async () => {
     setLoading(true);
     try {
-      const params = { page, limit: 20 };
-      if (statusFilter !== 'all') params.status = statusFilter;
-
-      const [payoutsRes, statsRes] = await Promise.all([
-        getAllPayouts(params),
-        getPayoutStats(),
+      const [
+        overviewRes,
+        queueRes,
+        payoutRes,
+        scheduleRes,
+        escrowRes,
+        rulesRes,
+        ledgerRes,
+        refundRes,
+        reportRes,
+        auditRes,
+      ] = await Promise.all([
+        getFinanceOperationsOverview(),
+        getFinancePayoutQueue(),
+        getAllPayouts({ limit: 12 }),
+        getFinancePayoutSchedule(),
+        getFinanceEscrowRules(),
+        getFinanceCommissionRules(),
+        getFinanceLedger({ limit: 100 }),
+        getFinanceRefundWorkflow(),
+        getFinanceRevenueReports({ groupBy: "day" }),
+        getFinanceAuditLog(),
       ]);
 
-      setPayouts(payoutsRes.data.payouts || []);
-      setTotal(payoutsRes.data.total || 0);
-      setStats(statsRes.data.data);
-    } catch {
-      toast.error('Failed to load payouts');
-    } finally {
-      setLoading(false);
-    }
-  };
+      setOverview(overviewRes.data.data);
+      setQueue(queueRes.data.data || { vendors: [], summary: {}, schedule: {} });
+      setPayouts(payoutRes.data.payouts || []);
+      setRules(rulesRes.data.data || []);
+      setLedger({ data: ledgerRes.data.data || [], summary: ledgerRes.data.summary || {} });
+      setRefunds(refundRes.data.data || []);
+      setReports(reportRes.data.data);
+      setAuditLog(auditRes.data.data || []);
 
-  const loadWeeklyData = async () => {
-    setLoading(true);
-    try {
-      const res = await getWeeklyPayoutList();
-      setWeeklyData(res.data.data);
-      setSelectedVendors([]);
-    } catch (error) {
-      console.error('Failed to load weekly payout list:', error);
-      toast.error('Failed to load weekly payout list');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSelectVendor = (vendorId) => {
-    setSelectedVendors(prev => 
-      prev.includes(vendorId) 
-        ? prev.filter(id => id !== vendorId)
-        : [...prev, vendorId]
-    );
-  };
-
-  const handleSelectAll = () => {
-    if (selectedVendors.length === selectableVendorIds.length) {
-      setSelectedVendors([]);
-    } else {
-      setSelectedVendors(selectableVendorIds);
-    }
-  };
-
-  const handleCreateBulkPayouts = async () => {
-    if (selectedVendors.length === 0) {
-      toast.error('Please select at least one vendor');
-      return;
-    }
-
-    if (!confirm(`Create payouts for ${selectedVendors.length} vendor(s)?`)) {
-      return;
-    }
-
-    setProcessingBulk(true);
-    try {
-      const payoutsToCreate = weeklyData.vendors
-        .filter(v => selectedVendors.includes(v.vendorId))
-        .map(v => ({
-          vendorId: v.vendorId,
-          amount: v.eligibleAmount,
-          note: `Weekly payout for ${new Date(weeklyData.periodStart).toLocaleDateString()} - ${new Date(weeklyData.periodEnd).toLocaleDateString()}`,
-        }));
-
-      const res = await createBulkPayouts({
-        payouts: payoutsToCreate,
-        periodStart: weeklyData.periodStart,
-        periodEnd: weeklyData.periodEnd,
+      const schedule = scheduleRes.data.data || {};
+      setScheduleForm({
+        frequency: schedule.frequency || "weekly",
+        cutoffDay: Number(schedule.cutoffDay ?? 0),
+        processingDay: Number(schedule.processingDay ?? 1),
+        minimumPayout: Number(schedule.minimumPayout ?? 1000),
+        timezone: schedule.timezone || "Asia/Dhaka",
       });
+      setEscrowForm((current) => ({ ...current, ...(escrowRes.data.data || {}) }));
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to load finance data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      toast.success(`Created ${res.data.data.created} payout(s) successfully`);
-      
-      if (res.data.data.failed > 0) {
-        const details = getBulkFailureSummary(res.data.data.errors);
-        toast.error(
-          details
-            ? `${res.data.data.failed} payout(s) failed: ${details}`
-            : `${res.data.data.failed} payout(s) failed`
-        );
+  useEffect(() => {
+    loadAll();
+  }, []);
+
+  const saveSchedule = async (event) => {
+    event.preventDefault();
+    try {
+      await updateFinancePayoutSchedule(scheduleForm);
+      toast.success("Payout cycle updated");
+      loadAll();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to update payout cycle");
+    }
+  };
+
+  const saveEscrow = async (event) => {
+    event.preventDefault();
+    try {
+      await updateFinanceEscrowRules(escrowForm);
+      toast.success("Escrow rules updated");
+      loadAll();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to update escrow rules");
+    }
+  };
+
+  const saveRule = async (event) => {
+    event.preventDefault();
+    try {
+      await saveFinanceCommissionRule({
+        ...ruleForm,
+        commissionRate: Number(ruleForm.commissionRate),
+        priority: Number(ruleForm.priority || 0),
+      });
+      toast.success("Commission rule saved");
+      setRuleForm(ruleDefaults);
+      loadAll();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to save commission rule");
+    }
+  };
+
+  const payQueuedVendor = async () => {
+    if (!payModal) return;
+    if (!paymentForm.transactionId.trim()) {
+      toast.error("Transaction reference is required");
+      return;
+    }
+    try {
+      const created = await createVendorPayout(payModal.vendorId, {
+        amount: payModal.payableBalance,
+        note: paymentForm.note || "Admin payout queue payment",
+        periodStart: queue.schedule?.currentPeriodStart,
+        periodEnd: queue.schedule?.currentPeriodEnd,
+      });
+      const payoutId = created.data.data?._id;
+      if (payoutId) {
+        await markPayoutPaid(payoutId, {
+          transactionId: paymentForm.transactionId,
+          note: paymentForm.note,
+        });
       }
-
-      // Reload weekly data
-      loadWeeklyData();
+      toast.success("Vendor payout marked paid");
+      setPayModal(null);
+      setPaymentForm({ transactionId: "", note: "" });
+      loadAll();
     } catch (error) {
-      console.error('Failed to create bulk payouts:', error);
-      toast.error('Failed to create bulk payouts');
-    } finally {
-      setProcessingBulk(false);
+      toast.error(error.response?.data?.error || "Failed to pay vendor");
     }
   };
 
-  const handleMarkPaid = async () => {
-    if (!showPaymentModal) return;
+  const submitRefundDecision = async (returnId, decision) => {
     try {
-      await markPayoutPaid(showPaymentModal, {
-        transactionId,
-        note: paymentNote,
+      await reviewFinanceRefund(returnId, {
+        decision,
+        refundMethod: refundForm.refundMethod,
+        amount: refundForm.amount ? Number(refundForm.amount) : undefined,
+        note: refundForm.note,
       });
-      toast.success('Payout marked as paid');
-      setShowPaymentModal(null);
-      setTransactionId('');
-      setPaymentNote('');
-      loadData();
-    } catch {
-      toast.error('Failed to mark payout as paid');
+      toast.success(decision === "approve" ? "Refund approved" : "Refund rejected");
+      setRefundForm({ refundMethod: "manual_transfer", amount: "", note: "" });
+      loadAll();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to review refund");
     }
   };
 
-  const handleCancelPayout = async (payoutId) => {
-    if (!confirm('Cancel this payout?')) return;
+  const exportReport = async (format) => {
     try {
-      await cancelPayout(payoutId, 'Cancelled by admin');
-      toast.success('Payout cancelled');
-      loadData();
-    } catch {
-      toast.error('Failed to cancel payout');
+      const response = await downloadFinanceRevenueReport({ format, groupBy: "day" });
+      const type = format === "pdf" ? "application/pdf" : "text/csv";
+      const blob = response.data instanceof Blob ? response.data : new Blob([response.data], { type });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `revenue-report.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to export report");
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">Vendor Payouts</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage vendor payments and payout history</p>
+    <div className="min-h-screen bg-gray-100">
+      <div className="border-b border-gray-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Finance & Payouts</h1>
+            <p className="text-sm text-gray-500">Real payout cycles, ledger, commission rules, refunds, escrow, and audit controls.</p>
+          </div>
+          <button
+            type="button"
+            onClick={loadAll}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </button>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* Tabs */}
-        <div className="flex gap-2 border-b border-gray-200">
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
-              activeTab === 'history'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            📋 Payout History
-          </button>
-          <button
-            onClick={() => setActiveTab('weekly')}
-            className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
-              activeTab === 'weekly'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            📅 Weekly Payout (7 Days)
-          </button>
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Metric icon={Landmark} label="Platform Commission" value={formatPrice(topMetrics.commission)} tone="text-blue-700" />
+          <Metric icon={Wallet} label="Payable Queue" value={formatPrice(topMetrics.payable)} tone="text-green-700" />
+          <Metric icon={LockKeyhole} label="Withheld / Escrow" value={formatPrice(topMetrics.withheld)} tone="text-amber-700" />
+          <Metric icon={ListChecks} label="Refund Reviews" value={topMetrics.refunds} tone="text-red-700" />
         </div>
 
-        {/* Stats Cards */}
-        {activeTab === 'history' && stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <p className="text-xs text-gray-500 mb-1">Total Paid</p>
-              <p className="text-2xl font-bold text-green-600">৳{stats.totalPaid?.toLocaleString()}</p>
-              <p className="text-xs text-gray-400 mt-1">{stats.paidCount} payouts</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <p className="text-xs text-gray-500 mb-1">Pending</p>
-              <p className="text-2xl font-bold text-yellow-600">৳{stats.totalPending?.toLocaleString()}</p>
-              <p className="text-xs text-gray-400 mt-1">{stats.pendingCount} payouts</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <p className="text-xs text-gray-500 mb-1">Cancelled</p>
-              <p className="text-2xl font-bold text-red-500">৳{stats.totalCancelled?.toLocaleString()}</p>
-              <p className="text-xs text-gray-400 mt-1">{stats.cancelledCount} payouts</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <p className="text-xs text-gray-500 mb-1">Total Payouts</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalPayouts}</p>
-              <p className="text-xs text-gray-400 mt-1">All time</p>
-            </div>
-          </div>
-        )}
-
-        {/* Weekly Payout Tab */}
-        {activeTab === 'weekly' && (
-          <>
-            {loading ? (
-              <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500">
-                Loading weekly payout data...
-              </div>
-            ) : weeklyData ? (
-              <>
-                {/* Period Info */}
-                <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold mb-1">7-Day Payout Period</h3>
-                      <p className="text-blue-100 text-sm">
-                        {new Date(weeklyData.periodStart).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric', 
-                          year: 'numeric' 
-                        })} - {new Date(weeklyData.periodEnd).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric', 
-                          year: 'numeric' 
-                        })}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-3xl font-bold">৳{weeklyData.totalEligibleAmount.toLocaleString()}</p>
-                      <p className="text-blue-100 text-sm">{weeklyData.totalVendors} vendors eligible</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                {weeklyData.vendors.length > 0 && (
-                  <div className="flex items-center justify-between bg-white rounded-xl shadow-sm p-4">
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectableVendorIds.length > 0 && selectedVendors.length === selectableVendorIds.length}
-                          onChange={handleSelectAll}
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                        />
-                        <span className="text-sm font-medium text-gray-700">
-                          Select All Ready Vendors ({selectedVendors.length} selected)
-                        </span>
-                      </label>
-                    </div>
-                    <button
-                      onClick={handleCreateBulkPayouts}
-                      disabled={selectedVendors.length === 0 || processingBulk}
-                      className="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      {processingBulk ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          💰 Create Payouts ({selectedVendors.length})
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-
-                {/* Vendors List */}
-                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                  {weeklyData.vendors.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500">
-                      <div className="text-4xl mb-2">✅</div>
-                      <p className="font-medium">No vendors eligible for payout</p>
-                      <p className="text-sm mt-1">All vendors have been paid or have no delivered orders in the last 7 days</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                          <tr>
-                            <th className="px-4 py-3 text-left">
-                              <input
-                                type="checkbox"
-                                checked={selectableVendorIds.length > 0 && selectedVendors.length === selectableVendorIds.length}
-                                onChange={handleSelectAll}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                              />
-                            </th>
-                            <th className="px-4 py-3 text-left">Vendor</th>
-                            <th className="px-4 py-3 text-right">Orders</th>
-                            <th className="px-4 py-3 text-right">Items</th>
-                            <th className="px-4 py-3 text-right">Total Earnings</th>
-                            <th className="px-4 py-3 text-right">Already Paid</th>
-                            <th className="px-4 py-3 text-right">Eligible Amount</th>
-                            <th className="px-4 py-3 text-center">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {weeklyData.vendors.map((vendor) => (
-                            <tr 
-                              key={vendor.vendorId} 
-                              className={`hover:bg-gray-50 ${selectedVendors.includes(vendor.vendorId) ? 'bg-blue-50' : ''}`}
-                            >
-                              <td className="px-4 py-3">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedVendors.includes(vendor.vendorId)}
-                                  onChange={() => handleSelectVendor(vendor.vendorId)}
-                                  disabled={vendor.hasPendingPayout}
-                                  className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <Link
-                                  to={`/admin/vendors/${vendor.vendorId}`}
-                                  className="text-blue-600 hover:text-blue-800 font-medium"
-                                >
-                                  {vendor.vendorName}
-                                </Link>
-                                {vendor.vendorPhone && (
-                                  <div className="text-xs text-gray-500">{vendor.vendorPhone}</div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-right text-gray-600">
-                                {vendor.ordersCount}
-                              </td>
-                              <td className="px-4 py-3 text-right text-gray-600">
-                                {vendor.itemsCount}
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                ৳{vendor.totalEarnings.toLocaleString()}
-                              </td>
-                              <td className="px-4 py-3 text-right text-red-600">
-                                {vendor.alreadyPaidOrPending > 0 ? `-৳${vendor.alreadyPaidOrPending.toLocaleString()}` : '—'}
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold text-green-600">
-                                ৳{vendor.eligibleAmount.toLocaleString()}
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                {vendor.hasPendingPayout ? (
-                                  <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-                                    Pending
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                                    Ready
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot className="bg-gray-50 font-semibold">
-                          <tr>
-                            <td colSpan="4" className="px-4 py-3 text-right">Total:</td>
-                            <td className="px-4 py-3 text-right text-gray-900">
-                              ৳{weeklyData.vendors.reduce((sum, v) => sum + v.totalEarnings, 0).toLocaleString()}
-                            </td>
-                            <td className="px-4 py-3 text-right text-red-600">
-                              -৳{weeklyData.vendors.reduce((sum, v) => sum + v.alreadyPaidOrPending, 0).toLocaleString()}
-                            </td>
-                            <td className="px-4 py-3 text-right text-green-600">
-                              ৳{weeklyData.totalEligibleAmount.toLocaleString()}
-                            </td>
-                            <td></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {weeklyData.blockedVendors?.length > 0 && (
-                  <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-amber-100">
-                    <div className="px-4 py-3 border-b bg-amber-50">
-                      <h4 className="font-semibold text-amber-900">Blocked Vendors</h4>
-                      <p className="text-sm text-amber-700 mt-1">
-                        These vendors were excluded from bulk payout so the valid payments can go through cleanly.
-                      </p>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                          <tr>
-                            <th className="px-4 py-3 text-left">Vendor</th>
-                            <th className="px-4 py-3 text-right">Eligible Amount</th>
-                            <th className="px-4 py-3 text-left">Reason</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {weeklyData.blockedVendors.map((vendor) => (
-                            <tr key={vendor.vendorId} className="hover:bg-gray-50">
-                              <td className="px-4 py-3">
-                                {vendor.vendorName === 'Unknown Vendor' ? (
-                                  <span className="font-medium text-gray-900">{vendor.vendorName}</span>
-                                ) : (
-                                  <Link
-                                    to={`/admin/vendors/${vendor.vendorId}`}
-                                    className="text-blue-600 hover:text-blue-800 font-medium"
-                                  >
-                                    {vendor.vendorName}
-                                  </Link>
-                                )}
-                                {vendor.vendorPhone && (
-                                  <div className="text-xs text-gray-500">{vendor.vendorPhone}</div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                ৳{vendor.eligibleAmount.toLocaleString()}
-                              </td>
-                              <td className="px-4 py-3 text-amber-800">
-                                {vendor.blockingReason || 'This vendor is not payable in the current cycle.'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500">
-                No data available
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Filters */}
-        {activeTab === 'history' && (
-        <div className="flex gap-2">
-          {['all', 'pending', 'paid', 'cancelled'].map(status => (
+        <div className="mt-6 flex flex-wrap gap-2">
+          {tabs.map(({ key, label, icon: Icon }) => (
             <button
-              key={status}
-              onClick={() => { setStatusFilter(status); setPage(1); }}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium capitalize ${
-                statusFilter === status
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
+              key={key}
+              type="button"
+              onClick={() => setActiveTab(key)}
+              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${
+                activeTab === key ? "bg-gray-900 text-white" : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
               }`}
             >
-              {status}
+              <Icon className="h-4 w-4" />
+              {label}
             </button>
           ))}
-          <span className="ml-auto text-sm text-gray-500 self-center">{total} total</span>
         </div>
-        )}
 
-        {/* Payouts Table */}
-        {activeTab === 'history' && (
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          {loading ? (
-            <div className="p-8 text-center text-gray-500">Loading payouts...</div>
-          ) : payouts.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">No payouts found</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Date</th>
-                    <th className="px-4 py-3 text-left">Vendor</th>
-                    <th className="px-4 py-3 text-right">Amount</th>
-                    <th className="px-4 py-3 text-left">Status</th>
-                    <th className="px-4 py-3 text-left">Note</th>
-                    <th className="px-4 py-3 text-left">Transaction ID</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {payouts.map((payout) => (
-                    <tr key={payout._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-600">
-                        {new Date(payout.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          to={`/admin/vendors/${payout.vendorId}`}
-                          className="text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          {payout.vendorName || 'Unknown'}
-                        </Link>
-                        {payout.vendorPhone && (
-                          <div className="text-xs text-gray-500">{payout.vendorPhone}</div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900">
-                        ৳{payout.amount?.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={payout.status} />
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 max-w-xs truncate">
-                        {payout.note || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">
-                        {payout.transactionId || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          {payout.status === 'pending' && (
-                            <>
+        {loading ? (
+          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-10 text-center text-gray-500">Loading finance data...</div>
+        ) : (
+          <div className="mt-6">
+            {activeTab === "queue" && (
+              <div className="grid gap-6 lg:grid-cols-12">
+                <section className="rounded-lg border border-gray-200 bg-white lg:col-span-8">
+                  <div className="border-b border-gray-200 px-4 py-3">
+                    <h2 className="font-semibold text-gray-900">Payout Queue</h2>
+                    <p className="text-xs text-gray-500">
+                      {queue.summary?.payableVendors || 0} vendors meet the current payable rules. Next processing: {formatDate(queue.schedule?.nextProcessingDate)}
+                    </p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                        <tr>
+                          <th className="px-4 py-3">Vendor</th>
+                          <th className="px-4 py-3 text-right">Payable</th>
+                          <th className="px-4 py-3 text-right">Withheld</th>
+                          <th className="px-4 py-3 text-right">Pending</th>
+                          <th className="px-4 py-3">Method</th>
+                          <th className="px-4 py-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {(queue.vendors || []).map((vendor) => (
+                          <tr key={vendor.vendorId} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <Link to={`/admin/vendors/${vendor.vendorId}`} className="font-semibold text-blue-700 hover:text-blue-900">
+                                {vendor.vendorName}
+                              </Link>
+                              <div className="text-xs text-gray-500">{vendor.vendorTier} tier, {vendor.ordersCount} orders</div>
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-green-700">{formatPrice(vendor.payableBalance || 0)}</td>
+                            <td className="px-4 py-3 text-right text-amber-700">{formatPrice(vendor.withheldAmount || 0)}</td>
+                            <td className="px-4 py-3 text-right text-gray-600">{formatPrice(vendor.pendingClearance || 0)}</td>
+                            <td className="px-4 py-3 text-gray-600">{vendor.payoutMethodLabel || "Not configured"}</td>
+                            <td className="px-4 py-3 text-right">
                               <button
-                                onClick={() => setShowPaymentModal(payout._id)}
-                                className="text-green-600 hover:text-green-800 font-medium"
+                                type="button"
+                                disabled={!vendor.meetsMinimum}
+                                onClick={() => setPayModal(vendor)}
+                                className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 Mark Paid
                               </button>
-                              <button
-                                onClick={() => handleCancelPayout(payout._id)}
-                                className="text-red-500 hover:text-red-700 font-medium"
-                              >
-                                Cancel
-                              </button>
-                            </>
-                          )}
-                          {payout.status === 'paid' && payout.paidAt && (
-                            <span className="text-xs text-gray-500">
-                              Paid {new Date(payout.paidAt).toLocaleDateString()}
-                            </span>
-                          )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <aside className="rounded-lg border border-gray-200 bg-white lg:col-span-4">
+                  <div className="border-b border-gray-200 px-4 py-3">
+                    <h2 className="font-semibold text-gray-900">Recent Payouts</h2>
+                  </div>
+                  {(payouts || []).slice(0, 10).map((payout) => (
+                    <div key={payout._id} className="border-b border-gray-100 px-4 py-3 last:border-b-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-gray-900">{payout.vendorName || "Vendor"}</p>
+                          <p className="text-xs text-gray-500">{formatDate(payout.createdAt)}</p>
                         </div>
-                      </td>
-                    </tr>
+                        <div className="text-right">
+                          <p className="font-semibold text-gray-900">{formatPrice(payout.amount || 0)}</p>
+                          <Badge value={payout.status} />
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                </aside>
+              </div>
+            )}
 
-          {/* Pagination */}
-          {total > 20 && (
-            <div className="px-4 py-3 border-t flex justify-between items-center text-sm">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage(p => p - 1)}
-                className="px-3 py-1 border rounded disabled:opacity-40 hover:bg-gray-50"
-              >
-                Previous
-              </button>
-              <span className="text-gray-500">Page {page} of {Math.ceil(total / 20)}</span>
-              <button
-                disabled={page >= Math.ceil(total / 20)}
-                onClick={() => setPage(p => p + 1)}
-                className="px-3 py-1 border rounded disabled:opacity-40 hover:bg-gray-50"
-              >
-                Next
-              </button>
-            </div>
-          )}
-        </div>
+            {activeTab === "ledger" && (
+              <section className="rounded-lg border border-gray-200 bg-white">
+                <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+                  <div>
+                    <h2 className="font-semibold text-gray-900">Transaction Ledger</h2>
+                    <p className="text-xs text-gray-500">{ledger.summary?.events || ledger.data.length} events with running vendor balance</p>
+                  </div>
+                  <ReceiptText className="h-5 w-5 text-gray-400" />
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                      <tr>
+                        <th className="px-4 py-3">Date</th>
+                        <th className="px-4 py-3">Vendor</th>
+                        <th className="px-4 py-3">Type</th>
+                        <th className="px-4 py-3">Reference</th>
+                        <th className="px-4 py-3 text-right">Amount</th>
+                        <th className="px-4 py-3 text-right">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {ledger.data.map((row) => (
+                        <tr key={row.eventKey} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-600">{formatDate(row.occurredAt)}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900">{row.vendorName}</td>
+                          <td className="px-4 py-3"><Badge value={row.type} /></td>
+                          <td className="px-4 py-3 text-gray-600">{row.orderId ? `Order #${shortId(row.orderId)}` : row.payoutId ? `Payout #${shortId(row.payoutId)}` : row.returnId ? `Return #${shortId(row.returnId)}` : "N/A"}</td>
+                          <td className={`px-4 py-3 text-right font-semibold ${row.amount < 0 ? "text-red-700" : "text-green-700"}`}>{formatPrice(row.amount || 0)}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatPrice(row.balanceAfter || 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            {activeTab === "rules" && (
+              <div className="grid gap-6 lg:grid-cols-12">
+                <form onSubmit={saveRule} className="rounded-lg border border-gray-200 bg-white p-4 lg:col-span-4">
+                  <h2 className="font-semibold text-gray-900">Commission Rule</h2>
+                  <div className="mt-4 space-y-3">
+                    <input value={ruleForm.name} onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Rule name" />
+                    <input value={ruleForm.categoryId} onChange={(e) => setRuleForm({ ...ruleForm, categoryId: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Category ID, blank for all" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input value={ruleForm.vendorTier} onChange={(e) => setRuleForm({ ...ruleForm, vendorTier: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Tier" />
+                      <input value={ruleForm.campaignType} onChange={(e) => setRuleForm({ ...ruleForm, campaignType: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Campaign" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="number" value={ruleForm.commissionRate} onChange={(e) => setRuleForm({ ...ruleForm, commissionRate: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Rate %" />
+                      <input type="number" value={ruleForm.priority} onChange={(e) => setRuleForm({ ...ruleForm, priority: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Priority" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="date" value={ruleForm.effectiveFrom} onChange={(e) => setRuleForm({ ...ruleForm, effectiveFrom: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                      <input type="date" value={ruleForm.effectiveTo} onChange={(e) => setRuleForm({ ...ruleForm, effectiveTo: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                    </div>
+                    <button type="submit" className="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white">Save Rule</button>
+                  </div>
+                </form>
+
+                <section className="rounded-lg border border-gray-200 bg-white lg:col-span-8">
+                  <div className="border-b border-gray-200 px-4 py-3">
+                    <h2 className="font-semibold text-gray-900">Rules Engine</h2>
+                    <p className="text-xs text-gray-500">Priority resolves category, tier, and campaign overlaps.</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                        <tr>
+                          <th className="px-4 py-3">Rule</th>
+                          <th className="px-4 py-3">Scope</th>
+                          <th className="px-4 py-3 text-right">Rate</th>
+                          <th className="px-4 py-3">Effective</th>
+                          <th className="px-4 py-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {rules.map((rule) => (
+                          <tr key={rule._id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 font-medium text-gray-900">{rule.name}</td>
+                            <td className="px-4 py-3 text-gray-600">Category {rule.categoryId || "all"}, tier {rule.vendorTier || "all"}, campaign {rule.campaignType || "all"}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-gray-900">{rule.commissionRate}%</td>
+                            <td className="px-4 py-3 text-gray-600">{formatDate(rule.effectiveFrom)} - {formatDate(rule.effectiveTo)}</td>
+                            <td className="px-4 py-3"><Badge value={rule.status || "active"} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {activeTab === "refunds" && (
+              <section className="rounded-lg border border-gray-200 bg-white">
+                <div className="border-b border-gray-200 px-4 py-3">
+                  <h2 className="font-semibold text-gray-900">Refund Approval Workflow</h2>
+                  <p className="text-xs text-gray-500">Approve return-triggered refunds and choose how the buyer gets paid.</p>
+                </div>
+                <div className="border-b border-gray-100 p-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <select value={refundForm.refundMethod} onChange={(e) => setRefundForm({ ...refundForm, refundMethod: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                      <option value="original_payment">Original payment</option>
+                      <option value="store_credit">Store credit</option>
+                      <option value="manual_transfer">Manual transfer</option>
+                    </select>
+                    <input value={refundForm.amount} onChange={(e) => setRefundForm({ ...refundForm, amount: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Override amount" />
+                    <input value={refundForm.note} onChange={(e) => setRefundForm({ ...refundForm, note: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Finance note" />
+                  </div>
+                </div>
+                {(refunds || []).map((item) => (
+                  <div key={item._id} className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 last:border-b-0 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900">{item.productTitle || item.productName || "Return request"}</p>
+                      <p className="text-sm text-gray-500">Order #{shortId(item.orderId)} - {item.vendorName || "Vendor"} - {formatPrice(item.refundAmount || item.totalAmount || item.amount || 0)}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => submitRefundDecision(item._id, "approve")} className="rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white">Approve</button>
+                      <button type="button" onClick={() => submitRefundDecision(item._id, "reject")} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">Reject</button>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            {activeTab === "reports" && reports && (
+              <div className="space-y-6">
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button type="button" onClick={() => exportReport("csv")} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"><Download className="h-4 w-4" /> CSV</button>
+                  <button type="button" onClick={() => exportReport("pdf")} className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white"><Download className="h-4 w-4" /> PDF</button>
+                </div>
+                <section className="rounded-lg border border-gray-200 bg-white">
+                  <div className="border-b border-gray-200 px-4 py-3">
+                    <h2 className="font-semibold text-gray-900">Revenue By Day</h2>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                        <tr><th className="px-4 py-3">Date</th><th className="px-4 py-3 text-right">GMV</th><th className="px-4 py-3 text-right">Commission</th><th className="px-4 py-3 text-right">Vendor Earnings</th><th className="px-4 py-3 text-right">Refunds</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {reports.byDate?.map((row) => (
+                          <tr key={row.key} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 font-medium text-gray-900">{row.key}</td>
+                            <td className="px-4 py-3 text-right">{formatPrice(row.gmv)}</td>
+                            <td className="px-4 py-3 text-right">{formatPrice(row.commission)}</td>
+                            <td className="px-4 py-3 text-right">{formatPrice(row.vendorEarnings)}</td>
+                            <td className="px-4 py-3 text-right text-red-700">{formatPrice(row.refunds)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+                <div className="grid gap-6 lg:grid-cols-3">
+                  {[
+                    ["By Category", reports.byCategory, "categoryName"],
+                    ["By Vendor", reports.byVendor, "vendorName"],
+                    ["By Payment Method", reports.byPaymentMethod, "key"],
+                  ].map(([title, rows, labelKey]) => (
+                    <section key={title} className="rounded-lg border border-gray-200 bg-white">
+                      <div className="border-b border-gray-200 px-4 py-3"><h2 className="font-semibold text-gray-900">{title}</h2></div>
+                      {(rows || []).slice(0, 6).map((row) => (
+                        <div key={`${title}-${row.key}`} className="flex items-center justify-between border-b border-gray-100 px-4 py-3 last:border-b-0">
+                          <p className="font-medium text-gray-900">{row[labelKey] || row.key}</p>
+                          <p className="text-sm font-semibold text-gray-700">{formatPrice(row.commission)}</p>
+                        </div>
+                      ))}
+                    </section>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "settings" && (
+              <div className="grid gap-6 lg:grid-cols-2">
+                <form onSubmit={saveSchedule} className="rounded-lg border border-gray-200 bg-white p-4">
+                  <h2 className="font-semibold text-gray-900">Payout Cycle Management</h2>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <select value={scheduleForm.frequency} onChange={(e) => setScheduleForm({ ...scheduleForm, frequency: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                      <option value="weekly">Weekly</option>
+                      <option value="biweekly">Biweekly</option>
+                    </select>
+                    <input type="number" value={scheduleForm.minimumPayout} onChange={(e) => setScheduleForm({ ...scheduleForm, minimumPayout: Number(e.target.value) })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Minimum payout" />
+                    <select value={scheduleForm.cutoffDay} onChange={(e) => setScheduleForm({ ...scheduleForm, cutoffDay: Number(e.target.value) })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                      {dayOptions.map((day, index) => <option key={day} value={index}>Cutoff: {day}</option>)}
+                    </select>
+                    <select value={scheduleForm.processingDay} onChange={(e) => setScheduleForm({ ...scheduleForm, processingDay: Number(e.target.value) })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                      {dayOptions.map((day, index) => <option key={day} value={index}>Processing: {day}</option>)}
+                    </select>
+                  </div>
+                  <button type="submit" className="mt-4 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white">Save Cycle</button>
+                </form>
+
+                <form onSubmit={saveEscrow} className="rounded-lg border border-gray-200 bg-white p-4">
+                  <h2 className="font-semibold text-gray-900">Withholding / Escrow Rules</h2>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <input type="number" value={escrowForm.holdPercentage} onChange={(e) => setEscrowForm({ ...escrowForm, holdPercentage: Number(e.target.value) })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Hold %" />
+                    <input type="number" value={escrowForm.holdDaysAfterDelivery} onChange={(e) => setEscrowForm({ ...escrowForm, holdDaysAfterDelivery: Number(e.target.value) })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Hold days" />
+                    <input type="number" value={escrowForm.disputeHoldPercentage} onChange={(e) => setEscrowForm({ ...escrowForm, disputeHoldPercentage: Number(e.target.value) })} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Dispute hold %" />
+                    <label className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                      <input type="checkbox" checked={escrowForm.releaseAfterReturnWindow} onChange={(e) => setEscrowForm({ ...escrowForm, releaseAfterReturnWindow: e.target.checked })} />
+                      Release after return window
+                    </label>
+                  </div>
+                  <button type="submit" className="mt-4 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white">Save Escrow</button>
+                </form>
+              </div>
+            )}
+
+            {activeTab === "audit" && (
+              <section className="rounded-lg border border-gray-200 bg-white">
+                <div className="border-b border-gray-200 px-4 py-3">
+                  <h2 className="font-semibold text-gray-900">Finance Audit Log</h2>
+                  <p className="text-xs text-gray-500">Payout actions, refund overrides, commission changes, and settings updates.</p>
+                </div>
+                {(auditLog || []).map((log) => (
+                  <div key={log._id || `${log.action}-${log.createdAt}`} className="border-b border-gray-100 px-4 py-3 last:border-b-0">
+                    <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                      <p className="font-semibold text-gray-900">{log.action}</p>
+                      <p className="text-xs text-gray-500">{formatDate(log.createdAt)}</p>
+                    </div>
+                    <p className="text-sm text-gray-600">Actor: {log.actor?.email || log.actor?.userId || "admin"} - Target: {log.target?.type || "finance"} {log.target?.id || ""}</p>
+                  </div>
+                ))}
+              </section>
+            )}
+          </div>
         )}
+      </main>
 
-      </div>
-
-      {/* Mark Paid Modal */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Mark Payout as Paid</h3>
-            <div className="space-y-4">
+      {payModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+            <div className="flex items-center gap-3">
+              <Banknote className="h-5 w-5 text-green-700" />
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID</label>
-                <input
-                  type="text"
-                  value={transactionId}
-                  onChange={e => setTransactionId(e.target.value)}
-                  placeholder="e.g. TXN123456789"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Note (optional)</label>
-                <textarea
-                  value={paymentNote}
-                  onChange={e => setPaymentNote(e.target.value)}
-                  rows={2}
-                  placeholder="e.g. Paid via bank transfer..."
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                />
+                <h2 className="font-semibold text-gray-900">Mark Vendor Paid</h2>
+                <p className="text-sm text-gray-500">{payModal.vendorName} - {formatPrice(payModal.payableBalance)}</p>
               </div>
             </div>
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleMarkPaid}
-                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-green-700"
-              >
-                Confirm Payment
-              </button>
-              <button
-                onClick={() => {
-                  setShowPaymentModal(null);
-                  setTransactionId('');
-                  setPaymentNote('');
-                }}
-                className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
+            <div className="mt-4 space-y-3">
+              <input value={paymentForm.transactionId} onChange={(e) => setPaymentForm({ ...paymentForm, transactionId: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Transaction reference" />
+              <textarea value={paymentForm.note} onChange={(e) => setPaymentForm({ ...paymentForm, note: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" rows={3} placeholder="Payment note" />
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setPayModal(null)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700">Cancel</button>
+              <button type="button" onClick={payQueuedVendor} className="rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white">Confirm Paid</button>
             </div>
           </div>
         </div>

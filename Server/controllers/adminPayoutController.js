@@ -89,6 +89,36 @@ const notifyVendorPayout = async (req, payout, status, extra = {}) => {
   }
 };
 
+const getFinanceActor = (req) => ({
+  userId: req.user?._id?.toString?.() || req.user?.uid || "admin",
+  role: req.user?.role || "admin",
+  email: req.user?.email || "",
+});
+
+const appendPayoutAudit = async (req, action, payout, changes = {}) => {
+  try {
+    const db = req.app.locals.db || req.app.locals.models?.VendorPayout?.collection?.db;
+    if (!db?.collection) return;
+    const payload = {
+      action,
+      module: "finance",
+      actor: getFinanceActor(req),
+      target: {
+        type: "payout",
+        id: payout?._id?.toString?.() || payout?.payoutId || "",
+        vendorId: payout?.vendorId?.toString?.() || "",
+      },
+      changes,
+      createdAt: new Date(),
+    };
+    const AuditLog = req.app.locals.models?.AuditLog;
+    if (AuditLog?.append) await AuditLog.append(payload);
+    else await db.collection("audit_logs").insertOne(payload);
+  } catch (error) {
+    console.error("Failed to append payout audit:", error.message);
+  }
+};
+
 /**
  * Calculate eligible payout for a vendor
  * Shows delivered items that haven't been paid yet, minus return deductions
@@ -249,6 +279,13 @@ exports.createPayout = async (req, res) => {
       vendorPhone: vendor.phone,
     });
 
+    await appendPayoutAudit(req, "finance.payout.created", payout, {
+      amount: payout.amount,
+      periodStart: payout.periodStart,
+      periodEnd: payout.periodEnd,
+      note: payout.note,
+    });
+
     res.json({
       success: true,
       message: "Payout created successfully",
@@ -392,6 +429,12 @@ exports.markPayoutPaid = async (req, res) => {
       note: note || "",
     });
 
+    await appendPayoutAudit(req, "finance.payout.paid", payout, {
+      transactionId: transactionId || "",
+      note: note || "",
+      status: "paid",
+    });
+
     res.json({
       success: true,
       message: "Payout marked as paid successfully",
@@ -444,6 +487,11 @@ exports.cancelPayout = async (req, res) => {
 
     await notifyVendorPayout(req, payout, "cancelled", {
       reason: reason || "",
+    });
+
+    await appendPayoutAudit(req, "finance.payout.cancelled", payout, {
+      reason: reason || "",
+      status: "cancelled",
     });
 
     res.json({
@@ -795,6 +843,12 @@ exports.createBulkPayouts = async (req, res) => {
           vendorPhone: vendor.phone,
         });
 
+        await appendPayoutAudit(req, "finance.payout.bulk_created", payout, {
+          amount: payout.amount,
+          periodStart: payout.periodStart,
+          periodEnd: payout.periodEnd,
+        });
+
         createdPayouts.push(payout);
       } catch (error) {
         console.error(`Error creating payout for vendor ${payoutData.vendorId}:`, error);
@@ -917,6 +971,11 @@ exports.approvePayoutRequest = async (req, res) => {
       note: note || "",
     });
 
+    await appendPayoutAudit(req, "finance.payout_request.approved", payout, {
+      note: note || "",
+      status: "approved",
+    });
+
     res.json({
       success: true,
       message: "Payout request approved successfully",
@@ -974,6 +1033,11 @@ exports.rejectPayoutRequest = async (req, res) => {
 
     await notifyVendorPayout(req, payout, "rejected", { reason });
 
+    await appendPayoutAudit(req, "finance.payout_request.rejected", payout, {
+      reason,
+      status: "rejected",
+    });
+
     res.json({
       success: true,
       message: "Payout request rejected",
@@ -1029,6 +1093,12 @@ exports.markRequestPaid = async (req, res) => {
     await notifyVendorPayout(req, payout, "paid", {
       transactionId: transactionId || "",
       note: note || "",
+    });
+
+    await appendPayoutAudit(req, "finance.payout_request.paid", payout, {
+      transactionId: transactionId || "",
+      note: note || "",
+      status: "paid",
     });
 
     res.json({
