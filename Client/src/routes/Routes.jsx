@@ -122,6 +122,7 @@ const router = createBrowserRouter([
       { path: "/baby", element: lazyElement(CategoryPage) },
       { path: "/product/:id", element: lazyElement(ProductDetail) },
       { path: "/vendor/:vendorId/products", element: lazyElement(VendorStore) },
+      { path: "/shop/:shopSlug", element: lazyElement(VendorStore) },
       { path: "/cart", element: lazyElement(Cart) },
       { path: "/compare", element: lazyElement(Compare) },
       { path: "/wishlist", element: privateElement(Wishlist) },

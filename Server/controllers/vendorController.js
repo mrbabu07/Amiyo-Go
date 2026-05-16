@@ -1,12 +1,42 @@
 const { ObjectId } = require("mongodb");
 const { uploadFile } = require("../services/storageService");
 
+const normalizeShopSlug = (slug) =>
+  String(slug || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const mergeVendorShopProfile = (vendor, vendorShop) => {
+  if (!vendorShop) return vendor;
+  return {
+    ...vendor,
+    shopName: vendorShop.shopName ?? vendor.shopName,
+    slug: vendorShop.slug ?? vendor.slug,
+    tagline: vendorShop.tagline ?? vendor.tagline,
+    description: vendorShop.description ?? vendor.description,
+    phone: vendorShop.phone ?? vendor.phone,
+    whatsapp: vendorShop.whatsapp ?? vendor.whatsapp,
+    email: vendorShop.email ?? vendor.email,
+    address: vendorShop.address ?? vendor.address,
+    returnPolicy: vendorShop.returnPolicy ?? vendor.returnPolicy,
+    processingTime: vendorShop.processingTime ?? vendor.processingTime,
+    shippingNotes: vendorShop.shippingNotes ?? vendor.shippingNotes,
+    logo: vendorShop.logo ?? vendor.logo,
+    banner: vendorShop.banner ?? vendor.banner,
+    shopDecoration: vendorShop.shopDecoration ?? vendor.shopDecoration,
+    vendorShopId: vendorShop._id,
+  };
+};
+
 // Public: Get vendor public information (for product pages)
 exports.getVendorPublicInfo = async (req, res) => {
   try {
     const { id } = req.params;
     const Vendor = req.app.locals.models.Vendor;
     const Product = req.app.locals.models.Product;
+    const VendorShop = req.app.locals.models.VendorShop;
 
     // Validate ObjectId
     if (!id || typeof id !== "string" || id.length !== 24) {
@@ -31,6 +61,9 @@ exports.getVendorPublicInfo = async (req, res) => {
         error: "Vendor not available" 
       });
     }
+
+    const vendorShop = VendorShop ? await VendorShop.findByVendorId(vendor._id) : null;
+    const publicVendor = mergeVendorShopProfile(vendor, vendorShop);
 
     // Get vendor's product count
     const totalProducts = await Product.collection.countDocuments({
@@ -91,22 +124,27 @@ exports.getVendorPublicInfo = async (req, res) => {
     // Return public vendor information
     const publicInfo = {
       _id: vendor._id,
-      shopName: vendor.shopName,
-      slug: vendor.slug,
-      logo: vendor.logo || null,
-      banner: vendor.banner || null,
-      description: vendor.description || null,
-      phone: vendor.phone || null,
-      email: vendor.email || null,
-      address: vendor.address || null,
+      shopName: publicVendor.shopName,
+      slug: publicVendor.slug,
+      tagline: publicVendor.tagline || null,
+      logo: publicVendor.logo || null,
+      banner: publicVendor.banner || null,
+      description: publicVendor.description || null,
+      phone: publicVendor.phone || null,
+      email: publicVendor.email || null,
+      address: publicVendor.address || null,
+      returnPolicy: publicVendor.returnPolicy || null,
+      processingTime: publicVendor.processingTime || null,
+      shippingNotes: publicVendor.shippingNotes || null,
+      shopDecoration: publicVendor.shopDecoration || {},
       status: vendor.status,
       rating: averageRating,
       totalReviews,
       totalProducts,
       totalSales,
       followerCount: vendor.followerCount || 0,
-      responseRate: vendor.responseRate || 95, // Default if not calculated
-      responseTime: vendor.responseTime || "within hours", // Default
+      responseRate: publicVendor.responseRate || vendor.responseRate || 95, // Default if not calculated
+      responseTime: publicVendor.responseTime || vendor.responseTime || "within hours", // Default
       joinedDate: vendor.createdAt
     };
 
@@ -119,6 +157,36 @@ exports.getVendorPublicInfo = async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: "Failed to fetch vendor information" 
+    });
+  }
+};
+
+exports.getVendorPublicInfoBySlug = async (req, res) => {
+  try {
+    const slug = normalizeShopSlug(req.params.slug);
+    if (!slug) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid shop slug",
+      });
+    }
+
+    const Vendor = req.app.locals.models.Vendor;
+    const vendor = await Vendor.findBySlug(slug);
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        error: "Vendor not found",
+      });
+    }
+
+    req.params.id = vendor._id.toString();
+    return exports.getVendorPublicInfo(req, res);
+  } catch (error) {
+    console.error("Error fetching vendor public info by slug:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch vendor information",
     });
   }
 };
@@ -448,24 +516,7 @@ exports.getMyVendorProfile = async (req, res) => {
     }
 
     const vendorShop = VendorShop ? await VendorShop.findByVendorId(vendor._id) : null;
-    const mergedVendor = vendorShop
-      ? {
-          ...vendor,
-          shopName: vendorShop.shopName ?? vendor.shopName,
-          slug: vendorShop.slug ?? vendor.slug,
-          description: vendorShop.description ?? vendor.description,
-          phone: vendorShop.phone ?? vendor.phone,
-          whatsapp: vendorShop.whatsapp ?? vendor.whatsapp,
-          email: vendorShop.email ?? vendor.email,
-          address: vendorShop.address ?? vendor.address,
-          returnPolicy: vendorShop.returnPolicy ?? vendor.returnPolicy,
-          processingTime: vendorShop.processingTime ?? vendor.processingTime,
-          logo: vendorShop.logo ?? vendor.logo,
-          banner: vendorShop.banner ?? vendor.banner,
-          shopDecoration: vendorShop.shopDecoration ?? vendor.shopDecoration,
-          vendorShopId: vendorShop._id,
-        }
-      : vendor;
+    const mergedVendor = mergeVendorShopProfile(vendor, vendorShop);
 
     res.json({ vendor: mergedVendor });
   } catch (error) {
@@ -481,12 +532,14 @@ exports.updateVendorProfile = async (req, res) => {
       shopName, 
       phone,
       email,
+      tagline,
       description,
       address, 
       slug,
       whatsapp,
       returnPolicy,
       processingTime,
+      shippingNotes,
       shopDecoration,
       logo,
       banner,
@@ -501,6 +554,7 @@ exports.updateVendorProfile = async (req, res) => {
       mobileBankingNumber
     } = req.body;
     const Vendor = req.app.locals.models.Vendor;
+    const VendorShop = req.app.locals.models.VendorShop;
 
     const vendor = await Vendor.findByUserId(req.user._id);
     if (!vendor) {
@@ -511,11 +565,7 @@ exports.updateVendorProfile = async (req, res) => {
     const updateData = {};
     if (shopName) updateData.shopName = shopName;
     if (slug !== undefined) {
-      const safeSlug = String(slug)
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
+      const safeSlug = normalizeShopSlug(slug);
 
       if (!safeSlug) {
         return res.status(400).json({ error: "Shop slug cannot be empty" });
@@ -525,16 +575,24 @@ exports.updateVendorProfile = async (req, res) => {
       if (existing && existing._id.toString() !== vendor._id.toString()) {
         return res.status(409).json({ error: "Shop slug is already in use" });
       }
+      if (VendorShop?.collection) {
+        const existingShop = await VendorShop.collection.findOne({ slug: safeSlug });
+        if (existingShop && existingShop.vendorId?.toString?.() !== vendor._id.toString()) {
+          return res.status(409).json({ error: "Shop slug is already in use" });
+        }
+      }
 
       updateData.slug = safeSlug;
     }
     if (phone !== undefined) updateData.phone = phone;
     if (email !== undefined) updateData.email = email;
+    if (tagline !== undefined) updateData.tagline = tagline;
     if (description !== undefined) updateData.description = description;
     if (address !== undefined) updateData.address = address;
     if (whatsapp !== undefined) updateData.whatsapp = whatsapp;
     if (returnPolicy !== undefined) updateData.returnPolicy = returnPolicy;
     if (processingTime !== undefined) updateData.processingTime = processingTime;
+    if (shippingNotes !== undefined) updateData.shippingNotes = shippingNotes;
     if (shopDecoration !== undefined) updateData.shopDecoration = shopDecoration;
     if (logo !== undefined) updateData.logo = logo;
     if (banner !== undefined) updateData.banner = banner;
@@ -553,8 +611,8 @@ exports.updateVendorProfile = async (req, res) => {
     await Vendor.update(vendor._id, updateData);
 
     const updatedVendor = await Vendor.findById(vendor._id);
-    if (req.app.locals.models.VendorShop) {
-      await req.app.locals.models.VendorShop.upsertForVendor(updatedVendor, updateData);
+    if (VendorShop) {
+      await VendorShop.upsertForVendor(updatedVendor, updateData);
     }
 
     res.json({ 

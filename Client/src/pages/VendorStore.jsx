@@ -23,11 +23,35 @@ const getMarketingProductIds = (item) => {
   return ids.map((id) => String(id || "").trim()).filter(Boolean);
 };
 
+const shopThemeGradients = {
+  orange: "from-orange-600 to-amber-500",
+  green: "from-emerald-600 to-lime-500",
+  blue: "from-sky-600 to-cyan-500",
+  rose: "from-rose-600 to-pink-500",
+  slate: "from-slate-800 to-slate-600",
+};
+
+const getCategoryId = (product) =>
+  product?.categoryId && typeof product.categoryId === "object"
+    ? String(product.categoryId._id || product.categoryId)
+    : String(product?.categoryId || "");
+
+const getAddressText = (address) => {
+  if (!address) return "";
+  if (typeof address === "string") return address;
+  return [address.details, address.city, address.state, address.country].filter(Boolean).join(", ");
+};
+
+const cropPosition = (crop = {}) => `${crop.x ?? 50}% ${crop.y ?? 50}%`;
+
+const cropScale = (crop = {}) => Math.max(1, Number(crop.zoom || 100) / 100);
+
 export default function VendorStore() {
-  const { vendorId } = useParams();
+  const { vendorId, shopSlug } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
+  const [resolvedVendorId, setResolvedVendorId] = useState(vendorId || "");
   const [vendor, setVendor] = useState(null);
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
@@ -38,6 +62,7 @@ export default function VendorStore() {
   const [storeMarketing, setStoreMarketing] = useState([]);
   const [marketingLoading, setMarketingLoading] = useState(true);
   const [sortBy, setSortBy] = useState("newest");
+  const [activeShopTab, setActiveShopTab] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
   const [showChatModal, setShowChatModal] = useState(false);
@@ -70,58 +95,94 @@ export default function VendorStore() {
     return sellerPickProductIds.map((id) => productsById.get(id)).filter(Boolean);
   }, [products, sellerPickProductIds]);
 
+  const shopDecoration = vendor?.shopDecoration || {};
+
+  const customShopTabs = useMemo(
+    () =>
+      (shopDecoration.categoryTabs || [])
+        .filter((tab) => tab.label && ((tab.categoryIds || []).length > 0 || (tab.productIds || []).length > 0))
+        .map((tab, index) => ({
+          ...tab,
+          id: tab.id || `shop-tab-${index}`,
+          categoryIds: (tab.categoryIds || []).map(String),
+          productIds: (tab.productIds || []).map(String),
+        })),
+    [shopDecoration.categoryTabs],
+  );
+
+  const featuredProducts = useMemo(() => {
+    const featuredIds = shopDecoration.featuredCarousel?.productIds || [];
+    if (featuredIds.length === 0 || products.length === 0) return [];
+    const productsById = new Map(products.map((product) => [getStoreProductId(product), product]));
+    return featuredIds.map((id) => productsById.get(String(id))).filter(Boolean);
+  }, [products, shopDecoration.featuredCarousel?.productIds]);
+
+  const activeCampaignDecoration = useMemo(() => {
+    const campaign = shopDecoration.campaignMode;
+    if (!campaign?.enabled) return null;
+    const now = new Date();
+    const startsAt = campaign.startDate ? new Date(campaign.startDate) : null;
+    const endsAt = campaign.endDate ? new Date(campaign.endDate) : null;
+    if (startsAt && !Number.isNaN(startsAt.getTime()) && now < startsAt) return null;
+    if (endsAt && !Number.isNaN(endsAt.getTime()) && now > endsAt) return null;
+    return campaign;
+  }, [shopDecoration.campaignMode]);
+
   useEffect(() => {
+    setProducts([]);
+    setFilteredProducts([]);
+    setStoreMarketing([]);
+    setResolvedVendorId(vendorId || "");
+    setActiveShopTab("all");
     fetchVendorInfo();
-    fetchVendorProducts();
-    fetchVendorMarketing();
-    checkFollowStatus();
-  }, [vendorId]);
+  }, [vendorId, shopSlug]);
 
   useEffect(() => {
     if (products.length > 0) {
       applyFilters();
     }
-  }, [sortBy, selectedCategory, priceRange, products, sellerPickRank]);
+  }, [sortBy, activeShopTab, selectedCategory, priceRange, products, sellerPickRank, customShopTabs]);
 
   const fetchVendorInfo = async () => {
     try {
-      const response = await axios.get(`${API_URL}/vendors/${vendorId}/public`);
+      setLoading(true);
+      setProductsLoading(true);
+      setMarketingLoading(true);
+      const response = await axios.get(
+        vendorId
+          ? `${API_URL}/vendors/${vendorId}/public`
+          : `${API_URL}/vendors/slug/${shopSlug}/public`,
+      );
       const vendorData = response.data.data;
-      console.log('📍 Vendor data received:', {
-        shopName: vendorData.shopName,
-        hasAddress: !!vendorData.address,
-        address: vendorData.address,
-        followerCount: vendorData.followerCount
-      });
       setVendor(vendorData);
+      const publicVendorId = vendorData._id?.toString?.() || String(vendorData._id || "");
+      setResolvedVendorId(publicVendorId);
+      await Promise.all([
+        fetchVendorProducts(publicVendorId),
+        fetchVendorMarketing(publicVendorId),
+        user ? checkFollowStatus(publicVendorId) : Promise.resolve(),
+      ]);
     } catch (error) {
       console.error("Failed to fetch vendor info:", error);
       setError("Vendor not found");
+      setProductsLoading(false);
+      setMarketingLoading(false);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchVendorProducts = async () => {
+  const fetchVendorProducts = async (targetVendorId = resolvedVendorId) => {
+    if (!targetVendorId) return;
     try {
       const response = await axios.get(`${API_URL}/products`, {
         params: {
-          vendorId,
+          vendorId: targetVendorId,
           limit: 100,
         },
       });
 
       const productData = response.data.data || [];
-      
-      console.log('📦 Products received:', productData.length);
-      if (productData.length > 0) {
-        console.log('🔍 First product:', {
-          title: productData[0].title,
-          categoryId: productData[0].categoryId,
-          categoryName: productData[0].categoryName,
-          hasCategoryName: !!productData[0].categoryName
-        });
-      }
       
       // Products already have categoryName from backend aggregation
       setProducts(productData);
@@ -130,9 +191,7 @@ export default function VendorStore() {
       const categoriesMap = new Map();
       productData.forEach(product => {
         if (product.categoryName && product.categoryId) {
-          const catId = typeof product.categoryId === 'object' 
-            ? product.categoryId.toString() 
-            : String(product.categoryId);
+          const catId = getCategoryId(product);
           
           if (!categoriesMap.has(catId)) {
             categoriesMap.set(catId, product.categoryName);
@@ -145,7 +204,6 @@ export default function VendorStore() {
         name 
       }));
 
-      console.log('🏷️ Categories extracted:', categoryList);
       setCategories(categoryList);
       
       // Set price range based on products
@@ -163,14 +221,15 @@ export default function VendorStore() {
     }
   };
 
-  const fetchVendorMarketing = async () => {
+  const fetchVendorMarketing = async (targetVendorId = resolvedVendorId) => {
+    if (!targetVendorId) return;
     try {
       setMarketingLoading(true);
-      const response = await getPublicVendorMarketingItems(vendorId);
+      const response = await getPublicVendorMarketingItems(targetVendorId);
       const items = response.data.data || [];
       setStoreMarketing(items);
       items.forEach((item) => {
-        recordVendorMarketingEvent(vendorId, item._id, {
+        recordVendorMarketingEvent(targetVendorId, item._id, {
           event: "view",
           sessionId: sessionStorage.getItem("amiyo_session_id") || "",
         }).catch(() => null);
@@ -183,13 +242,14 @@ export default function VendorStore() {
     }
   };
 
-  const checkFollowStatus = async () => {
+  const checkFollowStatus = async (targetVendorId = resolvedVendorId) => {
     if (!user) return;
+    if (!targetVendorId) return;
     
     try {
       const token = await auth.currentUser.getIdToken();
       const response = await axios.get(
-        `${API_URL}/vendors/${vendorId}/follow-status`,
+        `${API_URL}/vendors/${targetVendorId}/follow-status`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -201,10 +261,12 @@ export default function VendorStore() {
   };
 
   const handleFollowToggle = async () => {
+    const targetVendorId = resolvedVendorId || vendorId;
     if (!user) {
       alert("Please login to follow stores");
       return;
     }
+    if (!targetVendorId) return;
 
     setFollowLoading(true);
     try {
@@ -212,7 +274,7 @@ export default function VendorStore() {
       
       if (isFollowing) {
         await axios.delete(
-          `${API_URL}/vendors/${vendorId}/unfollow`,
+          `${API_URL}/vendors/${targetVendorId}/unfollow`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -225,7 +287,7 @@ export default function VendorStore() {
         }));
       } else {
         await axios.post(
-          `${API_URL}/vendors/${vendorId}/follow`,
+          `${API_URL}/vendors/${targetVendorId}/follow`,
           {},
           {
             headers: { Authorization: `Bearer ${token}` },
@@ -249,12 +311,21 @@ export default function VendorStore() {
   const applyFilters = () => {
     let filtered = [...products];
 
+    if (activeShopTab !== "all") {
+      const tab = customShopTabs.find((item) => item.id === activeShopTab);
+      if (tab) {
+        filtered = filtered.filter((product) => {
+          const id = getStoreProductId(product);
+          const categoryId = getCategoryId(product);
+          return tab.productIds.includes(id) || tab.categoryIds.includes(categoryId);
+        });
+      }
+    }
+
     // Category filter
     if (selectedCategory !== "all") {
       filtered = filtered.filter(p => {
-        const productCatId = typeof p.categoryId === 'object' 
-          ? p.categoryId.toString() 
-          : String(p.categoryId);
+        const productCatId = getCategoryId(p);
         return productCatId === selectedCategory;
       });
     }
@@ -312,7 +383,7 @@ export default function VendorStore() {
       await axios.post(
         `${API_URL}/vendor-chat/start`,
         {
-          vendorId,
+          vendorId: resolvedVendorId || vendorId,
           initialMessage: message,
         },
         {
@@ -337,17 +408,18 @@ export default function VendorStore() {
       await navigator.clipboard.writeText(code);
       setCopiedVoucherCode(code);
       window.setTimeout(() => setCopiedVoucherCode(""), 1800);
-      recordVendorMarketingEvent(vendorId, voucher._id, { event: "click" }).catch(() => null);
+      recordVendorMarketingEvent(resolvedVendorId || vendorId, voucher._id, { event: "click" }).catch(() => null);
     } catch (error) {
       console.error("Failed to copy voucher code:", error);
     }
   };
 
   const handleUseVoucherNow = (voucher) => {
-    recordVendorMarketingEvent(vendorId, voucher._id, { event: "click" }).catch(() => null);
+    const targetVendorId = resolvedVendorId || vendorId;
+    recordVendorMarketingEvent(targetVendorId, voucher._id, { event: "click" }).catch(() => null);
     const selectedVoucher = {
       code: voucher.code,
-      vendorId,
+      vendorId: targetVendorId,
       vendorName: vendor?.shopName || voucher.vendorName || "this store",
       title: voucher.title,
       selectedAt: new Date().toISOString(),
@@ -365,13 +437,17 @@ export default function VendorStore() {
     navigate("/checkout", {
       state: {
         preferredVoucherCode: voucher.code,
-        preferredVendorId: vendorId,
+        preferredVendorId: targetVendorId,
       },
     });
   };
 
   const voucherItems = storeMarketing.filter((item) => item.type === "voucher");
   const promotionItems = storeMarketing.filter((item) => !["voucher", "seller_pick"].includes(item.type));
+  const highlightedVoucher = shopDecoration.couponBanner?.enabled
+    ? voucherItems.find((voucher) => String(voucher._id) === shopDecoration.couponBanner?.voucherId) || voucherItems[0]
+    : null;
+  const vendorAddressText = getAddressText(vendor?.address);
 
   if (loading) {
     return (
@@ -413,6 +489,25 @@ export default function VendorStore() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {activeCampaignDecoration && (
+        <div className={`relative overflow-hidden bg-gradient-to-r ${shopThemeGradients[activeCampaignDecoration.theme] || shopThemeGradients.orange} text-white`}>
+          {activeCampaignDecoration.banner && (
+            <img
+              src={activeCampaignDecoration.banner}
+              alt={activeCampaignDecoration.title || "Campaign banner"}
+              className="absolute inset-0 h-full w-full object-cover opacity-35"
+            />
+          )}
+          <div className="relative mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+            <p className="text-xs font-semibold uppercase">Campaign Mode</p>
+            <h2 className="mt-1 text-2xl font-bold">{activeCampaignDecoration.title || "Campaign Sale"}</h2>
+            {activeCampaignDecoration.message && (
+              <p className="mt-1 max-w-3xl text-sm text-white/90">{activeCampaignDecoration.message}</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Banner Image */}
       {vendor.banner && (
         <div className="relative h-48 md:h-64 bg-gradient-to-r from-orange-400 to-orange-600 overflow-hidden">
@@ -420,6 +515,10 @@ export default function VendorStore() {
             src={vendor.banner}
             alt={`${vendor.shopName} Banner`}
             className="w-full h-full object-cover"
+            style={{
+              objectPosition: cropPosition(shopDecoration.bannerCrop),
+              transform: `scale(${cropScale(shopDecoration.bannerCrop)})`,
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
         </div>
@@ -438,6 +537,10 @@ export default function VendorStore() {
                   src={vendor.logo}
                   alt={vendor.shopName}
                   className="w-32 h-32 md:w-40 md:h-40 rounded-2xl object-cover border-4 border-white shadow-2xl bg-white"
+                  style={{
+                    objectPosition: cropPosition(shopDecoration.logoCrop),
+                    transform: `scale(${cropScale(shopDecoration.logoCrop)})`,
+                  }}
                 />
               ) : (
                 <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-white flex items-center justify-center shadow-2xl border-4 border-white">
@@ -466,22 +569,28 @@ export default function VendorStore() {
                     )}
                   </div>
 
+                  {vendor.tagline && (
+                    <p className={`mb-3 text-sm font-semibold ${vendor.banner ? 'text-orange-600 dark:text-orange-300' : 'text-orange-50'}`}>
+                      {vendor.tagline}
+                    </p>
+                  )}
+
                   {/* Location */}
-                  {vendor.address && (vendor.address.details || vendor.address.city || vendor.address.state) && (
+                  {vendorAddressText && (
                     <div className={`flex items-center gap-2 mb-3 ${vendor.banner ? 'text-gray-600 dark:text-gray-400' : 'text-orange-100'}`}>
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
                       <span className="text-sm font-medium">
-                        {vendor.address.details || [vendor.address.city, vendor.address.state, vendor.address.country].filter(Boolean).join(', ')}
+                        {vendorAddressText}
                       </span>
                     </div>
                   )}
 
                   {/* Description */}
                   {vendor.description && (
-                    <p className={`max-w-3xl text-sm md:text-base mb-4 ${vendor.banner ? 'text-gray-700 dark:text-gray-300' : 'text-orange-50'}`}>
+                    <p className={`max-w-3xl whitespace-pre-line text-sm md:text-base mb-4 ${vendor.banner ? 'text-gray-700 dark:text-gray-300' : 'text-orange-50'}`}>
                       {vendor.description}
                     </p>
                   )}
@@ -596,7 +705,7 @@ export default function VendorStore() {
       </div>
 
       {/* Contact & Policies Section */}
-      {(vendor.phone || vendor.email || vendor.address?.details) && (
+      {(vendor.phone || vendor.email || vendorAddressText) && (
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex flex-wrap gap-6 text-sm">
@@ -624,17 +733,71 @@ export default function VendorStore() {
                 </div>
               )}
 
-              {vendor.address?.details && (
+              {vendorAddressText && (
                 <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                   <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
                   <span className="font-medium">Address:</span>
                   <span className="text-gray-600 dark:text-gray-400">
-                    {vendor.address.details}
+                    {vendorAddressText}
                   </span>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(vendor.returnPolicy || vendor.processingTime || vendor.shippingNotes) && (
+        <div className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+          <div className="mx-auto grid max-w-7xl gap-3 px-4 py-5 sm:px-6 md:grid-cols-3 lg:px-8">
+            {vendor.processingTime && (
+              <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-800">
+                <p className="font-semibold text-gray-900 dark:text-white">Processing Time</p>
+                <p className="mt-1 text-gray-600 dark:text-gray-300">{vendor.processingTime}</p>
+              </div>
+            )}
+            {vendor.returnPolicy && (
+              <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-800">
+                <p className="font-semibold text-gray-900 dark:text-white">Return Policy</p>
+                <p className="mt-1 whitespace-pre-line text-gray-600 dark:text-gray-300">{vendor.returnPolicy}</p>
+              </div>
+            )}
+            {vendor.shippingNotes && (
+              <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-800">
+                <p className="font-semibold text-gray-900 dark:text-white">Shipping Notes</p>
+                <p className="mt-1 whitespace-pre-line text-gray-600 dark:text-gray-300">{vendor.shippingNotes}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {highlightedVoucher && (
+        <div className="border-b border-orange-200 bg-orange-50 dark:border-orange-900/40 dark:bg-orange-950/20">
+          <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+            <div>
+              <p className="text-xs font-bold uppercase text-orange-700 dark:text-orange-300">
+                {shopDecoration.couponBanner?.customText || "Shop coupon"}
+              </p>
+              <p className="mt-1 text-lg font-bold text-gray-900 dark:text-white">
+                Use <span className="font-mono">{highlightedVoucher.code}</span> on this seller's items
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => copyVoucherCode(highlightedVoucher)}
+                className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700"
+              >
+                {copiedVoucherCode === highlightedVoucher.code ? "Copied" : "Copy Code"}
+              </button>
+              <button
+                onClick={() => handleUseVoucherNow(highlightedVoucher)}
+                className="rounded-lg border border-orange-200 bg-white px-4 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-100"
+              >
+                Use Now
+              </button>
             </div>
           </div>
         </div>
@@ -805,9 +968,7 @@ export default function VendorStore() {
                   {categories.length > 0 ? (
                     categories.map((cat) => {
                       const count = products.filter(p => {
-                        const productCatId = typeof p.categoryId === 'object' 
-                          ? p.categoryId.toString() 
-                          : String(p.categoryId);
+                        const productCatId = getCategoryId(p);
                         return productCatId === cat.id;
                       }).length;
                       return (
@@ -879,6 +1040,28 @@ export default function VendorStore() {
 
           {/* Products Grid */}
           <div className="flex-1">
+            {!productsLoading && featuredProducts.length > 0 && (
+              <div className="mb-8">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {shopDecoration.featuredCarousel?.title || "Featured Products"}
+                    </h2>
+                    <p className="mt-1 text-gray-600 dark:text-gray-400">
+                      Curated by {vendor.shopName}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex snap-x gap-4 overflow-x-auto pb-2">
+                  {featuredProducts.map((product) => (
+                    <div key={product._id} className="min-w-[180px] max-w-[220px] snap-start sm:min-w-[210px]">
+                      <ProductCard product={product} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {!productsLoading && sellerPickProducts.length > 0 && (
               <div className="mb-8">
                 <div className="mb-4 flex items-center justify-between gap-3">
@@ -899,6 +1082,36 @@ export default function VendorStore() {
                     <ProductCard key={product._id} product={product} />
                   ))}
                 </div>
+              </div>
+            )}
+
+            {customShopTabs.length > 0 && (
+              <div className="mb-6 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveShopTab("all")}
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold ${
+                    activeShopTab === "all"
+                      ? "border-orange-300 bg-orange-50 text-orange-700"
+                      : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                  }`}
+                >
+                  All
+                </button>
+                {customShopTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveShopTab(tab.id)}
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold ${
+                      activeShopTab === tab.id
+                        ? "border-orange-300 bg-orange-50 text-orange-700"
+                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
             )}
 

@@ -42,6 +42,7 @@ router.patch("/kyc/admin/:vendorId/review", verifyToken, verifyAdmin, vendorCont
 
 // Public vendor info (for product pages)
 router.get("/followed/feed", verifyToken, vendorController.getFollowedVendorFeed);
+router.get("/slug/:slug/public", vendorController.getVendorPublicInfoBySlug);
 router.get("/:id/public", vendorController.getVendorPublicInfo);
 router.get("/:id/public-marketing", vendorMarketingController.listPublicVendorMarketingItems);
 router.post("/:id/public-marketing/:itemId/event", vendorMarketingController.recordPublicVendorMarketingEvent);

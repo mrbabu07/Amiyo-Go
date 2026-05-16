@@ -59,6 +59,7 @@ jest.mock("../controllers/orderController", () => ({
   bulkUpdateOrderStatus: (req, res) => res.json({ route: "orders:bulk-status" }),
   addOrderNote: (req, res) => res.json({ route: "orders:add-note", id: req.params.id }),
   regenerateInvoice: (req, res) => res.json({ route: "orders:regenerate-invoice", id: req.params.id }),
+  getOrderTimelineEvents: (req, res) => res.json({ route: "orders:timeline", id: req.params.id }),
   getUserOrders: (req, res) => res.json({ route: "orders:my-orders" }),
   createOrder: (req, res) =>
     res.status(201).json({
@@ -75,12 +76,18 @@ jest.mock("../controllers/orderController", () => ({
 
 jest.mock("../controllers/vendorController", () => ({
   registerVendor: (req, res) => res.status(201).json({ route: "vendors:register" }),
+  getFollowedVendorFeed: (req, res) => res.json({ route: "vendors:followed-feed" }),
   getVendorPublicInfo: (req, res) => res.json({ route: "vendors:public", id: req.params.id }),
+  getVendorPublicInfoBySlug: (req, res) => res.json({ route: "vendors:public-slug", slug: req.params.slug }),
   getFollowStatus: (req, res) => res.json({ route: "vendors:follow-status", id: req.params.id }),
   followVendor: (req, res) => res.json({ route: "vendors:follow", id: req.params.id }),
   unfollowVendor: (req, res) => res.json({ route: "vendors:unfollow", id: req.params.id }),
   getMyVendorProfile: (req, res) => res.json({ route: "vendors:me" }),
   updateVendorProfile: (req, res) => res.json({ route: "vendors:update-me" }),
+  getMyKyc: (req, res) => res.json({ route: "vendors:kyc-me" }),
+  submitVendorKyc: (req, res) => res.json({ route: "vendors:kyc-submit" }),
+  getKycQueue: (req, res) => res.json({ route: "vendors:kyc-queue" }),
+  reviewVendorKyc: (req, res) => res.json({ route: "vendors:kyc-review", id: req.params.vendorId }),
   uploadLogo: (req, res) => res.json({ route: "vendors:upload-logo" }),
   uploadBanner: (req, res) => res.json({ route: "vendors:upload-banner" }),
   getVendorAllowedCategories: (req, res) => res.json({ route: "vendors:my-categories" }),
@@ -129,7 +136,10 @@ jest.mock("../controllers/vendorsFinanceController", () => ({
 jest.mock("../controllers/vendorMarketingController", () => ({
   listPublicVendorMarketingItems: (req, res) =>
     res.json({ route: "vendors:public-marketing", id: req.params.id }),
+  recordPublicVendorMarketingEvent: (req, res) =>
+    res.json({ route: "vendors:public-marketing-event", id: req.params.id, itemId: req.params.itemId }),
   listVendorMarketingItems: (req, res) => res.json({ route: "vendors:marketing-list" }),
+  getCampaignVoucherAnalytics: (req, res) => res.json({ route: "vendors:marketing-analytics" }),
   createVendorMarketingItem: (req, res) => res.status(201).json({ route: "vendors:marketing-create" }),
   updateVendorMarketingItem: (req, res) =>
     res.json({ route: "vendors:marketing-update", id: req.params.id }),
@@ -255,6 +265,13 @@ describe("Black-box API tests", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ route: "vendors:marketing-list" });
+    });
+
+    test("GET /api/vendors/slug/:slug/public uses the public slug route", async () => {
+      const response = await request(app).get("/api/vendors/slug/my-brand/public");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "vendors:public-slug", slug: "my-brand" });
     });
   });
 
