@@ -379,6 +379,49 @@ export const getAdminAnalyticsSummary = (params = {}) =>
   api.get("/admin/analytics/summary", { params });
 export const rebuildAdminAnalyticsSummary = (data = {}) =>
   api.post("/admin/analytics/rebuild", data);
+
+// Admin Promotions
+export const getPromotionOverview = () =>
+  api.get("/admin/promotions/overview");
+export const getPromotionCampaigns = () =>
+  api.get("/admin/promotions/campaigns");
+export const createPromotionCampaign = (data) =>
+  api.post("/admin/promotions/campaigns", data);
+export const updatePromotionCampaign = (campaignId, data) =>
+  api.patch(`/admin/promotions/campaigns/${campaignId}`, data);
+export const getCampaignNominationQueue = (params = {}) =>
+  api.get("/admin/promotions/nominations", { params });
+export const reviewCampaignNomination = (nominationId, data) =>
+  api.patch(`/admin/promotions/nominations/${nominationId}/review`, data);
+export const getPromotionFlashDeals = () =>
+  api.get("/admin/promotions/flash-deals");
+export const createPromotionFlashDeal = (data) =>
+  api.post("/admin/promotions/flash-deals", data);
+export const getPlatformVouchers = () =>
+  api.get("/admin/promotions/vouchers");
+export const createPlatformVoucher = (data) =>
+  api.post("/admin/promotions/vouchers", data);
+export const getHomepageSlots = () =>
+  api.get("/admin/promotions/homepage-slots");
+export const saveHomepageSlot = (data) =>
+  data.slotId
+    ? api.patch(`/admin/promotions/homepage-slots/${data.slotId}`, data)
+    : api.post("/admin/promotions/homepage-slots", data);
+export const reorderHomepageSlots = (slots) =>
+  api.patch("/admin/promotions/homepage-slots/reorder", { slots });
+export const selectDealOfDay = (data) =>
+  api.post("/admin/promotions/deal-of-day", data);
+export const getClearanceRules = () =>
+  api.get("/admin/promotions/clearance");
+export const applyClearanceSale = (data) =>
+  api.post("/admin/promotions/clearance", data);
+export const getLoyaltyRules = () =>
+  api.get("/admin/promotions/loyalty-rules");
+export const updateLoyaltyRules = (data) =>
+  api.put("/admin/promotions/loyalty-rules", data);
+export const getPromotionAuditLog = () =>
+  api.get("/admin/promotions/audit-log");
+
 export const getDispatchAssignments = (params = {}) =>
   api.get("/admin/dispatch/assignments", { params });
 export const createDispatchAssignment = (data) =>

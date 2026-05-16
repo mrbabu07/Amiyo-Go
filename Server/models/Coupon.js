@@ -116,6 +116,8 @@ class Coupon {
       if (coupon.maxDiscountAmount) {
         discountAmount = Math.min(discountAmount, coupon.maxDiscountAmount);
       }
+    } else if (coupon.discountType === "free_shipping") {
+      discountAmount = Number(coupon.maxDiscountAmount || coupon.discountValue || 0);
     } else {
       discountAmount = coupon.discountValue;
     }

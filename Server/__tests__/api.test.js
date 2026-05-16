@@ -195,6 +195,40 @@ jest.mock("../controllers/adminFinanceController", () => ({
   getVendorFinanceTransactions: (req, res) => res.json({ route: "vendors:finance-transactions", id: req.params.vendorId }),
 }));
 
+jest.mock("../controllers/adminPromotionController", () => ({
+  getPromotionOverview: (req, res) => res.json({ route: "admin-promotions:overview" }),
+  listPromotionCampaigns: (req, res) => res.json({ route: "admin-promotions:campaigns" }),
+  createPromotionCampaign: (req, res) =>
+    res.status(201).json({ route: "admin-promotions:create-campaign", name: req.body.name }),
+  updatePromotionCampaign: (req, res) =>
+    res.json({ route: "admin-promotions:update-campaign", id: req.params.campaignId }),
+  getCampaignNominationQueue: (req, res) =>
+    res.json({ route: "admin-promotions:nominations", status: req.query.status || "all" }),
+  reviewCampaignNomination: (req, res) =>
+    res.json({ route: "admin-promotions:review-nomination", id: req.params.nominationId, status: req.body.status }),
+  listFlashDeals: (req, res) => res.json({ route: "admin-promotions:flash-deals" }),
+  createFlashDeal: (req, res) =>
+    res.status(201).json({ route: "admin-promotions:create-flash-deal", productId: req.body.productId }),
+  listPlatformVouchers: (req, res) => res.json({ route: "admin-promotions:vouchers" }),
+  createPlatformVoucher: (req, res) =>
+    res.status(201).json({ route: "admin-promotions:create-voucher", code: req.body.code }),
+  listHomepageSlots: (req, res) => res.json({ route: "admin-promotions:homepage-slots" }),
+  upsertHomepageSlot: (req, res) => res.status(req.params.slotId ? 200 : 201).json({
+    route: "admin-promotions:save-slot",
+    slotId: req.params.slotId || null,
+  }),
+  reorderHomepageSlots: (req, res) => res.json({ route: "admin-promotions:reorder-slots" }),
+  selectDealOfDay: (req, res) =>
+    res.status(201).json({ route: "admin-promotions:deal-of-day", productId: req.body.productId }),
+  listClearanceRules: (req, res) => res.json({ route: "admin-promotions:clearance" }),
+  applyClearanceSale: (req, res) =>
+    res.status(201).json({ route: "admin-promotions:apply-clearance", discount: req.body.discountPercentage }),
+  getLoyaltyRules: (req, res) => res.json({ route: "admin-promotions:loyalty-rules" }),
+  upsertLoyaltyRules: (req, res) =>
+    res.json({ route: "admin-promotions:update-loyalty-rules", earnRate: req.body.earnRate }),
+  getPromotionAuditLog: (req, res) => res.json({ route: "admin-promotions:audit-log" }),
+}));
+
 jest.mock("../controllers/adminVendorManagementController", () => ({
   getVendorManagementProfile: (req, res) =>
     res.json({ route: "admin-vendors:management", id: req.params.vendorId }),
@@ -287,6 +321,7 @@ const buildApp = () => {
   app.use("/api/admin/products", require("../routes/adminProductRoutes"));
   app.use("/api/admin/payouts", require("../routes/adminPayoutRoutes"));
   app.use("/api/admin/finance", require("../routes/adminFinanceRoutes"));
+  app.use("/api/admin/promotions", require("../routes/adminPromotionRoutes"));
   app.use("/api/admin/vendors", require("../routes/adminVendorRoutes"));
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
   return app;
@@ -697,6 +732,87 @@ describe("Black-box API tests", () => {
     test("GET /api/admin/finance/payout-queue rejects vendor access", async () => {
       const response = await request(app)
         .get("/api/admin/finance/payout-queue")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "Admin access required" });
+    });
+  });
+
+  describe("admin promotions API behavior", () => {
+    test("GET /api/admin/promotions/overview uses the promotions command route", async () => {
+      const response = await request(app)
+        .get("/api/admin/promotions/overview")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-promotions:overview" });
+    });
+
+    test("POST /api/admin/promotions/campaigns creates a campaign", async () => {
+      const response = await request(app)
+        .post("/api/admin/promotions/campaigns")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ name: "11.11 Sale" });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({ route: "admin-promotions:create-campaign", name: "11.11 Sale" });
+    });
+
+    test("PATCH /api/admin/promotions/nominations/:id/review reviews a nominated SKU", async () => {
+      const response = await request(app)
+        .patch("/api/admin/promotions/nominations/nom-1/review")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ productId: "product-1", status: "approved" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "admin-promotions:review-nomination",
+        id: "nom-1",
+        status: "approved",
+      });
+    });
+
+    test("POST /api/admin/promotions/flash-deals schedules a flash deal", async () => {
+      const response = await request(app)
+        .post("/api/admin/promotions/flash-deals")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ productId: "product-1", flashPrice: 700 });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({ route: "admin-promotions:create-flash-deal", productId: "product-1" });
+    });
+
+    test("POST /api/admin/promotions/vouchers creates a platform voucher", async () => {
+      const response = await request(app)
+        .post("/api/admin/promotions/vouchers")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ code: "EID10", discountType: "percentage" });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({ route: "admin-promotions:create-voucher", code: "EID10" });
+    });
+
+    test("PUT /api/admin/promotions/loyalty-rules updates loyalty rules", async () => {
+      const response = await request(app)
+        .put("/api/admin/promotions/loyalty-rules")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ earnRate: 2 });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-promotions:update-loyalty-rules", earnRate: 2 });
+    });
+
+    test("GET /api/admin/promotions/overview rejects vendor access", async () => {
+      const response = await request(app)
+        .get("/api/admin/promotions/overview")
         .set("Authorization", "Bearer test")
         .set("x-test-role", "vendor");
 

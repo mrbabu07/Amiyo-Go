@@ -67,6 +67,7 @@ const AdminOrders = lazy(() => import("../pages/admin/AdminOrders"));
 const AdminInventory = lazy(() => import("../pages/admin/AdminInventory"));
 const ProductForm = lazy(() => import("../pages/admin/ProductForm"));
 const AdminCoupons = lazy(() => import("../pages/admin/AdminCoupons"));
+const AdminPromotions = lazy(() => import("../pages/admin/AdminPromotions"));
 const AdminReturns = lazy(() => import("../pages/admin/AdminReturns"));
 const AdminOffers = lazy(() => import("../pages/admin/AdminOffers"));
 const AdminReviews = lazy(() => import("../pages/admin/AdminReviews"));
@@ -214,6 +215,7 @@ const router = createBrowserRouter([
       { path: "categories/manage", element: lazyElement(AdminCategoryManagement) },
       { path: "categories/:categoryId/attributes", element: lazyElement(AdminEditCategoryAttributes) },
       { path: "category-requests", element: lazyElement(AdminCategoryRequests) },
+      { path: "promotions", element: lazyElement(AdminPromotions) },
       { path: "coupons", element: lazyElement(AdminCoupons) },
       { path: "flash-sales", element: lazyElement(AdminFlashSales) },
       { path: "offers", element: lazyElement(AdminOffers) },

@@ -157,8 +157,8 @@ loyaltySchema.methods.getTierBenefits = function () {
 };
 
 // Add points
-loyaltySchema.methods.addPoints = function (points, reason, orderId = null) {
-  const multiplier = this.getTierMultiplier();
+loyaltySchema.methods.addPoints = function (points, reason, orderId = null, multiplierOverride = null) {
+  const multiplier = multiplierOverride === null ? this.getTierMultiplier() : Number(multiplierOverride || 1);
   const earnedPoints = Math.floor(points * multiplier);
 
   this.points += earnedPoints;

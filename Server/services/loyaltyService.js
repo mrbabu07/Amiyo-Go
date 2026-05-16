@@ -1,9 +1,33 @@
 const Loyalty = require("../models/Loyalty");
 
+const DEFAULT_LOYALTY_RULES = {
+  earnRate: 1,
+  redemptionValue: 0.01,
+  minRedeemPoints: 100,
+  pointsExpiryDays: 365,
+  tierMultipliers: {
+    bronze: 1,
+    silver: 1.5,
+    gold: 2,
+    platinum: 3,
+  },
+};
+
 class LoyaltyService {
-  // Calculate points from order amount (1 point per BDT 1)
-  calculatePointsFromOrder(orderAmount) {
-    return Math.floor(orderAmount);
+  async getRules() {
+    try {
+      const db = Loyalty.db?.db;
+      if (!db?.collection) return DEFAULT_LOYALTY_RULES;
+      const saved = await db.collection("promotion_settings").findOne({ _id: "loyalty_rules" });
+      return { ...DEFAULT_LOYALTY_RULES, ...(saved || {}) };
+    } catch {
+      return DEFAULT_LOYALTY_RULES;
+    }
+  }
+
+  // Calculate points from order amount
+  calculatePointsFromOrder(orderAmount, rules = DEFAULT_LOYALTY_RULES) {
+    return Math.floor(Number(orderAmount || 0) * Number(rules.earnRate || DEFAULT_LOYALTY_RULES.earnRate));
   }
 
   // Get or create loyalty account
@@ -27,11 +51,14 @@ class LoyaltyService {
   async awardPointsForOrder(userId, email, orderAmount, orderId) {
     try {
       const loyalty = await this.getOrCreateAccount(userId, email);
-      const basePoints = this.calculatePointsFromOrder(orderAmount);
+      const rules = await this.getRules();
+      const basePoints = this.calculatePointsFromOrder(orderAmount, rules);
+      const multiplier = Number(rules.tierMultipliers?.[loyalty.tier] || 1);
       const earnedPoints = loyalty.addPoints(
         basePoints,
         `Order #${orderId}`,
         orderId,
+        multiplier,
       );
 
       await loyalty.save();
@@ -117,9 +144,8 @@ class LoyaltyService {
       loyalty.redeemPoints(points, `Redeemed for order #${orderId}`, orderId);
       await loyalty.save();
 
-      // Convert points to discount in BDT
-      // 100 points = 1 BDT
-      const discountAmount = points / 100;
+      const rules = await this.getRules();
+      const discountAmount = points * Number(rules.redemptionValue || DEFAULT_LOYALTY_RULES.redemptionValue);
 
       return {
         discountAmount,

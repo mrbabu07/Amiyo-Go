@@ -46,13 +46,17 @@ const validateCouponPayload = (payload, { partial = false } = {}) => {
   }
 
   if (!partial || normalized.discountType !== undefined) {
-    if (!["percentage", "fixed"].includes(discountType)) {
-      errors.push('Discount type must be either "percentage" or "fixed".');
+    if (!["percentage", "fixed", "free_shipping"].includes(discountType)) {
+      errors.push('Discount type must be "percentage", "fixed", or "free_shipping".');
     }
   }
 
   if (!partial || normalized.discountValue !== undefined) {
-    if (Number.isNaN(discountValue) || discountValue <= 0) {
+    if (discountType === "free_shipping") {
+      if (discountValue !== null && (Number.isNaN(discountValue) || discountValue < 0)) {
+        errors.push("Free shipping discount value must be zero or more.");
+      }
+    } else if (Number.isNaN(discountValue) || discountValue <= 0) {
       errors.push("Discount value must be greater than zero.");
     }
   }

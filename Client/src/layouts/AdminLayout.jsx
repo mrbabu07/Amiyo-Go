@@ -65,6 +65,7 @@ const navigation = [
     name: 'Marketing',
     icon: Megaphone,
     children: [
+      { name: 'Promotions', path: '/admin/promotions', exact: true },
       { name: 'Coupons', path: '/admin/coupons', exact: true },
       { name: 'Flash Sales', path: '/admin/flash-sales', exact: true },
       { name: 'Offers', path: '/admin/offers' },
