@@ -37,6 +37,18 @@ const updateVendorOrderSnapshot = async (db, orderId, vendorId, update) => {
   );
 };
 
+const belongsToVendor = (product, vendorId) =>
+  product?.vendorId && product.vendorId.toString() === vendorId.toString();
+
+const getVendorArrayFilter = (vendorId) => {
+  const vendorKey = vendorId.toString();
+  const filters = [{ "elem.vendorId": vendorKey }];
+  if (ObjectId.isValid(vendorKey)) {
+    filters.push({ "elem.vendorId": new ObjectId(vendorKey) });
+  }
+  return filters.length > 1 ? { $or: filters } : filters[0];
+};
+
 const getVendorOrderContext = async (req, orderId) => {
   const Order = req.app.locals.models.Order;
   const vendor = req.vendor;
@@ -54,7 +66,7 @@ const getVendorOrderContext = async (req, orderId) => {
   }
 
   const vendorId = vendor._id.toString();
-  const vendorItems = (order.products || []).filter((product) => product.vendorId === vendorId);
+  const vendorItems = (order.products || []).filter((product) => belongsToVendor(product, vendorId));
   if (vendorItems.length === 0) {
     const error = new Error("No items for this vendor in order");
     error.statusCode = 403;
@@ -97,7 +109,7 @@ exports.acceptOrder = async (req, res) => {
 
     // Check if vendor has items in this order
     const vendorItems = (order.products || []).filter(
-      p => p.vendorId === vendorId
+      (product) => belongsToVendor(product, vendorId)
     );
     if (vendorItems.length === 0) {
       return res.status(403).json({ error: "No items for this vendor in order" });
@@ -123,7 +135,7 @@ exports.acceptOrder = async (req, res) => {
         }
       },
       {
-        arrayFilters: [{ "elem.vendorId": vendorId }]
+        arrayFilters: [getVendorArrayFilter(vendorId)]
       }
     );
 
@@ -195,7 +207,7 @@ exports.rejectOrder = async (req, res) => {
     if (!order) return res.status(404).json({ error: "Order not found" });
 
     const vendorItems = (order.products || []).filter(
-      p => p.vendorId === vendorId
+      (product) => belongsToVendor(product, vendorId)
     );
     if (vendorItems.length === 0) {
       return res.status(403).json({ error: "No items for this vendor in order" });
@@ -214,7 +226,7 @@ exports.rejectOrder = async (req, res) => {
         }
       },
       {
-        arrayFilters: [{ "elem.vendorId": vendorId }]
+        arrayFilters: [getVendorArrayFilter(vendorId)]
       }
     );
 
@@ -285,7 +297,7 @@ exports.markReadyToShip = async (req, res) => {
     if (!order) return res.status(404).json({ error: "Order not found" });
 
     const vendorItems = (order.products || []).filter(
-      p => p.vendorId === vendorId
+      (product) => belongsToVendor(product, vendorId)
     );
     if (vendorItems.length === 0) {
       return res.status(403).json({ error: "No items for this vendor in order" });
@@ -310,7 +322,7 @@ exports.markReadyToShip = async (req, res) => {
         }
       },
       {
-        arrayFilters: [{ "elem.vendorId": vendorId }]
+        arrayFilters: [getVendorArrayFilter(vendorId)]
       }
     );
 
@@ -382,7 +394,7 @@ exports.shipOrder = async (req, res) => {
     if (!order) return res.status(404).json({ error: "Order not found" });
 
     const vendorItems = (order.products || []).filter(
-      p => p.vendorId === vendorId
+      (product) => belongsToVendor(product, vendorId)
     );
     if (vendorItems.length === 0) {
       return res.status(403).json({ error: "No items for this vendor in order" });
@@ -410,7 +422,7 @@ exports.shipOrder = async (req, res) => {
         }
       },
       {
-        arrayFilters: [{ "elem.vendorId": vendorId }]
+        arrayFilters: [getVendorArrayFilter(vendorId)]
       }
     );
 
@@ -485,7 +497,7 @@ exports.markDelivered = async (req, res) => {
     if (!order) return res.status(404).json({ error: "Order not found" });
 
     const vendorItems = (order.products || []).filter(
-      p => p.vendorId === vendorId
+      (product) => belongsToVendor(product, vendorId)
     );
     if (vendorItems.length === 0) {
       return res.status(403).json({ error: "No items for this vendor in order" });
@@ -511,7 +523,7 @@ exports.markDelivered = async (req, res) => {
         }
       },
       {
-        arrayFilters: [{ "elem.vendorId": vendorId }]
+        arrayFilters: [getVendorArrayFilter(vendorId)]
       }
     );
 
@@ -579,7 +591,7 @@ exports.markPickupReady = async (req, res) => {
           "products.$[elem].pickupReadyAt": now,
         },
       },
-      { arrayFilters: [{ "elem.vendorId": vendorId }] },
+      { arrayFilters: [getVendorArrayFilter(vendorId)] },
     );
 
     await Order.syncOrderStatus(orderId);
@@ -614,6 +626,231 @@ exports.markPickupReady = async (req, res) => {
   } catch (error) {
     console.error("Error marking pickup ready:", error);
     res.status(error.statusCode || 500).json({ error: error.message || "Failed to mark pickup ready" });
+  }
+};
+
+exports.schedulePickup = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { pickupDate, timeSlot, courierName = "Platform courier", notes = "" } = req.body;
+
+    if (!pickupDate || !timeSlot) {
+      return res.status(400).json({ error: "Pickup date and time slot are required" });
+    }
+
+    const db = req.app.locals.db;
+    const { Order, order, vendor, vendorId, vendorItems } = await getVendorOrderContext(req, orderId);
+    const invalidItems = vendorItems.some((item) =>
+      ["cancelled", "delivered", "returned"].includes(item.itemStatus),
+    );
+    if (invalidItems) {
+      return res.status(400).json({ error: "Cancelled, returned, or delivered items cannot be scheduled for pickup" });
+    }
+
+    const now = new Date();
+    const schedule = {
+      pickupDate: new Date(pickupDate),
+      timeSlot: String(timeSlot).trim(),
+      courierName: String(courierName || "Platform courier").trim(),
+      notes: String(notes || "").trim(),
+      scheduledAt: now,
+      status: "scheduled",
+    };
+
+    await db.collection("orders").updateOne(
+      { _id: new ObjectId(orderId) },
+      {
+        $set: {
+          "products.$[elem].itemStatus": "pickup_ready",
+          "products.$[elem].pickupReadyAt": now,
+          "products.$[elem].courierPickupStatus": "scheduled",
+          "products.$[elem].pickupSchedule": schedule,
+        },
+      },
+      { arrayFilters: [getVendorArrayFilter(vendorId)] },
+    );
+
+    await Order.syncOrderStatus(orderId);
+    await updateVendorOrderSnapshot(db, orderId, vendorId, {
+      status: "pickup_ready",
+      pickupReadyAt: now,
+      courierPickupStatus: "scheduled",
+      pickupSchedule: schedule,
+    });
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      vendorId,
+      status: "pickup_scheduled",
+      label: "Drop-off scheduled",
+      actorId: req.user?.uid,
+      actorRole: "vendor",
+      note: `${schedule.courierName} pickup on ${schedule.pickupDate.toISOString().slice(0, 10)} ${schedule.timeSlot}`,
+      metadata: { pickupSchedule: schedule },
+    });
+
+    await notifyCustomer(req, order, {
+      type: "order_pickup_scheduled",
+      title: "Courier pickup scheduled",
+      message: `${vendor.shopName || "Vendor"} scheduled courier pickup for your package.`,
+    });
+
+    res.json({
+      success: true,
+      message: "Pickup scheduled",
+      data: { orderId, pickupSchedule: schedule, pickupReadyAt: now },
+    });
+  } catch (error) {
+    console.error("Error scheduling pickup:", error);
+    res.status(error.statusCode || 500).json({ error: error.message || "Failed to schedule pickup" });
+  }
+};
+
+exports.markCodCollected = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { note = "" } = req.body;
+    const db = req.app.locals.db;
+    const { order, vendor, vendorId } = await getVendorOrderContext(req, orderId);
+    const paymentMethod = String(order.paymentMethod || "").toLowerCase();
+
+    if (!["cod", "cash_on_delivery", "cash on delivery"].includes(paymentMethod)) {
+      return res.status(400).json({ error: "COD collection can only be marked for cash-on-delivery orders" });
+    }
+
+    const now = new Date();
+    await db.collection("orders").updateOne(
+      { _id: new ObjectId(orderId) },
+      {
+        $set: {
+          "products.$[elem].codCollected": true,
+          "products.$[elem].codCollectedAt": now,
+          "products.$[elem].codCollectedBy": req.user?.uid || null,
+          "products.$[elem].codCollectionNote": String(note || "").trim(),
+          codCollectionStatus: "partially_collected",
+          updatedAt: now,
+        },
+      },
+      { arrayFilters: [getVendorArrayFilter(vendorId)] },
+    );
+
+    const updatedOrder = await db.collection("orders").findOne({ _id: new ObjectId(orderId) });
+    const allCodCollected = (updatedOrder?.products || [])
+      .filter((product) => product.itemStatus !== "cancelled")
+      .every((product) => product.codCollected === true);
+
+    if (allCodCollected) {
+      await db.collection("orders").updateOne(
+        { _id: new ObjectId(orderId) },
+        {
+          $set: {
+            codCollectionStatus: "collected",
+            codCollectedAt: now,
+            updatedAt: now,
+          },
+        },
+      );
+    }
+
+    await updateVendorOrderSnapshot(db, orderId, vendorId, {
+      codCollected: true,
+      codCollectedAt: now,
+      codCollectionNote: String(note || "").trim(),
+    });
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      vendorId,
+      status: "cod_collected",
+      label: "COD cash collected",
+      actorId: req.user?.uid,
+      actorRole: "vendor",
+      note: String(note || "").trim(),
+    });
+
+    await notifyCustomer(req, order, {
+      type: "cod_collected",
+      title: "COD payment collected",
+      message: `${vendor.shopName || "Vendor"} marked cash collection for your order.`,
+    });
+
+    res.json({
+      success: true,
+      message: "COD cash collection recorded",
+      data: { orderId, codCollectedAt: now },
+    });
+  } catch (error) {
+    console.error("Error marking COD collected:", error);
+    res.status(error.statusCode || 500).json({ error: error.message || "Failed to mark COD collected" });
+  }
+};
+
+exports.sendBuyerMessage = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const message = String(req.body?.message || "").trim();
+
+    if (!message) {
+      return res.status(400).json({ error: "Message is required" });
+    }
+    if (message.length > 1000) {
+      return res.status(400).json({ error: "Message must be 1000 characters or fewer" });
+    }
+
+    const db = req.app.locals.db;
+    const { order, vendor, vendorId } = await getVendorOrderContext(req, orderId);
+    const now = new Date();
+    const buyerMessage = {
+      _id: new ObjectId(),
+      vendorId,
+      vendorName: vendor.shopName || vendor.businessName || "Vendor",
+      senderRole: "vendor",
+      senderId: req.user?.uid || null,
+      message,
+      createdAt: now,
+    };
+
+    await db.collection("orders").updateOne(
+      { _id: new ObjectId(orderId) },
+      {
+        $push: { customerMessages: buyerMessage },
+        $set: { updatedAt: now },
+      },
+    );
+
+    await updateVendorOrderSnapshot(db, orderId, vendorId, {
+      lastBuyerMessage: buyerMessage,
+      lastBuyerMessageAt: now,
+    });
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      vendorId,
+      status: "buyer_message",
+      label: "Message sent to buyer",
+      actorId: req.user?.uid,
+      actorRole: "vendor",
+      note: message,
+    });
+
+    await notifyCustomer(req, order, {
+      type: "order_message",
+      title: "Message from seller",
+      message,
+      link: `/orders`,
+    });
+
+    res.json({
+      success: true,
+      message: "Message sent to buyer",
+      data: buyerMessage,
+    });
+  } catch (error) {
+    console.error("Error sending buyer message:", error);
+    res.status(error.statusCode || 500).json({ error: error.message || "Failed to send buyer message" });
   }
 };
 
@@ -728,7 +965,7 @@ exports.getOrderTimeline = async (req, res) => {
     if (!order) return res.status(404).json({ error: "Order not found" });
 
     const vendorItems = (order.products || []).filter(
-      p => p.vendorId === vendorId
+      (product) => belongsToVendor(product, vendorId)
     );
     if (vendorItems.length === 0) {
       return res.status(403).json({ error: "No items for this vendor in order" });

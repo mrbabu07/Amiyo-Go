@@ -1,5 +1,12 @@
 const { ObjectId } = require("mongodb");
 
+const vendorIdValues = (vendorId) => {
+  const value = vendorId?.toString?.() || String(vendorId || "");
+  const values = [value];
+  if (ObjectId.isValid(value)) values.push(new ObjectId(value));
+  return values;
+};
+
 class Return {
   constructor(db) {
     this.collection = db.collection("returns");
@@ -139,7 +146,9 @@ class Return {
     }
 
     // Check if product exists in order
-    const orderProduct = order.products.find((p) => p.productId === productId);
+    const orderProduct = order.products.find(
+      (p) => p.productId && p.productId.toString() === productId.toString(),
+    );
     if (!orderProduct) {
       return { canReturn: false, error: "Product not found in order" };
     }
@@ -147,7 +156,7 @@ class Return {
     // Check if return already requested for this product
     const existingReturn = await this.collection.findOne({
       orderId,
-      productId,
+      productId: { $in: ObjectId.isValid(productId) ? [productId, new ObjectId(productId)] : [productId] },
       status: { $in: ["pending", "approved", "processing"] },
     });
 
@@ -221,7 +230,7 @@ class Return {
    * Get returns by vendor ID
    */
   async findByVendorId(vendorId, filter = {}) {
-    const query = { vendorId: new ObjectId(vendorId) };
+    const query = { vendorId: { $in: vendorIdValues(vendorId) } };
     
     if (filter.status) {
       query.status = filter.status;
@@ -253,7 +262,7 @@ class Return {
    */
   async getVendorReturnStats(vendorId) {
     const pipeline = [
-      { $match: { vendorId: new ObjectId(vendorId) } },
+      { $match: { vendorId: { $in: vendorIdValues(vendorId) } } },
       {
         $group: {
           _id: "$status",
@@ -296,7 +305,7 @@ class Return {
    */
   async getVendorDeductions(vendorId, periodStart = null, periodEnd = null) {
     const query = {
-      vendorId: new ObjectId(vendorId),
+      vendorId: { $in: vendorIdValues(vendorId) },
       status: { $in: ["approved", "completed", "refunded"] },
     };
 
@@ -348,7 +357,7 @@ class Return {
   async vendorRespond(returnId, vendorId, response) {
     const { action, notes, evidenceImages = [], evidenceFiles = [], disputeReason = null } = response;
 
-    if (!['approved', 'disputed'].includes(action)) {
+    if (!['approved', 'disputed', 'rejected'].includes(action)) {
       throw new Error('Invalid vendor response action');
     }
 
@@ -393,14 +402,24 @@ class Return {
       updateData.status = 'pending'; // Admin needs to arbitrate
     }
 
+    if (action === 'rejected') {
+      updateData.disputeReason = disputeReason;
+      updateData.status = 'rejected';
+      updateData.rejectedAt = new Date();
+    }
+
     return await this.collection.updateOne(
       { _id: new ObjectId(returnId) },
       {
         $set: updateData,
         $push: {
           timeline: {
-            status: action === "disputed" ? "under_review" : "approved",
-            label: action === "disputed" ? "Vendor disputed return" : "Vendor approved return",
+            status: action === "disputed" ? "under_review" : action,
+            label: action === "disputed"
+              ? "Vendor disputed return"
+              : action === "rejected"
+                ? "Vendor rejected return"
+                : "Vendor approved return",
             at: new Date(),
             actorRole: "vendor",
             note: notes || disputeReason || "",
@@ -416,7 +435,7 @@ class Return {
   async getPendingVendorResponse(vendorId) {
     return await this.collection
       .find({
-        vendorId: new ObjectId(vendorId),
+        vendorId: { $in: vendorIdValues(vendorId) },
         status: 'pending',
         vendorResponse: null,
       })

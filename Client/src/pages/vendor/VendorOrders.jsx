@@ -1,91 +1,287 @@
-import { useState, useEffect, useCallback } from "react";
+import { Fragment, createElement, useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  ArrowLeft,
+  Barcode,
+  Banknote,
+  CalendarClock,
+  CheckCircle2,
+  Clock,
+  Copy,
+  Eye,
+  FileText,
+  Inbox,
+  MessageSquare,
+  Package,
+  PackageCheck,
+  Printer,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  Send,
+  Truck,
+  XCircle,
+} from "lucide-react";
+import toast, { Toaster } from "react-hot-toast";
+import Loading from "../../components/Loading";
 import useAuth from "../../hooks/useAuth";
 import { useCurrency } from "../../hooks/useCurrency";
-import Loading from "../../components/Loading";
-import toast, { Toaster } from "react-hot-toast";
 import { generateVendorPackingSlip } from "../../utils/vendorPackingSlip";
 import {
   downloadVendorBarcodeLabel,
   downloadVendorPackingSlip,
-  markOrderPickupReady,
+  getMyVendorProfile,
+  getVendorOrders,
+  getVendorOrderTimeline,
+  getVendorReturns,
+  markVendorCodCollected,
+  rejectVendorOrder,
+  scheduleVendorPickup,
+  sendVendorBuyerMessage,
+  updateVendorOrderStatus,
+  vendorRespondToReturn,
 } from "../../services/api";
 
-const statusConfig = {
+const STATUS_META = {
   pending: {
-    color: "bg-yellow-100 text-yellow-800 border-yellow-200",
-    icon: "⏳",
     label: "Pending",
+    className: "border-amber-200 bg-amber-50 text-amber-700",
+  },
+  accepted: {
+    label: "Accepted",
+    className: "border-blue-200 bg-blue-50 text-blue-700",
   },
   processing: {
-    color: "bg-blue-100 text-blue-800 border-blue-200",
-    icon: "🔄",
     label: "Processing",
+    className: "border-blue-200 bg-blue-50 text-blue-700",
+  },
+  packed: {
+    label: "Packed",
+    className: "border-indigo-200 bg-indigo-50 text-indigo-700",
+  },
+  ready_to_ship: {
+    label: "Ready to Ship",
+    className: "border-cyan-200 bg-cyan-50 text-cyan-700",
   },
   pickup_ready: {
-    color: "bg-cyan-100 text-cyan-800 border-cyan-200",
-    icon: "PK",
     label: "Pickup Ready",
+    className: "border-teal-200 bg-teal-50 text-teal-700",
   },
   shipped: {
-    color: "bg-purple-100 text-purple-800 border-purple-200",
-    icon: "📦",
     label: "Shipped",
+    className: "border-violet-200 bg-violet-50 text-violet-700",
   },
   delivered: {
-    color: "bg-green-100 text-green-800 border-green-200",
-    icon: "✅",
     label: "Delivered",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
   },
   cancelled: {
-    color: "bg-red-100 text-red-800 border-red-200",
-    icon: "❌",
     label: "Cancelled",
+    className: "border-red-200 bg-red-50 text-red-700",
+  },
+  returned: {
+    label: "Returned",
+    className: "border-slate-200 bg-slate-100 text-slate-700",
   },
 };
 
+const FILTER_TABS = [
+  { key: "all", label: "All" },
+  { key: "pending", label: "Pending", statuses: ["pending", "accepted", "processing"] },
+  { key: "packed", label: "Packed", statuses: ["packed"] },
+  { key: "ready_to_ship", label: "Ready to Ship", statuses: ["ready_to_ship", "pickup_ready"] },
+  { key: "shipped", label: "Shipped", statuses: ["shipped"] },
+  { key: "delivered", label: "Delivered", statuses: ["delivered"] },
+  { key: "cancelled", label: "Cancelled", statuses: ["cancelled"] },
+  { key: "return_requested", label: "Return Requested" },
+];
+
+const PICKUP_SLOTS = [
+  "09:00 AM - 12:00 PM",
+  "12:00 PM - 03:00 PM",
+  "03:00 PM - 06:00 PM",
+  "06:00 PM - 09:00 PM",
+];
+
+const terminalStatuses = ["cancelled", "delivered", "returned"];
+
+const getOrderId = (order) => order?._id?.toString?.() || String(order?._id || "");
+
+const shortId = (id) => (id ? id.toString().slice(-8).toUpperCase() : "ORDER");
+
+const formatDateTime = (value) => {
+  if (!value) return "Not set";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not set";
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const formatDateOnly = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const todayInputValue = () => new Date().toISOString().slice(0, 10);
+
 const renderColor = (color) => {
-  if (!color) return null;
+  if (!color) return "";
   if (typeof color === "string") return color;
-  if (typeof color === "object" && color.name) return color.name;
-  return "Unknown";
+  if (typeof color === "object") return color.name || color.value || "";
+  return "";
 };
 
-const getCancellationMessage = (order) => {
-  if (order?.status !== "cancelled") return "";
-  if (order.cancellationMessage) return order.cancellationMessage;
-  if (order.cancelledByRole === "user" || order.cancellationSource === "customer") {
-    return "User cancelled this order.";
-  }
-  const userCancelHistory = order.statusHistory?.find(
-    (entry) =>
-      entry.status === "cancelled" &&
-      /customer|user/i.test(`${entry.changedBy || ""} ${entry.note || ""}`),
+const deriveStatus = (order) => {
+  const statuses = (order.products || []).map((product) => product.itemStatus || order.status || "pending");
+  if (statuses.length === 0) return order.status || "pending";
+  if (statuses.every((status) => status === "cancelled")) return "cancelled";
+  if (statuses.every((status) => status === "returned")) return "returned";
+  if (statuses.some((status) => status === "returned")) return "returned";
+  if (statuses.every((status) => status === "delivered")) return "delivered";
+  if (statuses.some((status) => status === "shipped")) return "shipped";
+  if (statuses.some((status) => status === "pickup_ready")) return "pickup_ready";
+  if (statuses.some((status) => status === "ready_to_ship")) return "ready_to_ship";
+  if (statuses.some((status) => status === "packed")) return "packed";
+  if (statuses.some((status) => ["accepted", "processing"].includes(status))) return "processing";
+  return order.status || "pending";
+};
+
+const isCodOrder = (order) => {
+  const method = String(order.paymentMethod || "").toLowerCase();
+  return ["cod", "cash_on_delivery", "cash on delivery"].includes(method);
+};
+
+const buildAddress = (shippingInfo = {}) =>
+  [
+    shippingInfo.name,
+    shippingInfo.phone,
+    shippingInfo.address,
+    shippingInfo.area,
+    shippingInfo.union,
+    shippingInfo.upazila,
+    shippingInfo.city || shippingInfo.district,
+    shippingInfo.division,
+    shippingInfo.zipCode,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+const escapeHtml = (value = "") =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const orderProductsTotal = (order) =>
+  (order.products || []).reduce(
+    (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
+    0,
   );
-  return userCancelHistory ? "User cancelled this order." : "";
+
+const getReturnStatusLabel = (returnItem) =>
+  (returnItem?.status || "pending").replace(/_/g, " ");
+
+const getReturnEvents = (returnItem) => {
+  const events = Array.isArray(returnItem?.timeline) ? returnItem.timeline : [];
+  if (events.length > 0) return events;
+  return [
+    {
+      label: `Return ${returnItem?.status || "submitted"}`,
+      at: returnItem?.updatedAt || returnItem?.createdAt,
+      note: returnItem?.reason || "",
+    },
+  ];
 };
 
-const getSlaStatus = (order, vendorProfile) => {
-  const rawHours = Number.parseInt(vendorProfile?.processingTime, 10);
-  const hours = Number.isFinite(rawHours) && rawHours > 0 ? rawHours : 24;
-  const start = new Date(order.acceptedAt || order.createdAt || Date.now()).getTime();
-  const dueAt = start + hours * 60 * 60 * 1000;
-  const remainingMs = dueAt - Date.now();
-  const absoluteHours = Math.ceil(Math.abs(remainingMs) / (60 * 60 * 1000));
+const buildBatchPackingSlipHtml = (orders, vendorProfile, moneyFormatter) => {
+  const vendorName = vendorProfile?.shopName || vendorProfile?.businessName || "Vendor";
+  const pages = orders
+    .map((order) => {
+      const orderId = getOrderId(order);
+      const rows = (order.products || [])
+        .map(
+          (item, index) => `
+            <tr>
+              <td>${index + 1}</td>
+              <td>${escapeHtml(item.title || item.productDetails?.title || item.name || "Product")}</td>
+              <td>${escapeHtml(item.sku || item.selectedSize || "")}</td>
+              <td>${item.quantity || 1}</td>
+              <td>${escapeHtml(moneyFormatter(item.price || 0))}</td>
+            </tr>
+          `,
+        )
+        .join("");
 
-  if (["shipped", "delivered", "cancelled"].includes(order.status)) {
-    return { label: "SLA done", color: "bg-gray-100 text-gray-600" };
-  }
+      return `
+        <section class="page">
+          <header>
+            <div>
+              <h1>Packing Slip</h1>
+              <p>${escapeHtml(vendorName)}</p>
+            </div>
+            <div class="order-id">#${escapeHtml(shortId(orderId))}</div>
+          </header>
+          <div class="grid">
+            <div>
+              <h2>Customer</h2>
+              <p>${escapeHtml(buildAddress(order.shippingInfo)).replace(/\n/g, "<br>")}</p>
+            </div>
+            <div>
+              <h2>Order</h2>
+              <p>Created: ${escapeHtml(formatDateTime(order.createdAt))}</p>
+              <p>Payment: ${escapeHtml(order.paymentMethod || "N/A")}</p>
+              <p>Status: ${escapeHtml(STATUS_META[order.status]?.label || order.status || "Pending")}</p>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr><th>#</th><th>Item</th><th>SKU/Variant</th><th>Qty</th><th>Price</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <footer>Total: ${escapeHtml(moneyFormatter(orderProductsTotal(order)))}</footer>
+        </section>
+      `;
+    })
+    .join("");
 
-  if (remainingMs < 0) {
-    return { label: `${absoluteHours}h overdue`, color: "bg-red-50 text-red-700" };
-  }
-
-  if (remainingMs <= 4 * 60 * 60 * 1000) {
-    return { label: `${absoluteHours}h left`, color: "bg-amber-50 text-amber-700" };
-  }
-
-  return { label: `${absoluteHours}h left`, color: "bg-green-50 text-green-700" };
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <title>Batch Packing Slips</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { margin: 0; color: #111827; font-family: Arial, sans-serif; }
+          .page { min-height: 100vh; padding: 32px; page-break-after: always; }
+          header { align-items: flex-start; border-bottom: 2px solid #111827; display: flex; justify-content: space-between; padding-bottom: 14px; }
+          h1 { font-size: 24px; margin: 0; }
+          h2 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; }
+          p { margin: 3px 0; }
+          .order-id { border: 1px solid #111827; font-family: monospace; font-size: 16px; font-weight: 700; padding: 8px 10px; }
+          .grid { display: grid; gap: 24px; grid-template-columns: 1fr 1fr; margin: 24px 0; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #d1d5db; font-size: 12px; padding: 9px; text-align: left; vertical-align: top; }
+          th { background: #f3f4f6; }
+          footer { border-top: 2px solid #111827; font-size: 16px; font-weight: 700; margin-top: 20px; padding-top: 12px; text-align: right; }
+          @media print { .page { page-break-after: always; } }
+        </style>
+      </head>
+      <body>${pages}</body>
+    </html>
+  `;
 };
 
 export default function VendorOrders() {
@@ -93,143 +289,238 @@ export default function VendorOrders() {
   const { formatPrice } = useCurrency();
 
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all");
-  const [search, setSearch] = useState("");
-  const [expandedOrder, setExpandedOrder] = useState(null);
-  const [updatingStatus, setUpdatingStatus] = useState(null);
+  const [returns, setReturns] = useState([]);
   const [vendorProfile, setVendorProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState("pending");
+  const [search, setSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
+  const [timelineByOrder, setTimelineByOrder] = useState({});
+  const [busyOrderId, setBusyOrderId] = useState(null);
+  const [pickupModal, setPickupModal] = useState(null);
+  const [messageModal, setMessageModal] = useState(null);
+  const [cancelModal, setCancelModal] = useState(null);
+  const [returnModal, setReturnModal] = useState(null);
 
-  // ── derived stats ──────────────────────────────────────
-  const stats = {
-    total: orders.length,
-    pending: orders.filter((o) => o.status === "pending").length,
-    processing: orders.filter((o) => o.status === "processing").length,
-    pickupReady: orders.filter((o) => o.status === "pickup_ready").length,
-    delivered: orders.filter((o) => o.status === "delivered").length,
-    cancelled: orders.filter((o) => o.status === "cancelled").length,
-  };
-
-  // ── filtered list ──────────────────────────────────────
-  const filteredOrders = orders
-    .filter((o) => filter === "all" || o.status === filter)
-    .filter((o) => {
-      if (!search.trim()) return true;
-      const q = search.toLowerCase();
-      const orderId = o._id?.toLowerCase() || "";
-      const customerName = o.shippingInfo?.name?.toLowerCase() || "";
-      const phone = o.shippingInfo?.phone?.toLowerCase() || "";
-      return (
-        orderId.includes(q) || customerName.includes(q) || phone.includes(q)
-      );
-    });
-
-  // ── fetch ──────────────────────────────────────────────
-  const fetchOrders = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (!user) return;
+    setRefreshing(true);
     try {
-      const token = await user.getIdToken();
-      const [ordersRes, vendorRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL}/vendors/orders?limit=100`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${import.meta.env.VITE_API_URL}/vendors/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+      const [ordersResult, vendorResult, returnsResult] = await Promise.allSettled([
+        getVendorOrders({ limit: 100 }),
+        getMyVendorProfile(),
+        getVendorReturns({ limit: 100 }),
       ]);
-      const data = await ordersRes.json();
-      if (ordersRes.ok) {
-        setOrders(data.orders || []);
+
+      if (ordersResult.status === "fulfilled") {
+        setOrders(ordersResult.value.data.orders || []);
       } else {
-        toast.error(data.error || "Failed to load orders");
+        toast.error(ordersResult.reason?.response?.data?.error || "Failed to load orders");
       }
-      if (vendorRes.ok) {
-        const vendorData = await vendorRes.json();
-        setVendorProfile(vendorData.vendor || vendorData.data || null);
+
+      if (vendorResult.status === "fulfilled") {
+        setVendorProfile(vendorResult.value.data.vendor || vendorResult.value.data.data || null);
       }
-    } catch {
-      toast.error("Failed to load orders");
+
+      if (returnsResult.status === "fulfilled") {
+        setReturns(returnsResult.value.data.returns || returnsResult.value.data.data || []);
+      } else {
+        setReturns([]);
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [user]);
 
   useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+    loadData();
+  }, [loadData]);
 
-  // ── status update ──────────────────────────────────────
-  const handleStatusChange = async (orderId, newStatus) => {
-    if (!user) return;
-    setUpdatingStatus(orderId);
-    const loadingToast = toast.loading("Updating order status…");
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/vendors/orders/${orderId}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: newStatus }),
-        }
-      );
-      if (res.ok) {
-        setOrders((prev) =>
-          prev.map((o) => (o._id === orderId ? { ...o, status: newStatus } : o))
-        );
-        toast.success(`Status updated to ${newStatus}!`, { id: loadingToast });
-      } else {
-        const data = await res.json();
-        toast.error(data.error || "Failed to update status", {
-          id: loadingToast,
-        });
-      }
-    } catch {
-      toast.error("Failed to update status", { id: loadingToast });
-    } finally {
-      setUpdatingStatus(null);
-    }
-  };
+  const returnsByOrder = useMemo(() => {
+    const grouped = new Map();
+    returns.forEach((returnItem) => {
+      const orderId = returnItem.orderId?.toString?.() || String(returnItem.orderId || "");
+      if (!orderId) return;
+      const current = grouped.get(orderId) || [];
+      current.push(returnItem);
+      grouped.set(orderId, current);
+    });
+    return grouped;
+  }, [returns]);
 
-  // ── print packing slip ──────────────────────────────────────
-  const printPackingSlip = (order) => {
-    try {
-      // Use vendor packing slip template
-      const printContent = generateVendorPackingSlip(order, {
-        businessName: vendorProfile?.shopName || order.products?.[0]?.shopName,
-        shopName: vendorProfile?.shopName || order.products?.[0]?.shopName,
-        phone: vendorProfile?.phone || order.products?.[0]?.vendorPhone || "",
-        email: vendorProfile?.email || order.products?.[0]?.vendorEmail || "",
+  const enrichedOrders = useMemo(
+    () =>
+      orders.map((order) => {
+        const orderId = getOrderId(order);
+        const status = deriveStatus(order);
+        const orderReturns = returnsByOrder.get(orderId) || [];
+        return {
+          ...order,
+          status,
+          returns: orderReturns,
+          hasReturnRequest: orderReturns.length > 0,
+        };
+      }),
+    [orders, returnsByOrder],
+  );
+
+  const matchesTab = useCallback((order, tabKey) => {
+    if (tabKey === "all") return true;
+    if (tabKey === "return_requested") return order.hasReturnRequest;
+    const tab = FILTER_TABS.find((item) => item.key === tabKey);
+    return tab?.statuses?.includes(order.status);
+  }, []);
+
+  const tabCounts = useMemo(() => {
+    const counts = {};
+    FILTER_TABS.forEach((tab) => {
+      counts[tab.key] = enrichedOrders.filter((order) => matchesTab(order, tab.key)).length;
+    });
+    return counts;
+  }, [enrichedOrders, matchesTab]);
+
+  const stats = useMemo(
+    () => ({
+      pending: tabCounts.pending || 0,
+      packed: tabCounts.packed || 0,
+      ready: tabCounts.ready_to_ship || 0,
+      returnRequested: tabCounts.return_requested || 0,
+      codPending: enrichedOrders.filter(
+        (order) => isCodOrder(order) && !order.codCollected && !["cancelled", "returned"].includes(order.status),
+      ).length,
+    }),
+    [enrichedOrders, tabCounts],
+  );
+
+  const filteredOrders = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return enrichedOrders
+      .filter((order) => matchesTab(order, activeTab))
+      .filter((order) => {
+        if (!query) return true;
+        const searchable = [
+          getOrderId(order),
+          order.shippingInfo?.name,
+          order.shippingInfo?.phone,
+          order.paymentMethod,
+          ...(order.products || []).map((item) => item.title || item.productDetails?.title || item.name),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return searchable.includes(query);
       });
+  }, [activeTab, enrichedOrders, matchesTab, search]);
 
-      // Create a new window for printing
-      const printWindow = window.open("", "_blank", "width=800,height=600");
+  const selectedOrders = useMemo(
+    () => enrichedOrders.filter((order) => selectedIds.has(getOrderId(order))),
+    [enrichedOrders, selectedIds],
+  );
 
-      if (!printWindow) {
-        toast.error("Popup blocked. Please allow popups.");
-        return;
+  const packableSelectedOrders = useMemo(
+    () => selectedOrders.filter((order) => !terminalStatuses.includes(order.status) && order.status !== "packed"),
+    [selectedOrders],
+  );
+
+  const expandedOrder = useMemo(
+    () => enrichedOrders.find((order) => getOrderId(order) === expandedOrderId),
+    [enrichedOrders, expandedOrderId],
+  );
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const toggleSelection = (orderId) => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(orderId)) {
+        next.delete(orderId);
+      } else {
+        next.add(orderId);
       }
+      return next;
+    });
+  };
 
-      // Write content to the new window
-      printWindow.document.open();
-      printWindow.document.write(printContent);
-      printWindow.document.close();
+  const toggleSelectVisible = () => {
+    const visibleIds = filteredOrders.map(getOrderId);
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      visibleIds.forEach((id) => {
+        if (allSelected) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+      });
+      return next;
+    });
+  };
 
-      // Wait for content to load, then print
-      printWindow.onload = function () {
-        printWindow.focus();
-        printWindow.print();
-      };
-    } catch (error) {
-      console.error("Print error:", error);
-      toast.error("Failed to print packing slip");
+  const loadTimeline = async (orderId) => {
+    if (!orderId || timelineByOrder[orderId]) return;
+    try {
+      const response = await getVendorOrderTimeline(orderId);
+      setTimelineByOrder((previous) => ({
+        ...previous,
+        [orderId]: response.data.timeline || [],
+      }));
+    } catch {
+      setTimelineByOrder((previous) => ({
+        ...previous,
+        [orderId]: [],
+      }));
     }
   };
 
-  // ── copy address ───────────────────────────────────────
+  const toggleExpandedOrder = (orderId) => {
+    const nextId = expandedOrderId === orderId ? null : orderId;
+    setExpandedOrderId(nextId);
+    if (nextId) loadTimeline(nextId);
+  };
+
+  const setLocalOrderStatus = (orderId, status, extra = {}) => {
+    setOrders((previous) =>
+      previous.map((order) => (getOrderId(order) === orderId ? { ...order, ...extra, status } : order)),
+    );
+  };
+
+  const handleStatusUpdate = async (order, status) => {
+    const orderId = getOrderId(order);
+    setBusyOrderId(orderId);
+    const loadingToast = toast.loading("Updating order...");
+    try {
+      await updateVendorOrderStatus(orderId, status);
+      setLocalOrderStatus(orderId, status);
+      toast.success(`Marked ${STATUS_META[status]?.label || status}`, { id: loadingToast });
+      await loadData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to update order", { id: loadingToast });
+    } finally {
+      setBusyOrderId(null);
+    }
+  };
+
+  const handleBatchPack = async () => {
+    if (packableSelectedOrders.length === 0) {
+      toast.error("Select pending orders first");
+      return;
+    }
+
+    const loadingToast = toast.loading("Packing selected orders...");
+    try {
+      await Promise.all(packableSelectedOrders.map((order) => updateVendorOrderStatus(getOrderId(order), "packed")));
+      toast.success(`${packableSelectedOrders.length} orders marked packed`, { id: loadingToast });
+      clearSelection();
+      await loadData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Batch pack failed", { id: loadingToast });
+    }
+  };
+
   const openPdfBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -241,8 +532,9 @@ export default function VendorOrders() {
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   };
 
-  const downloadPackingSlipPdf = async (orderId) => {
+  const downloadPackingSlipPdf = async (order) => {
     try {
+      const orderId = getOrderId(order);
       const response = await downloadVendorPackingSlip(orderId);
       openPdfBlob(response.data, `packing-slip-${orderId}.pdf`);
     } catch (error) {
@@ -250,675 +542,976 @@ export default function VendorOrders() {
     }
   };
 
-  const downloadBarcodePdf = async (orderId) => {
+  const downloadBarcodePdf = async (order) => {
     try {
+      const orderId = getOrderId(order);
       const response = await downloadVendorBarcodeLabel(orderId);
-      openPdfBlob(response.data, `barcode-label-${orderId}.pdf`);
+      openPdfBlob(response.data, `waybill-${orderId}.pdf`);
     } catch (error) {
-      toast.error(error.response?.data?.error || "Failed to open barcode label");
+      toast.error(error.response?.data?.error || "Failed to open waybill label");
     }
   };
 
-  const markPickupReady = async (orderId) => {
-    setUpdatingStatus(orderId);
-    const loadingToast = toast.loading("Marking pickup ready...");
-    try {
-      await markOrderPickupReady(orderId);
-      setOrders((prev) =>
-        prev.map((order) =>
-          order._id === orderId ? { ...order, status: "pickup_ready", pickupReadyAt: new Date().toISOString() } : order,
-        ),
-      );
-      toast.success("Pickup ready", { id: loadingToast });
-      fetchOrders();
-    } catch (error) {
-      toast.error(error.response?.data?.error || "Failed to mark pickup ready", { id: loadingToast });
-    } finally {
-      setUpdatingStatus(null);
+  const printPackingSlip = (order) => {
+    const orderId = getOrderId(order);
+    const printWindow = window.open("", "_blank", "width=900,height=720");
+    if (!printWindow) {
+      toast.error("Popup blocked. Please allow popups.");
+      return;
     }
+
+    const html = generateVendorPackingSlip(order, {
+      businessName: vendorProfile?.businessName || vendorProfile?.shopName || order.products?.[0]?.shopName,
+      shopName: vendorProfile?.shopName || order.products?.[0]?.shopName,
+      phone: vendorProfile?.phone || order.products?.[0]?.vendorPhone || "",
+      email: vendorProfile?.email || order.products?.[0]?.vendorEmail || "",
+    });
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
+    toast.success(`Packing slip ready for ${shortId(orderId)}`);
+  };
+
+  const printBatchPackingSlips = () => {
+    if (selectedOrders.length === 0) {
+      toast.error("Select orders to print");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=900,height=720");
+    if (!printWindow) {
+      toast.error("Popup blocked. Please allow popups.");
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(buildBatchPackingSlipHtml(selectedOrders, vendorProfile, formatPrice));
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
   };
 
   const copyAddress = (shippingInfo) => {
-    const addr = [
-      shippingInfo.name,
-      shippingInfo.phone,
-      shippingInfo.address,
-      shippingInfo.area,
-      shippingInfo.wardNo ? `Ward: ${shippingInfo.wardNo}` : "",
-      shippingInfo.union,
-      shippingInfo.upazila,
-      shippingInfo.district || shippingInfo.city,
-      shippingInfo.division,
-      shippingInfo.zipCode,
-    ]
-      .filter(Boolean)
-      .join("\n");
-    navigator.clipboard.writeText(addr).then(() => {
-      toast.success("Address copied!");
+    const address = buildAddress(shippingInfo);
+    if (!address) return;
+    navigator.clipboard.writeText(address).then(() => toast.success("Address copied"));
+  };
+
+  const openPickupSchedule = (order) => {
+    setPickupModal({
+      order,
+      pickupDate: todayInputValue(),
+      timeSlot: order.pickupSchedule?.timeSlot || PICKUP_SLOTS[0],
+      courierName: order.pickupSchedule?.courierName || "Platform courier",
+      notes: order.pickupSchedule?.notes || "",
     });
+  };
+
+  const submitPickupSchedule = async (event) => {
+    event.preventDefault();
+    const orderId = getOrderId(pickupModal.order);
+    const loadingToast = toast.loading("Scheduling pickup...");
+    try {
+      await scheduleVendorPickup(orderId, {
+        pickupDate: pickupModal.pickupDate,
+        timeSlot: pickupModal.timeSlot,
+        courierName: pickupModal.courierName,
+        notes: pickupModal.notes,
+      });
+      toast.success("Pickup scheduled", { id: loadingToast });
+      setPickupModal(null);
+      await loadData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to schedule pickup", { id: loadingToast });
+    }
+  };
+
+  const openBuyerMessage = (order) => {
+    setMessageModal({
+      order,
+      message: "",
+    });
+  };
+
+  const submitBuyerMessage = async (event) => {
+    event.preventDefault();
+    const orderId = getOrderId(messageModal.order);
+    const loadingToast = toast.loading("Sending message...");
+    try {
+      await sendVendorBuyerMessage(orderId, { message: messageModal.message });
+      toast.success("Message sent", { id: loadingToast });
+      setMessageModal(null);
+      await loadData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to send message", { id: loadingToast });
+    }
+  };
+
+  const openCancelOrder = (order) => {
+    setCancelModal({
+      order,
+      reason: "",
+      notes: "",
+    });
+  };
+
+  const submitCancellation = async (event) => {
+    event.preventDefault();
+    const orderId = getOrderId(cancelModal.order);
+    const loadingToast = toast.loading("Cancelling order items...");
+    try {
+      await rejectVendorOrder(orderId, {
+        reason: cancelModal.reason,
+        notes: cancelModal.notes,
+      });
+      toast.success("Cancellation recorded", { id: loadingToast });
+      setCancelModal(null);
+      await loadData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to cancel order", { id: loadingToast });
+    }
+  };
+
+  const markCodCollected = async (order) => {
+    const orderId = getOrderId(order);
+    const loadingToast = toast.loading("Recording COD collection...");
+    try {
+      await markVendorCodCollected(orderId);
+      toast.success("COD collection recorded", { id: loadingToast });
+      await loadData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to record COD collection", { id: loadingToast });
+    }
+  };
+
+  const openReturnAction = (returnItem, action) => {
+    setReturnModal({
+      returnItem,
+      action,
+      notes: "",
+      reason: "",
+      evidence: "",
+    });
+  };
+
+  const submitReturnAction = async (event) => {
+    event.preventDefault();
+    const action = returnModal.action;
+    const evidenceImages = returnModal.evidence
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const loadingToast = toast.loading(action === "approved" ? "Approving return..." : "Rejecting return...");
+    try {
+      await vendorRespondToReturn(returnModal.returnItem._id, {
+        action,
+        notes: returnModal.notes,
+        rejectionReason: returnModal.reason,
+        disputeReason: returnModal.reason,
+        evidenceImages,
+      });
+      toast.success(action === "approved" ? "Return approved" : "Return rejected", { id: loadingToast });
+      setReturnModal(null);
+      await loadData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to respond to return", { id: loadingToast });
+    }
   };
 
   if (loading) return <Loading />;
 
-  return (
-    <div className="min-h-screen bg-gray-100">
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3000,
-          style: { background: "#363636", color: "#fff" },
-        }}
-      />
+  const allVisibleSelected =
+    filteredOrders.length > 0 && filteredOrders.every((order) => selectedIds.has(getOrderId(order)));
 
-      {/* ── Header ─────────────────────────────────────────── */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center gap-4">
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <Toaster position="top-right" />
+
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
             <Link
               to="/vendor/dashboard"
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Back to Dashboard"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+              title="Back to dashboard"
             >
-              <svg
-                className="w-6 h-6 text-gray-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
+              <ArrowLeft className="h-5 w-5" />
             </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">My Orders</h1>
-              <p className="text-gray-600">Manage and track your customer orders</p>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold text-slate-950">Orders</h1>
+              <p className="text-sm text-slate-500">Manage customer orders</p>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={loadData}
+            disabled={refreshing}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <MetricCard label="Pending" value={stats.pending} tone="amber" icon={Clock} />
+          <MetricCard label="Packed" value={stats.packed} tone="indigo" icon={PackageCheck} />
+          <MetricCard label="Ready to Ship" value={stats.ready} tone="cyan" icon={Truck} />
+          <MetricCard label="Return Requested" value={stats.returnRequested} tone="rose" icon={RotateCcw} />
+          <MetricCard label="COD Pending" value={stats.codPending} tone="emerald" icon={Banknote} />
+        </section>
 
-        {/* Order Status Info Banner */}
-        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">
-                Understanding Order Status
-              </h3>
-              <div className="mt-2 text-sm text-blue-700">
-                <p className="mb-1">
-                  <strong>Order Status:</strong> The overall status of the entire order (may contain items from multiple vendors)
-                </p>
-                <p>
-                  <strong>Your Control:</strong> You can update the status of YOUR items within each order using the dropdown. Changes affect the overall order status.
-                </p>
+        <section className="mt-6 rounded-lg border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative w-full lg:max-w-md">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search order, customer, phone, product"
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={printBatchPackingSlips}
+                  disabled={selectedOrders.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Printer className="h-4 w-4" />
+                  Print Slips
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBatchPack}
+                  disabled={packableSelectedOrders.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <PackageCheck className="h-4 w-4" />
+                  Mark Packed
+                </button>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* ── Stats Cards ────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
-          {[
-            { label: "Total Orders", value: stats.total, color: "text-gray-900" },
-            { label: "Pending", value: stats.pending, color: "text-yellow-600" },
-            { label: "Processing", value: stats.processing, color: "text-blue-600" },
-            { label: "Pickup Ready", value: stats.pickupReady, color: "text-cyan-600" },
-            { label: "Delivered", value: stats.delivered, color: "text-green-600" },
-            { label: "Cancelled", value: stats.cancelled, color: "text-red-600" },
-          ].map((s) => (
-            <div key={s.label} className="bg-white rounded-xl shadow-sm p-4">
-              <p className="text-sm text-gray-500">{s.label}</p>
-              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Search + Filter ───────────────────────────────── */}
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6 space-y-3">
-          {/* Search bar */}
-          <div className="relative">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search by order ID, customer name or phone…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-          </div>
-
-          {/* Filter tabs */}
-          <div className="flex flex-wrap gap-2">
-            {["all", "pending", "processing", "pickup_ready", "shipped", "delivered", "cancelled"].map(
-              (status) => (
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+              {FILTER_TABS.map((tab) => (
                 <button
-                  key={status}
-                  onClick={() => setFilter(status)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                    filter === status
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition ${
+                    activeTab === tab.key
                       ? "bg-orange-500 text-white"
-                      : "text-gray-600 hover:bg-gray-100"
+                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
                   }`}
                 >
-                  {status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())}
-                  {status !== "all" && (
-                    <span className="ml-1.5 text-xs opacity-75">
-                      ({orders.filter((o) => o.status === status).length})
-                    </span>
-                  )}
+                  {tab.label}
+                  <span className={activeTab === tab.key ? "ml-2 text-orange-100" : "ml-2 text-slate-400"}>
+                    {tabCounts[tab.key] || 0}
+                  </span>
                 </button>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* ── Empty state ───────────────────────────────────── */}
-        {filteredOrders.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm p-12 text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                />
-              </svg>
+              ))}
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-1">No orders found</h3>
-            <p className="text-gray-500 text-sm">
-              {filter === "all" && !search
-                ? "Orders will appear here when customers purchase your products."
-                : `No ${filter} orders${search ? ` matching "${search}"` : ""}.`}
-            </p>
           </div>
-        ) : (
 
-          /* ── Orders list ─────────────────────────────────── */
-          <div className="space-y-4">
-            {filteredOrders.map((order) => {
-              const sc = statusConfig[order.status] || {
-                color: "bg-gray-100 text-gray-800 border-gray-200",
-                icon: "📋",
-              };
-              const isExpanded = expandedOrder === order._id;
-              const products = order.products || [];
-              const sla = getSlaStatus(order, vendorProfile);
+          {filteredOrders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                <Inbox className="h-7 w-7" />
+              </div>
+              <h2 className="mt-4 text-lg font-semibold text-slate-950">No orders found</h2>
+              <p className="mt-1 text-sm text-slate-500">Try another tab or search term.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="w-12 px-4 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleSelectVisible}
+                        className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-400"
+                        aria-label="Select visible orders"
+                      />
+                    </th>
+                    <TableHead>Order</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Pickup / COD</TableHead>
+                    <TableHead align="right">Total</TableHead>
+                    <TableHead align="right">Actions</TableHead>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {filteredOrders.map((order) => {
+                    const orderId = getOrderId(order);
+                    const statusMeta = STATUS_META[order.status] || STATUS_META.pending;
+                    const products = order.products || [];
+                    const primaryProduct = products[0];
+                    const isBusy = busyOrderId === orderId;
+                    const isExpanded = expandedOrderId === orderId;
+                    const canMove = !terminalStatuses.includes(order.status);
 
-              return (
-                <div
-                  key={order._id}
-                  className="bg-white rounded-xl shadow-sm overflow-hidden"
-                >
-                  {/* ── Row header (click to expand) ─────────── */}
-                  <div
-                    className="p-5 cursor-pointer hover:bg-gray-50 transition"
-                    onClick={() =>
-                      setExpandedOrder(isExpanded ? null : order._id)
-                    }
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                      {/* Left — icon + meta */}
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
-                          {sc.icon}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3 mb-1">
-                            <p className="font-semibold text-gray-900">
-                              Order #{order._id?.slice(-8).toUpperCase()}
-                            </p>
-                            {getCancellationMessage(order) && (
-                              <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
-                                User cancelled
+                    return (
+                      <Fragment key={orderId}>
+                        <tr className="align-top transition hover:bg-slate-50">
+                          <td className="px-4 py-4">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(orderId)}
+                              onChange={() => toggleSelection(orderId)}
+                              className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-400"
+                              aria-label={`Select order ${shortId(orderId)}`}
+                            />
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="font-mono text-sm font-semibold text-slate-950">#{shortId(orderId)}</div>
+                            <div className="mt-1 text-xs text-slate-500">{formatDateTime(order.createdAt)}</div>
+                            {order.isPartialOrder && (
+                              <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+                                Split order
                               </span>
                             )}
-                            {order.paymentMethod && (
-                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
-                                {order.paymentMethod.toUpperCase()}
-                              </span>
-                            )}
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${sla.color}`}>
-                              {sla.label}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
-                            <span>
-                              {new Date(order.createdAt).toLocaleDateString(
-                                "en-US",
-                                {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                }
-                              )}
-                            </span>
-                            {order.shippingInfo?.name && (
-                              <>
-                                <span>•</span>
-                                <span>{order.shippingInfo.name}</span>
-                              </>
-                            )}
-                            {order.shippingInfo?.city && (
-                              <>
-                                <span>•</span>
-                                <span>{order.shippingInfo.city}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right — price + print + status dropdown + chevron */}
-                      <div className="flex flex-wrap items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="text-right">
-                          <p className="text-xs text-gray-400">{products.length} item{products.length !== 1 ? "s" : ""}</p>
-                          <p className="font-bold text-lg text-orange-600">
-                            {formatPrice(order.totalAmount)}
-                          </p>
-                        </div>
-
-                        {/* Print Packing Slip button */}
-                        <button
-                          onClick={() => printPackingSlip(order)}
-                          className="p-2 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                          title="Print Packing Slip"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => downloadPackingSlipPdf(order._id)}
-                          className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                          title="Download PDF packing slip"
-                        >
-                          PDF
-                        </button>
-                        <button
-                          onClick={() => downloadBarcodePdf(order._id)}
-                          className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                          title="Print barcode label"
-                        >
-                          Barcode
-                        </button>
-                        {!["pickup_ready", "shipped", "delivered", "cancelled"].includes(order.status) && (
-                          <button
-                            onClick={() => markPickupReady(order._id)}
-                            disabled={updatingStatus === order._id || Boolean(getCancellationMessage(order))}
-                            className="rounded-lg bg-cyan-600 px-3 py-2 text-xs font-semibold text-white hover:bg-cyan-700 disabled:opacity-60"
-                          >
-                            Pickup Ready
-                          </button>
-                        )}
-
-                        {/* Status dropdown */}
-                        <select
-                          value={order.status}
-                          disabled={updatingStatus === order._id || Boolean(getCancellationMessage(order))}
-                          onChange={(e) =>
-                            handleStatusChange(order._id, e.target.value)
-                          }
-                          className={`px-3 py-2 rounded-lg text-sm font-semibold border cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60 ${sc.color}`}
-                          title={getCancellationMessage(order) ? "This order was cancelled by the user" : "Update order status"}
-                        >
-                          <option value="pending">⏳ Pending</option>
-                          <option value="processing">🔄 Processing</option>
-                          <option value="pickup_ready">Pickup Ready</option>
-                          <option value="shipped">📦 Shipped</option>
-                          <option value="delivered">✅ Delivered</option>
-                          <option value="cancelled">❌ Cancelled</option>
-                        </select>
-
-                        {/* Chevron */}
-                        <svg
-                          className={`w-5 h-5 text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          onClick={() => setExpandedOrder(isExpanded ? null : order._id)}
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ── Expanded detail ───────────────────────── */}
-                  {isExpanded && (
-                    <div className="border-t bg-gray-50 p-6">
-                      {getCancellationMessage(order) && (
-                        <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                          <p className="font-bold">User cancelled this order</p>
-                          <p className="mt-1">
-                            {getCancellationMessage(order)}
-                            {order.cancelledAt && ` Cancelled at ${new Date(order.cancelledAt).toLocaleString()}.`}
-                          </p>
-                        </div>
-                      )}
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                        {/* Products + order summary */}
-                        <div className="lg:col-span-2 space-y-3">
-                          <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                            <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                            </svg>
-                            Order Items ({products.length})
-                          </h4>
-
-                          {products.map((item, idx) => (
-                            <div
-                              key={idx}
-                              className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex items-start gap-4"
-                            >
-                              {/* Image */}
-                              <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                                {item.image || item.productDetails?.images?.[0] ? (
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm font-medium text-slate-950">{order.shippingInfo?.name || "Customer"}</div>
+                            <div className="mt-1 text-sm text-slate-500">{order.shippingInfo?.phone || "No phone"}</div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex max-w-xs items-start gap-3">
+                              <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                                {primaryProduct?.image || primaryProduct?.productDetails?.images?.[0] ? (
                                   <img
-                                    src={item.image || item.productDetails?.images?.[0]}
-                                    alt={item.title}
-                                    className="w-full h-full object-cover"
+                                    src={primaryProduct.image || primaryProduct.productDetails.images[0]}
+                                    alt={primaryProduct.title || primaryProduct.productDetails?.title || "Product"}
+                                    className="h-full w-full object-cover"
                                   />
                                 ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
+                                  <div className="flex h-full w-full items-center justify-center text-slate-400">
+                                    <Package className="h-5 w-5" />
                                   </div>
                                 )}
                               </div>
-
-                              {/* Details */}
-                              <div className="flex-1">
-                                <h5 className="font-medium text-gray-900 mb-2">
-                                  {item.title || item.productDetails?.title || "Product"}
-                                </h5>
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                  <div>
-                                    <span className="text-gray-500">Qty:</span>
-                                    <span className="ml-2 font-medium text-gray-900">
-                                      {item.quantity}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="text-gray-500">Unit Price:</span>
-                                    <span className="ml-2 font-medium text-gray-900">
-                                      {formatPrice(item.price)}
-                                    </span>
-                                  </div>
-                                  {item.selectedSize && (
-                                    <div>
-                                      <span className="text-gray-500">Size:</span>
-                                      <span className="ml-2 px-2 py-0.5 bg-orange-50 text-orange-700 rounded text-xs font-medium">
-                                        {item.selectedSize}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {item.selectedColor && (
-                                    <div className="flex items-center">
-                                      <span className="text-gray-500">Color:</span>
-                                      <div className="ml-2 inline-flex items-center gap-1.5 px-2 py-0.5 bg-gray-50 rounded text-xs">
-                                        {typeof item.selectedColor === "object" &&
-                                          item.selectedColor.value && (
-                                            <div
-                                              className="w-3 h-3 rounded-full border border-gray-300"
-                                              style={{
-                                                backgroundColor:
-                                                  item.selectedColor.value,
-                                              }}
-                                            />
-                                          )}
-                                        {renderColor(item.selectedColor)}
-                                      </div>
-                                    </div>
-                                  )}
-                                  <div className="col-span-2">
-                                    <span className="text-gray-500">Subtotal:</span>
-                                    <span className="ml-2 font-semibold text-gray-900">
-                                      {formatPrice((item.price || 0) * (item.quantity || 1))}
-                                    </span>
-                                  </div>
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-medium text-slate-950">
+                                  {primaryProduct?.title || primaryProduct?.productDetails?.title || "Product"}
                                 </div>
-
-                                {/* Commission details if available */}
-                                {item.vendorEarningAmount !== undefined && (
-                                  <div className="mt-2 pt-2 border-t border-dashed border-gray-200 flex gap-4 text-xs">
-                                    <span className="text-green-700 font-medium">
-                                      Your earnings: {formatPrice(item.vendorEarningAmount)}
-                                    </span>
-                                    <span className="text-gray-400">
-                                      Commission: {formatPrice(item.adminCommissionAmount || 0)}
-                                    </span>
-                                  </div>
-                                )}
+                                <div className="mt-1 text-xs text-slate-500">
+                                  {products.length} item{products.length === 1 ? "" : "s"}
+                                </div>
                               </div>
                             </div>
-                          ))}
-
-                          {/* Order summary */}
-                          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                            <h5 className="font-medium text-gray-900 mb-3">Order Summary</h5>
-                            <div className="space-y-1.5 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-gray-500">Subtotal:</span>
-                                <span>{formatPrice(
-                                  products.reduce((s, p) => s + (p.price || 0) * (p.quantity || 1), 0)
-                                )}</span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusMeta.className}`}>
+                              {statusMeta.label}
+                            </span>
+                            {order.hasReturnRequest && (
+                              <span className="mt-2 flex w-fit rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                                Return requested
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="space-y-2 text-xs text-slate-600">
+                              <div className="flex items-center gap-1.5">
+                                <CalendarClock className="h-3.5 w-3.5 text-slate-400" />
+                                {order.pickupSchedule
+                                  ? `${formatDateOnly(order.pickupSchedule.pickupDate)} ${order.pickupSchedule.timeSlot || ""}`
+                                  : "No pickup slot"}
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-500">Delivery Charge:</span>
-                                <span>{order.deliveryCharge ? formatPrice(order.deliveryCharge) : "FREE"}</span>
-                              </div>
-                              <div className="border-t pt-2 flex justify-between font-semibold">
-                                <span>Total:</span>
-                                <span className="text-orange-600">{formatPrice(order.totalAmount)}</span>
+                              <div className="flex items-center gap-1.5">
+                                <Banknote className="h-3.5 w-3.5 text-slate-400" />
+                                {isCodOrder(order) ? (order.codCollected ? "COD collected" : "COD pending") : "Prepaid"}
                               </div>
                             </div>
-                          </div>
-                        </div>
-
-                        {/* Sidebar — customer + address + order info */}
-                        <div className="space-y-4">
-
-                          {/* Customer info */}
-                          <div>
-                            <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                              <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                              </svg>
-                              Customer
-                            </h4>
-                            <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm space-y-3">
-                              {order.shippingInfo ? (
-                                <>
-                                  {order.shippingInfo.name && (
-                                    <div>
-                                      <p className="text-xs text-gray-500 uppercase tracking-wide">Name</p>
-                                      <p className="text-sm font-medium text-gray-900 mt-0.5">
-                                        {order.shippingInfo.name}
-                                      </p>
-                                    </div>
-                                  )}
-                                  {order.shippingInfo.phone && (
-                                    <div>
-                                      <p className="text-xs text-gray-500 uppercase tracking-wide">Phone</p>
-                                      <a
-                                        href={`tel:${order.shippingInfo.phone}`}
-                                        className="text-sm text-blue-600 hover:underline font-medium mt-0.5 block"
-                                      >
-                                        {order.shippingInfo.phone}
-                                      </a>
-                                    </div>
-                                  )}
-                                  {order.shippingInfo.email && (
-                                    <div>
-                                      <p className="text-xs text-gray-500 uppercase tracking-wide">Email</p>
-                                      <a
-                                        href={`mailto:${order.shippingInfo.email}`}
-                                        className="text-sm text-blue-600 hover:underline mt-0.5 block"
-                                      >
-                                        {order.shippingInfo.email}
-                                      </a>
-                                    </div>
-                                  )}
-                                </>
-                              ) : (
-                                <p className="text-sm text-gray-500 text-center py-4">
-                                  No customer info available
-                                </p>
+                          </td>
+                          <td className="px-4 py-4 text-right text-sm font-semibold text-slate-950">
+                            {formatPrice(order.vendorSubtotal || order.totalAmount || orderProductsTotal(order))}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex justify-end gap-2">
+                              <IconButton title="View details" onClick={() => toggleExpandedOrder(orderId)}>
+                                <Eye className="h-4 w-4" />
+                              </IconButton>
+                              <IconButton title="Print packing slip" onClick={() => printPackingSlip(order)}>
+                                <Printer className="h-4 w-4" />
+                              </IconButton>
+                              <IconButton title="Download packing slip PDF" onClick={() => downloadPackingSlipPdf(order)}>
+                                <FileText className="h-4 w-4" />
+                              </IconButton>
+                              <IconButton title="Download waybill barcode" onClick={() => downloadBarcodePdf(order)}>
+                                <Barcode className="h-4 w-4" />
+                              </IconButton>
+                            </div>
+                            <div className="mt-2 flex flex-wrap justify-end gap-2">
+                              {canMove && !["packed", "ready_to_ship", "pickup_ready", "shipped"].includes(order.status) && (
+                                <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "packed")}>
+                                  Pack
+                                </SmallActionButton>
+                              )}
+                              {canMove && ["packed", "processing", "pending"].includes(order.status) && (
+                                <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "ready_to_ship")}>
+                                  Ready
+                                </SmallActionButton>
+                              )}
+                              {canMove && ["packed", "ready_to_ship", "pickup_ready"].includes(order.status) && (
+                                <SmallActionButton disabled={isBusy} onClick={() => openPickupSchedule(order)}>
+                                  Schedule
+                                </SmallActionButton>
+                              )}
+                              {canMove && ["ready_to_ship", "pickup_ready"].includes(order.status) && (
+                                <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "shipped")}>
+                                  Ship
+                                </SmallActionButton>
+                              )}
+                              {order.status === "shipped" && (
+                                <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "delivered")}>
+                                  Deliver
+                                </SmallActionButton>
+                              )}
+                              {isCodOrder(order) && !order.codCollected && order.status !== "cancelled" && (
+                                <SmallActionButton disabled={isBusy} onClick={() => markCodCollected(order)}>
+                                  COD
+                                </SmallActionButton>
+                              )}
+                              <SmallActionButton onClick={() => openBuyerMessage(order)}>Message</SmallActionButton>
+                              {canMove && (
+                                <SmallDangerButton disabled={isBusy} onClick={() => openCancelOrder(order)}>
+                                  Cancel
+                                </SmallDangerButton>
                               )}
                             </div>
-                          </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={8} className="bg-slate-50 px-4 py-5">
+                              <OrderDetail
+                                order={order}
+                                timeline={timelineByOrder[orderId]}
+                                formatPrice={formatPrice}
+                                onCopyAddress={copyAddress}
+                                onMessage={openBuyerMessage}
+                                onReturnAction={openReturnAction}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
-                          {/* Delivery address */}
-                          {order.shippingInfo && (
-                            <div>
-                              <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                Delivery Address
-                              </h4>
-                              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                                <div className="space-y-2 text-sm">
-                                  {order.shippingInfo.address && (
-                                    <p className="text-gray-900">{order.shippingInfo.address}</p>
-                                  )}
-                                  {(order.shippingInfo.area || order.shippingInfo.city) && (
-                                    <p className="text-gray-700">
-                                      {[order.shippingInfo.area, order.shippingInfo.city].filter(Boolean).join(", ")}
-                                    </p>
-                                  )}
-                                  {order.shippingInfo.zipCode && (
-                                    <p className="text-gray-500">{order.shippingInfo.zipCode}</p>
-                                  )}
-                                </div>
+        {expandedOrder && (
+          <div className="mt-3 text-xs text-slate-500">
+            Open order #{shortId(getOrderId(expandedOrder))} is showing vendor-specific items only.
+          </div>
+        )}
+      </main>
 
-                                {/* Shipping label + copy */}
-                                <div className="mt-3 pt-3 border-t border-gray-100">
-                                  <div className="flex items-center justify-between mb-1.5">
-                                    <span className="text-xs text-gray-500 font-medium">📦 Shipping Label</span>
-                                    <button
-                                      onClick={() => copyAddress(order.shippingInfo)}
-                                      className="text-xs text-blue-600 hover:text-blue-800 px-2 py-0.5 rounded hover:bg-blue-50 transition flex items-center gap-1"
-                                    >
-                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                      </svg>
-                                      Copy
-                                    </button>
-                                  </div>
-                                  <div className="text-xs text-gray-700 font-mono bg-gray-50 p-2 rounded border whitespace-pre-line leading-relaxed">
-                                    {[
-                                      order.shippingInfo.name,
-                                      order.shippingInfo.phone,
-                                      order.shippingInfo.address,
-                                      order.shippingInfo.area +
-                                        (order.shippingInfo.city ? `, ${order.shippingInfo.city}` : ""),
-                                      order.shippingInfo.zipCode,
-                                    ].filter(Boolean).join("\n")}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
+      {pickupModal && (
+        <Modal title={`Schedule pickup #${shortId(getOrderId(pickupModal.order))}`} onClose={() => setPickupModal(null)}>
+          <form onSubmit={submitPickupSchedule} className="space-y-4">
+            <label className="block text-sm font-medium text-slate-700">
+              Pickup date
+              <input
+                type="date"
+                required
+                min={todayInputValue()}
+                value={pickupModal.pickupDate}
+                onChange={(event) => setPickupModal((current) => ({ ...current, pickupDate: event.target.value }))}
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Time slot
+              <select
+                value={pickupModal.timeSlot}
+                onChange={(event) => setPickupModal((current) => ({ ...current, timeSlot: event.target.value }))}
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              >
+                {PICKUP_SLOTS.map((slot) => (
+                  <option key={slot} value={slot}>
+                    {slot}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Courier
+              <input
+                type="text"
+                required
+                value={pickupModal.courierName}
+                onChange={(event) => setPickupModal((current) => ({ ...current, courierName: event.target.value }))}
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Notes
+              <textarea
+                value={pickupModal.notes}
+                onChange={(event) => setPickupModal((current) => ({ ...current, notes: event.target.value }))}
+                rows={3}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              />
+            </label>
+            <ModalActions onCancel={() => setPickupModal(null)} submitLabel="Schedule pickup" icon={CalendarClock} />
+          </form>
+        </Modal>
+      )}
 
-                          {/* Order details */}
-                          <div>
-                            <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                              <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                              </svg>
-                              Order Details
-                            </h4>
-                            <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm space-y-3 text-sm">
-                              {order.paymentMethod && (
-                                <div>
-                                  <p className="text-xs text-gray-500 uppercase tracking-wide">Payment</p>
-                                  <p className="font-medium text-gray-900 mt-0.5 capitalize">
-                                    {order.paymentMethod}
-                                  </p>
-                                </div>
-                              )}
-                              <div>
-                                <p className="text-xs text-gray-500 uppercase tracking-wide">Status</p>
-                                <span
-                                  className={`inline-flex items-center gap-1.5 mt-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusConfig[order.status]?.color}`}
-                                >
-                                  {statusConfig[order.status]?.icon} {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
-                                </span>
-                              </div>
-                              {order.specialInstructions && (
-                                <div>
-                                  <p className="text-xs text-gray-500 uppercase tracking-wide">Special Notes</p>
-                                  <p className="mt-1 text-gray-700 bg-yellow-50 p-2 rounded border border-yellow-100">
-                                    {order.specialInstructions}
-                                  </p>
-                                </div>
-                              )}
-                              <div>
-                                <p className="text-xs text-gray-500 uppercase tracking-wide">Order ID</p>
-                                <p className="font-mono text-xs text-gray-600 bg-gray-50 p-1.5 rounded mt-0.5">
-                                  {order._id}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
+      {messageModal && (
+        <Modal title={`Message buyer #${shortId(getOrderId(messageModal.order))}`} onClose={() => setMessageModal(null)}>
+          <form onSubmit={submitBuyerMessage} className="space-y-4">
+            <label className="block text-sm font-medium text-slate-700">
+              Message
+              <textarea
+                value={messageModal.message}
+                required
+                maxLength={1000}
+                onChange={(event) => setMessageModal((current) => ({ ...current, message: event.target.value }))}
+                rows={5}
+                placeholder="Example: Your order is packed and will be handed to courier today."
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              />
+            </label>
+            <ModalActions onCancel={() => setMessageModal(null)} submitLabel="Send message" icon={Send} />
+          </form>
+        </Modal>
+      )}
 
-                          {/* Quick actions */}
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => printPackingSlip(order)}
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                              </svg>
-                              Print Invoice
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+      {cancelModal && (
+        <Modal title={`Cancel order #${shortId(getOrderId(cancelModal.order))}`} onClose={() => setCancelModal(null)}>
+          <form onSubmit={submitCancellation} className="space-y-4">
+            <label className="block text-sm font-medium text-slate-700">
+              Reason
+              <select
+                required
+                value={cancelModal.reason}
+                onChange={(event) => setCancelModal((current) => ({ ...current, reason: event.target.value }))}
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              >
+                <option value="">Select reason</option>
+                <option value="Out of stock">Out of stock</option>
+                <option value="Damaged inventory">Damaged inventory</option>
+                <option value="Pricing error">Pricing error</option>
+                <option value="Unable to ship on time">Unable to ship on time</option>
+                <option value="Customer requested cancellation">Customer requested cancellation</option>
+              </select>
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Notes
+              <textarea
+                value={cancelModal.notes}
+                onChange={(event) => setCancelModal((current) => ({ ...current, notes: event.target.value }))}
+                rows={3}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCancelModal(null)}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                Keep order
+              </button>
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                <XCircle className="h-4 w-4" />
+                Cancel items
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {returnModal && (
+        <Modal
+          title={`${returnModal.action === "approved" ? "Approve" : "Reject"} return #${shortId(returnModal.returnItem._id)}`}
+          onClose={() => setReturnModal(null)}
+        >
+          <form onSubmit={submitReturnAction} className="space-y-4">
+            {returnModal.action !== "approved" && (
+              <label className="block text-sm font-medium text-slate-700">
+                Reason
+                <textarea
+                  required
+                  value={returnModal.reason}
+                  onChange={(event) => setReturnModal((current) => ({ ...current, reason: event.target.value }))}
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                />
+              </label>
+            )}
+            <label className="block text-sm font-medium text-slate-700">
+              Notes
+              <textarea
+                value={returnModal.notes}
+                onChange={(event) => setReturnModal((current) => ({ ...current, notes: event.target.value }))}
+                rows={3}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Evidence links
+              <textarea
+                value={returnModal.evidence}
+                onChange={(event) => setReturnModal((current) => ({ ...current, evidence: event.target.value }))}
+                rows={3}
+                placeholder="One image or document URL per line"
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              />
+            </label>
+            <ModalActions
+              onCancel={() => setReturnModal(null)}
+              submitLabel={returnModal.action === "approved" ? "Approve return" : "Reject return"}
+              icon={returnModal.action === "approved" ? CheckCircle2 : XCircle}
+              danger={returnModal.action !== "approved"}
+            />
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function TableHead({ children, align = "left" }) {
+  return (
+    <th
+      className={`px-4 py-3 text-xs font-semibold uppercase text-slate-500 ${
+        align === "right" ? "text-right" : "text-left"
+      }`}
+    >
+      {children}
+    </th>
+  );
+}
+
+function IconButton({ title, onClick, children }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 hover:text-slate-950"
+    >
+      {children}
+    </button>
+  );
+}
+
+function SmallActionButton({ children, disabled, onClick }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+function SmallDangerButton({ children, disabled, onClick }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+function MetricCard({ label, value, icon }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-slate-500">{label}</p>
+          <p className="mt-1 text-2xl font-semibold text-slate-950">{value}</p>
+        </div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+          {createElement(icon, { className: "h-5 w-5" })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrderDetail({ order, timeline = [], formatPrice, onCopyAddress, onMessage, onReturnAction }) {
+  const products = order.products || [];
+  const cancellationText =
+    order.cancellationMessage || order.cancellationReason || order.products?.find((item) => item.rejectionReason)?.rejectionReason;
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+      <div className="space-y-4">
+        {cancellationText && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <div className="font-semibold">Cancellation reason</div>
+            <p className="mt-1">{cancellationText}</p>
+            {order.cancellationNotes && <p className="mt-1 text-red-700">{order.cancellationNotes}</p>}
+          </div>
+        )}
+
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-slate-950">Order Items</h3>
+            <span className="text-xs text-slate-500">{products.length} item{products.length === 1 ? "" : "s"}</span>
+          </div>
+          <div className="mt-4 divide-y divide-slate-100">
+            {products.map((item, index) => (
+              <div key={`${item.productId || item._id || index}`} className="flex gap-3 py-3 first:pt-0 last:pb-0">
+                <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                  {item.image || item.productDetails?.images?.[0] ? (
+                    <img
+                      src={item.image || item.productDetails.images[0]}
+                      alt={item.title || item.productDetails?.title || "Product"}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-slate-400">
+                      <Package className="h-5 w-5" />
                     </div>
                   )}
                 </div>
-              );
-            })}
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-slate-950">{item.title || item.productDetails?.title || "Product"}</div>
+                  <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
+                    <span>Qty {item.quantity || 1}</span>
+                    <span>{formatPrice(item.price || 0)}</span>
+                    {item.selectedSize && <span>Size {item.selectedSize}</span>}
+                    {renderColor(item.selectedColor) && <span>Color {renderColor(item.selectedColor)}</span>}
+                    {item.sku && <span>SKU {item.sku}</span>}
+                  </div>
+                </div>
+                <div className="text-right text-sm font-semibold text-slate-950">
+                  {formatPrice((Number(item.price) || 0) * (Number(item.quantity) || 1))}
+                </div>
+              </div>
+            ))}
           </div>
-        )}
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-slate-950">Buyer Messages</h3>
+            <button
+              type="button"
+              onClick={() => onMessage(order)}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Message
+            </button>
+          </div>
+          <div className="mt-3 space-y-2">
+            {(order.customerMessages || []).length === 0 ? (
+              <p className="text-sm text-slate-500">No messages for this order.</p>
+            ) : (
+              order.customerMessages.map((message) => (
+                <div key={message._id || message.createdAt} className="rounded-lg bg-slate-50 p-3">
+                  <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+                    <span>{message.vendorName || "Vendor"}</span>
+                    <span>{formatDateTime(message.createdAt)}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-800">{message.message}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
       </div>
+
+      <div className="space-y-4">
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-slate-950">Customer</h3>
+            <button
+              type="button"
+              onClick={() => onCopyAddress(order.shippingInfo)}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy
+            </button>
+          </div>
+          <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">
+            {buildAddress(order.shippingInfo) || "No shipping address"}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Timeline</h3>
+          <div className="mt-3 space-y-3">
+            {timeline.length === 0 ? (
+              <p className="text-sm text-slate-500">No timeline events yet.</p>
+            ) : (
+              timeline.map((event, index) => (
+                <div key={`${event.status || event.label}-${event.timestamp || event.at || index}`} className="flex gap-3">
+                  <div className="mt-1 h-2.5 w-2.5 rounded-full bg-orange-500" />
+                  <div>
+                    <div className="text-sm font-medium text-slate-950">{event.label || event.status}</div>
+                    <div className="text-xs text-slate-500">{formatDateTime(event.timestamp || event.at || event.createdAt)}</div>
+                    {event.note && <div className="mt-1 text-xs text-slate-600">{event.note}</div>}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Returns</h3>
+          <div className="mt-3 space-y-3">
+            {(order.returns || []).length === 0 ? (
+              <p className="text-sm text-slate-500">No return request.</p>
+            ) : (
+              order.returns.map((returnItem) => (
+                <div key={returnItem._id} className="rounded-lg border border-slate-200 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-950">{returnItem.productTitle || "Returned item"}</div>
+                      <div className="mt-1 text-xs capitalize text-slate-500">{getReturnStatusLabel(returnItem)}</div>
+                    </div>
+                    <div className="text-right text-sm font-semibold text-slate-950">
+                      {formatPrice(returnItem.refundAmount || 0)}
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-700">{returnItem.reason}</p>
+                  {returnItem.description && <p className="mt-1 text-xs text-slate-500">{returnItem.description}</p>}
+                  <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                    {getReturnEvents(returnItem).map((event, index) => (
+                      <div key={`${returnItem._id}-${index}`} className="flex items-start gap-2 text-xs text-slate-600">
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-slate-400" />
+                        <span>
+                          <span className="font-medium text-slate-800">{event.label || event.status}</span>
+                          {event.at && ` - ${formatDateTime(event.at)}`}
+                          {event.note && ` - ${event.note}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {returnItem.status === "pending" && !returnItem.vendorResponse && (
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onReturnAction(returnItem, "approved")}
+                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onReturnAction(returnItem, "rejected")}
+                        className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Payment</h3>
+          <div className="mt-3 space-y-2 text-sm text-slate-700">
+            <div className="flex justify-between gap-3">
+              <span>Method</span>
+              <span className="font-medium capitalize text-slate-950">{order.paymentMethod || "N/A"}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span>Status</span>
+              <span className="font-medium capitalize text-slate-950">{order.paymentStatus || "pending"}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span>COD</span>
+              <span className="font-medium text-slate-950">
+                {isCodOrder(order) ? (order.codCollected ? "Collected" : "Pending") : "Not COD"}
+              </span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function Modal({ title, onClose, children }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
+          <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-950"
+            title="Close"
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function ModalActions({ onCancel, submitLabel, icon, danger = false }) {
+  return (
+    <div className="flex justify-end gap-2">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white ${
+          danger ? "bg-red-600 hover:bg-red-700" : "bg-slate-900 hover:bg-slate-800"
+        }`}
+      >
+        {createElement(icon, { className: "h-4 w-4" })}
+        {submitLabel}
+      </button>
     </div>
   );
 }

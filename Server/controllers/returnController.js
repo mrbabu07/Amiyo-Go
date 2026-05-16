@@ -395,13 +395,13 @@ const getVendorReturnStats = async (req, res) => {
 };
 
 /**
- * Vendor responds to return request (approve or dispute)
+ * Vendor responds to return request (approve, reject, or dispute)
  */
 const vendorRespondToReturn = async (req, res) => {
   try {
     const Return = req.app.locals.models.Return;
     const { id } = req.params;
-    const { action, notes, evidenceImages, evidenceFiles, disputeReason } = req.body;
+    const { action, notes, evidenceImages, evidenceFiles, disputeReason, rejectionReason } = req.body;
     const vendorId = req.user.vendorId;
 
     if (!vendorId) {
@@ -411,17 +411,18 @@ const vendorRespondToReturn = async (req, res) => {
       });
     }
 
-    if (!action || !['approved', 'disputed'].includes(action)) {
+    if (!action || !['approved', 'disputed', 'rejected'].includes(action)) {
       return res.status(400).json({
         success: false,
-        error: "Action must be 'approved' or 'disputed'",
+        error: "Action must be 'approved', 'rejected', or 'disputed'",
       });
     }
 
-    if (action === 'disputed' && !disputeReason) {
+    const responseReason = disputeReason || rejectionReason;
+    if (['disputed', 'rejected'].includes(action) && !responseReason) {
       return res.status(400).json({
         success: false,
-        error: "Dispute reason is required when disputing a return",
+        error: "A reason is required when rejecting or disputing a return",
       });
     }
 
@@ -430,7 +431,7 @@ const vendorRespondToReturn = async (req, res) => {
       notes,
       evidenceImages: evidenceImages || [],
       evidenceFiles: evidenceFiles || evidenceImages || [],
-      disputeReason,
+      disputeReason: responseReason,
     });
 
     if (result.matchedCount === 0) {
@@ -442,9 +443,11 @@ const vendorRespondToReturn = async (req, res) => {
 
     res.json({
       success: true,
-      message: action === 'approved' 
-        ? "Return approved successfully" 
-        : "Return disputed. Admin will review your evidence.",
+      message: action === 'approved'
+        ? "Return approved successfully"
+        : action === 'rejected'
+          ? "Return rejected successfully"
+          : "Return disputed. Admin will review your evidence.",
     });
   } catch (error) {
     console.error("Error responding to return:", error);

@@ -264,6 +264,12 @@ export const cancelAccountDeletion = () => api.post("/account/delete/cancel");
 export const getAdminVendorOrders = (vendorId, params = {}) =>
   api.get("/vendors/orders", { params: { ...params, vendorId } });
 
+export const getVendorOrders = (params = {}) =>
+  api.get("/vendors/orders", { params });
+
+export const updateVendorOrderStatus = (orderId, status, data = {}) =>
+  api.patch(`/vendors/orders/${orderId}/status`, { ...data, status });
+
 // ── Admin: Category commission ────────────────────────────────
 export const updateCategoryCommission = (id, rates) =>
   api.patch(
@@ -417,6 +423,12 @@ export const markOrderReadyToShip = (orderId) =>
   api.post(`/vendors/orders/${orderId}/ready-to-ship`);
 export const markOrderPickupReady = (orderId) =>
   api.post(`/vendors/orders/${orderId}/pickup-ready`);
+export const scheduleVendorPickup = (orderId, data) =>
+  api.post(`/vendors/orders/${orderId}/schedule-pickup`, data);
+export const markVendorCodCollected = (orderId, data = {}) =>
+  api.post(`/vendors/orders/${orderId}/cod-collected`, data);
+export const sendVendorBuyerMessage = (orderId, data) =>
+  api.post(`/vendors/orders/${orderId}/message-buyer`, data);
 export const downloadVendorPackingSlip = (orderId) =>
   api.get(`/vendors/orders/${orderId}/packing-slip`, { responseType: "blob" });
 export const downloadVendorBarcodeLabel = (orderId) =>

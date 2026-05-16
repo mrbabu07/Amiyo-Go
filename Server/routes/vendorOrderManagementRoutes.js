@@ -5,8 +5,11 @@ const {
   rejectOrder,
   markReadyToShip,
   markPickupReady,
+  schedulePickup,
   shipOrder,
   markDelivered,
+  markCodCollected,
+  sendBuyerMessage,
   getOrderTimeline,
   downloadPackingSlip,
   downloadBarcodeLabel,
@@ -23,8 +26,11 @@ router.post("/orders/:orderId/accept", acceptOrder);
 router.post("/orders/:orderId/reject", rejectOrder);
 router.post("/orders/:orderId/ready-to-ship", markReadyToShip);
 router.post("/orders/:orderId/pickup-ready", markPickupReady);
+router.post("/orders/:orderId/schedule-pickup", schedulePickup);
 router.post("/orders/:orderId/ship", shipOrder);
 router.post("/orders/:orderId/deliver", markDelivered);
+router.post("/orders/:orderId/cod-collected", markCodCollected);
+router.post("/orders/:orderId/message-buyer", sendBuyerMessage);
 router.get("/orders/:orderId/packing-slip", downloadPackingSlip);
 router.get("/orders/:orderId/barcode-label", downloadBarcodeLabel);
 

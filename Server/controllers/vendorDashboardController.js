@@ -1,8 +1,27 @@
 const { ObjectId } = require("mongodb");
+const { appendOrderEvent } = require("../services/orderEventService");
 
 const round2 = (value) => Math.round(((Number(value) || 0) + Number.EPSILON) * 100) / 100;
 
 const dateKey = (date) => date.toISOString().slice(0, 10);
+
+const deriveVendorOrderStatus = (statuses = []) => {
+  const normalized = statuses.map((status) => status || "pending");
+  if (normalized.length === 0) return "pending";
+  if (normalized.every((status) => status === "cancelled")) return "cancelled";
+  if (normalized.every((status) => status === "returned")) return "returned";
+  if (normalized.some((status) => status === "returned")) return "returned";
+  if (normalized.every((status) => status === "delivered")) return "delivered";
+  if (normalized.some((status) => status === "shipped")) return "shipped";
+  if (normalized.some((status) => status === "pickup_ready")) return "pickup_ready";
+  if (normalized.some((status) => status === "ready_to_ship")) return "ready_to_ship";
+  if (normalized.some((status) => status === "packed")) return "packed";
+  if (normalized.some((status) => ["accepted", "processing"].includes(status))) return "processing";
+  return "pending";
+};
+
+const firstVendorField = (products, field) =>
+  products.find((product) => product[field] !== undefined && product[field] !== null)?.[field];
 
 const getVendorForRequest = async (req) => {
   const Vendor = req.app.locals.models.Vendor;
@@ -54,15 +73,7 @@ const getVendorOrderRows = async (db, vendorId) => {
       );
     }, 0);
     const statuses = products.map((product) => product.itemStatus || order.status || "pending");
-    const status = statuses.every((value) => value === "delivered")
-      ? "delivered"
-      : statuses.every((value) => value === "cancelled")
-        ? "cancelled"
-        : statuses.includes("shipped")
-          ? "shipped"
-          : statuses.some((value) => ["accepted", "processing", "packed", "ready_to_ship", "pickup_ready"].includes(value))
-            ? "processing"
-            : "pending";
+    const status = deriveVendorOrderStatus(statuses);
 
     return {
       order,
@@ -304,21 +315,15 @@ exports.getVendorOrders = async (req, res) => {
       const vendorCommission = vendorProducts.reduce((sum, p) => sum + (p.adminCommissionAmount || 0), 0);
       const vendorEarnings = vendorProducts.reduce((sum, p) => sum + (p.vendorEarningAmount || 0), 0);
 
-      // Determine vendor-specific order status from item statuses
+      // Determine vendor-specific order status from item statuses.
       const itemStatuses = vendorProducts.map(p => p.itemStatus || 'pending');
-      let vendorOrderStatus = 'pending';
-      
-      if (itemStatuses.every(s => s === 'delivered')) {
-        vendorOrderStatus = 'delivered';
-      } else if (itemStatuses.some(s => s === 'shipped')) {
-        vendorOrderStatus = 'shipped';
-      } else if (itemStatuses.some(s => s === 'pickup_ready')) {
-        vendorOrderStatus = 'pickup_ready';
-      } else if (itemStatuses.some(s => ['accepted', 'processing', 'packed', 'ready_to_ship'].includes(s))) {
-        vendorOrderStatus = 'processing';
-      } else if (itemStatuses.every(s => s === 'cancelled')) {
-        vendorOrderStatus = 'cancelled';
-      }
+      const vendorOrderStatus = deriveVendorOrderStatus(itemStatuses);
+      const cancellationItem = vendorProducts.find((product) =>
+        product.rejectionReason || product.cancellationReason || product.rejectionNotes,
+      );
+      const vendorMessages = (order.customerMessages || []).filter(
+        (message) => !message.vendorId || message.vendorId.toString() === vendorId,
+      );
 
       return {
         _id: order._id,
@@ -334,8 +339,19 @@ exports.getVendorOrders = async (req, res) => {
         cancelledBy: order.cancelledBy,
         cancelledByRole: order.cancelledByRole,
         cancellationSource: order.cancellationSource,
-        cancellationMessage: order.cancellationMessage,
+        cancellationMessage: order.cancellationMessage || cancellationItem?.rejectionReason || cancellationItem?.cancellationReason,
+        cancellationReason: cancellationItem?.rejectionReason || cancellationItem?.cancellationReason || order.cancellationMessage,
+        cancellationNotes: cancellationItem?.rejectionNotes || null,
         statusHistory: order.statusHistory || [],
+        customerMessages: vendorMessages,
+        packedAt: firstVendorField(vendorProducts, "packedAt"),
+        readyToShipAt: firstVendorField(vendorProducts, "readyToShipAt"),
+        pickupReadyAt: firstVendorField(vendorProducts, "pickupReadyAt"),
+        pickupSchedule: firstVendorField(vendorProducts, "pickupSchedule"),
+        courierPickupStatus: firstVendorField(vendorProducts, "courierPickupStatus"),
+        codCollected: vendorProducts.length > 0 && vendorProducts.every((product) => product.codCollected === true),
+        codCollectedAt: firstVendorField(vendorProducts, "codCollectedAt"),
+        codCollectionStatus: order.codCollectionStatus || null,
         vendorSubtotal,
         vendorCommission,
         vendorEarnings,
@@ -394,14 +410,14 @@ exports.getVendorOrders = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { status } = req.body;
+    const { status, reason = "", note = "" } = req.body;
     const Vendor = req.app.locals.models.Vendor;
     const Order = req.app.locals.models.Order;
     const VendorOrder = req.app.locals.models.VendorOrder;
     const User = req.app.locals.models.User;
     const db = req.app.locals.db;
 
-    const validStatuses = ["pending", "processing", "packed", "pickup_ready", "shipped", "delivered", "cancelled"];
+    const validStatuses = ["pending", "processing", "packed", "ready_to_ship", "pickup_ready", "shipped", "delivered", "cancelled"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: `Status must be one of: ${validStatuses.join(", ")}` });
     }
@@ -439,10 +455,15 @@ exports.updateOrderStatus = async (req, res) => {
     const timestampFields = {
       ...(status === "processing" ? { "products.$[elem].processingAt": now } : {}),
       ...(status === "packed" ? { "products.$[elem].packedAt": now } : {}),
+      ...(status === "ready_to_ship" ? { "products.$[elem].readyToShipAt": now } : {}),
       ...(status === "pickup_ready" ? { "products.$[elem].pickupReadyAt": now } : {}),
       ...(status === "shipped" ? { "products.$[elem].shippedAt": now } : {}),
       ...(status === "delivered" ? { "products.$[elem].deliveredAt": now } : {}),
-      ...(status === "cancelled" ? { "products.$[elem].cancelledAt": now } : {}),
+      ...(status === "cancelled" ? {
+        "products.$[elem].cancelledAt": now,
+        "products.$[elem].rejectionReason": reason || "Vendor cancelled",
+        "products.$[elem].rejectionNotes": note || null,
+      } : {}),
     };
 
     await ordersCollection.updateOne(
@@ -476,15 +497,33 @@ exports.updateOrderStatus = async (req, res) => {
         products: updatedVendorProducts,
         ...(status === "processing" ? { processingAt: now } : {}),
         ...(status === "packed" ? { packedAt: now } : {}),
+        ...(status === "ready_to_ship" ? { readyToShipAt: now, courierPickupStatus: "pending" } : {}),
         ...(status === "pickup_ready" ? { pickupReadyAt: now, courierPickupStatus: "ready" } : {}),
         ...(status === "shipped" ? { shippedAt: now } : {}),
         ...(status === "delivered" ? { deliveredAt: now } : {}),
-        ...(status === "cancelled" ? { cancelledAt: now } : {}),
+        ...(status === "cancelled" ? {
+          cancelledAt: now,
+          cancellationSource: "vendor",
+          cancellationMessage: reason || "Vendor cancelled",
+          rejectionReason: reason || "Vendor cancelled",
+          rejectionNotes: note || null,
+        } : {}),
       });
     }
 
     // Sync overall order status
     await Order.syncOrderStatus(orderId);
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      vendorId,
+      status,
+      label: `Marked ${status.replace(/_/g, " ")}`,
+      actorId: req.user?.uid,
+      actorRole: "vendor",
+      note: note || reason || "",
+    });
 
     res.json({ success: true, message: "Order status updated" });
   } catch (error) {
