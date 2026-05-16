@@ -135,6 +135,25 @@ jest.mock("../controllers/adminFinanceController", () => ({
   getVendorFinanceTransactions: (req, res) => res.json({ route: "vendors:finance-transactions", id: req.params.vendorId }),
 }));
 
+jest.mock("../controllers/adminVendorManagementController", () => ({
+  getVendorManagementProfile: (req, res) =>
+    res.json({ route: "admin-vendors:management", id: req.params.vendorId }),
+  updateVendorStatus: (req, res) =>
+    res.json({ route: "admin-vendors:status", id: req.params.vendorId, status: req.body.status }),
+  updateVendorTier: (req, res) =>
+    res.json({ route: "admin-vendors:tier", id: req.params.vendorId, tier: req.body.tier }),
+  autoCalculateVendorTier: (req, res) =>
+    res.json({ route: "admin-vendors:auto-tier", id: req.params.vendorId }),
+  updateVendorCommission: (req, res) =>
+    res.json({ route: "admin-vendors:commission", id: req.params.vendorId }),
+  sendVendorNotice: (req, res) =>
+    res.status(201).json({ route: "admin-vendors:notice", id: req.params.vendorId }),
+  issueVendorViolation: (req, res) =>
+    res.status(201).json({ route: "admin-vendors:violation", id: req.params.vendorId }),
+  bulkVendorAction: (req, res) =>
+    res.json({ route: "admin-vendors:bulk", action: req.body.action }),
+}));
+
 jest.mock("../controllers/vendorsFinanceController", () => ({
   getTransactions: (req, res) => res.json({ route: "vendors:self-finance-transactions" }),
   getStatements: (req, res) => res.json({ route: "vendors:self-finance-statements" }),
@@ -206,6 +225,7 @@ const buildApp = () => {
   app.use("/api/vendor-chat", require("../routes/vendorChatRoutes"));
   app.use("/api/admin/dashboard", require("../routes/adminDashboardRoutes"));
   app.use("/api/admin/payouts", require("../routes/adminPayoutRoutes"));
+  app.use("/api/admin/vendors", require("../routes/adminVendorRoutes"));
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
   return app;
 };
@@ -388,6 +408,50 @@ describe("Black-box API tests", () => {
     test("GET /api/admin/dashboard/overview rejects vendor access", async () => {
       const response = await request(app)
         .get("/api/admin/dashboard/overview")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "Admin access required" });
+    });
+  });
+
+  describe("admin vendor management API behavior", () => {
+    test("GET /api/admin/vendors/:vendorId/management uses the management route", async () => {
+      const response = await request(app)
+        .get("/api/admin/vendors/vendor-1/management")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-vendors:management", id: "vendor-1" });
+    });
+
+    test("PATCH /api/admin/vendors/:vendorId/status uses the status control route", async () => {
+      const response = await request(app)
+        .patch("/api/admin/vendors/vendor-1/status")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ status: "suspended" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-vendors:status", id: "vendor-1", status: "suspended" });
+    });
+
+    test("POST /api/admin/vendors/bulk uses the bulk action route before vendorId routes", async () => {
+      const response = await request(app)
+        .post("/api/admin/vendors/bulk")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ vendorIds: ["vendor-1"], action: "export" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-vendors:bulk", action: "export" });
+    });
+
+    test("GET /api/admin/vendors/:vendorId/management rejects vendor access", async () => {
+      const response = await request(app)
+        .get("/api/admin/vendors/vendor-1/management")
         .set("Authorization", "Bearer test")
         .set("x-test-role", "vendor");
 

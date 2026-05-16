@@ -12,6 +12,13 @@ import {
   disableAdminProduct,
   getAdminVendorFinanceSummary,
   getAdminVendorFinanceTransactions,
+  getAdminVendorManagementProfile,
+  updateAdminVendorStatus,
+  updateAdminVendorTier,
+  autoCalculateAdminVendorTier,
+  updateAdminVendorCommission,
+  sendAdminVendorNotice,
+  issueAdminVendorViolation,
   approveVendor,
   suspendVendor,
   reactivateVendor,
@@ -23,9 +30,16 @@ import {
   updateOrderStatus,
 } from '../../services/api';
 
-const TABS = ['Overview', 'Products', 'Orders', 'Returns', 'Earnings', 'Payouts', 'Actions'];
+const TABS = ['Overview', 'Management', 'Performance', 'Products', 'Orders', 'Returns', 'Earnings', 'Payouts', 'Actions'];
 const PRODUCT_STATUS_FILTERS = ['all', 'pending', 'approved', 'rejected'];
 const ORDER_STATUS_OPTIONS = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+const VENDOR_TIERS = [
+  { key: 'normal', label: 'Normal' },
+  { key: 'preferred', label: 'Preferred' },
+  { key: 'star', label: 'Star' },
+  { key: 'mall_seller', label: 'Mall Seller' },
+];
+const ADMIN_STATUS_OPTIONS = ['active', 'pending', 'suspended', 'rejected', 'blacklisted'];
 
 const StatusBadge = ({ status }) => {
   const colors = {
@@ -55,6 +69,14 @@ const getCancellationMessage = (order) => {
   );
   return userCancelHistory ? 'User cancelled this order.' : '';
 };
+
+const getHealthColor = (color) => {
+  if (color === 'green') return 'bg-green-100 text-green-800 border-green-200';
+  if (color === 'yellow') return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+  return 'bg-red-100 text-red-800 border-red-200';
+};
+
+const getTierLabel = (tier) => VENDOR_TIERS.find((item) => item.key === tier)?.label || tier || 'Normal';
 
 // Helper function to get bank info from either new or old schema
 const getBankInfo = (vendor) => {
@@ -143,15 +165,60 @@ export default function AdminVendorDetail() {
   const [actionNote, setActionNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
+  // management tab
+  const [management, setManagement] = useState(null);
+  const [managementLoading, setManagementLoading] = useState(false);
+  const [managementSaving, setManagementSaving] = useState(false);
+  const [statusForm, setStatusForm] = useState({
+    status: 'active',
+    note: '',
+    vacationModeOverride: false,
+  });
+  const [tierForm, setTierForm] = useState({ tier: 'normal', note: '' });
+  const [commissionForm, setCommissionForm] = useState({ rate: '', note: '' });
+  const [noticeForm, setNoticeForm] = useState({ subject: '', message: '', severity: 'notice' });
+  const [violationForm, setViolationForm] = useState({ reason: '', severity: 'warning', note: '' });
+
+  const syncManagementState = useCallback((profile) => {
+    if (!profile) return;
+    setManagement(profile);
+    setStatusForm({
+      status: profile.statusControl?.adminStatus || (profile.vendor?.status === 'approved' ? 'active' : profile.vendor?.status || 'active'),
+      note: profile.statusControl?.note || '',
+      vacationModeOverride: Boolean(profile.statusControl?.vacationModeOverride),
+    });
+    setTierForm({
+      tier: profile.tier?.current || 'normal',
+      note: profile.tier?.note || '',
+    });
+    setCommissionForm({
+      rate: profile.commissionOverride?.rate ?? '',
+      note: profile.commissionOverride?.note || '',
+    });
+  }, []);
+
+  const loadManagement = useCallback(async () => {
+    setManagementLoading(true);
+    try {
+      const res = await getAdminVendorManagementProfile(vendorId);
+      syncManagementState(res.data.data);
+    } catch {
+      toast.error('Failed to load vendor management data');
+    } finally {
+      setManagementLoading(false);
+    }
+  }, [vendorId, syncManagementState]);
+
   // ─── fetch vendor ─────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
       try {
-        const [vendorRes, productsRes, ordersRes, financeRes] = await Promise.all([
+        const [vendorRes, productsRes, ordersRes, financeRes, managementRes] = await Promise.all([
           getAdminVendorById(vendorId),
           getAdminVendorProducts(vendorId, { status: 'all', page: 1, limit: 5 }),
           getAdminVendorOrders(vendorId, { page: 1, limit: 5 }),
           getAdminVendorFinanceSummary(vendorId),
+          getAdminVendorManagementProfile(vendorId),
         ]);
 
         setVendor(vendorRes.data);
@@ -159,6 +226,7 @@ export default function AdminVendorDetail() {
         setOrders(ordersRes.data.vendorOrders || ordersRes.data.orders || []);
         setOrderTotal(ordersRes.data.total || ordersRes.data.vendorOrders?.length || ordersRes.data.orders?.length || 0);
         setFinanceSummary(financeRes.data.data);
+        syncManagementState(managementRes.data.data);
       } catch {
         toast.error('Failed to load vendor');
       } finally {
@@ -166,7 +234,11 @@ export default function AdminVendorDetail() {
       }
     };
     load();
-  }, [vendorId]);
+  }, [vendorId, syncManagementState]);
+
+  useEffect(() => {
+    if ((activeTab === 'Management' || activeTab === 'Performance') && !management) loadManagement();
+  }, [activeTab, management, loadManagement]);
 
   // ─── fetch products when Products tab is active ───────────────
   const loadProducts = useCallback(async () => {
@@ -435,6 +507,103 @@ export default function AdminVendorDetail() {
       toast.error('Action failed');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const refreshVendorAfterManagementChange = (profile) => {
+    syncManagementState(profile);
+    if (profile?.vendor) setVendor({ vendor: profile.vendor });
+  };
+
+  const handleStatusUpdate = async () => {
+    setManagementSaving(true);
+    try {
+      const res = await updateAdminVendorStatus(vendorId, statusForm);
+      refreshVendorAfterManagementChange(res.data.data);
+      toast.success('Vendor status updated');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to update vendor status');
+    } finally {
+      setManagementSaving(false);
+    }
+  };
+
+  const handleTierUpdate = async () => {
+    setManagementSaving(true);
+    try {
+      const res = await updateAdminVendorTier(vendorId, { ...tierForm, mode: 'manual' });
+      refreshVendorAfterManagementChange(res.data.data);
+      toast.success('Vendor tier updated');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to update vendor tier');
+    } finally {
+      setManagementSaving(false);
+    }
+  };
+
+  const handleAutoTier = async () => {
+    setManagementSaving(true);
+    try {
+      const res = await autoCalculateAdminVendorTier(vendorId);
+      refreshVendorAfterManagementChange(res.data.data);
+      toast.success('Vendor tier auto-calculated');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to auto-calculate vendor tier');
+    } finally {
+      setManagementSaving(false);
+    }
+  };
+
+  const handleCommissionUpdate = async () => {
+    setManagementSaving(true);
+    try {
+      const payload = {
+        commissionOverrideRate: commissionForm.rate === '' ? null : Number(commissionForm.rate),
+        note: commissionForm.note,
+      };
+      const res = await updateAdminVendorCommission(vendorId, payload);
+      refreshVendorAfterManagementChange(res.data.data);
+      toast.success('Commission override saved');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to save commission override');
+    } finally {
+      setManagementSaving(false);
+    }
+  };
+
+  const handleSendNotice = async () => {
+    if (!noticeForm.subject.trim() || !noticeForm.message.trim()) {
+      toast.error('Subject and message are required');
+      return;
+    }
+    setManagementSaving(true);
+    try {
+      const res = await sendAdminVendorNotice(vendorId, noticeForm);
+      refreshVendorAfterManagementChange(res.data.data);
+      setNoticeForm({ subject: '', message: '', severity: 'notice' });
+      toast.success('Notice sent to vendor');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to send notice');
+    } finally {
+      setManagementSaving(false);
+    }
+  };
+
+  const handleIssueViolation = async () => {
+    if (!violationForm.reason.trim()) {
+      toast.error('Violation reason is required');
+      return;
+    }
+    setManagementSaving(true);
+    try {
+      const res = await issueAdminVendorViolation(vendorId, violationForm);
+      refreshVendorAfterManagementChange(res.data.data);
+      setViolationForm({ reason: '', severity: 'warning', note: '' });
+      toast.success(res.data.message || 'Violation issued');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to issue violation');
+    } finally {
+      setManagementSaving(false);
     }
   };
 
@@ -800,6 +969,365 @@ export default function AdminVendorDetail() {
         )}
 
         {/* ── TAB: Products ─────────────────────────────────────── */}
+        {/* TAB: Management */}
+        {activeTab === 'Management' && (
+          <div className="space-y-6">
+            {managementLoading && !management ? (
+              <div className="rounded-xl bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
+                Loading management controls...
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                  <div className={`rounded-xl border p-5 shadow-sm ${getHealthColor(management?.health?.color)}`}>
+                    <p className="text-sm font-medium">Account Health</p>
+                    <p className="mt-2 text-4xl font-bold">{management?.health?.score ?? 0}</p>
+                    <p className="mt-1 text-xs">Warnings: {management?.warningStrikes ?? 0}/3</p>
+                  </div>
+                  <div className="rounded-xl bg-white p-5 shadow-sm">
+                    <p className="text-sm text-gray-500">Current Tier</p>
+                    <p className="mt-2 text-2xl font-bold text-gray-900">{getTierLabel(management?.tier?.current)}</p>
+                    <p className="mt-1 text-xs text-gray-500">Calculated: {getTierLabel(management?.tier?.calculated)}</p>
+                  </div>
+                  <div className="rounded-xl bg-white p-5 shadow-sm">
+                    <p className="text-sm text-gray-500">Commission Override</p>
+                    <p className="mt-2 text-2xl font-bold text-gray-900">
+                      {management?.commissionOverride?.rate != null ? `${management.commissionOverride.rate}%` : 'Default'}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">Overrides category default</p>
+                  </div>
+                  <div className="rounded-xl bg-white p-5 shadow-sm">
+                    <p className="text-sm text-gray-500">KYC Status</p>
+                    <p className="mt-2 text-2xl font-bold capitalize text-gray-900">{management?.kyc?.status || 'not submitted'}</p>
+                    <p className="mt-1 text-xs text-gray-500">{management?.kyc?.documents?.length || 0} document(s)</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                  <div className="rounded-xl bg-white p-6 shadow-sm">
+                    <h2 className="text-lg font-semibold text-gray-900">Vendor Status Control</h2>
+                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">Status</label>
+                        <select
+                          value={statusForm.status}
+                          onChange={(event) => setStatusForm((prev) => ({ ...prev, status: event.target.value }))}
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        >
+                          {ADMIN_STATUS_OPTIONS.map((status) => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <label className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={statusForm.vacationModeOverride}
+                          onChange={(event) => setStatusForm((prev) => ({ ...prev, vacationModeOverride: event.target.checked }))}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        Force vacation mode
+                      </label>
+                    </div>
+                    <textarea
+                      value={statusForm.note}
+                      onChange={(event) => setStatusForm((prev) => ({ ...prev, note: event.target.value }))}
+                      rows={3}
+                      placeholder="Admin note, suspension reason, or override context"
+                      className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    <button
+                      onClick={handleStatusUpdate}
+                      disabled={managementSaving}
+                      className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Save Status
+                    </button>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-6 shadow-sm">
+                    <h2 className="text-lg font-semibold text-gray-900">Tier Management</h2>
+                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">Tier</label>
+                        <select
+                          value={tierForm.tier}
+                          onChange={(event) => setTierForm((prev) => ({ ...prev, tier: event.target.value }))}
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        >
+                          {VENDOR_TIERS.map((tier) => (
+                            <option key={tier.key} value={tier.key}>{tier.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                        GMV {formatPrice(management?.performance?.gmv || 0)} - Health {management?.health?.score ?? 0}
+                      </div>
+                    </div>
+                    <textarea
+                      value={tierForm.note}
+                      onChange={(event) => setTierForm((prev) => ({ ...prev, note: event.target.value }))}
+                      rows={3}
+                      placeholder="Manual assignment note"
+                      className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <button
+                        onClick={handleTierUpdate}
+                        disabled={managementSaving}
+                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        Save Tier
+                      </button>
+                      <button
+                        onClick={handleAutoTier}
+                        disabled={managementSaving}
+                        className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                      >
+                        Auto-Calculate Tier
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-6 shadow-sm">
+                    <h2 className="text-lg font-semibold text-gray-900">Commission Override</h2>
+                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">Override rate (%)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="60"
+                          step="0.1"
+                          value={commissionForm.rate}
+                          onChange={(event) => setCommissionForm((prev) => ({ ...prev, rate: event.target.value }))}
+                          placeholder="Blank uses default"
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        />
+                      </div>
+                      <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                        Current: {management?.commissionOverride?.rate != null ? `${management.commissionOverride.rate}%` : 'Category default'}
+                      </div>
+                    </div>
+                    <textarea
+                      value={commissionForm.note}
+                      onChange={(event) => setCommissionForm((prev) => ({ ...prev, note: event.target.value }))}
+                      rows={3}
+                      placeholder="Why this vendor has a special commission rate"
+                      className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    <button
+                      onClick={handleCommissionUpdate}
+                      disabled={managementSaving}
+                      className="mt-4 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+                    >
+                      Save Commission
+                    </button>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-6 shadow-sm">
+                    <h2 className="text-lg font-semibold text-gray-900">Official Notice</h2>
+                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <input
+                        value={noticeForm.subject}
+                        onChange={(event) => setNoticeForm((prev) => ({ ...prev, subject: event.target.value }))}
+                        placeholder="Subject"
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 md:col-span-2"
+                      />
+                      <select
+                        value={noticeForm.severity}
+                        onChange={(event) => setNoticeForm((prev) => ({ ...prev, severity: event.target.value }))}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                      >
+                        <option value="notice">Notice</option>
+                        <option value="warning">Warning</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </div>
+                    <textarea
+                      value={noticeForm.message}
+                      onChange={(event) => setNoticeForm((prev) => ({ ...prev, message: event.target.value }))}
+                      rows={4}
+                      placeholder="Message sent to the vendor and saved in audit trail"
+                      className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    <button
+                      onClick={handleSendNotice}
+                      disabled={managementSaving}
+                      className="mt-4 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      Send Notice
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                  <div className="rounded-xl bg-white p-6 shadow-sm">
+                    <h2 className="text-lg font-semibold text-gray-900">Violation & Warning System</h2>
+                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <input
+                        value={violationForm.reason}
+                        onChange={(event) => setViolationForm((prev) => ({ ...prev, reason: event.target.value }))}
+                        placeholder="Reason"
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-2 focus:ring-red-500/20 md:col-span-2"
+                      />
+                      <select
+                        value={violationForm.severity}
+                        onChange={(event) => setViolationForm((prev) => ({ ...prev, severity: event.target.value }))}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                      >
+                        <option value="warning">Warning</option>
+                        <option value="major">Major</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </div>
+                    <textarea
+                      value={violationForm.note}
+                      onChange={(event) => setViolationForm((prev) => ({ ...prev, note: event.target.value }))}
+                      rows={3}
+                      placeholder="Evidence, policy reference, or internal note"
+                      className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                    />
+                    <button
+                      onClick={handleIssueViolation}
+                      disabled={managementSaving}
+                      className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                      Issue Warning Strike
+                    </button>
+
+                    <div className="mt-5 space-y-3">
+                      {(management?.violations || []).length === 0 ? (
+                        <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-500">No active violations.</p>
+                      ) : (
+                        management.violations.map((violation) => (
+                          <div key={violation._id} className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-semibold text-red-900">Strike {violation.strikeNumber}: {violation.reason}</p>
+                              <span className="rounded-full bg-white px-2 py-1 text-xs font-medium text-red-700">{violation.severity}</span>
+                            </div>
+                            {violation.note && <p className="mt-1 text-red-700">{violation.note}</p>}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-6 shadow-sm">
+                    <h2 className="text-lg font-semibold text-gray-900">Audit Trail</h2>
+                    <div className="mt-4 max-h-96 space-y-3 overflow-y-auto pr-1">
+                      {(management?.auditTrail || []).length === 0 ? (
+                        <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-500">No audit events yet.</p>
+                      ) : (
+                        management.auditTrail.map((event) => (
+                          <div key={event._id} className="rounded-lg border border-gray-200 p-3 text-sm">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-semibold text-gray-900">{event.message || event.action}</p>
+                              <span className="text-xs text-gray-500">
+                                {event.createdAt ? new Date(event.createdAt).toLocaleString() : ''}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">{event.action}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* TAB: Performance */}
+        {activeTab === 'Performance' && (() => {
+          const perf = management?.performance || {};
+          const trend = perf.trend || [];
+          const maxRevenue = Math.max(1, ...trend.map((item) => item.revenue || 0));
+
+          return (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+                {[
+                  ['GMV', formatPrice(perf.gmv || 0)],
+                  ['Orders', perf.totalOrders || 0],
+                  ['Response', `${management?.health?.responseRate ?? 0}%`],
+                  ['Late Ship', `${perf.lateShipmentRate || 0}%`],
+                  ['Cancel', `${perf.cancellationRate || 0}%`],
+                  ['Returns', `${perf.returnRate || 0}%`],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-white p-4 shadow-sm">
+                    <p className="text-sm text-gray-500">{label}</p>
+                    <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+                <div className="rounded-xl bg-white p-6 shadow-sm xl:col-span-2">
+                  <div className="mb-5 flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-900">7-Day Revenue & Orders Trend</h2>
+                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getHealthColor(management?.health?.color)}`}>
+                      Health {management?.health?.score ?? 0}
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {trend.map((item) => (
+                      <div key={item.key} className="grid grid-cols-[72px_1fr_96px] items-center gap-3 text-sm">
+                        <span className="text-gray-500">{item.label}</span>
+                        <div className="h-8 overflow-hidden rounded-lg bg-gray-100">
+                          <div
+                            className="h-full rounded-lg bg-blue-600"
+                            style={{ width: `${Math.max(6, ((item.revenue || 0) / maxRevenue) * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-right font-medium text-gray-900">
+                          {formatPrice(item.revenue || 0)} - {item.orders || 0}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-white p-6 shadow-sm">
+                  <h2 className="text-lg font-semibold text-gray-900">Top Products</h2>
+                  <div className="mt-4 space-y-3">
+                    {(perf.topProducts || []).length === 0 ? (
+                      <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-500">No product sales yet.</p>
+                    ) : (
+                      perf.topProducts.map((product) => (
+                        <div key={product.productId} className="rounded-lg border border-gray-200 p-3">
+                          <p className="text-sm font-semibold text-gray-900">{product.title}</p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {product.unitsSold} sold - {formatPrice(product.revenue || 0)}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-gray-900">Performance Benchmarks</h2>
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
+                  {[
+                    ['Average Review', perf.averageReviewScore ? `${perf.averageReviewScore}/5` : 'No reviews'],
+                    ['Cancelled Orders', perf.cancelledOrders || 0],
+                    ['Returned Orders', perf.returnedOrders || 0],
+                    ['Completed Orders', perf.completedOrders || 0],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-lg bg-gray-50 p-4">
+                      <p className="text-xs font-medium uppercase text-gray-500">{label}</p>
+                      <p className="mt-2 text-xl font-bold text-gray-900">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {activeTab === 'Products' && (
           <div>
             {/* Sub-filter */}

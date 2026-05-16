@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuth from '../../hooks/useAuth';
+import { bulkAdminVendorAction } from '../../services/api';
 
 const REQUEST_EMPTY = {
   pendingVendors: [],
@@ -16,6 +17,7 @@ const getStatusColor = (status) => {
     pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
     approved: 'bg-green-100 text-green-800 border-green-200',
     suspended: 'bg-red-100 text-red-800 border-red-200',
+    blacklisted: 'bg-black text-white border-black',
     rejected: 'bg-gray-100 text-gray-700 border-gray-200',
     paid: 'bg-green-100 text-green-800 border-green-200',
   };
@@ -340,25 +342,30 @@ const AdminVendorsEnhanced = () => {
     }
 
     try {
-      const token = await user.getIdToken();
-      await Promise.all(
-        selectedVendors.map((vendorId) =>
-          fetch(`${import.meta.env.VITE_API_URL}/vendors/${vendorId}/${action}`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(actionData),
-          })
-        )
-      );
-      toast.success(`${selectedVendors.length} vendors updated`);
+      const response = await bulkAdminVendorAction({
+        vendorIds: selectedVendors,
+        action,
+        note: actionData.note || actionData.reason || '',
+      });
+
+      if (action === 'export') {
+        const csv = response.data.data?.csv || '';
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `vendors-export-${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+        toast.success('Vendor export downloaded');
+      } else {
+        toast.success(response.data.message || `${selectedVendors.length} vendors updated`);
+      }
       setSelectedVendors([]);
       setShowBulkActions(false);
       await refreshAll();
-    } catch {
-      toast.error('Failed to perform bulk action');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to perform bulk action');
     }
   };
 
@@ -999,7 +1006,7 @@ const AdminVendorsEnhanced = () => {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {['all', 'pending', 'approved', 'suspended', 'rejected'].map((status) => (
+              {['all', 'pending', 'approved', 'suspended', 'blacklisted', 'rejected'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setFilter(status)}
@@ -1092,6 +1099,7 @@ const AdminVendorsEnhanced = () => {
                       <p>{vendor.phone || 'No phone'}</p>
                       <p>Joined {new Date(vendor.createdAt).toLocaleDateString()}</p>
                       <p>{(vendor.allowedCategoryIds || []).length} allowed categories</p>
+                      <p>Tier: {vendor.tier || 'normal'} - Warnings: {vendor.warningStrikes || 0}/3</p>
                     </div>
 
                     {vendor.status === 'pending' && (
@@ -1329,6 +1337,24 @@ const AdminVendorsEnhanced = () => {
                 className="w-full rounded-xl bg-blue-50 px-4 py-3 text-left text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
               >
                 Reactivate selected vendors
+              </button>
+              <button
+                onClick={() => {
+                  handleBulkAction('blacklist');
+                  setShowBulkActions(false);
+                }}
+                className="w-full rounded-xl bg-gray-900 px-4 py-3 text-left text-sm font-semibold text-white transition hover:bg-black"
+              >
+                Blacklist selected vendors
+              </button>
+              <button
+                onClick={() => {
+                  handleBulkAction('export');
+                  setShowBulkActions(false);
+                }}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              >
+                Export selected vendors as CSV
               </button>
             </div>
             <button

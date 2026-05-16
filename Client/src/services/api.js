@@ -252,6 +252,30 @@ export const getAdminVendorFinanceSummary = (vendorId, params = {}) =>
 export const getAdminVendorFinanceTransactions = (vendorId, params = {}) =>
   api.get(`/admin/vendors/${vendorId}/finance/transactions`, { params });
 
+export const getAdminVendorManagementProfile = (vendorId) =>
+  api.get(`/admin/vendors/${vendorId}/management`);
+
+export const updateAdminVendorStatus = (vendorId, data) =>
+  api.patch(`/admin/vendors/${vendorId}/status`, data);
+
+export const updateAdminVendorTier = (vendorId, data) =>
+  api.patch(`/admin/vendors/${vendorId}/tier`, data);
+
+export const autoCalculateAdminVendorTier = (vendorId) =>
+  api.post(`/admin/vendors/${vendorId}/tier/auto-calculate`);
+
+export const updateAdminVendorCommission = (vendorId, data) =>
+  api.patch(`/admin/vendors/${vendorId}/commission`, data);
+
+export const sendAdminVendorNotice = (vendorId, data) =>
+  api.post(`/admin/vendors/${vendorId}/notices`, data);
+
+export const issueAdminVendorViolation = (vendorId, data) =>
+  api.post(`/admin/vendors/${vendorId}/violations`, data);
+
+export const bulkAdminVendorAction = (data) =>
+  api.post("/admin/vendors/bulk", data);
+
 export const getAdminCommissionSummary = (params = {}) =>
   api.get("/admin/finance/commission-summary", { params });
 
