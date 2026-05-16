@@ -375,6 +375,9 @@ export const getVendorFinanceTransactions = (params = {}) =>
 export const getVendorMarketingItems = (params = {}) =>
   api.get("/vendors/marketing/items", { params });
 
+export const getVendorMarketingAnalytics = (params = {}) =>
+  api.get("/vendors/marketing/analytics", { params });
+
 export const createVendorMarketingItem = (data) =>
   api.post("/vendors/marketing/items", data);
 
@@ -391,10 +394,15 @@ export const reviewAdminVendorMarketingItem = (id, data) =>
   api.patch(`/admin/vendor-marketing/${id}/review`, data);
 export const getCampaignVoucherAnalytics = (params = {}) =>
   api.get("/admin/vendor-marketing/analytics", { params });
+export const getVendorCampaigns = () =>
+  api.get("/campaigns/vendor/available");
 export const joinPlatformCampaign = (campaignId) =>
   api.post(`/campaigns/${campaignId}/join`);
 export const getMyCampaignJoins = () =>
   api.get("/campaigns/vendor/joins");
+
+export const getVendorCatalogProducts = (params = {}) =>
+  api.get("/vendor/products", { params });
 
 export const getPublicVendorMarketingItems = (vendorId, params = {}) =>
   api.get(`/vendors/${vendorId}/public-marketing`, { params });

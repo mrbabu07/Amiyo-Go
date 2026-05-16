@@ -65,6 +65,7 @@ router.get("/marketing/items", verifyToken, requireRole("vendor"), vendorMarketi
 router.post("/marketing/items", verifyToken, requireRole("vendor"), vendorMarketingController.createVendorMarketingItem);
 router.patch("/marketing/items/:id", verifyToken, requireRole("vendor"), vendorMarketingController.updateVendorMarketingItem);
 router.delete("/marketing/items/:id", verifyToken, requireRole("vendor"), vendorMarketingController.deleteVendorMarketingItem);
+router.get("/marketing/analytics", verifyToken, requireRole("vendor"), vendorMarketingController.getCampaignVoucherAnalytics);
 
 // Vendor shop status management
 router.get("/shop/status", verifyToken, requireRole("vendor"), vendorController.getShopStatus);

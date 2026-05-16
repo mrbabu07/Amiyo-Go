@@ -23,6 +23,19 @@ const percent = (part, total) => {
   return Math.round((Number(part || 0) / Number(total || 0)) * 10000) / 100;
 };
 
+const getVendorEntityType = (type) => {
+  const map = {
+    campaign: "vendor_campaign",
+    campaign_nomination: "vendor_campaign",
+    voucher: "vendor_voucher",
+    bundle: "vendor_bundle",
+    free_shipping: "vendor_free_shipping",
+    seller_pick: "vendor_seller_pick",
+    promotion: "vendor_promotion",
+  };
+  return map[type] || "vendor_promotion";
+};
+
 const rebuildVoucherAnalytics = async (db, itemId) => {
   await ensureIndexes(db);
   const objectId = toObjectId(itemId);
@@ -39,7 +52,7 @@ const rebuildVoucherAnalytics = async (db, itemId) => {
   const usedCount = Number(item.usedCount || 0);
   const conversionBase = clicks || views;
   const analytics = {
-    entityType: item.type === "campaign" ? "vendor_campaign" : "vendor_voucher",
+    entityType: getVendorEntityType(item.type),
     entityId: objectId,
     vendorId: normalizeId(item.vendorId),
     campaignId: item.campaignId || null,
@@ -49,6 +62,8 @@ const rebuildVoucherAnalytics = async (db, itemId) => {
     viewCount: Number(item.viewCount || 0) || views,
     clickCount: Number(item.clickCount || 0) || clicks,
     usedCount,
+    revenueGenerated: Number(item.revenueGenerated || 0),
+    discountGiven: Number(item.discountGiven || 0),
     conversionRate: percent(usedCount, conversionBase),
     updatedAt: new Date(),
   };
@@ -162,7 +177,7 @@ const listAnalytics = async ({ db, vendorId = "", entityType = "" }) => {
   await ensureIndexes(db);
 
   const voucherQuery = {
-    type: { $in: ["voucher", "campaign"] },
+    type: { $in: ["voucher", "campaign", "campaign_nomination", "bundle", "free_shipping", "seller_pick", "promotion"] },
   };
   if (vendorId) voucherQuery.vendorId = normalizeId(vendorId);
 
@@ -201,9 +216,19 @@ const listAnalytics = async ({ db, vendorId = "", entityType = "" }) => {
       acc.usedCount += Number(row.usedCount || 0);
       acc.orderCount += Number(row.orderCount || 0);
       acc.vendorJoinCount += Number(row.vendorJoinCount || 0);
+      acc.revenueGenerated += Number(row.revenueGenerated || 0);
+      acc.discountGiven += Number(row.discountGiven || 0);
       return acc;
     },
-    { viewCount: 0, clickCount: 0, usedCount: 0, orderCount: 0, vendorJoinCount: 0 },
+    {
+      viewCount: 0,
+      clickCount: 0,
+      usedCount: 0,
+      orderCount: 0,
+      vendorJoinCount: 0,
+      revenueGenerated: 0,
+      discountGiven: 0,
+    },
   );
   summary.conversionRate = percent(summary.usedCount + summary.orderCount, summary.clickCount || summary.viewCount);
 

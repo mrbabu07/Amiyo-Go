@@ -149,10 +149,21 @@ exports.listVendorCampaigns = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: campaigns.map((campaign) => ({
-        ...campaign,
-        joined: joinedCampaignIds.has(campaign._id.toString()),
-      })),
+      data: campaigns.map((campaign) => {
+        const eligibleCategories = campaign.eligibleCategories || [];
+        return {
+          ...campaign,
+          joinDeadline: campaign.startDate,
+          eligibilityRules: {
+            eligibleCategories,
+            eligibleCategoryCount: eligibleCategories.length,
+            maxProductsPerVendor: campaign.maxProductsPerVendor,
+            discountPercentage: campaign.discountPercentage,
+            campaignPriceRule: "Campaign price must be less than or equal to regular price.",
+          },
+          joined: joinedCampaignIds.has(campaign._id.toString()),
+        };
+      }),
     });
   } catch (error) {
     res.status(500).json({

@@ -39,12 +39,22 @@ const buildDb = () => {
     updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
   };
 
+  const analyticsCollection = {
+    createIndex: jest.fn().mockResolvedValue(undefined),
+    countDocuments: jest.fn().mockResolvedValue(0),
+    updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+    findOne: jest.fn().mockResolvedValue(null),
+  };
+
   const db = {
     collection: jest.fn((name) => {
       if (name === "orders") return ordersCollection;
       if (name === "categories") return categoriesCollection;
       if (name === "coupons") return couponsCollection;
       if (name === "vendorMarketingItems") return voucherCollection;
+      if (["campaignVendorJoins", "vendorMarketingEvents", "campaignVoucherAnalytics"].includes(name)) {
+        return analyticsCollection;
+      }
       throw new Error(`Unexpected collection: ${name}`);
     }),
   };

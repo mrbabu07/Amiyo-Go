@@ -24,7 +24,7 @@ const getApprovedVendorVoucher = async (db, code) => {
   });
 };
 
-const calculateVendorVoucherDiscount = ({ voucher, items = [] }) => {
+const calculateVendorVoucherDiscount = ({ voucher, items = [], deliveryCharge = 0 }) => {
   if (!voucher) {
     return {
       valid: false,
@@ -66,11 +66,16 @@ const calculateVendorVoucherDiscount = ({ voucher, items = [] }) => {
   let discountAmount = 0;
   if (voucher.discountType === "percentage") {
     discountAmount = (vendorSubtotal * Number(voucher.discountValue || 0)) / 100;
+  } else if (voucher.discountType === "free_shipping") {
+    discountAmount = Number(deliveryCharge || 0);
   } else {
     discountAmount = Number(voucher.discountValue || 0);
   }
 
-  discountAmount = round2(Math.min(discountAmount, vendorSubtotal));
+  const maxDiscount = voucher.discountType === "free_shipping"
+    ? Number(deliveryCharge || 0)
+    : vendorSubtotal;
+  discountAmount = round2(Math.min(discountAmount, maxDiscount));
 
   return {
     valid: discountAmount > 0,

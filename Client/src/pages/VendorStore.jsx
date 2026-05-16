@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import ProductCard from "../components/ProductCard";
@@ -10,6 +10,18 @@ import { getPublicVendorMarketingItems, recordVendorMarketingEvent } from "../se
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const CHECKOUT_VOUCHER_KEY = "hnilabazar_selected_voucher";
+
+const getStoreProductId = (product) =>
+  product?._id?.toString?.() || String(product?._id || "");
+
+const getMarketingProductIds = (item) => {
+  const ids = [];
+  if (Array.isArray(item.productIds)) ids.push(...item.productIds);
+  if (Array.isArray(item.selectedProducts)) {
+    ids.push(...item.selectedProducts.map((product) => product.productId || product._id));
+  }
+  return ids.map((id) => String(id || "").trim()).filter(Boolean);
+};
 
 export default function VendorStore() {
   const { vendorId } = useParams();
@@ -35,6 +47,29 @@ export default function VendorStore() {
   const [followLoading, setFollowLoading] = useState(false);
   const [copiedVoucherCode, setCopiedVoucherCode] = useState("");
 
+  const sellerPickProductIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          storeMarketing
+            .filter((item) => item.type === "seller_pick")
+            .flatMap(getMarketingProductIds),
+        ),
+      ).slice(0, 8),
+    [storeMarketing],
+  );
+
+  const sellerPickRank = useMemo(
+    () => new Map(sellerPickProductIds.map((id, index) => [id, index])),
+    [sellerPickProductIds],
+  );
+
+  const sellerPickProducts = useMemo(() => {
+    if (sellerPickProductIds.length === 0 || products.length === 0) return [];
+    const productsById = new Map(products.map((product) => [getStoreProductId(product), product]));
+    return sellerPickProductIds.map((id) => productsById.get(id)).filter(Boolean);
+  }, [products, sellerPickProductIds]);
+
   useEffect(() => {
     fetchVendorInfo();
     fetchVendorProducts();
@@ -46,7 +81,7 @@ export default function VendorStore() {
     if (products.length > 0) {
       applyFilters();
     }
-  }, [sortBy, selectedCategory, priceRange, products]);
+  }, [sortBy, selectedCategory, priceRange, products, sellerPickRank]);
 
   const fetchVendorInfo = async () => {
     try {
@@ -244,6 +279,19 @@ export default function VendorStore() {
         break;
     }
 
+    if (sellerPickRank.size > 0) {
+      filtered.sort((a, b) => {
+        const aRank = sellerPickRank.has(getStoreProductId(a))
+          ? sellerPickRank.get(getStoreProductId(a))
+          : Number.POSITIVE_INFINITY;
+        const bRank = sellerPickRank.has(getStoreProductId(b))
+          ? sellerPickRank.get(getStoreProductId(b))
+          : Number.POSITIVE_INFINITY;
+        if (aRank === bRank) return 0;
+        return aRank - bRank;
+      });
+    }
+
     setFilteredProducts(filtered);
   };
 
@@ -295,7 +343,7 @@ export default function VendorStore() {
     }
   };
 
-  const useVoucherNow = (voucher) => {
+  const handleUseVoucherNow = (voucher) => {
     recordVendorMarketingEvent(vendorId, voucher._id, { event: "click" }).catch(() => null);
     const selectedVoucher = {
       code: voucher.code,
@@ -323,7 +371,7 @@ export default function VendorStore() {
   };
 
   const voucherItems = storeMarketing.filter((item) => item.type === "voucher");
-  const promotionItems = storeMarketing.filter((item) => item.type !== "voucher");
+  const promotionItems = storeMarketing.filter((item) => !["voucher", "seller_pick"].includes(item.type));
 
   if (loading) {
     return (
@@ -641,7 +689,9 @@ export default function VendorStore() {
                           <div className="rounded-xl bg-white px-3 py-2 text-right shadow-sm dark:bg-gray-800">
                             <p className="text-xs text-gray-500 dark:text-gray-400">Save</p>
                             <p className="text-lg font-black text-orange-600 dark:text-orange-300">
-                              {voucher.discountType === "percentage"
+                              {voucher.discountType === "free_shipping"
+                                ? "Free ship"
+                                : voucher.discountType === "percentage"
                                 ? `${voucher.discountValue}%`
                                 : formatPrice(voucher.discountValue || 0)}
                             </p>
@@ -671,7 +721,7 @@ export default function VendorStore() {
                             {copiedVoucherCode === voucher.code ? "Copied" : "Copy Code"}
                           </button>
                           <button
-                            onClick={() => useVoucherNow(voucher)}
+                            onClick={() => handleUseVoucherNow(voucher)}
                             className="rounded-lg border border-orange-200 bg-white px-4 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:bg-gray-900 dark:text-orange-300 dark:hover:bg-orange-950/30"
                           >
                             Use Now
@@ -829,6 +879,29 @@ export default function VendorStore() {
 
           {/* Products Grid */}
           <div className="flex-1">
+            {!productsLoading && sellerPickProducts.length > 0 && (
+              <div className="mb-8">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                      Seller Picks
+                    </h2>
+                    <p className="text-gray-600 dark:text-gray-400 mt-1">
+                      Featured by {vendor.shopName}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
+                    {sellerPickProducts.length} pinned
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                  {sellerPickProducts.map((product) => (
+                    <ProductCard key={product._id} product={product} />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Products Header */}
             <div className="flex items-center justify-between mb-6">
               <div>

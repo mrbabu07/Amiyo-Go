@@ -3,6 +3,8 @@ const {
   reviewAdminMarketingItem,
   listPublicVendorMarketingItems,
 } = require("../../controllers/vendorMarketingController");
+const Campaign = require("../../models/Campaign");
+const { ObjectId } = require("mongodb");
 
 const createRes = () => {
   const res = {};
@@ -14,6 +16,10 @@ const createRes = () => {
 describe("vendorMarketingController", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   test("createVendorMarketingItem rejects duplicate pending/approved voucher codes for the same vendor", async () => {
@@ -50,6 +56,73 @@ describe("vendorMarketingController", () => {
     expect(res.json).toHaveBeenCalledWith({
       success: false,
       error: "This voucher code is already in use for your store.",
+    });
+  });
+
+  test("createVendorMarketingItem rejects campaign nominations above regular price", async () => {
+    const vendorId = new ObjectId();
+    const productId = new ObjectId();
+    const campaignId = new ObjectId();
+    const categoryId = new ObjectId();
+    const productFind = jest.fn(() => ({
+      project: jest.fn(() => ({
+        toArray: jest.fn().mockResolvedValue([
+          {
+            _id: productId,
+            vendorId,
+            title: "Cotton Panjabi",
+            price: 1000,
+            stock: 12,
+            categoryId,
+          },
+        ]),
+      })),
+    }));
+
+    jest.spyOn(Campaign, "findById").mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        _id: campaignId,
+        name: "Eid Sale",
+        status: "Scheduled",
+        eligibleCategories: [categoryId],
+        maxProductsPerVendor: 5,
+      }),
+    });
+
+    const req = {
+      body: {
+        type: "campaign_nomination",
+        campaignId: campaignId.toString(),
+        description: "Campaign product nomination",
+        startDate: new Date(Date.now() + 60_000).toISOString(),
+        endDate: new Date(Date.now() + 120_000).toISOString(),
+        productNominations: [
+          {
+            productId: productId.toString(),
+            campaignPrice: 1100,
+          },
+        ],
+      },
+      user: { vendorId: vendorId.toString(), _id: "user-1", email: "seller@example.com" },
+      app: {
+        locals: {
+          db: {
+            collection: jest.fn((name) => {
+              if (name === "products") return { find: productFind };
+              return {};
+            }),
+          },
+        },
+      },
+    };
+    const res = createRes();
+
+    await createVendorMarketingItem(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: "Cotton Panjabi campaign price must be less than or equal to regular price.",
     });
   });
 

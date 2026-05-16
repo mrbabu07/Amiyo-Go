@@ -57,6 +57,23 @@ describe("vendorMarketingVoucher utils", () => {
     expect(result.matchingItems).toHaveLength(1);
   });
 
+  test("calculateVendorVoucherDiscount caps free shipping vouchers to delivery charge", () => {
+    const result = calculateVendorVoucherDiscount({
+      voucher: {
+        _id: "voucher-ship",
+        vendorId: "vendor-1",
+        discountType: "free_shipping",
+        minOrderAmount: 100,
+      },
+      items: [{ vendorId: "vendor-1", price: 250, quantity: 1 }],
+      deliveryCharge: 60,
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.discountAmount).toBe(60);
+    expect(result.vendorSubtotal).toBe(250);
+  });
+
   test("calculateVendorVoucherDiscount blocks mismatched vendor carts and exhausted vouchers", () => {
     const mismatch = calculateVendorVoucherDiscount({
       voucher: {

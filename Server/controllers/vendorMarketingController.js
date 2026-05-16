@@ -3,8 +3,18 @@ const Campaign = require("../models/Campaign");
 const { normalizeId } = require("../utils/vendorMarketingVoucher");
 const campaignVoucherAnalyticsService = require("../services/campaignVoucherAnalyticsService");
 
-const MARKETING_TYPES = ["promotion", "voucher", "campaign"];
-const DISCOUNT_TYPES = ["percentage", "fixed"];
+const MARKETING_TYPES = [
+  "promotion",
+  "voucher",
+  "campaign",
+  "campaign_nomination",
+  "bundle",
+  "free_shipping",
+  "seller_pick",
+];
+const DISCOUNT_TYPES = ["percentage", "fixed", "free_shipping"];
+const BUNDLE_TYPES = ["quantity_discount", "fixed_bundle"];
+const MAX_SELLER_PICKS = 8;
 
 const parseOptionalNumber = (value) => {
   if (value === undefined || value === null || value === "") return null;
@@ -34,6 +44,140 @@ const getVendorIdentity = (req) => {
   };
 };
 
+const normalizeStringArray = (value) => {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(
+    value
+      .map((item) => String(item || "").trim())
+      .filter(Boolean),
+  )];
+};
+
+const toObjectIds = (ids = []) =>
+  normalizeStringArray(ids)
+    .filter((id) => ObjectId.isValid(id))
+    .map((id) => new ObjectId(id));
+
+const productBelongsToVendor = (product, vendorId) =>
+  product?.vendorId && product.vendorId.toString() === vendorId.toString();
+
+const findVendorProducts = async (db, vendorId, productIds = []) => {
+  const ids = toObjectIds(productIds);
+  if (ids.length === 0) return [];
+  const vendorValues = [vendorId.toString()];
+  if (ObjectId.isValid(vendorId)) {
+    vendorValues.push(new ObjectId(vendorId));
+  }
+
+  return db
+    .collection("products")
+    .find({
+      _id: { $in: ids },
+      vendorId: { $in: vendorValues },
+    })
+    .project({
+      _id: 1,
+      title: 1,
+      price: 1,
+      images: 1,
+      stock: 1,
+      sku: 1,
+      variants: 1,
+      categoryId: 1,
+      approvalStatus: 1,
+      isActive: 1,
+    })
+    .toArray();
+};
+
+const summarizeProduct = (product) => ({
+  productId: product._id.toString(),
+  title: product.title || "Product",
+  regularPrice: Number(product.price || 0),
+  image: product.images?.[0] || "",
+  sku: product.sku || product.variants?.[0]?.sku || "",
+  stock: Number(product.stock || 0),
+});
+
+const normalizeProductNominations = async ({ db, vendorId, campaign, nominations }) => {
+  if (!Array.isArray(nominations)) return { errors: ["Select at least one product to nominate."], products: [] };
+
+  const trimmed = nominations
+    .map((item) => ({
+      productId: String(item.productId || "").trim(),
+      variantSku: String(item.variantSku || "").trim(),
+      campaignPrice: Number(item.campaignPrice),
+    }))
+    .filter((item) => item.productId);
+
+  if (trimmed.length === 0) {
+    return { errors: ["Select at least one product to nominate."], products: [] };
+  }
+
+  const uniqueProductIds = normalizeStringArray(trimmed.map((item) => item.productId));
+  const products = await findVendorProducts(db, vendorId, uniqueProductIds);
+  const productMap = new Map(products.map((product) => [product._id.toString(), product]));
+  const errors = [];
+
+  if (products.length !== uniqueProductIds.length) {
+    errors.push("One or more selected products were not found in your catalog.");
+  }
+
+  if (campaign?.maxProductsPerVendor && trimmed.length > Number(campaign.maxProductsPerVendor)) {
+    errors.push(`This campaign allows up to ${campaign.maxProductsPerVendor} products per vendor.`);
+  }
+
+  const eligibleCategories = (campaign?.eligibleCategories || []).map((id) => id?.toString?.() || String(id));
+  const normalized = [];
+  trimmed.forEach((item) => {
+    const product = productMap.get(item.productId);
+    if (!product) return;
+
+    if (!productBelongsToVendor(product, vendorId)) {
+      errors.push(`${product.title || "Product"} does not belong to this vendor.`);
+      return;
+    }
+
+    if (eligibleCategories.length > 0) {
+      const categoryId = product.categoryId?.toString?.() || String(product.categoryId || "");
+      if (!eligibleCategories.includes(categoryId)) {
+        errors.push(`${product.title || "Product"} is not in an eligible campaign category.`);
+      }
+    }
+
+    const variant = item.variantSku
+      ? (product.variants || []).find((row) => row.sku === item.variantSku)
+      : null;
+    const regularPrice = Number(variant?.price || product.price || 0);
+
+    if (!Number.isFinite(item.campaignPrice) || item.campaignPrice <= 0) {
+      errors.push(`${product.title || "Product"} needs a valid campaign price.`);
+      return;
+    }
+
+    if (item.campaignPrice > regularPrice) {
+      errors.push(`${product.title || "Product"} campaign price must be less than or equal to regular price.`);
+      return;
+    }
+
+    normalized.push({
+      productId: product._id.toString(),
+      title: product.title || "Product",
+      sku: item.variantSku || product.sku || product.variants?.[0]?.sku || "",
+      variantSku: item.variantSku || "",
+      regularPrice,
+      campaignPrice: item.campaignPrice,
+      stock: Number(variant?.stock ?? product.stock ?? 0),
+      image: variant?.image || product.images?.[0] || "",
+      discountPercentage: regularPrice > 0
+        ? Math.round(((regularPrice - item.campaignPrice) / regularPrice) * 10000) / 100
+        : 0,
+    });
+  });
+
+  return { errors, products: normalized };
+};
+
 const normalizeItem = (item) => ({
   ...item,
   _id: item._id?.toString?.() || item._id,
@@ -43,7 +187,8 @@ const normalizeItem = (item) => ({
 
 const serializeItems = (items = []) => items.map(normalizeItem);
 
-const validateMarketingPayload = async (payload) => {
+const validateMarketingPayload = async (payload, context = {}) => {
+  const { db, vendorId } = context;
   const type = String(payload.type || "").trim().toLowerCase();
   const title = String(payload.title || "").trim();
   const description = String(payload.description || "").trim();
@@ -58,18 +203,24 @@ const validateMarketingPayload = async (payload) => {
   const endDate = payload.endDate ? new Date(payload.endDate) : null;
   const campaignId = payload.campaignId ? String(payload.campaignId).trim() : "";
   const placement = String(payload.placement || "").trim();
+  const productIds = normalizeStringArray(payload.productIds);
+  const bundleType = String(payload.bundleType || "quantity_discount").trim().toLowerCase();
+  const bundleQuantity = parseOptionalInteger(payload.bundleQuantity);
+  const bundleFixedPrice = parseOptionalNumber(payload.bundleFixedPrice);
   const errors = [];
   let linkedCampaign = null;
+  let selectedProducts = [];
+  let nominatedProducts = [];
 
   if (!MARKETING_TYPES.includes(type)) {
     errors.push("Invalid marketing type.");
   }
 
-  if (type !== "campaign" && !title) {
+  if (!["campaign", "campaign_nomination"].includes(type) && !title) {
     errors.push("Title is required.");
   }
 
-  if (!description) {
+  if (!description && !["seller_pick"].includes(type)) {
     errors.push("Description is required.");
   }
 
@@ -85,12 +236,12 @@ const validateMarketingPayload = async (payload) => {
     errors.push("End date must be after start date.");
   }
 
-  if (type === "promotion" || type === "voucher") {
+  if (type === "promotion" || type === "voucher" || type === "bundle") {
     if (!DISCOUNT_TYPES.includes(discountType)) {
-      errors.push('Discount type must be either "percentage" or "fixed".');
+      errors.push('Discount type must be "percentage", "fixed", or "free_shipping".');
     }
 
-    if (Number.isNaN(discountValue) || discountValue <= 0) {
+    if (discountType !== "free_shipping" && (Number.isNaN(discountValue) || discountValue <= 0)) {
       errors.push("Discount value must be greater than zero.");
     }
 
@@ -113,7 +264,42 @@ const validateMarketingPayload = async (payload) => {
     }
   }
 
-  if (type === "campaign") {
+  if (["bundle", "free_shipping", "seller_pick"].includes(type)) {
+    if (productIds.length === 0 && type !== "free_shipping") {
+      errors.push("Select at least one product.");
+    }
+
+    if (productIds.length > 0 && db && vendorId) {
+      selectedProducts = await findVendorProducts(db, vendorId, productIds);
+      if (selectedProducts.length !== productIds.length) {
+        errors.push("One or more selected products were not found in your catalog.");
+      }
+    }
+  }
+
+  if (type === "seller_pick" && productIds.length > MAX_SELLER_PICKS) {
+    errors.push(`Seller picks can include up to ${MAX_SELLER_PICKS} products.`);
+  }
+
+  if (type === "free_shipping") {
+    if (minOrderAmount === null || Number.isNaN(minOrderAmount) || minOrderAmount < 0) {
+      errors.push("Free shipping minimum order must be zero or more.");
+    }
+  }
+
+  if (type === "bundle") {
+    if (!BUNDLE_TYPES.includes(bundleType)) {
+      errors.push("Invalid bundle type.");
+    }
+    if (bundleType === "quantity_discount" && (bundleQuantity === null || Number.isNaN(bundleQuantity) || bundleQuantity < 2)) {
+      errors.push("Quantity bundle must require at least 2 units.");
+    }
+    if (bundleType === "fixed_bundle" && (Number.isNaN(bundleFixedPrice) || bundleFixedPrice <= 0)) {
+      errors.push("Bundle fixed price must be greater than zero.");
+    }
+  }
+
+  if (type === "campaign" || type === "campaign_nomination") {
     if (campaignId) {
       if (!ObjectId.isValid(campaignId)) {
         errors.push("Selected campaign is invalid.");
@@ -123,6 +309,10 @@ const validateMarketingPayload = async (payload) => {
           errors.push("Selected campaign was not found.");
         }
       }
+    }
+
+    if (type === "campaign_nomination" && !campaignId) {
+      errors.push("Select a platform campaign.");
     }
 
     if (!campaignId && !title) {
@@ -144,6 +334,21 @@ const validateMarketingPayload = async (payload) => {
     ) {
       errors.push("Requested discount must be between 1 and 100.");
     }
+
+    if (type === "campaign_nomination" && db && vendorId && linkedCampaign) {
+      if (!["Scheduled", "Active"].includes(linkedCampaign.status)) {
+        errors.push("Only scheduled or active campaigns can accept product nominations.");
+      }
+
+      const nominationResult = await normalizeProductNominations({
+        db,
+        vendorId,
+        campaign: linkedCampaign,
+        nominations: payload.productNominations,
+      });
+      errors.push(...nominationResult.errors);
+      nominatedProducts = nominationResult.products;
+    }
   }
 
   return {
@@ -162,6 +367,12 @@ const validateMarketingPayload = async (payload) => {
       placement,
       campaignId: linkedCampaign?._id?.toString?.() || campaignId || null,
       campaignName: linkedCampaign?.name || "",
+      productIds,
+      selectedProducts: selectedProducts.map(summarizeProduct),
+      productNominations: nominatedProducts,
+      bundleType,
+      bundleQuantity,
+      bundleFixedPrice,
       requestedDiscountPercentage,
       expectedProducts,
       status: "pending",
@@ -200,7 +411,10 @@ exports.createVendorMarketingItem = async (req, res) => {
   try {
     const db = req.app.locals.db;
     const identity = getVendorIdentity(req);
-    const { errors, normalized } = await validateMarketingPayload(req.body);
+    const { errors, normalized } = await validateMarketingPayload(req.body, {
+      db,
+      vendorId: identity.vendorId,
+    });
 
     if (errors.length > 0) {
       return res.status(400).json({ success: false, error: errors[0] });
@@ -226,8 +440,12 @@ exports.createVendorMarketingItem = async (req, res) => {
       ...normalized,
       ...identity,
       adminNotes: "",
-      usedCount: normalized.type === "voucher" ? 0 : null,
-      usedBy: normalized.type === "voucher" ? [] : null,
+      usedCount: ["voucher", "campaign_nomination", "bundle", "free_shipping"].includes(normalized.type) ? 0 : null,
+      usedBy: ["voucher", "campaign_nomination", "bundle", "free_shipping"].includes(normalized.type) ? [] : null,
+      viewCount: 0,
+      clickCount: 0,
+      revenueGenerated: 0,
+      discountGiven: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -277,6 +495,9 @@ exports.updateVendorMarketingItem = async (req, res) => {
       ...existing,
       ...req.body,
       type: existing.type,
+    }, {
+      db,
+      vendorId,
     });
 
     if (errors.length > 0) {
@@ -541,9 +762,12 @@ exports.recordPublicVendorMarketingEvent = async (req, res) => {
 
 exports.getCampaignVoucherAnalytics = async (req, res) => {
   try {
+    const requestVendorId = req.user?.role === "vendor"
+      ? req.user.vendorId?.toString?.() || String(req.user.vendorId || "")
+      : req.query.vendorId || "";
     const analytics = await campaignVoucherAnalyticsService.listAnalytics({
       db: req.app.locals.db,
-      vendorId: req.query.vendorId || "",
+      vendorId: requestVendorId,
       entityType: req.query.entityType || "",
     });
 

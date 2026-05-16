@@ -188,6 +188,7 @@ class Order {
 
     // Use calculated subtotal (secure)
     const subtotal = calculatedSubtotal;
+    const deliveryCharge = Number(orderData.deliveryCharge || 0);
     // Apply coupon discount if provided
     let couponDiscountAmount = 0;
     let couponApplied = null;
@@ -247,6 +248,7 @@ class Order {
             const voucherValidation = calculateVendorVoucherDiscount({
               voucher: vendorVoucher,
               items: orderData.products || [],
+              deliveryCharge,
             });
 
             if (voucherValidation.valid) {
@@ -255,11 +257,17 @@ class Order {
               await this.collection.db.collection("vendorMarketingItems").updateOne(
                 { _id: vendorVoucher._id },
                 {
-                  $inc: { usedCount: 1 },
+                  $inc: {
+                    usedCount: 1,
+                    revenueGenerated: voucherValidation.vendorSubtotal || 0,
+                    discountGiven: couponDiscountAmount || 0,
+                  },
                   $push: {
                     usedBy: {
                       userId: orderData.userId || null,
                       usedAt: new Date(),
+                      orderValue: voucherValidation.vendorSubtotal || 0,
+                      discountAmount: couponDiscountAmount || 0,
                     },
                   },
                   $set: { updatedAt: new Date() },
@@ -299,8 +307,6 @@ class Order {
 
     // Calculate order amount after discounts (before delivery)
     const orderAmountAfterDiscount = subtotal - totalDiscountAmount;
-
-    const deliveryCharge = Number(orderData.deliveryCharge || 0);
 
     // Calculate final total (secure calculation)
     const finalTotal = subtotal - totalDiscountAmount + deliveryCharge;
