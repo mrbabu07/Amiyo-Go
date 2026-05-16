@@ -1,10 +1,33 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import axios from "axios";
+import {
+  ArrowLeft,
+  Clock3,
+  ImagePlus,
+  MessageCircle,
+  Package,
+  Plus,
+  Search,
+  Send,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Ticket,
+  UserRound,
+  X,
+} from "lucide-react";
 import useAuth from "../../hooks/useAuth";
-import { auth } from "../../firebase/firebase.config";
+import {
+  createVendorMessageTemplate,
+  createVendorQuickReply,
+  getVendorChatConversations,
+  getVendorConversationMessages,
+  getVendorSupportTools,
+  markVendorConversationRead,
+  sendVendorChatMessage,
+} from "../../services/api";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const numberFormat = new Intl.NumberFormat("en-US");
 
 export default function VendorMessages() {
   const { user } = useAuth();
@@ -15,476 +38,779 @@ export default function VendorMessages() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [tools, setTools] = useState({ quickReplies: [], templates: [], responseMetrics: null });
+  const [responseMetrics, setResponseMetrics] = useState(null);
+  const [quickReplyDraft, setQuickReplyDraft] = useState({ title: "", message: "" });
+  const [templateDraft, setTemplateDraft] = useState({ title: "", body: "" });
+  const [savingTool, setSavingTool] = useState("");
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (user) {
-      fetchConversations();
-    }
+    if (!user) return;
+    const loadPageData = async () => {
+      setLoading(true);
+      try {
+        await Promise.all([fetchConversations(), fetchSupportTools()]);
+      } catch (error) {
+        console.error("Failed to load vendor messages:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPageData();
   }, [user]);
 
   useEffect(() => {
-    if (selected) {
-      fetchMessages(selected._id);
-      markAsRead(selected._id);
-    }
-  }, [selected]);
+    if (!selected?._id) return;
+    fetchMessages(selected._id);
+    markAsRead(selected._id);
+  }, [selected?._id]);
 
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const activeMetrics = responseMetrics || tools.responseMetrics || {};
+  const totalUnread = conversations.reduce((sum, conversation) => sum + (conversation.unreadCount || 0), 0);
+  const activeConversations = conversations.filter((conversation) => conversation.status !== "closed").length;
+
+  const filteredConversations = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return conversations;
+
+    return conversations.filter((conversation) => {
+      const customer = conversation.context?.customer || {};
+      const order = conversation.context?.order || {};
+      const product = conversation.context?.product || {};
+      const haystack = [
+        customer.name,
+        customer.email,
+        customer.tier,
+        order.orderNumber,
+        order.status,
+        product.name,
+        conversation.lastMessage,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [conversations, searchQuery]);
 
   const fetchConversations = async () => {
-    try {
-      const token = await auth.currentUser.getIdToken();
-      const response = await axios.get(`${API_URL}/vendor-chat/vendor`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const convs = response.data.data || [];
-      setConversations(convs);
-      
-      if (convs.length > 0 && !selected) {
-        setSelected(convs[0]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch conversations:", error);
-    } finally {
-      setLoading(false);
-    }
+    const response = await getVendorChatConversations();
+    const rows = response.data.data || [];
+    setConversations(rows);
+    setResponseMetrics(response.data.meta?.responseMetrics || null);
+    setSelected((previous) => rows.find((conversation) => conversation._id === previous?._id) || rows[0] || null);
+  };
+
+  const fetchSupportTools = async () => {
+    const response = await getVendorSupportTools();
+    setTools(response.data.data || { quickReplies: [], templates: [], responseMetrics: null });
   };
 
   const fetchMessages = async (conversationId) => {
+    setMessagesLoading(true);
     try {
-      const token = await auth.currentUser.getIdToken();
-      const response = await axios.get(
-        `${API_URL}/vendor-chat/conversation/${conversationId}/messages`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const response = await getVendorConversationMessages(conversationId);
       setMessages(response.data.data || []);
-    } catch (error) {
-      console.error("Failed to fetch messages:", error);
+    } finally {
+      setMessagesLoading(false);
     }
   };
 
   const markAsRead = async (conversationId) => {
     try {
-      const token = await auth.currentUser.getIdToken();
-      await axios.patch(
-        `${API_URL}/vendor-chat/conversation/${conversationId}/mark-read`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      setConversations(prev =>
-        prev.map(c => (c._id === conversationId ? { ...c, unreadCount: 0 } : c))
+      await markVendorConversationRead(conversationId);
+      setConversations((previous) =>
+        previous.map((conversation) =>
+          conversation._id === conversationId ? { ...conversation, unreadCount: 0 } : conversation,
+        ),
       );
     } catch (error) {
-      console.error("Failed to mark as read:", error);
+      console.error("Failed to mark conversation as read:", error);
     }
   };
 
+  const handleSelectConversation = (conversation) => {
+    setSelected(conversation);
+    markAsRead(conversation._id);
+  };
+
   const sendReply = async () => {
-    if ((!newMessage.trim() && !selectedImage) || !selected) return;
+    if ((!newMessage.trim() && !selectedImage) || !selected?._id) return;
 
     setSending(true);
     try {
-      const token = await auth.currentUser.getIdToken();
-      
-      // Convert image to base64 if selected
-      let imageData = null;
-      if (selectedImage) {
-        imageData = await convertToBase64(selectedImage);
-      }
-
-      await axios.post(
-        `${API_URL}/vendor-chat/conversation/${selected._id}/message`,
-        { 
-          message: newMessage,
-          image: imageData
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const image = selectedImage ? await convertToBase64(selectedImage) : null;
+      await sendVendorChatMessage(selected._id, {
+        message: newMessage.trim(),
+        image,
+      });
 
       setNewMessage("");
       setSelectedImage(null);
       setImagePreview(null);
-      fetchMessages(selected._id);
-      fetchConversations();
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      await fetchMessages(selected._id);
+      await fetchConversations();
     } catch (error) {
       console.error("Failed to send message:", error);
+      alert(error.response?.data?.error || "Failed to send message");
     } finally {
       setSending(false);
     }
   };
 
-  const handleImageSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        alert("Image size should be less than 5MB");
-        return;
-      }
-      setSelectedImage(file);
-      setImagePreview(URL.createObjectURL(file));
+  const handleImageSelect = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image size should be less than 5MB");
+      return;
     }
+
+    setSelectedImage(file);
+    setImagePreview(URL.createObjectURL(file));
   };
 
   const removeImage = () => {
     setSelectedImage(null);
     setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const convertToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const img = new Image();
-        img.src = reader.result;
-        img.onload = () => {
-          // Compress image if it's too large
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          
-          // Max dimensions
-          const maxWidth = 1200;
-          const maxHeight = 1200;
-          
-          if (width > maxWidth || height > maxHeight) {
-            if (width > height) {
-              height = (height / width) * maxWidth;
-              width = maxWidth;
-            } else {
-              width = (width / height) * maxHeight;
-              height = maxHeight;
-            }
-          }
-          
-          canvas.width = width;
-          canvas.height = height;
-          
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          
-          // Convert to base64 with compression
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
-          resolve(compressedBase64);
-        };
-        img.onerror = reject;
-      };
-      reader.onerror = reject;
-    });
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
+  const handleComposerKeyDown = (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
       sendReply();
     }
   };
 
-  const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+  const handleCreateQuickReply = async (event) => {
+    event.preventDefault();
+    if (!quickReplyDraft.title.trim() || !quickReplyDraft.message.trim()) return;
 
-  const filteredConversations = conversations.filter((conv) => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    const customerName = conv.user?.email?.toLowerCase() || "";
-    const lastMsg = conv.lastMessage?.toLowerCase() || "";
-    return customerName.includes(query) || lastMsg.includes(query);
-  });
+    setSavingTool("quick-reply");
+    try {
+      await createVendorQuickReply(quickReplyDraft);
+      setQuickReplyDraft({ title: "", message: "" });
+      await fetchSupportTools();
+    } finally {
+      setSavingTool("");
+    }
+  };
+
+  const handleCreateTemplate = async (event) => {
+    event.preventDefault();
+    if (!templateDraft.title.trim() || !templateDraft.body.trim()) return;
+
+    setSavingTool("template");
+    try {
+      await createVendorMessageTemplate({
+        ...templateDraft,
+        variables: extractVariables(templateDraft.body),
+      });
+      setTemplateDraft({ title: "", body: "" });
+      await fetchSupportTools();
+    } finally {
+      setSavingTool("");
+    }
+  };
+
+  const applyTemplate = (template) => {
+    setNewMessage(renderTemplate(template.body, selected));
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-orange-500 border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-4">
-            <Link to="/vendor/dashboard" className="p-2 hover:bg-gray-100 rounded-lg transition">
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </Link>
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <svg className="w-7 h-7 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                Customer Messages
-                {totalUnread > 0 && (
-                  <span className="bg-orange-500 text-white text-sm px-2.5 py-0.5 rounded-full font-medium">
-                    {totalUnread}
-                  </span>
-                )}
-              </h1>
-              <p className="text-sm text-gray-500">Respond to customer inquiries quickly</p>
+    <div className="min-h-screen bg-slate-50">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Link
+                to="/vendor/dashboard"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+                aria-label="Back to vendor dashboard"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Link>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-950">Messages & Customer Support</h1>
+                <p className="text-sm text-slate-500">Inbox with order context, response health, quick replies, and templates</p>
+              </div>
             </div>
+            <HealthBadge metrics={activeMetrics} />
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex" style={{ height: "calc(100vh - 180px)" }}>
-          {/* Conversations Sidebar */}
-          <div className="w-80 flex-shrink-0 border-r border-gray-200 flex flex-col bg-white">
-            {/* Search */}
-            <div className="p-4 border-b border-gray-100">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+          <MetricCard label="Unread" value={totalUnread} icon={MessageCircle} />
+          <MetricCard label="Active chats" value={activeConversations} icon={Ticket} />
+          <MetricCard label="Avg reply" value={formatReplyTime(activeMetrics.averageReplyMinutes)} icon={Clock3} />
+          <MetricCard label="Health score" value={`${activeMetrics.healthScore ?? 100}%`} icon={ShieldCheck} tone={activeMetrics.tone} />
+        </section>
+
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[340px_minmax(0,1fr)_360px]">
+          <aside className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 p-4">
               <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search conversations..."
+                  placeholder="Search by customer, order, product"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
                 />
               </div>
             </div>
 
-            {/* Conversations List */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="max-h-[680px] overflow-y-auto">
               {filteredConversations.length === 0 ? (
-                <div className="p-8 text-center">
-                  <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-base font-semibold text-gray-900 mb-1">No Messages</h3>
-                  <p className="text-sm text-gray-500">
-                    {searchQuery ? "No conversations match your search" : "Customer messages will appear here"}
-                  </p>
-                </div>
+                <EmptyState title="No conversations" text="Customer messages will appear here." />
               ) : (
-                filteredConversations.map((conv) => {
-                  const customerEmail = conv.user?.email || "Unknown Customer";
-                  const customerInitial = customerEmail.charAt(0).toUpperCase();
-                  const timeAgo = conv.lastMessageAt ? formatTimeAgo(new Date(conv.lastMessageAt)) : "";
-
-                  return (
-                    <button
-                      key={conv._id}
-                      onClick={() => {
-                        setSelected(conv);
-                        markAsRead(conv._id);
-                      }}
-                      className={`w-full text-left p-4 border-b border-gray-100 hover:bg-orange-50 transition flex items-start gap-3 ${
-                        selected?._id === conv._id ? "bg-orange-50 border-l-4 border-l-orange-500" : ""
-                      }`}
-                    >
-                      <div className="relative flex-shrink-0">
-                        <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                          {customerInitial}
-                        </div>
-                        {conv.unreadCount > 0 && (
-                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-white">
-                            {conv.unreadCount}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className={`text-sm font-semibold truncate ${conv.unreadCount > 0 ? "text-gray-900" : "text-gray-700"}`}>
-                            {customerEmail}
-                          </p>
-                          <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{timeAgo}</span>
-                        </div>
-                        <p className={`text-sm truncate ${conv.unreadCount > 0 ? "text-gray-700 font-medium" : "text-gray-500"}`}>
-                          {conv.lastMessage || "No messages yet"}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })
+                filteredConversations.map((conversation) => (
+                  <ConversationButton
+                    key={conversation._id}
+                    conversation={conversation}
+                    active={selected?._id === conversation._id}
+                    onClick={() => handleSelectConversation(conversation)}
+                  />
+                ))
               )}
             </div>
-          </div>
+          </aside>
 
-          {/* Chat Area */}
-          {selected ? (
-            <div className="flex-1 flex flex-col bg-gray-50">
-              {/* Chat Header */}
-              <div className="p-4 bg-white border-b border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                    {(selected.user?.email || "U").charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">{selected.user?.email || "Unknown Customer"}</p>
-                    <p className="text-xs text-gray-500 flex items-center gap-1">
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      {selected.status === "active" ? "Active" : "Closed"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-gray-400">No messages yet</p>
-                  </div>
-                ) : (
-                  messages.map((msg) => (
-                    <div
-                      key={msg._id}
-                      className={`flex ${msg.senderType === "vendor" ? "justify-end" : "justify-start"}`}
-                    >
-                      <div
-                        className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl text-sm shadow-sm ${
-                          msg.senderType === "vendor"
-                            ? "bg-orange-500 text-white rounded-br-sm"
-                            : "bg-white text-gray-800 rounded-bl-sm border border-gray-200"
-                        }`}
-                      >
-                        {msg.image && (
-                          <img
-                            src={msg.image}
-                            alt="Attachment"
-                            className="rounded-lg mb-2 max-w-full h-auto cursor-pointer hover:opacity-90 transition"
-                            onClick={() => window.open(msg.image, '_blank')}
-                          />
-                        )}
-                        {msg.message && <p className="whitespace-pre-wrap break-words">{msg.message}</p>}
-                        <p
-                          className={`text-xs mt-1.5 ${
-                            msg.senderType === "vendor" ? "text-orange-100" : "text-gray-400"
-                          }`}
-                        >
-                          {new Date(msg.createdAt).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </p>
-                      </div>
+          <section className="flex min-h-[680px] flex-col rounded-lg border border-slate-200 bg-white shadow-sm">
+            {selected ? (
+              <>
+                <ChatHeader conversation={selected} />
+                <div className="flex-1 overflow-y-auto bg-slate-50 p-4">
+                  {messagesLoading ? (
+                    <div className="flex h-full items-center justify-center text-sm font-medium text-slate-500">
+                      Loading messages...
                     </div>
-                  ))
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Message Input */}
-              <div className="p-4 bg-white border-t border-gray-200">
-                {/* Image Preview */}
-                {imagePreview && (
-                  <div className="mb-3 relative inline-block">
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="h-20 w-20 object-cover rounded-lg border-2 border-orange-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={removeImage}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  {/* Image Upload Button */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageSelect}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-3 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-gray-600"
-                    title="Attach image"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-
-                  <input
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    placeholder="Type your message..."
-                    disabled={sending}
-                    className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                  <button
-                    onClick={sendReply}
-                    disabled={sending || (!newMessage.trim() && !selectedImage)}
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg transition flex items-center gap-2 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                  >
-                    {sending ? (
-                      <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                      </svg>
-                    )}
-                    Send
-                  </button>
+                  ) : messages.length === 0 ? (
+                    <EmptyState title="No messages yet" text="Start the conversation from the composer below." />
+                  ) : (
+                    <div className="space-y-4">
+                      {messages.map((message) => (
+                        <MessageBubble key={message._id} message={message} />
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
                 </div>
+                <Composer
+                  value={newMessage}
+                  onChange={setNewMessage}
+                  onKeyDown={handleComposerKeyDown}
+                  onSend={sendReply}
+                  sending={sending}
+                  imagePreview={imagePreview}
+                  removeImage={removeImage}
+                  onImageSelect={handleImageSelect}
+                  fileInputRef={fileInputRef}
+                  disabled={!selected}
+                  hasImage={Boolean(selectedImage)}
+                />
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center">
+                <EmptyState title="Select a conversation" text="Choose a customer from the inbox to reply." />
               </div>
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center bg-gray-50">
-              <div className="text-center">
-                <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-10 h-10 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Select a Conversation</h3>
-                <p className="text-gray-500">Choose a conversation from the list to start chatting</p>
-              </div>
-            </div>
-          )}
+            )}
+          </section>
+
+          <aside className="space-y-6">
+            <ContextPanel conversation={selected} />
+            <QuickReplyPanel
+              replies={tools.quickReplies || []}
+              draft={quickReplyDraft}
+              onDraftChange={setQuickReplyDraft}
+              onSubmit={handleCreateQuickReply}
+              saving={savingTool === "quick-reply"}
+              onUse={(reply) => setNewMessage(reply.message)}
+            />
+            <TemplatePanel
+              templates={tools.templates || []}
+              draft={templateDraft}
+              onDraftChange={setTemplateDraft}
+              onSubmit={handleCreateTemplate}
+              saving={savingTool === "template"}
+              onUse={applyTemplate}
+              selected={selected}
+            />
+          </aside>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, icon, tone = "slate" }) {
+  const CardIcon = icon;
+  const tones = {
+    green: "bg-emerald-50 text-emerald-700",
+    yellow: "bg-amber-50 text-amber-700",
+    red: "bg-rose-50 text-rose-700",
+    slate: "bg-slate-100 text-slate-700",
+  };
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-slate-500">{label}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-950">{value}</p>
+        </div>
+        <span className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${tones[tone] || tones.slate}`}>
+          <CardIcon className="h-5 w-5" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HealthBadge({ metrics = {} }) {
+  const tone = metrics.tone || "green";
+  const styles = {
+    green: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    yellow: "border-amber-200 bg-amber-50 text-amber-700",
+    red: "border-rose-200 bg-rose-50 text-rose-700",
+  };
+
+  return (
+    <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${styles[tone] || styles.green}`}>
+      <ShieldCheck className="h-4 w-4" />
+      Response health {metrics.healthScore ?? 100}%
+    </div>
+  );
+}
+
+function ConversationButton({ conversation, active, onClick }) {
+  const customer = conversation.context?.customer || {};
+  const order = conversation.context?.order || {};
+  const product = conversation.context?.product || {};
+  const name = customer.name || customer.email || "Customer";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full border-b border-slate-100 p-4 text-left transition hover:bg-orange-50 ${
+        active ? "bg-orange-50 shadow-[inset_4px_0_0_#f97316]" : "bg-white"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg bg-slate-900 font-bold text-white">
+          {name.charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-sm font-bold text-slate-950">{name}</p>
+            {conversation.unreadCount > 0 && (
+              <span className="rounded-full bg-orange-600 px-2 py-0.5 text-xs font-bold text-white">
+                {conversation.unreadCount}
+              </span>
+            )}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            <TierBadge tier={customer.tier || conversation.customerTier} />
+            {order.orderNumber && <SmallPill>Order {order.orderNumber}</SmallPill>}
+          </div>
+          <p className="mt-2 truncate text-sm text-slate-500">{conversation.lastMessage || "No messages yet"}</p>
+          {product.name && <p className="mt-1 truncate text-xs font-medium text-slate-500">{product.name}</p>}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function ChatHeader({ conversation }) {
+  const customer = conversation.context?.customer || {};
+  const order = conversation.context?.order || {};
+
+  return (
+    <div className="border-b border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-orange-600 font-bold text-white">
+            {(customer.name || customer.email || "C").charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <p className="font-bold text-slate-950">{customer.name || customer.email || "Customer"}</p>
+            <p className="text-xs text-slate-500">{customer.email || "No email on file"}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <TierBadge tier={customer.tier} />
+          <SmallPill>{conversation.status === "closed" ? "Closed" : "Active"}</SmallPill>
+          {order.status && <SmallPill>{order.status.replace(/_/g, " ")}</SmallPill>}
         </div>
       </div>
     </div>
   );
 }
 
-function formatTimeAgo(date) {
-  const seconds = Math.floor((new Date() - date) / 1000);
-  
-  if (seconds < 60) return "Just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-  
-  return date.toLocaleDateString();
+function MessageBubble({ message }) {
+  const isVendor = message.senderType === "vendor";
+
+  return (
+    <div className={`flex ${isVendor ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[78%] rounded-lg px-4 py-3 text-sm shadow-sm ${
+          isVendor ? "bg-orange-600 text-white" : "border border-slate-200 bg-white text-slate-800"
+        }`}
+      >
+        {message.image && (
+          <img
+            src={message.image}
+            alt="Attachment"
+            className="mb-2 max-h-64 rounded-lg object-contain"
+          />
+        )}
+        {message.message && <p className="whitespace-pre-wrap break-words">{message.message}</p>}
+        <p className={`mt-2 text-xs ${isVendor ? "text-orange-100" : "text-slate-400"}`}>
+          {new Date(message.createdAt).toLocaleString([], {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Composer({
+  value,
+  onChange,
+  onKeyDown,
+  onSend,
+  sending,
+  imagePreview,
+  removeImage,
+  onImageSelect,
+  fileInputRef,
+  disabled,
+  hasImage,
+}) {
+  return (
+    <div className="border-t border-slate-200 bg-white p-4">
+      {imagePreview && (
+        <div className="mb-3 inline-flex items-start gap-2 rounded-lg border border-orange-200 bg-orange-50 p-2">
+          <img src={imagePreview} alt="Preview" className="h-16 w-16 rounded-md object-cover" />
+          <button
+            type="button"
+            onClick={removeImage}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-600 hover:text-rose-600"
+            aria-label="Remove image"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      <div className="flex items-end gap-2">
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={onImageSelect} className="hidden" />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+          title="Attach image"
+        >
+          <ImagePlus className="h-5 w-5" />
+        </button>
+        <textarea
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="Type a reply..."
+          rows={3}
+          disabled={disabled || sending}
+          className="min-h-[88px] flex-1 resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
+        />
+        <button
+          type="button"
+          onClick={onSend}
+          disabled={disabled || sending || (!value.trim() && !hasImage)}
+          className="inline-flex h-11 items-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-bold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Send className="h-4 w-4" />
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ContextPanel({ conversation }) {
+  const context = conversation?.context || {};
+  const customer = context.customer || {};
+  const order = context.order || {};
+  const product = context.product || {};
+
+  return (
+    <Panel title="Order Context" icon={Package}>
+      {!conversation ? (
+        <p className="text-sm text-slate-500">Select a conversation to see linked customer, order, and product details.</p>
+      ) : (
+        <div className="space-y-3">
+          <ContextRow icon={UserRound} label="Customer" value={customer.name || "Customer"} subValue={customer.email} />
+          <ContextRow icon={Star} label="Tier" value={customer.tier || "New"} subValue={`${customer.orderCount || 0} vendor orders`} />
+          <ContextRow
+            icon={Ticket}
+            label="Order"
+            value={order.orderNumber || "No linked order"}
+            subValue={order.status ? `${order.status} - ${formatMoney(order.total || 0)}` : ""}
+          />
+          <ContextRow icon={Package} label="Product" value={product.name || order.productName || "No linked product"} subValue={product.sku} />
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function QuickReplyPanel({ replies, draft, onDraftChange, onSubmit, saving, onUse }) {
+  return (
+    <Panel title="Quick Replies" icon={MessageCircle}>
+      <div className="space-y-2">
+        {replies.map((reply) => (
+          <button
+            key={reply._id}
+            type="button"
+            onClick={() => onUse(reply)}
+            className="w-full rounded-lg border border-slate-200 bg-white p-3 text-left text-sm transition hover:border-orange-200 hover:bg-orange-50"
+          >
+            <span className="font-bold text-slate-950">{reply.title}</span>
+            <span className="mt-1 block line-clamp-2 text-xs text-slate-500">{reply.message}</span>
+          </button>
+        ))}
+      </div>
+      <form onSubmit={onSubmit} className="mt-4 space-y-2 border-t border-slate-200 pt-4">
+        <input
+          value={draft.title}
+          onChange={(event) => onDraftChange({ ...draft, title: event.target.value })}
+          placeholder="Reply name"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+        />
+        <textarea
+          value={draft.message}
+          onChange={(event) => onDraftChange({ ...draft, message: event.target.value })}
+          placeholder="Saved reply text"
+          rows={3}
+          className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+        />
+        <button
+          type="submit"
+          disabled={saving || !draft.title.trim() || !draft.message.trim()}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" />
+          Save quick reply
+        </button>
+      </form>
+    </Panel>
+  );
+}
+
+function TemplatePanel({ templates, draft, onDraftChange, onSubmit, saving, onUse, selected }) {
+  return (
+    <Panel title="Templates" icon={Sparkles}>
+      <div className="space-y-2">
+        {templates.map((template) => (
+          <button
+            key={template._id}
+            type="button"
+            onClick={() => onUse(template)}
+            className="w-full rounded-lg border border-slate-200 bg-white p-3 text-left text-sm transition hover:border-orange-200 hover:bg-orange-50"
+          >
+            <span className="font-bold text-slate-950">{template.title}</span>
+            <span className="mt-1 block line-clamp-2 text-xs text-slate-500">
+              {selected ? renderTemplate(template.body, selected) : template.body}
+            </span>
+          </button>
+        ))}
+      </div>
+      <form onSubmit={onSubmit} className="mt-4 space-y-2 border-t border-slate-200 pt-4">
+        <input
+          value={draft.title}
+          onChange={(event) => onDraftChange({ ...draft, title: event.target.value })}
+          placeholder="Template name"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+        />
+        <textarea
+          value={draft.body}
+          onChange={(event) => onDraftChange({ ...draft, body: event.target.value })}
+          placeholder="Hi {customer_name}, your order #{order_id}..."
+          rows={4}
+          className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+        />
+        <div className="flex flex-wrap gap-1.5">
+          {["customer_name", "order_id", "order_number", "product_name"].map((variable) => (
+            <span key={variable} className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
+              {`{${variable}}`}
+            </span>
+          ))}
+        </div>
+        <button
+          type="submit"
+          disabled={saving || !draft.title.trim() || !draft.body.trim()}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" />
+          Save template
+        </button>
+      </form>
+    </Panel>
+  );
+}
+
+function Panel({ title, icon, children }) {
+  const PanelIcon = icon;
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-4 flex items-center gap-2">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+          <PanelIcon className="h-4 w-4" />
+        </span>
+        <h2 className="text-base font-bold text-slate-950">{title}</h2>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ContextRow({ icon, label, value, subValue }) {
+  const RowIcon = icon;
+  return (
+    <div className="flex gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+      <RowIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-500" />
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
+        <p className="truncate text-sm font-bold text-slate-950">{value}</p>
+        {subValue && <p className="truncate text-xs text-slate-500">{subValue}</p>}
+      </div>
+    </div>
+  );
+}
+
+function TierBadge({ tier = "New" }) {
+  const tones = {
+    VIP: "bg-violet-100 text-violet-700",
+    Repeat: "bg-emerald-100 text-emerald-700",
+    New: "bg-slate-100 text-slate-600",
+  };
+
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${tones[tier] || tones.New}`}>
+      {tier}
+    </span>
+  );
+}
+
+function SmallPill({ children }) {
+  return (
+    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+      {children}
+    </span>
+  );
+}
+
+function EmptyState({ title, text }) {
+  return (
+    <div className="p-8 text-center">
+      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+        <MessageCircle className="h-6 w-6" />
+      </div>
+      <p className="font-bold text-slate-950">{title}</p>
+      <p className="mt-1 text-sm text-slate-500">{text}</p>
+    </div>
+  );
+}
+
+function renderTemplate(body = "", conversation = {}) {
+  const context = conversation?.context || {};
+  const customer = context.customer || {};
+  const order = context.order || {};
+  const product = context.product || {};
+  const replacements = {
+    customer_name: customer.name || "Customer",
+    order_id: order.orderId || order.orderNumber || "",
+    order_number: order.orderNumber || order.orderId || "",
+    product_name: product.name || order.productName || "your item",
+    customer_tier: customer.tier || "New",
+  };
+
+  return body.replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key) => replacements[key] || "");
+}
+
+function extractVariables(body = "") {
+  return [...new Set([...body.matchAll(/\{([a-zA-Z0-9_]+)\}/g)].map((match) => match[1]))];
+}
+
+function formatReplyTime(minutes) {
+  if (minutes === null || minutes === undefined) return "No data";
+  if (minutes < 60) return `${Math.max(1, Math.round(minutes))}m`;
+  return `${(minutes / 60).toFixed(minutes >= 600 ? 0 : 1)}h`;
+}
+
+function formatMoney(value) {
+  return `৳${numberFormat.format(Number(value) || 0)}`;
+}
+
+function convertToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const img = new Image();
+      img.src = reader.result;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let { width, height } = img;
+        const maxWidth = 1200;
+        const maxHeight = 1200;
+
+        if (width > maxWidth || height > maxHeight) {
+          if (width > height) {
+            height = (height / width) * maxWidth;
+            width = maxWidth;
+          } else {
+            width = (width / height) * maxHeight;
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
 }

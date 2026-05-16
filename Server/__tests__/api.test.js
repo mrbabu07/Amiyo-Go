@@ -147,6 +147,30 @@ jest.mock("../controllers/vendorMarketingController", () => ({
     res.json({ route: "vendors:marketing-delete", id: req.params.id }),
 }));
 
+jest.mock("../controllers/vendorChatController", () => ({
+  startConversation: (req, res) => res.json({ route: "vendor-chat:start" }),
+  sendMessage: (req, res) => res.json({ route: "vendor-chat:send", id: req.params.conversationId }),
+  getUserConversations: (req, res) => res.json({ route: "vendor-chat:user" }),
+  getVendorConversations: (req, res) => res.json({ route: "vendor-chat:vendor" }),
+  getConversation: (req, res) => res.json({ route: "vendor-chat:conversation", id: req.params.conversationId }),
+  getConversationMessages: (req, res) =>
+    res.json({ route: "vendor-chat:messages", id: req.params.conversationId }),
+  markConversationAsRead: (req, res) =>
+    res.json({ route: "vendor-chat:mark-read", id: req.params.conversationId }),
+  closeConversation: (req, res) => res.json({ route: "vendor-chat:close", id: req.params.conversationId }),
+  getVendorSupportTools: (req, res) => res.json({ route: "vendor-chat:support-tools" }),
+  createVendorQuickReply: (req, res) => res.status(201).json({ route: "vendor-chat:quick-reply-create" }),
+  updateVendorQuickReply: (req, res) =>
+    res.json({ route: "vendor-chat:quick-reply-update", id: req.params.replyId }),
+  deleteVendorQuickReply: (req, res) =>
+    res.json({ route: "vendor-chat:quick-reply-delete", id: req.params.replyId }),
+  createVendorMessageTemplate: (req, res) => res.status(201).json({ route: "vendor-chat:template-create" }),
+  updateVendorMessageTemplate: (req, res) =>
+    res.json({ route: "vendor-chat:template-update", id: req.params.templateId }),
+  deleteVendorMessageTemplate: (req, res) =>
+    res.json({ route: "vendor-chat:template-delete", id: req.params.templateId }),
+}));
+
 jest.mock("../controllers/adminPayoutController", () => ({
   calculateEligiblePayout: (req, res) =>
     res.json({ route: "payouts:eligible", vendorId: req.params.vendorId }),
@@ -171,6 +195,7 @@ const buildApp = () => {
   app.use("/api/products", require("../routes/productRoutes"));
   app.use("/api/orders", require("../routes/orderRoutes"));
   app.use("/api/vendors", require("../routes/vendorRoutes"));
+  app.use("/api/vendor-chat", require("../routes/vendorChatRoutes"));
   app.use("/api/admin/payouts", require("../routes/adminPayoutRoutes"));
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
   return app;
@@ -282,6 +307,29 @@ describe("Black-box API tests", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ route: "vendors:public-slug", slug: "my-brand" });
+    });
+  });
+
+  describe("vendor chat API behavior", () => {
+    test("GET /api/vendor-chat/vendor/support-tools uses the vendor support tools route", async () => {
+      const response = await request(app)
+        .get("/api/vendor-chat/vendor/support-tools")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "vendor-chat:support-tools" });
+    });
+
+    test("POST /api/vendor-chat/vendor/quick-replies uses the quick reply route", async () => {
+      const response = await request(app)
+        .post("/api/vendor-chat/vendor/quick-replies")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor")
+        .send({ title: "Ship today", message: "We will ship today." });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({ route: "vendor-chat:quick-reply-create" });
     });
   });
 

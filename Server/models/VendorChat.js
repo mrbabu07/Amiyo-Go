@@ -10,6 +10,8 @@ class VendorChat {
     try {
       await this.collection.createIndex({ userId: 1, vendorId: 1 });
       await this.collection.createIndex({ vendorId: 1, status: 1 });
+      await this.collection.createIndex({ vendorId: 1, lastMessageAt: -1 });
+      await this.collection.createIndex({ orderId: 1 });
       await this.collection.createIndex({ createdAt: -1 });
     } catch (error) {
       console.error("Error creating VendorChat indexes:", error);
@@ -21,6 +23,7 @@ class VendorChat {
       userId: data.userId,
       vendorId: new ObjectId(data.vendorId),
       productId: data.productId ? new ObjectId(data.productId) : null,
+      orderId: data.orderId ? new ObjectId(data.orderId) : null,
       messages: [],
       status: "active", // active, closed
       lastMessageAt: new Date(),
@@ -32,22 +35,29 @@ class VendorChat {
     return { ...conversation, _id: result.insertedId };
   }
 
-  async findConversation(userId, vendorId) {
-    return await this.collection.findOne({
+  async findConversation(userId, vendorId, orderId = null) {
+    const query = {
       userId,
       vendorId: new ObjectId(vendorId),
       status: "active",
-    });
+    };
+
+    if (orderId) {
+      query.orderId = new ObjectId(orderId);
+    }
+
+    return await this.collection.findOne(query);
   }
 
-  async getOrCreateConversation(userId, vendorId, productId = null) {
-    let conversation = await this.findConversation(userId, vendorId);
+  async getOrCreateConversation(userId, vendorId, productId = null, orderId = null) {
+    let conversation = await this.findConversation(userId, vendorId, orderId);
     
     if (!conversation) {
       conversation = await this.createConversation({
         userId,
         vendorId,
         productId,
+        orderId,
       });
     }
 

@@ -195,6 +195,20 @@ export const addTicketMessage = (id, message) =>
   api.post(`/support/tickets/${id}/messages`, { message });
 export const getTicketStats = () => api.get("/support/tickets/stats");
 
+// Vendor customer messages
+export const getVendorChatConversations = () => api.get("/vendor-chat/vendor");
+export const getVendorConversationMessages = (conversationId) =>
+  api.get(`/vendor-chat/conversation/${conversationId}/messages`);
+export const sendVendorChatMessage = (conversationId, data) =>
+  api.post(`/vendor-chat/conversation/${conversationId}/message`, data);
+export const markVendorConversationRead = (conversationId) =>
+  api.patch(`/vendor-chat/conversation/${conversationId}/mark-read`);
+export const getVendorSupportTools = () => api.get("/vendor-chat/vendor/support-tools");
+export const createVendorQuickReply = (data) =>
+  api.post("/vendor-chat/vendor/quick-replies", data);
+export const createVendorMessageTemplate = (data) =>
+  api.post("/vendor-chat/vendor/message-templates", data);
+
 // User Management
 export const getAllUsers = (params) => api.get("/admin/users", { params });
 export const getUserById = (id) => api.get(`/admin/users/${id}`);
