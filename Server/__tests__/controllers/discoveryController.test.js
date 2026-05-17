@@ -175,6 +175,17 @@ describe("discoveryController homepage builders", () => {
     }));
   });
 
+  test("does not promote orphaned child categories into homepage groups", () => {
+    const partialCategories = [
+      { _id: "cat-root", name: "Root Group", slug: "root-group", isActive: true, displayOrder: 1 },
+      { _id: "cat-orphan-child", name: "Orphan Child", slug: "orphan-child", parentId: "missing-parent", isActive: true, displayOrder: 1 },
+    ];
+
+    const quickAccess = buildCategoryQuickAccess({ categories: partialCategories, products: [] });
+
+    expect(quickAccess.map((category) => category._id)).toEqual(["cat-root"]);
+  });
+
   test("builds curated collections, recently viewed products, followed vendor feed, and check-in prompt", () => {
     const collections = buildCuratedCollections({
       collections: [{ _id: "collection-1", title: "Under BDT 500", productIds: ["prod-shirt"], imageUrl: "collection.jpg", status: "active" }],

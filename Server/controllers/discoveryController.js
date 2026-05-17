@@ -438,7 +438,7 @@ const buildCategoryQuickAccess = ({ categories = [], products = [], limit = 16 }
     return map;
   }, new Map());
 
-  const groupCategories = activeCategories.filter((category) => !category.parentKey || !byId.has(category.parentKey));
+  const groupCategories = activeCategories.filter((category) => !category.parentKey);
   const categoriesForRail = groupCategories.length ? groupCategories : activeCategories;
 
   return categoriesForRail
@@ -714,7 +714,7 @@ const loadHomepageSource = async (req) => {
   ] = await Promise.all([
     collectionToArray(db, "products", { isActive: { $ne: false } }, { sort: { createdAt: -1 }, limit: 300 }),
     collectionToArray(db, "orders", {}, { sort: { createdAt: -1 }, limit: 500 }),
-    collectionToArray(db, "categories", { isActive: { $ne: false } }, { sort: { displayOrder: 1, name: 1 }, limit: 100 }),
+    collectionToArray(db, "categories", { isActive: { $ne: false } }, { sort: { displayOrder: 1, name: 1 } }),
     collectionToArray(db, "vendors", {}, { sort: { createdAt: -1 }, limit: 120 }),
     collectionToArray(db, "homepage_slots", {}, { sort: { position: 1, createdAt: -1 }, limit: 50 }),
     collectionToArray(db, "campaigns", {}, { sort: { startDate: -1, createdAt: -1 }, limit: 50 }),
