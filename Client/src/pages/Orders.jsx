@@ -54,6 +54,7 @@ export default function Orders() {
     rating: 5,
     comment: "",
   });
+  const [reviewFiles, setReviewFiles] = useState([]);
   const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
@@ -164,14 +165,20 @@ export default function Orders() {
         throw new Error("Invalid product ID. Please try again.");
       }
 
+      const reviewImages = reviewFiles.length
+        ? await Promise.all(reviewFiles.map((file) => uploadToImgBB(file, "reviews")))
+        : [];
+
       await createReview({
         productId: productId,
         rating: reviewFormData.rating,
         comment: reviewFormData.comment.trim(),
+        images: reviewImages,
       });
 
       setShowReviewModal(false);
       setReviewFormData({ rating: 5, comment: "" });
+      setReviewFiles([]);
       success("Review submitted successfully! Thank you for your feedback.", {
         title: "Review Submitted",
       });
@@ -204,6 +211,7 @@ export default function Orders() {
     setSelectedProduct(null);
     setSelectedOrder(null);
     setReviewFormData({ rating: 5, comment: "" });
+    setReviewFiles([]);
   };
 
   const submitReturnRequest = async (e) => {
@@ -292,6 +300,22 @@ export default function Orders() {
 
   const removeFile = (index) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleReviewFileSelect = (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length + reviewFiles.length > 5) {
+      error("Maximum 5 review photos are allowed", {
+        title: "Too Many Photos",
+      });
+      return;
+    }
+    setReviewFiles((current) => [...current, ...files]);
+    event.target.value = "";
+  };
+
+  const removeReviewFile = (index) => {
+    setReviewFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
   };
 
   const returnWizardSteps = [
@@ -457,7 +481,7 @@ export default function Orders() {
       success(`${item.title} added to cart!`, {
         title: "Quick Reorder Successful",
       });
-    } catch (err) {
+    } catch {
       error("Failed to add item to cart. Please try again.", {
         title: "Reorder Failed",
       });
@@ -513,7 +537,7 @@ export default function Orders() {
           title: "Reorder Failed",
         });
       }
-    } catch (err) {
+    } catch {
       error("Failed to reorder items. Please try again.", {
         title: "Reorder Failed",
       });
@@ -1901,6 +1925,60 @@ export default function Orders() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 resize-none"
                   placeholder="Share your experience with this product..."
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Photos (Optional)
+                </label>
+                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-center">
+                  <p className="text-sm font-semibold text-gray-800">
+                    Add product photos or packaging images
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Up to 5 images. Photo reviews help other buyers trust the listing.
+                  </p>
+                  <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-gray-200 hover:bg-gray-100">
+                    Choose photos
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleReviewFileSelect}
+                    />
+                  </label>
+                </div>
+
+                {reviewFiles.length > 0 && (
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {reviewFiles.map((file, index) => (
+                      <div
+                        key={`${file.name}-${index}`}
+                        className="relative overflow-hidden rounded-lg border border-gray-200 bg-white"
+                      >
+                        <div className="aspect-square">
+                          <img
+                            src={URL.createObjectURL(file)}
+                            alt={file.name}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeReviewFile(index)}
+                          className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white shadow-sm hover:bg-red-700"
+                          aria-label="Remove review photo"
+                        >
+                          x
+                        </button>
+                        <p className="truncate px-2 py-1 text-xs text-gray-500">
+                          {file.name}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">

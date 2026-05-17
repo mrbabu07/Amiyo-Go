@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
 import { useToast } from "../context/ToastContext";
 import Modal from "../components/Modal";
@@ -13,6 +14,8 @@ import {
 const Support = () => {
   const { user } = useAuth();
   const { success, error } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -112,6 +115,24 @@ const Support = () => {
   }, [user]);
 
   useEffect(() => {
+    const supportTicket = location.state?.supportTicket;
+    if (!user || !supportTicket) return;
+
+    setCreateForm((current) => ({
+      ...current,
+      ...supportTicket,
+      priority: supportTicket.priority || current.priority || "medium",
+      category: supportTicket.category || current.category || "general",
+      issueType: supportTicket.issueType || current.issueType || "general",
+      contactPreference:
+        supportTicket.contactPreference || current.contactPreference || "in_app",
+      evidenceUrls: supportTicket.evidenceUrls || current.evidenceUrls || "",
+    }));
+    setShowCreateModal(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate, user]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       fetchFaqArticles();
     }, 250);
@@ -160,11 +181,15 @@ const Support = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setTickets(data.tickets || []);
+        const nextTickets = data.tickets || [];
+        setTickets(nextTickets);
+        return nextTickets;
       }
+      return [];
     } catch (err) {
       console.error("Error fetching tickets:", err);
       error("Failed to fetch support tickets");
+      return [];
     } finally {
       setLoading(false);
     }
@@ -194,6 +219,7 @@ const Support = () => {
           body: JSON.stringify({
             ...createForm,
             attachments: evidenceUrls,
+            evidenceFiles: evidenceUrls,
           }),
         },
       );
@@ -215,7 +241,8 @@ const Support = () => {
         });
         fetchTickets();
       } else {
-        error("Failed to create support ticket");
+        const data = await response.json().catch(() => ({}));
+        error(data.error || "Failed to create support ticket");
       }
     } catch (err) {
       console.error("Error creating ticket:", err);
@@ -255,9 +282,8 @@ const Support = () => {
       if (response.ok) {
         success("Message sent successfully");
         setNewMessage("");
-        fetchTickets();
-        const updatedTickets = await response.json();
-        const updatedTicket = updatedTickets.tickets?.find(
+        const nextTickets = await fetchTickets();
+        const updatedTicket = nextTickets.find(
           (t) => t._id === selectedTicket._id,
         );
         if (updatedTicket) {
