@@ -4,7 +4,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   Clock,
-  Mic,
   Search,
   Sparkles,
   Tags,
@@ -166,7 +165,6 @@ export default function SearchBar({
               setQuery(searchTerm);
               runSearch(searchTerm);
             }}
-            idleIcon={<Mic className="h-5 w-5" />}
           />
           <button
             type="submit"

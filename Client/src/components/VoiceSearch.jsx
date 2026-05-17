@@ -1,212 +1,298 @@
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
+import { AlertCircle, AudioLines, Mic, MicOff, Search, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+const getSpeechRecognition = () => {
+  if (typeof window === "undefined") return null;
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+};
+
 export default function VoiceSearch({ onSearch }) {
-  const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [isSupported, setIsSupported] = useState(false);
-  const recognitionRef = useRef(null);
+  const { i18n, t } = useTranslation();
   const navigate = useNavigate();
+  const recognitionRef = useRef(null);
+  const finalTranscriptRef = useRef("");
+  const shouldAutoSearchRef = useRef(false);
+  const [isSupported, setIsSupported] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    // Check if speech recognition is supported
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
+  const speechLanguage = useMemo(
+    () => (i18n.language?.startsWith("bn") ? "bn-BD" : "en-US"),
+    [i18n.language],
+  );
 
-    if (SpeechRecognition) {
-      setIsSupported(true);
-      recognitionRef.current = new SpeechRecognition();
+  const examples = useMemo(
+    () => [
+      t("voiceSearch.exampleOne"),
+      t("voiceSearch.exampleTwo"),
+      t("voiceSearch.exampleThree"),
+    ],
+    [t],
+  );
 
-      const recognition = recognitionRef.current;
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        setTranscript("");
-      };
-
-      recognition.onresult = (event) => {
-        let finalTranscript = "";
-        let interimTranscript = "";
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-
-        setTranscript(finalTranscript || interimTranscript);
-
-        if (finalTranscript) {
-          handleSearch(finalTranscript);
-        }
-      };
-
-      recognition.onerror = (event) => {
-        console.error("Speech recognition error:", event.error);
-        setIsListening(false);
-
-        if (event.error === "not-allowed") {
-          alert(
-            "Microphone access denied. Please enable microphone permissions.",
-          );
-        } else if (event.error === "no-speech") {
-          alert("No speech detected. Please try again.");
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-    }
-
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
-    };
-  }, []);
-
-  const handleSearch = (searchTerm) => {
-    if (searchTerm.trim()) {
-      if (onSearch) {
-        onSearch(searchTerm);
-      } else {
-        navigate(`/search?q=${encodeURIComponent(searchTerm)}`);
-      }
+  const runSearch = (searchTerm) => {
+    const clean = String(searchTerm || "").trim();
+    if (!clean) return;
+    shouldAutoSearchRef.current = false;
+    if (recognitionRef.current && isListening) recognitionRef.current.abort();
+    setIsListening(false);
+    setIsPanelOpen(false);
+    setTranscript("");
+    setErrorMessage("");
+    if (onSearch) {
+      onSearch(clean);
+    } else {
+      navigate(`/search?q=${encodeURIComponent(clean)}`);
     }
   };
 
-  const startListening = () => {
-    if (recognitionRef.current && !isListening) {
-      try {
-        recognitionRef.current.start();
-      } catch (error) {
-        console.error("Failed to start speech recognition:", error);
+  useEffect(() => {
+    const SpeechRecognition = getSpeechRecognition();
+    setIsSupported(Boolean(SpeechRecognition));
+    if (!SpeechRecognition) return undefined;
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = speechLanguage;
+
+    recognition.onstart = () => {
+      finalTranscriptRef.current = "";
+      shouldAutoSearchRef.current = true;
+      setTranscript("");
+      setErrorMessage("");
+      setIsListening(true);
+      setIsPanelOpen(true);
+    };
+
+    recognition.onresult = (event) => {
+      let finalText = "";
+      let interimText = "";
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const text = event.results[index][0].transcript;
+        if (event.results[index].isFinal) {
+          finalText += text;
+        } else {
+          interimText += text;
+        }
       }
+
+      const spokenText = (finalText || interimText).trim();
+      setTranscript(spokenText);
+
+      if (finalText.trim()) {
+        finalTranscriptRef.current = finalText.trim();
+      }
+    };
+
+    recognition.onerror = (event) => {
+      const errors = {
+        "not-allowed": t("voiceSearch.permissionDenied"),
+        "service-not-allowed": t("voiceSearch.permissionDenied"),
+        "no-speech": t("voiceSearch.noSpeech"),
+        "audio-capture": t("voiceSearch.noMicrophone"),
+        network: t("voiceSearch.networkError"),
+      };
+      setErrorMessage(errors[event.error] || t("voiceSearch.tryAgain"));
+      shouldAutoSearchRef.current = false;
+      setIsListening(false);
+      setIsPanelOpen(true);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      if (shouldAutoSearchRef.current && finalTranscriptRef.current) {
+        runSearch(finalTranscriptRef.current);
+      }
+      shouldAutoSearchRef.current = false;
+    };
+
+    return () => {
+      shouldAutoSearchRef.current = false;
+      recognition.onstart = null;
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
+      recognition.abort();
+      recognitionRef.current = null;
+    };
+  }, [speechLanguage, t]);
+
+  const startListening = () => {
+    if (!isSupported) {
+      setErrorMessage(t("voiceSearch.unsupported"));
+      setIsPanelOpen(true);
+      return;
+    }
+
+    if (!recognitionRef.current || isListening) return;
+
+    try {
+      setIsPanelOpen(true);
+      setErrorMessage("");
+      recognitionRef.current.start();
+    } catch (error) {
+      console.error("Failed to start speech recognition:", error);
+      setErrorMessage(t("voiceSearch.tryAgain"));
     }
   };
 
   const stopListening = () => {
     if (recognitionRef.current && isListening) {
+      shouldAutoSearchRef.current = true;
       recognitionRef.current.stop();
     }
+    setIsListening(false);
   };
 
-  if (!isSupported) {
-    return null; // Don't render if not supported
-  }
+  const closePanel = () => {
+    shouldAutoSearchRef.current = false;
+    if (recognitionRef.current && isListening) recognitionRef.current.abort();
+    setIsListening(false);
+    setIsPanelOpen(false);
+    setTranscript("");
+    setErrorMessage("");
+  };
 
   return (
-    <div className="relative">
+    <>
       <button
         type="button"
         onClick={isListening ? stopListening : startListening}
-        className={`p-2 rounded-full transition-all duration-200 ${
+        className={`relative flex h-10 w-10 items-center justify-center rounded-md transition focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 ${
           isListening
-            ? "bg-red-500 text-white animate-pulse"
-            : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+            ? "bg-red-600 text-white shadow-sm"
+            : "bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-primary-700 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
         }`}
-        title={isListening ? "Stop listening" : "Voice search"}
+        aria-label={isListening ? t("voiceSearch.stop") : t("voiceSearch.open")}
+        title={isListening ? t("voiceSearch.stop") : t("voiceSearch.open")}
       >
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-          />
-        </svg>
+        {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+        {isListening ? (
+          <span className="absolute inset-0 -z-10 rounded-md bg-red-500/40 animate-ping" />
+        ) : null}
       </button>
 
-      {/* Listening Indicator */}
-      {isListening && (
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 min-w-48 z-50">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              Listening...
-            </span>
-          </div>
-
-          {transcript && (
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              "{transcript}"
-            </div>
-          )}
-
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-            Speak clearly or click to stop
-          </div>
-        </div>
-      )}
-
-      {/* Voice Search Tips Modal */}
-      {isListening && (
-        <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center z-40 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-sm w-full p-6">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg
-                  className="w-8 h-8 text-red-600 dark:text-red-400 animate-pulse"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+      <AnimatePresence>
+        {isPanelOpen ? (
+          <motion.div
+            className="fixed inset-0 z-[500] flex items-end justify-center bg-gray-950/45 p-0 sm:items-center sm:p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="voice-search-title"
+              className="w-full rounded-t-xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-800 dark:bg-gray-950 sm:max-w-md sm:rounded-xl"
+              initial={{ y: 28, opacity: 0, scale: 0.98 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 28, opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wide text-primary-600 dark:text-primary-300">
+                    {t("voiceSearch.label")}
+                  </p>
+                  <h2 id="voice-search-title" className="mt-1 text-xl font-extrabold text-gray-950 dark:text-white">
+                    {isListening ? t("voiceSearch.listeningTitle") : t("voiceSearch.title")}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={closePanel}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white"
+                  aria-label={t("common.close")}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                  />
-                </svg>
+                  <X className="h-5 w-5" />
+                </button>
               </div>
 
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Voice Search Active
-              </h3>
-
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Say something like:
-              </p>
-
-              <div className="text-sm text-gray-500 dark:text-gray-400 space-y-1">
-                <div>"Search for laptops"</div>
-                <div>"Find red shoes"</div>
-                <div>"Show me phones under 500"</div>
-              </div>
-
-              {transcript && (
-                <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <div className="text-sm font-medium text-gray-900 dark:text-white">
-                    You said:
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    "{transcript}"
+              <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div className="flex items-center justify-center">
+                  <div
+                    className={`flex h-20 w-20 items-center justify-center rounded-full ${
+                      isListening
+                        ? "bg-red-100 text-red-600 dark:bg-red-950/60 dark:text-red-200"
+                        : "bg-primary-100 text-primary-700 dark:bg-primary-950/50 dark:text-primary-200"
+                    }`}
+                  >
+                    <AudioLines className={`h-9 w-9 ${isListening ? "animate-pulse" : ""}`} />
                   </div>
                 </div>
-              )}
 
-              <button
-                onClick={stopListening}
-                className="mt-4 btn-secondary w-full"
-              >
-                Stop Listening
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+                <div className="mt-4 min-h-12 rounded-lg bg-white px-3 py-2 text-center text-sm font-semibold text-gray-700 dark:bg-gray-950 dark:text-gray-200">
+                  {transcript ? (
+                    <span>{transcript}</span>
+                  ) : (
+                    <span className="text-gray-500 dark:text-gray-400">
+                      {isListening ? t("voiceSearch.speakNow") : t("voiceSearch.tapToStart")}
+                    </span>
+                  )}
+                </div>
+
+                {errorMessage ? (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{errorMessage}</span>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-4">
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  {t("voiceSearch.examplesTitle")}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {examples.map((example) => (
+                    <button
+                      type="button"
+                      key={example}
+                      onClick={() => runSearch(example)}
+                      className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600 transition hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-primary-950/30"
+                    >
+                      {example}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={isListening ? stopListening : startListening}
+                  className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition active:scale-95 ${
+                    isListening
+                      ? "border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:hover:bg-red-950/30"
+                      : "bg-primary-500 text-white hover:bg-primary-600"
+                  }`}
+                >
+                  {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  {isListening ? t("voiceSearch.stop") : t("voiceSearch.start")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runSearch(transcript)}
+                  disabled={!transcript.trim()}
+                  className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:text-gray-200 dark:hover:bg-gray-900"
+                >
+                  <Search className="h-4 w-4" />
+                  {t("common.search")}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </>
   );
 }

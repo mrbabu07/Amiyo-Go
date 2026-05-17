@@ -158,6 +158,26 @@
     "clearHistory": "Clear history",
     "productFallback": "Product"
   },
+  "voiceSearch": {
+    "label": "Voice search",
+    "title": "Say what you want to find",
+    "listeningTitle": "Listening...",
+    "open": "Open voice search",
+    "start": "Start speaking",
+    "stop": "Stop listening",
+    "speakNow": "Speak now. Search starts when you finish.",
+    "tapToStart": "Tap Start speaking and say a product, brand, or vendor.",
+    "examplesTitle": "Try saying",
+    "exampleOne": "wireless headphones",
+    "exampleTwo": "red shoes",
+    "exampleThree": "phone under 20000",
+    "permissionDenied": "Microphone permission is blocked. Allow microphone access from your browser settings.",
+    "noSpeech": "No speech detected. Try again in a quieter place.",
+    "noMicrophone": "No microphone was found on this device.",
+    "networkError": "Voice recognition needs a stable internet connection.",
+    "tryAgain": "Voice search could not start. Please try again.",
+    "unsupported": "This browser does not support voice search yet."
+  },
   "profile": {
     "languageLabel": "Language",
     "currencyLabel": "Currency",
