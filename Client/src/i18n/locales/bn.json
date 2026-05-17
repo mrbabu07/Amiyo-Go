@@ -5,9 +5,9 @@
     "support": "সাপোর্ট",
     "flashSales": "ফ্ল্যাশ সেল",
     "categories": "ক্যাটাগরি",
-    "search_placeholder": "পণ্য, ব্র্যান্ড, ক্যাটাগরি খুঁজুন...",
+    "search_placeholder": "পণ্য, ব্র্যান্ড, ভেন্ডর খুঁজুন...",
     "search_button": "খুঁজুন",
-    "search_mobile_placeholder": "পণ্য খুঁজুন...",
+    "search_mobile_placeholder": "পণ্য, ব্র্যান্ড, ভেন্ডর খুঁজুন...",
     "my_profile": "আমার প্রোফাইল",
     "my_orders": "আমার অর্ডার",
     "my_alerts": "আমার অ্যালার্ট",
@@ -135,7 +135,11 @@
     "sizes": "সাইজ:",
     "colors": "রং:",
     "options": "{{count}} অপশন",
-    "freeShipping": "ফ্রি শিপিং"
+    "freeShipping": "ফ্রি শিপিং",
+    "flashSale": "ফ্ল্যাশ সেল",
+    "officialStore": "অফিশিয়াল স্টোর",
+    "topRated": "টপ রেটেড",
+    "reviews": "{{count}} রিভিউ"
   },
   "search": {
     "clearSearch": "সার্চ মুছুন",

@@ -2,31 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  BadgeCheck,
   BadgePercent,
   ChevronLeft,
   ChevronRight,
   Clock,
-  Coins,
-  CreditCard,
   Flame,
-  Gift,
   Sparkles,
   Store,
   Tag,
   TrendingUp,
-  Truck,
-  Zap,
 } from "lucide-react";
-import {
-  claimDailyCheckInReward,
-  getHomepageDiscovery,
-} from "../services/api";
+import { getHomepageDiscovery } from "../services/api";
 import ProductCard from "../components/ProductCard";
 import { ProductCardSkeleton } from "../components/Skeleton";
 import { useRecentlyViewed } from "../hooks/useRecentlyViewed";
 import { useCurrency } from "../hooks/useCurrency";
-import useAuth from "../hooks/useAuth";
 
 const fallbackHeroImage =
   "https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=1400&h=700&fit=crop";
@@ -110,123 +100,63 @@ function CouponStrip({ coupons, formatPrice, t }) {
 
 function TopCategorySection({ categories, t }) {
   if (!categories?.length) return null;
-  const visibleCategories = categories.slice(0, 11);
-  const hasMoreCategories = categories.length > visibleCategories.length;
+  const visibleCategories = categories.slice(0, 14);
 
   return (
-    <section className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="flex items-center gap-2 text-lg font-extrabold text-gray-950 dark:text-white">
-              <Store className="h-5 w-5 text-orange-500" />
-              {t("home.topCategories")}
-            </p>
-            <p className="mt-1 text-xs font-medium text-gray-500 dark:text-gray-400 sm:text-sm">
-              {t("home.categorySubtitle")}
-            </p>
-          </div>
+    <section className="sticky top-20 z-30 border-y border-gray-200 bg-white/95 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 lg:top-32">
+      <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-3">
           <Link
             to="/products"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-800 transition hover:border-orange-300 hover:bg-orange-50 dark:border-gray-700 dark:text-gray-100 dark:hover:border-orange-900 dark:hover:bg-orange-950/30 sm:text-sm"
+            className="hidden shrink-0 items-center gap-2 rounded-lg bg-gray-950 px-3 py-2 text-xs font-extrabold uppercase text-white dark:bg-white dark:text-gray-950 sm:inline-flex"
           >
-            {t("home.browseAllCategories")}
-            <ChevronRight className="h-4 w-4" />
+            <Store className="h-4 w-4 text-orange-400" />
+            {t("home.topCategories")}
           </Link>
-        </div>
 
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:gap-3 lg:grid-cols-8 xl:grid-cols-12">
-          {visibleCategories.map((category, index) => {
-            const theme = categoryTileThemes[index % categoryTileThemes.length];
-            return (
-              <Link
-                key={category._id}
-                to={category.slug ? `/products?category=${category.slug}` : `/products?category=${category._id}`}
-                className={`group flex min-h-28 flex-col items-center justify-between rounded-lg border border-gray-200 bg-white p-2 text-center shadow-sm transition dark:border-gray-800 dark:bg-gray-950 ${theme.tile}`}
-              >
-                <span className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg text-sm font-extrabold shadow-sm sm:h-14 sm:w-14 ${theme.icon}`}>
-                  {category.image || category.icon ? (
-                    <img
-                      src={category.image || category.icon}
-                      alt=""
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    category.name?.slice(0, 1) || "C"
-                  )}
-                </span>
-                <span className="mt-2 line-clamp-2 min-h-[2rem] text-xs font-bold leading-4 text-gray-800 group-hover:text-orange-600 dark:text-gray-100">
-                  {category.name}
-                </span>
-              </Link>
-            );
-          })}
+          <div className="flex flex-1 gap-3 overflow-x-auto pb-1 scrollbar-hide">
+            {visibleCategories.map((category, index) => {
+              const theme = categoryTileThemes[index % categoryTileThemes.length];
+              return (
+                <Link
+                  key={category._id}
+                  to={category.slug ? `/products?category=${category.slug}` : `/products?category=${category._id}`}
+                  className="group flex w-20 shrink-0 flex-col items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-center transition hover:bg-orange-50 dark:hover:bg-gray-800 sm:w-24"
+                >
+                  <span className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg text-sm font-extrabold shadow-sm sm:h-12 sm:w-12 ${theme.icon}`}>
+                    {category.image || category.icon ? (
+                      <img
+                        src={category.image || category.icon}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      category.name?.slice(0, 1) || "C"
+                    )}
+                  </span>
+                  <span className="line-clamp-2 min-h-[2rem] text-xs font-bold leading-4 text-gray-700 group-hover:text-orange-600 dark:text-gray-200">
+                    {category.name}
+                  </span>
+                </Link>
+              );
+            })}
 
-          {hasMoreCategories ? (
             <Link
               to="/products"
-              className="group flex min-h-28 flex-col items-center justify-between rounded-lg border border-dashed border-orange-300 bg-orange-50 p-2 text-center shadow-sm transition hover:bg-orange-100 dark:border-orange-900/70 dark:bg-orange-950/30 dark:hover:bg-orange-950/50"
+              className="group flex w-20 shrink-0 flex-col items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-center transition hover:bg-orange-50 dark:hover:bg-gray-800 sm:w-24"
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-orange-600 shadow-sm dark:bg-gray-900 dark:text-orange-200 sm:h-14 sm:w-14">
-                <ChevronRight className="h-6 w-6" />
+              <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-orange-100 text-orange-700 shadow-sm dark:bg-orange-950/50 dark:text-orange-200 sm:h-12 sm:w-12">
+                <ChevronRight className="h-5 w-5" />
               </span>
-              <span className="mt-2 line-clamp-2 min-h-[2rem] text-xs font-extrabold leading-4 text-orange-700 dark:text-orange-200">
+              <span className="line-clamp-2 min-h-[2rem] text-xs font-extrabold leading-4 text-orange-700 dark:text-orange-200">
                 {t("home.viewAllCategories")}
               </span>
             </Link>
-          ) : null}
+          </div>
         </div>
       </div>
     </section>
-  );
-}
-
-function CategoryPanel({ categories, t }) {
-  if (!categories?.length) return null;
-
-  return (
-    <aside className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900 xl:block">
-      <div className="border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
-        <p className="flex items-center gap-2 text-sm font-bold text-gray-950 dark:text-white">
-          <Store className="h-4 w-4 text-orange-500" />
-          {t("home.shopByCategory")}
-        </p>
-      </div>
-      <div className="divide-y divide-gray-100 dark:divide-gray-800">
-        {categories.slice(0, 10).map((category) => (
-          <Link
-            key={category._id}
-            to={category.slug ? `/products?category=${category.slug}` : `/products?category=${category._id}`}
-            className="group flex items-center gap-3 px-4 py-2.5 transition hover:bg-orange-50 dark:hover:bg-gray-800"
-          >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-xs font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
-              {category.image || category.icon ? (
-                <img
-                  src={category.image || category.icon}
-                  alt=""
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                category.name?.slice(0, 1) || "C"
-              )}
-            </span>
-            <span className="line-clamp-1 min-w-0 flex-1 text-sm font-semibold text-gray-700 group-hover:text-orange-600 dark:text-gray-200">
-              {category.name}
-            </span>
-            <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-orange-500" />
-          </Link>
-        ))}
-      </div>
-      <Link
-        to="/products"
-        className="flex items-center justify-center gap-2 border-t border-gray-100 px-4 py-3 text-sm font-bold text-primary-700 transition hover:bg-primary-50 dark:border-gray-800 dark:text-primary-300 dark:hover:bg-gray-800"
-      >
-        {t("home.viewAllCategories")}
-        <ChevronRight className="h-4 w-4" />
-      </Link>
-    </aside>
   );
 }
 
@@ -248,7 +178,7 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
   const currentSlide = slides[activeHero % slides.length];
 
   return (
-    <div className="relative min-h-[340px] overflow-hidden rounded-lg bg-gray-900 shadow-sm md:min-h-[420px]">
+    <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-gray-900 shadow-sm sm:aspect-[16/7] lg:aspect-[16/5]">
       {slides.map((slide, index) => (
         <div
           key={slide.id || index}
@@ -265,17 +195,17 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
         </div>
       ))}
 
-      <div className="relative flex min-h-[340px] flex-col justify-end p-5 md:min-h-[420px] md:p-8">
+      <div className="relative flex h-full flex-col justify-end p-5 md:p-8">
         <div className="max-w-2xl">
           <span className="mb-3 inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white shadow-sm">
             <Sparkles className="h-3.5 w-3.5" />
             {currentSlide.badge || t("home.featured")}
           </span>
-          <h1 className="max-w-xl text-3xl font-extrabold leading-tight text-white md:text-5xl">
+          <h1 className="max-w-xl text-2xl font-extrabold leading-tight text-white sm:text-3xl md:text-4xl">
             {currentSlide.title}
           </h1>
           {currentSlide.subtitle ? (
-            <p className="mt-3 max-w-xl text-sm leading-6 text-white/90 md:text-base">
+            <p className="mt-3 line-clamp-2 max-w-xl text-sm leading-6 text-white/90 md:text-base">
               {currentSlide.subtitle}
             </p>
           ) : null}
@@ -336,172 +266,6 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
   );
 }
 
-function DailyCheckInCard({ dailyCheckIn, user, claiming, onClaim, t }) {
-  if (!dailyCheckIn?.enabled) return null;
-
-  return (
-    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/30">
-      <div className="flex items-start gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-emerald-700 shadow-sm dark:bg-gray-900 dark:text-emerald-300">
-          <Coins className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900 dark:text-white">
-            {dailyCheckIn.label || `Check in today for ${dailyCheckIn.points || 5} coins`}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-            {t("home.dailyUseCoins")}
-          </p>
-        </div>
-      </div>
-
-      {dailyCheckIn.requiresLogin || !user ? (
-        <Link
-          to="/login"
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white transition hover:bg-emerald-800"
-        >
-          <Gift className="h-4 w-4" />
-          {t("home.signInToCollect")}
-        </Link>
-      ) : (
-        <button
-          type="button"
-          onClick={onClaim}
-          disabled={!dailyCheckIn.canClaim || claiming}
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
-        >
-          <Gift className="h-4 w-4" />
-          {claiming ? t("home.collecting") : dailyCheckIn.canClaim ? t("home.collectCoins") : t("home.collectedToday")}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function FlashSummary({ flashSales, now, formatPrice, t }) {
-  const firstDeal = flashSales?.[0];
-  if (!firstDeal) return null;
-  const remainingStock = firstDeal.remainingStock ?? firstDeal.stock ?? 0;
-
-  return (
-    <Link
-      to={firstDeal.productId ? `/product/${firstDeal.productId}` : "/products"}
-      className="block overflow-hidden rounded-lg border border-red-200 bg-white p-4 shadow-sm transition hover:border-red-300 dark:border-red-900/70 dark:bg-gray-900"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="flex items-center gap-2 text-sm font-bold text-red-700 dark:text-red-300">
-            <Flame className="h-4 w-4" />
-            {t("home.flashSaleLive")}
-          </p>
-          <p className="mt-2 line-clamp-2 text-base font-bold text-gray-950 dark:text-white">
-            {firstDeal.title}
-          </p>
-          <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-            {formatPrice(firstDeal.flashPrice || firstDeal.product?.price || 0)}
-          </p>
-        </div>
-        <img
-          src={firstDeal.image || firstDeal.product?.image || fallbackHeroImage}
-          alt=""
-          className="h-20 w-20 rounded-lg object-cover"
-          loading="lazy"
-        />
-      </div>
-      <div className="mt-3 flex items-center justify-between rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">
-        <span>{remainingStock} {t("home.left")}</span>
-        <span>{formatDuration(firstDeal.endTime, now, t)}</span>
-      </div>
-    </Link>
-  );
-}
-
-function TrendingMiniCard({ product, formatPrice, t }) {
-  if (!product) return null;
-
-  return (
-    <Link
-      to={`/product/${product._id}`}
-      className="block rounded-lg border border-blue-200 bg-blue-50 p-4 shadow-sm transition hover:border-blue-300 dark:border-blue-900/60 dark:bg-blue-950/30"
-    >
-      <p className="flex items-center gap-2 text-sm font-bold text-blue-800 dark:text-blue-200">
-        <TrendingUp className="h-4 w-4" />
-        {t("home.trendingNow")}
-      </p>
-      <div className="mt-3 flex gap-3">
-        <img
-          src={product.image || fallbackHeroImage}
-          alt=""
-          className="h-20 w-20 rounded-lg object-cover shadow-sm"
-          loading="lazy"
-        />
-        <div className="min-w-0">
-          <p className="line-clamp-2 text-sm font-bold text-gray-950 dark:text-white">
-            {product.title}
-          </p>
-          <p className="mt-1 text-sm font-extrabold text-blue-700 dark:text-blue-200">
-            {formatPrice(product.price)}
-          </p>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function MarketplacePromiseStrip({ t }) {
-  const promises = [
-    {
-      icon: Zap,
-      title: t("home.bestPrices"),
-      text: t("home.bestPricesText"),
-      tone: "text-orange-600 bg-orange-100 dark:bg-orange-950/40 dark:text-orange-200",
-    },
-    {
-      icon: BadgeCheck,
-      title: t("home.authenticProducts"),
-      text: t("home.authenticProductsText"),
-      tone: "text-emerald-600 bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-200",
-    },
-    {
-      icon: CreditCard,
-      title: t("home.securePayment"),
-      text: t("home.securePaymentText"),
-      tone: "text-blue-600 bg-blue-100 dark:bg-blue-950/40 dark:text-blue-200",
-    },
-    {
-      icon: Truck,
-      title: t("home.fastDelivery"),
-      text: t("home.fastDeliveryText"),
-      tone: "text-rose-600 bg-rose-100 dark:bg-rose-950/40 dark:text-rose-200",
-    },
-  ];
-
-  return (
-    <section className="border-y border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-3 px-4 py-4 sm:px-6 lg:grid-cols-4 lg:px-8">
-        {promises.map(({ icon: Icon, title, text, tone }) => (
-          <div
-            key={title}
-            className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-3 dark:border-gray-800 dark:bg-gray-950"
-          >
-            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${tone}`}>
-              <Icon className="h-5 w-5" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-extrabold text-gray-950 dark:text-white">
-                {title}
-              </span>
-              <span className="line-clamp-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-                {text}
-              </span>
-            </span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function ProductGridSection({
   title,
   subtitle,
@@ -522,9 +286,9 @@ function ProductGridSection({
   };
 
   return (
-    <section className="py-6 md:py-8">
+    <section className="py-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-4 flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex items-end justify-between gap-4">
           <div>
             <p className={`mb-2 inline-flex items-center gap-2 rounded-lg px-3 py-1 text-xs font-bold uppercase tracking-wide ${toneClasses[tone] || toneClasses.gray}`}>
               {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
@@ -536,7 +300,7 @@ function ProductGridSection({
           </div>
           <Link
             to={actionTo}
-            className="inline-flex items-center gap-2 text-sm font-bold text-primary-700 transition hover:text-primary-800 dark:text-primary-300"
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-primary-700 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-800 dark:border-gray-800 dark:bg-gray-900 dark:text-primary-300 dark:hover:bg-gray-800"
           >
             {actionLabel}
             <ChevronRight className="h-4 w-4" />
@@ -544,13 +308,13 @@ function ProductGridSection({
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid auto-rows-fr grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {Array.from({ length: 10 }).map((_, index) => (
               <ProductCardSkeleton key={index} />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid auto-rows-fr grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {sectionProducts(products, 10).map((product) => (
               <ProductCard key={product._id} product={product} />
             ))}
@@ -566,7 +330,7 @@ function FlashSaleStrip({ flashSales, now, formatPrice, t }) {
   const headlineDeal = flashSales[0];
 
   return (
-    <section className="border-y border-red-200 bg-red-50 py-6 dark:border-red-900/60 dark:bg-red-950/20">
+    <section className="border-y border-red-200 bg-red-50 py-8 dark:border-red-900/60 dark:bg-red-950/20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-4 flex flex-col gap-3 rounded-lg bg-gradient-to-r from-red-600 via-orange-500 to-amber-400 p-4 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -802,11 +566,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeHero, setActiveHero] = useState(0);
   const [newArrivalCategory, setNewArrivalCategory] = useState("all");
-  const [claimingReward, setClaimingReward] = useState(false);
   const [now, setNow] = useState(Date.now());
   const { recentlyViewed } = useRecentlyViewed();
   const { formatPrice } = useCurrency();
-  const { user } = useAuth();
 
   const recentIdsParam = useMemo(
     () => recentlyViewed.map((product) => product._id).filter(Boolean).join(","),
@@ -839,7 +601,7 @@ export default function Home() {
     return () => {
       ignore = true;
     };
-  }, [newArrivalCategory, recentIdsParam, user?.uid]);
+  }, [newArrivalCategory, recentIdsParam]);
 
   useEffect(() => {
     if (discovery.heroBanners.length <= 1) return undefined;
@@ -854,64 +616,24 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleClaimReward = async () => {
-    if (!user || !discovery.dailyCheckIn?.canClaim) return;
-
-    try {
-      setClaimingReward(true);
-      const response = await claimDailyCheckInReward();
-      setDiscovery((current) => ({
-        ...current,
-        dailyCheckIn: response.data.data || current.dailyCheckIn,
-      }));
-    } catch (error) {
-      if (error.response?.data?.data) {
-        setDiscovery((current) => ({
-          ...current,
-          dailyCheckIn: error.response.data.data,
-        }));
-      } else {
-        console.error("Failed to claim daily reward:", error);
-      }
-    } finally {
-      setClaimingReward(false);
-    }
-  };
-
   const recentProducts = discovery.recentlyViewed.length ? discovery.recentlyViewed : recentlyViewed;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
-      <CouponStrip coupons={discovery.promotionStrip} formatPrice={formatPrice} t={t} />
-      <TopCategorySection categories={discovery.categories} t={t} />
-
-      <section className="border-b border-gray-200 bg-white py-4 dark:border-gray-800 dark:bg-gray-900">
-        <div className="mx-auto grid max-w-7xl gap-4 px-4 sm:px-6 lg:px-8 xl:grid-cols-[240px_minmax(0,1fr)_300px]">
-          <CategoryPanel categories={discovery.categories} t={t} />
-          <div className="min-w-0">
-            <HeroCarousel
-              banners={discovery.heroBanners}
-              activeHero={activeHero}
-              setActiveHero={setActiveHero}
-              t={t}
-            />
-          </div>
-          <div className="space-y-3">
-            <DailyCheckInCard
-              dailyCheckIn={discovery.dailyCheckIn}
-              user={user}
-              claiming={claimingReward}
-              onClaim={handleClaimReward}
-              t={t}
-            />
-            <FlashSummary flashSales={discovery.flashSales} now={now} formatPrice={formatPrice} t={t} />
-            <TrendingMiniCard product={discovery.trendingNow?.[0]} formatPrice={formatPrice} t={t} />
-          </div>
+      <section className="bg-white py-8 dark:bg-gray-900">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <HeroCarousel
+            banners={discovery.heroBanners}
+            activeHero={activeHero}
+            setActiveHero={setActiveHero}
+            t={t}
+          />
         </div>
       </section>
 
-      <MarketplacePromiseStrip t={t} />
       <FlashSaleStrip flashSales={discovery.flashSales} now={now} formatPrice={formatPrice} t={t} />
+      <TopCategorySection categories={discovery.categories} t={t} />
+      <CouponStrip coupons={discovery.promotionStrip} formatPrice={formatPrice} t={t} />
 
       <ProductGridSection
         title={t("home.dealsYouCantMiss")}
@@ -933,9 +655,9 @@ export default function Home() {
         tone="blue"
       />
 
-      <section className="py-6 md:py-8">
+      <section className="py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-4 flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="mb-2 inline-flex items-center gap-2 rounded-lg bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
                 <Sparkles className="h-3.5 w-3.5" />
@@ -945,28 +667,37 @@ export default function Home() {
                 {t("home.newArrivals")}
               </h2>
             </div>
-            <select
-              value={newArrivalCategory}
-              onChange={(event) => setNewArrivalCategory(event.target.value)}
-              className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 outline-none transition focus:border-primary-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-            >
-              <option value="all">{t("common.allCategories")}</option>
-              {discovery.categories.map((category) => (
-                <option key={category._id} value={category._id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={newArrivalCategory}
+                onChange={(event) => setNewArrivalCategory(event.target.value)}
+                className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 outline-none transition focus:border-primary-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              >
+                <option value="all">{t("common.allCategories")}</option>
+                {discovery.categories.map((category) => (
+                  <option key={category._id} value={category._id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              <Link
+                to="/products?sort=newest"
+                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-bold text-primary-700 transition hover:border-primary-200 hover:bg-primary-50 dark:border-gray-800 dark:bg-gray-900 dark:text-primary-300 dark:hover:bg-gray-800"
+              >
+                {t("common.seeAll")}
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid auto-rows-fr grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {Array.from({ length: 10 }).map((_, index) => (
                 <ProductCardSkeleton key={index} />
               ))}
             </div>
           ) : discovery.newArrivals.length ? (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid auto-rows-fr grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {sectionProducts(discovery.newArrivals, 10).map((product) => (
                 <ProductCard key={product._id} product={product} />
               ))}

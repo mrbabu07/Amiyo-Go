@@ -53,12 +53,19 @@ export default function Skeleton({
 
 // Pre-built skeleton components
 export const ProductCardSkeleton = () => (
-  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm p-4">
-    <Skeleton variant="card" className="aspect-square mb-4" />
-    <Skeleton variant="text" lines={2} className="mb-2" />
-    <div className="flex items-center justify-between">
-      <Skeleton variant="text" width="60px" />
-      <Skeleton variant="text" width="80px" />
+  <div className="flex h-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+    <Skeleton variant="rectangular" className="aspect-square rounded-none" />
+    <div className="flex flex-1 flex-col p-3 sm:p-4">
+      <Skeleton variant="text" lines={2} className="mb-3" />
+      <Skeleton variant="text" width="90px" className="mb-2" />
+      <Skeleton variant="text" width="120px" className="mb-4" />
+      <div className="mt-auto">
+        <Skeleton variant="text" width="80px" className="mb-2" />
+        <div className="flex items-center justify-between">
+          <Skeleton variant="text" width="70px" />
+          <Skeleton variant="text" width="64px" />
+        </div>
+      </div>
     </div>
   </div>
 );

@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import useCart from "../hooks/useCart";
 import useProductView from "../hooks/useProductView";
 import WishlistButton from "./WishlistButton";
-import ProductBadge from "./ProductBadge";
 import QuickViewModal from "./QuickViewModal";
 import CompareButton from "./CompareButton";
 import ProductRatingDisplay from "./ProductRatingDisplay";
@@ -15,6 +14,7 @@ export default function ProductCard({ product }) {
   const { t } = useTranslation();
   const { addToCart } = useCart();
   const { formatPrice } = useCurrency();
+  const navigate = useNavigate();
   const [isAdding, setIsAdding] = useState(false);
   const [showQuickView, setShowQuickView] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -39,6 +39,20 @@ export default function ProductCard({ product }) {
     product.image || (product.images && product.images[0]) || fallbackImage;
   const imageFocus =
     product.imageSettings?.crops?.[displayImage]?.objectPosition || "center";
+  const vendorName =
+    product.vendorName ||
+    product.vendorShopName ||
+    product.shopName ||
+    product.vendor?.shopName ||
+    product.brand ||
+    "";
+  const vendorPath =
+    product.vendorSlug
+      ? `/shop/${product.vendorSlug}`
+      : product.vendorId
+        ? `/vendor/${product.vendorId}/products`
+        : "";
+  const reviewCount = product.reviewCount || product.totalReviews || 0;
 
   const getStockStatus = () => {
     if (product.stock === 0 && product.allowBackorder)
@@ -87,31 +101,62 @@ export default function ProductCard({ product }) {
             100,
         )
       : 0;
+  const cardBadges = [
+    product.isFlashSale || product.flashSale || product.flashPrice
+      ? { label: t("productCard.flashSale"), className: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-200" }
+      : null,
+    product.freeShipping !== false
+      ? { label: t("productCard.freeShipping"), className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200" }
+      : null,
+    product.officialStore || product.vendorVerified || product._vendorStatus === "approved"
+      ? { label: t("productCard.officialStore"), className: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-200" }
+      : null,
+    (product.averageRating || product.rating || 0) >= 4.5
+      ? { label: t("productCard.topRated"), className: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200" }
+      : null,
+  ].filter(Boolean).slice(0, 2);
+
+  const goToVendor = (event) => {
+    if (!vendorPath) return;
+    event.preventDefault();
+    event.stopPropagation();
+    navigate(vendorPath);
+  };
 
   return (
     <>
-      <Link to={`/product/${product._id}`} className="block">
-        <div className="group relative bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-xl hover:border-gray-200 dark:hover:border-gray-600 transition-all duration-300 overflow-hidden cursor-pointer">
+      <Link to={`/product/${product._id}`} className="block h-full">
+        <div className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-lg dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-900/60">
           {/* Image Container */}
           <div className="relative aspect-square overflow-hidden bg-gray-50 dark:bg-gray-700">
-            {/* Product Badges */}
-            <ProductBadge product={product} />
-
             {/* Discount Badge */}
             {discountPercentage > 0 && (
-              <div className="absolute top-3 left-3 z-20">
-                <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+              <div className="absolute left-2 top-2 z-20">
+                <span className="rounded bg-red-600 px-2 py-1 text-xs font-extrabold text-white shadow-sm">
                   -{discountPercentage}%
                 </span>
               </div>
             )}
 
+            {cardBadges.length ? (
+              <div className="absolute bottom-2 left-2 z-20 flex max-w-[calc(100%-1rem)] flex-wrap gap-1">
+                {cardBadges.map((badge) => (
+                  <span
+                    key={badge.label}
+                    className={`rounded px-2 py-1 text-[11px] font-extrabold leading-none shadow-sm ${badge.className}`}
+                  >
+                    {badge.label}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
             {/* Image with loading state */}
-            <div className="relative w-full h-full">
+            <div className="relative h-full w-full">
               {!imageLoaded && (
-                <div className="absolute inset-0 bg-gray-200 dark:bg-gray-600 animate-pulse flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-200 blur-sm dark:bg-gray-700">
                   <svg
-                    className="w-8 h-8 text-gray-400"
+                    className="h-8 w-8 text-gray-400"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -129,8 +174,8 @@ export default function ProductCard({ product }) {
                 src={displayImage}
                 alt={product.title}
                 style={{ objectPosition: imageFocus }}
-                className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${
-                  imageLoaded ? "opacity-100" : "opacity-0"
+                className={`h-full w-full object-cover transition duration-500 group-hover:scale-105 ${
+                  imageLoaded ? "opacity-100 blur-0" : "opacity-0 blur-sm"
                 }`}
                 onLoad={() => setImageLoaded(true)}
                 loading="lazy"
@@ -138,11 +183,11 @@ export default function ProductCard({ product }) {
             </div>
 
             {/* Action Buttons - Only show on hover */}
-            <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
+            <div className="absolute right-2 top-2 z-30 flex flex-col gap-2 opacity-100 transition-all duration-300 md:translate-x-2 md:opacity-0 md:group-hover:translate-x-0 md:group-hover:opacity-100">
               <div onClick={(e) => e.preventDefault()}>
                 <WishlistButton product={product} size="sm" />
               </div>
-              <div onClick={(e) => e.preventDefault()}>
+              <div className="hidden md:block" onClick={(e) => e.preventDefault()}>
                 <CompareButton product={product} size="sm" />
               </div>
             </div>
@@ -216,31 +261,24 @@ export default function ProductCard({ product }) {
           </div>
 
           {/* Product Info */}
-          <div className="p-5">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-2 line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors leading-tight">
+          <div className="flex flex-1 flex-col p-3 sm:p-4">
+            <h3 className="line-clamp-2 min-h-[2.6rem] text-sm font-bold leading-5 text-gray-900 transition-colors group-hover:text-orange-600 dark:text-white dark:group-hover:text-orange-300 sm:text-[15px]">
               {product.title}
             </h3>
 
-            {/* Brand */}
-            {product.brand && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium">
-                {product.brand}
-              </p>
-            )}
-
             {/* Rating with colored stars */}
-            <div className="mb-3">
+            <div className="mt-2">
               <ProductRatingDisplay
                 productId={product._id}
                 size="sm"
                 showCount={true}
-                className="mb-1"
+                className="mb-1 text-xs"
               />
 
               {/* View Count */}
-              <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <div className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                 <svg
-                  className="w-3 h-3"
+                  className="h-3 w-3"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -262,23 +300,45 @@ export default function ProductCard({ product }) {
               </div>
             </div>
 
+            {vendorName ? (
+              <span
+                role={vendorPath ? "link" : undefined}
+                tabIndex={vendorPath ? 0 : undefined}
+                onClick={goToVendor}
+                onKeyDown={(event) => {
+                  if ((event.key === "Enter" || event.key === " ") && vendorPath) goToVendor(event);
+                }}
+                className="mt-2 line-clamp-1 cursor-pointer text-left text-xs font-semibold text-gray-500 transition hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-300"
+              >
+                {vendorName}
+              </span>
+            ) : null}
+
             {/* Price and Stock Status */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xl font-bold text-gray-900 dark:text-white">
+            <div className="mt-auto pt-3">
+              <div className="flex min-h-[2rem] items-baseline gap-2">
+                <span className="text-lg font-extrabold text-orange-600 dark:text-orange-300 sm:text-xl">
                   {formatPrice(product.price)}
                 </span>
                 {product.originalPrice &&
                   product.originalPrice > product.price && (
-                    <span className="text-sm text-gray-500 line-through">
+                    <span className="text-xs font-semibold text-gray-400 line-through sm:text-sm">
                       {formatPrice(product.originalPrice)}
                     </span>
                   )}
               </div>
-              <div
-                className={`px-2 py-1 rounded-full text-xs font-medium ${stockStatus.bgColor} ${stockStatus.color}`}
-              >
-                {stockStatus.text}
+
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span
+                  className={`rounded-full px-2 py-1 text-xs font-bold ${stockStatus.bgColor} ${stockStatus.color}`}
+                >
+                  {stockStatus.text}
+                </span>
+                {reviewCount ? (
+                  <span className="text-xs font-medium text-gray-400">
+                    {t("productCard.reviews", { count: reviewCount })}
+                  </span>
+                ) : null}
               </div>
             </div>
 
@@ -325,28 +385,6 @@ export default function ProductCard({ product }) {
               <div className="mb-3">
                 <span className="inline-block bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs px-2 py-1 rounded-full">
                   {product.category}
-                </span>
-              </div>
-            )}
-
-            {/* Free Shipping Badge */}
-            {product.freeShipping !== false && (
-              <div className="mb-3">
-                <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
-                  <svg
-                    className="w-3 h-3"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  {t("productCard.freeShipping")}
                 </span>
               </div>
             )}

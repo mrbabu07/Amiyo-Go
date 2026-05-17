@@ -5,9 +5,9 @@
     "support": "Support",
     "flashSales": "Flash Sales",
     "categories": "Categories",
-    "search_placeholder": "Search for products, brands, categories...",
+    "search_placeholder": "Search products, brands, vendors...",
     "search_button": "Search",
-    "search_mobile_placeholder": "Search products...",
+    "search_mobile_placeholder": "Search products, brands, vendors...",
     "my_profile": "My Profile",
     "my_orders": "My Orders",
     "my_alerts": "My Alerts",
@@ -135,7 +135,11 @@
     "sizes": "Sizes:",
     "colors": "Colors:",
     "options": "{{count}} options",
-    "freeShipping": "Free Shipping"
+    "freeShipping": "Free Shipping",
+    "flashSale": "Flash Sale",
+    "officialStore": "Official Store",
+    "topRated": "Top Rated",
+    "reviews": "{{count}} reviews"
   },
   "search": {
     "clearSearch": "Clear search",
