@@ -86,7 +86,8 @@ const navigation = [
     name: 'Customers',
     icon: Users,
     children: [
-      { name: 'Users', path: '/admin/users', exact: true, alertKey: 'users' },
+      { name: 'Customers', path: '/admin/customers', exact: true, alertKey: 'users' },
+      { name: 'User Roles', path: '/admin/users', exact: true },
       { name: 'Insights', path: '/admin/insights', exact: true },
       { name: 'Reviews', path: '/admin/reviews', exact: true },
       { name: 'Q&A', path: '/admin/qa', exact: true },

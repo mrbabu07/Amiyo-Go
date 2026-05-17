@@ -466,6 +466,28 @@ export const returnFailedDeliveryToSeller = (orderId, data) =>
 export const getLogisticsAuditLog = () =>
   api.get("/admin/logistics/audit-log");
 
+// Admin Customers
+export const getAdminCustomers = (params = {}) =>
+  api.get("/admin/customers", { params });
+export const getAdminCustomerDetail = (customerId) =>
+  api.get(`/admin/customers/${customerId}`);
+export const updateAdminCustomerStatus = (customerId, data) =>
+  api.patch(`/admin/customers/${customerId}/status`, data);
+export const mergeAdminCustomers = (data) =>
+  api.post("/admin/customers/merge", data);
+export const getAdminCustomerLoyalty = (customerId) =>
+  api.get(`/admin/customers/${customerId}/loyalty`);
+export const adjustAdminCustomerLoyalty = (customerId, data) =>
+  api.post(`/admin/customers/${customerId}/loyalty/adjust`, data);
+export const getCustomerLoyaltyProgram = () =>
+  api.get("/admin/customers/loyalty-program");
+export const updateCustomerLoyaltyProgram = (data) =>
+  api.put("/admin/customers/loyalty-program", data);
+export const getReferralDashboard = () =>
+  api.get("/admin/customers/referrals");
+export const getCustomerAuditLog = () =>
+  api.get("/admin/customers/audit-log");
+
 export const getDispatchAssignments = (params = {}) =>
   api.get("/admin/dispatch/assignments", { params });
 export const createDispatchAssignment = (data) =>

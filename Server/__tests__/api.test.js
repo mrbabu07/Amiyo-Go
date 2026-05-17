@@ -277,6 +277,34 @@ jest.mock("../controllers/adminLogisticsController", () => ({
   getLogisticsAuditLog: (req, res) => res.json({ route: "admin-logistics:audit-log" }),
 }));
 
+jest.mock("../controllers/adminCustomerController", () => ({
+  getCustomerList: (req, res) =>
+    res.json({ route: "admin-customers:list", search: req.query.search || "" }),
+  getCustomerDetail: (req, res) =>
+    res.json({ route: "admin-customers:detail", customerId: req.params.customerId }),
+  updateCustomerStatus: (req, res) =>
+    res.json({ route: "admin-customers:status", customerId: req.params.customerId, status: req.body.status }),
+  mergeDuplicateCustomers: (req, res) =>
+    res.json({
+      route: "admin-customers:merge",
+      sourceCustomerId: req.body.sourceCustomerId,
+      targetCustomerId: req.body.targetCustomerId,
+    }),
+  getCustomerLoyaltyLedger: (req, res) =>
+    res.json({ route: "admin-customers:loyalty-ledger", customerId: req.params.customerId }),
+  adjustCustomerLoyalty: (req, res) =>
+    res.json({
+      route: "admin-customers:loyalty-adjust",
+      customerId: req.params.customerId,
+      action: req.body.action,
+    }),
+  getLoyaltyProgram: (req, res) => res.json({ route: "admin-customers:loyalty-program" }),
+  updateLoyaltyProgram: (req, res) =>
+    res.json({ route: "admin-customers:update-loyalty-program", silver: req.body.tierThresholds?.silver }),
+  getReferralDashboard: (req, res) => res.json({ route: "admin-customers:referrals" }),
+  getCustomerAuditLog: (req, res) => res.json({ route: "admin-customers:audit-log" }),
+}));
+
 jest.mock("../controllers/adminVendorManagementController", () => ({
   getVendorManagementProfile: (req, res) =>
     res.json({ route: "admin-vendors:management", id: req.params.vendorId }),
@@ -371,6 +399,7 @@ const buildApp = () => {
   app.use("/api/admin/finance", require("../routes/adminFinanceRoutes"));
   app.use("/api/admin/promotions", require("../routes/adminPromotionRoutes"));
   app.use("/api/admin/logistics", require("../routes/adminLogisticsRoutes"));
+  app.use("/api/admin/customers", require("../routes/adminCustomerRoutes"));
   app.use("/api/admin/vendors", require("../routes/adminVendorRoutes"));
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
   return app;
@@ -1011,6 +1040,107 @@ describe("Black-box API tests", () => {
     test("GET /api/admin/logistics/overview rejects vendor access", async () => {
       const response = await request(app)
         .get("/api/admin/logistics/overview")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "Admin access required" });
+    });
+  });
+
+  describe("admin customer API behavior", () => {
+    test("GET /api/admin/customers searches customers", async () => {
+      const response = await request(app)
+        .get("/api/admin/customers?search=017")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-customers:list", search: "017" });
+    });
+
+    test("GET /api/admin/customers/:customerId returns customer detail", async () => {
+      const response = await request(app)
+        .get("/api/admin/customers/customer-1")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-customers:detail", customerId: "customer-1" });
+    });
+
+    test("PATCH /api/admin/customers/:customerId/status suspends or bans customers", async () => {
+      const response = await request(app)
+        .patch("/api/admin/customers/customer-1/status")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ status: "suspended", reason: "COD abuse" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "admin-customers:status",
+        customerId: "customer-1",
+        status: "suspended",
+      });
+    });
+
+    test("POST /api/admin/customers/merge merges duplicate customer accounts", async () => {
+      const response = await request(app)
+        .post("/api/admin/customers/merge")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ sourceCustomerId: "old-1", targetCustomerId: "new-1" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "admin-customers:merge",
+        sourceCustomerId: "old-1",
+        targetCustomerId: "new-1",
+      });
+    });
+
+    test("POST /api/admin/customers/:customerId/loyalty/adjust adjusts loyalty points", async () => {
+      const response = await request(app)
+        .post("/api/admin/customers/customer-1/loyalty/adjust")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ action: "award", points: 100, reason: "Service recovery" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "admin-customers:loyalty-adjust",
+        customerId: "customer-1",
+        action: "award",
+      });
+    });
+
+    test("PUT /api/admin/customers/loyalty-program updates tier thresholds", async () => {
+      const response = await request(app)
+        .put("/api/admin/customers/loyalty-program")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ tierThresholds: { silver: 1500 } });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "admin-customers:update-loyalty-program",
+        silver: 1500,
+      });
+    });
+
+    test("GET /api/admin/customers/referrals returns referral dashboard", async () => {
+      const response = await request(app)
+        .get("/api/admin/customers/referrals")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-customers:referrals" });
+    });
+
+    test("GET /api/admin/customers rejects vendor access", async () => {
+      const response = await request(app)
+        .get("/api/admin/customers")
         .set("Authorization", "Bearer test")
         .set("x-test-role", "vendor");
 
