@@ -54,7 +54,9 @@ describe("orderController.cancelOrder", () => {
       cancelledBy: "customer-1",
       cancelledByRole: "user",
       cancellationSource: "customer",
-      cancellationMessage: "User cancelled this order within 30 minutes.",
+      cancellationReason: "delivery_too_late",
+      cancellationReasonLabel: "Delivery is too late",
+      cancellationMessage: "Customer cancelled: Delivery is too late",
       cancelledAt,
       products: originalOrder.products.map((product) => ({
         ...product,
@@ -79,6 +81,7 @@ describe("orderController.cancelOrder", () => {
     const req = {
       params: { id: orderId },
       user: { uid: "customer-1" },
+      body: { reason: "delivery_too_late" },
       app: {
         locals: {
           db: {
@@ -95,14 +98,14 @@ describe("orderController.cancelOrder", () => {
 
     await orderController.cancelOrder(req, res);
 
-    expect(Order.cancelOrder).toHaveBeenCalledWith(orderId, "customer-1");
+    expect(Order.cancelOrder).toHaveBeenCalledWith(orderId, "customer-1", "delivery_too_late");
     expect(vendorOrderUpdateOne).toHaveBeenCalledWith(
       { parentOrderId: orderId, vendorId },
       expect.objectContaining({
         $set: expect.objectContaining({
           status: "cancelled",
           paymentStatus: "refund_pending",
-          cancellationMessage: "User cancelled this order within 30 minutes.",
+          cancellationMessage: "Customer cancelled: Delivery is too late",
           subtotal: 200,
           totalAmount: 200,
           totalCommission: 10,
@@ -119,6 +122,7 @@ describe("orderController.cancelOrder", () => {
       userId: "vendor-firebase-1",
       type: "order_cancelled",
       orderId,
+      message: "Order #00000001 was cancelled within 30 minutes. Reason: Delivery is too late.",
     }));
     expect(emailService.sendOrderStatusUpdate).toHaveBeenCalledWith({
       userEmail: "customer@example.com",
@@ -142,6 +146,7 @@ describe("orderController.cancelOrder", () => {
     const req = {
       params: { id: "64f000000000000000000001" },
       user: { uid: "customer-1" },
+      body: {},
       app: {
         locals: {
           db: { collection: jest.fn() },

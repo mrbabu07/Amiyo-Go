@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const emailService = require("../services/emailService");
+const { buildReturnTracker } = require("../utils/customerOrderExperience");
 
 const getAllReturns = async (req, res) => {
   try {
@@ -65,7 +66,13 @@ const getUserReturns = async (req, res) => {
     const userId = req.user.uid;
 
     const returns = await Return.findByUserId(userId);
-    res.json({ success: true, data: returns });
+    res.json({
+      success: true,
+      data: returns.map((returnItem) => ({
+        ...returnItem,
+        customerTracker: buildReturnTracker(returnItem),
+      })),
+    });
   } catch (error) {
     console.error("Error fetching user returns:", error);
     res.status(500).json({ success: false, error: error.message });

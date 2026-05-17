@@ -88,8 +88,10 @@ export const createOrder = (data) => api.post("/orders", data);
 export const createGuestOrder = (data) => api.post("/orders/guest", data);
 export const updateOrderStatus = (id, status, trackingNumber) =>
   api.patch(`/orders/${id}/status`, { status, trackingNumber });
-export const cancelOrder = (id) => api.post(`/orders/${id}/cancel`);
+export const cancelOrder = (id, data = {}) => api.post(`/orders/${id}/cancel`, data);
 export const getOrderTimeline = (id) => api.get(`/orders/${id}/timeline`);
+export const downloadOrderInvoice = (id) =>
+  api.get(`/orders/${id}/invoice`, { responseType: "blob" });
 
 // User
 export const getCurrentUser = () => api.get("/user/me");

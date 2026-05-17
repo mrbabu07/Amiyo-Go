@@ -5,6 +5,7 @@ const {
   getApprovedVendorVoucher,
   calculateVendorVoucherDiscount,
 } = require("../utils/vendorMarketingVoucher");
+const { sanitizeCancellationReason } = require("../utils/customerOrderExperience");
 const campaignVoucherAnalyticsService = require("../services/campaignVoucherAnalyticsService");
 
 class Order {
@@ -422,7 +423,7 @@ class Order {
     );
   }
 
-  async cancelOrder(id, userId) {
+  async cancelOrder(id, userId, cancellationReason = "") {
     const order = await this.findById(id);
 
     if (!order) {
@@ -453,6 +454,7 @@ class Order {
       statusUpdatedAt: now,
       cancelledAt: now,
     }));
+    const cancellation = sanitizeCancellationReason(cancellationReason);
 
     await this.collection.updateOne(
       { _id: new ObjectId(id) },
@@ -464,7 +466,9 @@ class Order {
           cancelledBy: userId,
           cancelledByRole: "user",
           cancellationSource: "customer",
-          cancellationMessage: "User cancelled this order within 30 minutes.",
+          cancellationReason: cancellation.value || null,
+          cancellationReasonLabel: cancellation.label || null,
+          cancellationMessage: cancellation.message,
           cancelledAt: now,
           updatedAt: now,
         },
@@ -473,7 +477,9 @@ class Order {
             status: "cancelled",
             changedAt: now,
             changedBy: userId,
-            note: "Customer cancelled within the 30-minute cancellation window",
+            note: cancellation.label
+              ? `Customer cancelled within the 30-minute cancellation window: ${cancellation.label}`
+              : "Customer cancelled within the 30-minute cancellation window",
           },
         },
       },
@@ -487,7 +493,9 @@ class Order {
       cancelledBy: userId,
       cancelledByRole: "user",
       cancellationSource: "customer",
-      cancellationMessage: "User cancelled this order within 30 minutes.",
+      cancellationReason: cancellation.value || null,
+      cancellationReasonLabel: cancellation.label || null,
+      cancellationMessage: cancellation.message,
       cancelledAt: now,
       updatedAt: now,
     };

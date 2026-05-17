@@ -8,6 +8,9 @@ const {
   sanitizeVendorNotes,
 } = require("../utils/checkoutVendorNotes");
 const { appendOrderEvent, getTimelineForOrder } = require("../services/orderEventService");
+const {
+  buildCustomerOrderExperience,
+} = require("../utils/customerOrderExperience");
 
 const normalizeId = (id) => {
   if (!id) return null;
@@ -363,8 +366,18 @@ const getAllOrders = async (req, res) => {
 const getUserOrders = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
+    const Return = req.app.locals.models.Return;
     const orders = await Order.findByUserId(req.user.uid);
-    res.json({ success: true, data: orders });
+    const userReturns = Return?.findByUserId
+      ? await Return.findByUserId(req.user.uid)
+      : [];
+
+    const ordersWithExperience = orders.map((order) => ({
+      ...order,
+      customerExperience: buildCustomerOrderExperience(order, userReturns),
+    }));
+
+    res.json({ success: true, data: ordersWithExperience });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -422,6 +435,7 @@ const getOrderTimelineEvents = async (req, res) => {
       courierName: order.courierName || "",
       trackingNumber: order.trackingNumber || "",
       eta: order.estimatedDelivery || null,
+      trackingProfile: buildCustomerOrderExperience(order, [], new Date(), events).tracking,
     });
   } catch (error) {
     console.error("Error loading order timeline:", error);
@@ -1049,11 +1063,13 @@ const cancelOrder = async (req, res) => {
     const db = req.app.locals.db || Order.collection.db;
     const { id } = req.params;
     const userId = req.user.uid;
+    const cancellationReason =
+      req.body?.reason || req.body?.cancellationReason || "";
 
     // Get order details before cancelling
     const order = await Order.findById(id);
 
-    const cancelledOrder = await Order.cancelOrder(id, userId);
+    const cancelledOrder = await Order.cancelOrder(id, userId, cancellationReason);
 
     await Promise.all([
       syncVendorOrdersForCustomerCancellation({ db, order: cancelledOrder }),
@@ -1067,7 +1083,7 @@ const cancelOrder = async (req, res) => {
       label: "Order cancelled",
       actorId: userId,
       actorRole: "user",
-      note: "Customer cancelled within the cancellation window",
+      note: cancelledOrder.cancellationMessage || "Customer cancelled within the cancellation window",
     });
 
     if (Notification) {
@@ -1090,7 +1106,11 @@ const cancelOrder = async (req, res) => {
             userId: vendorUser.firebaseUid,
             type: "order_cancelled",
             title: "Order cancelled by customer",
-            message: `Order #${id.toString().slice(-8)} was cancelled within 30 minutes.`,
+            message: `Order #${id.toString().slice(-8)} was cancelled within 30 minutes.${
+              cancelledOrder.cancellationReasonLabel
+                ? ` Reason: ${cancelledOrder.cancellationReasonLabel}.`
+                : ""
+            }`,
             link: "/vendor/orders",
             orderId: id.toString(),
           }).catch((error) => console.error("Failed to create vendor cancellation notification:", error));

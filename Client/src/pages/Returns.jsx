@@ -4,6 +4,7 @@ import { getUserReturns, createReturnRequest } from "../services/api";
 import { uploadToImgBB } from "../services/imageUpload";
 import Loading from "../components/Loading";
 import Modal from "../components/Modal";
+import ReturnStatusTracker from "../components/ReturnStatusTracker";
 
 export default function Returns() {
   const [returns, setReturns] = useState([]);
@@ -264,6 +265,14 @@ export default function Returns() {
                         </p>
                       )}
                     </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <ReturnStatusTracker
+                      tracker={returnItem.customerTracker}
+                      returnItem={returnItem}
+                      formatPrice={(value) => `BDT ${Number(value || 0).toLocaleString()}`}
+                    />
                   </div>
 
                   {returnItem.adminNotes && (

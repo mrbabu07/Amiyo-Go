@@ -4,6 +4,7 @@ import {
   getUserOrders,
   createReturnRequest,
   cancelOrder,
+  downloadOrderInvoice,
 } from "../services/api";
 import { createReview } from "../services/reviewApi";
 import { uploadToImgBB } from "../services/imageUpload";
@@ -15,6 +16,7 @@ import { useToast } from "../context/ToastContext";
 import useCart from "../hooks/useCart";
 import BackButton from "../components/BackButton";
 import OrderTracking from "../components/OrderTracking";
+import ReturnStatusTracker from "../components/ReturnStatusTracker";
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
@@ -39,6 +41,12 @@ export default function Orders() {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [reorderingItems, setReorderingItems] = useState({});
+  const [returnWizardStep, setReturnWizardStep] = useState(1);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelOrderTarget, setCancelOrderTarget] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancellingOrder, setCancellingOrder] = useState(false);
+  const [downloadingInvoice, setDownloadingInvoice] = useState({});
 
   // Review modal states
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -92,6 +100,24 @@ export default function Orders() {
       icon: "✅",
       description: "Order delivered successfully",
     },
+    return: {
+      color:
+        "bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 border-orange-200",
+      icon: "Return",
+      description: "Return or refund is in progress",
+    },
+    returned: {
+      color:
+        "bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 border-orange-200",
+      icon: "Return",
+      description: "Order returned",
+    },
+    partially_returned: {
+      color:
+        "bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 border-orange-200",
+      icon: "Return",
+      description: "Some items were returned",
+    },
     cancelled: {
       color:
         "bg-gradient-to-r from-red-100 to-pink-100 text-red-800 border-red-200",
@@ -100,14 +126,21 @@ export default function Orders() {
     },
   };
 
+  const getOrderStatusGroup = (order) => {
+    if (order.customerExperience?.hasReturn) return "return";
+    if (["returned", "partially_returned"].includes(order.status)) return "return";
+    return order.customerExperience?.statusTab || order.status || "pending";
+  };
+
   const filteredOrders =
     filter === "all"
       ? orders
-      : orders.filter((order) => order.status === filter);
+      : orders.filter((order) => getOrderStatusGroup(order) === filter);
 
   const handleReturnRequest = (order, product) => {
     setSelectedOrder(order);
     setSelectedProduct(product);
+    setReturnWizardStep(1);
     setShowReturnModal(true);
   };
 
@@ -198,6 +231,7 @@ export default function Orders() {
       });
 
       setShowReturnModal(false);
+      setReturnWizardStep(1);
       setReturnFormData({
         reason: "",
         description: "",
@@ -235,6 +269,7 @@ export default function Orders() {
 
   const closeReturnModal = () => {
     setShowReturnModal(false);
+    setReturnWizardStep(1);
     setSelectedProduct(null);
     setSelectedOrder(null);
     setReturnFormData({
@@ -258,6 +293,128 @@ export default function Orders() {
   const removeFile = (index) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
+
+  const returnWizardSteps = [
+    "Select item",
+    "Reason",
+    "Evidence",
+    "Return method",
+    "Confirm",
+  ];
+
+  const canAdvanceReturnStep = () => {
+    if (returnWizardStep === 1) return Boolean(selectedProduct);
+    if (returnWizardStep === 2) return Boolean(returnFormData.reason);
+    if (returnWizardStep === 3) return true;
+    if (returnWizardStep === 4) {
+      return Boolean(
+        returnFormData.refundMethod &&
+          returnFormData.refundAccountNumber &&
+          /^[0-9]{11}$/.test(returnFormData.refundAccountNumber),
+      );
+    }
+    return true;
+  };
+
+  const handleReturnNext = () => {
+    if (!canAdvanceReturnStep()) {
+      error("Please complete this step before continuing.", {
+        title: "Return Step Incomplete",
+      });
+      return;
+    }
+    setReturnWizardStep((step) => Math.min(step + 1, returnWizardSteps.length));
+  };
+
+  const handleReturnBack = () => {
+    setReturnWizardStep((step) => Math.max(step - 1, 1));
+  };
+
+  const defaultCancellationReasons = [
+    { value: "changed_mind", label: "Changed my mind" },
+    { value: "ordered_by_mistake", label: "Ordered by mistake" },
+    { value: "wrong_address", label: "Wrong delivery address" },
+    { value: "found_better_price", label: "Found a better price" },
+    { value: "payment_issue", label: "Payment issue" },
+    { value: "delivery_too_late", label: "Delivery is too late" },
+    { value: "other", label: "Other reason" },
+  ];
+
+  const getCancellationReasons = (order) =>
+    order?.customerExperience?.cancellation?.reasons?.length
+      ? order.customerExperience.cancellation.reasons
+      : defaultCancellationReasons;
+
+  const openCancelModal = (order) => {
+    const reasons = getCancellationReasons(order);
+    setCancelOrderTarget(order);
+    setCancelReason(reasons[0]?.value || "changed_mind");
+    setShowCancelModal(true);
+  };
+
+  const closeCancelModal = () => {
+    setShowCancelModal(false);
+    setCancelOrderTarget(null);
+    setCancelReason("");
+  };
+
+  const submitCancelOrder = async (event) => {
+    event.preventDefault();
+    if (!cancelOrderTarget?._id) return;
+
+    setCancellingOrder(true);
+    try {
+      await cancelOrder(cancelOrderTarget._id, { reason: cancelReason });
+      success("Order cancelled successfully", {
+        title: "Order Cancelled",
+      });
+      closeCancelModal();
+      fetchOrders();
+    } catch (err) {
+      error(err.response?.data?.error || "Failed to cancel order", {
+        title: "Cancellation Failed",
+      });
+    } finally {
+      setCancellingOrder(false);
+    }
+  };
+
+  const handleDownloadInvoice = async (order) => {
+    if (!order?._id) return;
+    setDownloadingInvoice((prev) => ({ ...prev, [order._id]: true }));
+
+    try {
+      const response = await downloadOrderInvoice(order._id);
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `invoice-${order._id.slice(-8).toUpperCase()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      error(err.response?.data?.error || "Failed to download invoice", {
+        title: "Invoice Download Failed",
+      });
+    } finally {
+      setDownloadingInvoice((prev) => ({ ...prev, [order._id]: false }));
+    }
+  };
+
+  const getReceiptItem = (order, index, item) =>
+    order.customerExperience?.itemizedReceipt?.[index] || {
+      title: item.title,
+      thumbnail: item.image,
+      quantity: item.quantity,
+      unitPrice: item.price,
+      lineTotal: (item.price || 0) * (item.quantity || 0),
+      vendorName: item.vendorName || item.shopName || "HnilaBazar",
+      courierName: item.courierName || order.customerExperience?.tracking?.courierName || "Internal courier",
+      paymentMethod: order.paymentMethod,
+      trackingNumber: item.trackingNumber || order.customerExperience?.tracking?.trackingNumber || "",
+    };
 
   // Check if order is eligible for returns (delivered within 7 days)
   const isReturnEligible = (order) => {
@@ -365,28 +522,11 @@ export default function Orders() {
     }
   };
 
-  // Cancel order (within 30 minutes)
-  const handleCancelOrder = async (orderId) => {
-    if (!confirm("Are you sure you want to cancel this order?")) {
-      return;
-    }
-
-    try {
-      await cancelOrder(orderId);
-      success("Order cancelled successfully", {
-        title: "Order Cancelled",
-      });
-      // Refresh orders
-      fetchOrders();
-    } catch (err) {
-      error(err.response?.data?.error || "Failed to cancel order", {
-        title: "Cancellation Failed",
-      });
-    }
-  };
-
   // Check if order can be cancelled (within 30 minutes and pending)
   const canCancelOrder = (order) => {
+    if (order.customerExperience?.cancellation?.canCancel !== undefined) {
+      return order.customerExperience.cancellation.canCancel;
+    }
     if (order.status !== "pending") return false;
 
     const createdAt = new Date(order.createdAt);
@@ -397,6 +537,16 @@ export default function Orders() {
 
     return now < canCancelUntil;
   };
+
+  const getStatusMeta = (order) =>
+    statusConfig[order.status] ||
+    statusConfig[getOrderStatusGroup(order)] ||
+    statusConfig.pending;
+
+  const formatStatusText = (value) =>
+    String(value || "pending")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
   if (loading) return <Loading />;
   return (
@@ -457,7 +607,7 @@ export default function Orders() {
                   />
                 </svg>
               </Link>
-              <div>
+              <div className={returnWizardStep === 2 ? "space-y-2" : "hidden"}>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
                   My Orders
                 </h1>
@@ -517,6 +667,7 @@ export default function Orders() {
             "shipped",
             "delivered",
             "cancelled",
+            "return",
           ].map((status) => (
             <button
               key={status}
@@ -530,7 +681,7 @@ export default function Orders() {
               {status.charAt(0).toUpperCase() + status.slice(1)}
               {status !== "all" && (
                 <span className="ml-2 text-xs opacity-75">
-                  ({orders.filter((o) => o.status === status).length})
+                  ({orders.filter((o) => getOrderStatusGroup(o) === status).length})
                 </span>
               )}
             </button>
@@ -602,13 +753,12 @@ export default function Orders() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border ${statusConfig[order.status]?.color}`}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border ${getStatusMeta(order).color}`}
                       >
                         <span className="text-lg">
-                          {statusConfig[order.status]?.icon}
+                          {getStatusMeta(order).icon}
                         </span>
-                        {order.status.charAt(0).toUpperCase() +
-                          order.status.slice(1)}
+                        {formatStatusText(order.status)}
                       </span>
                     </div>
                   </div>
@@ -629,21 +779,82 @@ export default function Orders() {
                       currentStatus={order.status}
                       orderDate={order.createdAt}
                       estimatedDelivery={order.estimatedDelivery}
+                      tracking={order.customerExperience?.tracking}
                     />
                   </div>
 
+                  {order.customerExperience?.tracking?.reschedule && (
+                    <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="font-semibold text-gray-900">
+                            Delivery rescheduling
+                          </p>
+                          <p className="mt-1 text-gray-600">
+                            {order.customerExperience.tracking.reschedule.message}
+                          </p>
+                        </div>
+                        {order.customerExperience.tracking.reschedule.supported ? (
+                          <a
+                            href={order.customerExperience.tracking.reschedule.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-lg bg-primary-600 px-4 py-2 text-center font-semibold text-white hover:bg-primary-700"
+                          >
+                            Choose slot
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            className="rounded-lg border border-gray-200 px-4 py-2 font-semibold text-gray-400"
+                          >
+                            Courier API pending
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {order.customerExperience?.returns?.length > 0 && (
+                    <div className="mb-6 space-y-4">
+                      {order.customerExperience.returns.map((tracker) => (
+                        <ReturnStatusTracker
+                          key={tracker.returnId || `${order._id}-${tracker.productId}`}
+                          tracker={tracker}
+                          formatPrice={formatPrice}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {order.customerExperience?.reviewPrompt?.due && (
+                    <div className="mb-6 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+                      <p className="font-semibold text-yellow-900">
+                        Ready to rate your delivered items?
+                      </p>
+                      <p className="mt-1 text-sm text-yellow-800">
+                        The review prompt is due from{" "}
+                        {order.customerExperience.reviewPrompt.promptAtLabel}; use the Review
+                        button beside each item for one-tap star rating.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Order Items */}
                   <div className="space-y-4 mb-6">
-                    {order.products.map((item, index) => (
+                    {order.products.map((item, index) => {
+                      const receiptItem = getReceiptItem(order, index, item);
+                      return (
                       <div
                         key={index}
                         className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl"
                       >
                         <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
-                          {item.image ? (
+                          {receiptItem.thumbnail || item.image ? (
                             <img
-                              src={item.image}
-                              alt={item.title}
+                              src={receiptItem.thumbnail || item.image}
+                              alt={receiptItem.title}
                               className="w-full h-full object-cover"
                             />
                           ) : (
@@ -664,7 +875,7 @@ export default function Orders() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-gray-900 truncate">
-                            {item.title}
+                            {receiptItem.title}
                           </h4>
                           <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
                             <span>Qty: {item.quantity}</span>
@@ -676,14 +887,25 @@ export default function Orders() {
                                 Color: {renderColor(item.selectedColor)}
                               </span>
                             )}
-                            <span>{formatPrice(item.price)} each</span>
+                            <span>{formatPrice(receiptItem.unitPrice || item.price)} each</span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                            <span>Vendor: {receiptItem.vendorName}</span>
+                            <span>Courier: {receiptItem.courierName}</span>
+                            <span>
+                              Payment:{" "}
+                              {receiptItem.paymentMethod === "cod"
+                                ? "Cash on Delivery"
+                                : receiptItem.paymentMethod}
+                            </span>
+                            {receiptItem.trackingNumber && (
+                              <span>Tracking: {receiptItem.trackingNumber}</span>
+                            )}
                           </div>
                         </div>
                         <div className="text-right flex flex-col items-end gap-2">
                           <p className="font-bold text-gray-900">
-                            {formatPrice(
-                              (item.price || 0) * (item.quantity || 0),
-                            )}
+                            {formatPrice(receiptItem.lineTotal)}
                           </p>
 
                           {/* Quick Reorder Button */}
@@ -792,7 +1014,8 @@ export default function Orders() {
                             )}
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
 
                   {/* Payment & Delivery Info */}
@@ -922,7 +1145,7 @@ export default function Orders() {
                         {/* Cancel Order Button (if within 30 min and pending) */}
                         {canCancelOrder(order) && (
                           <button
-                            onClick={() => handleCancelOrder(order._id)}
+                            onClick={() => openCancelModal(order)}
                             className="w-full py-2 px-4 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-all flex items-center justify-center gap-2"
                           >
                             <svg
@@ -941,6 +1164,17 @@ export default function Orders() {
                             Cancel Order (within 30 min)
                           </button>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadInvoice(order)}
+                          disabled={downloadingInvoice[order._id]}
+                          className="w-full py-2 px-4 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {downloadingInvoice[order._id]
+                            ? "Preparing invoice..."
+                            : "Download Invoice PDF"}
+                        </button>
 
                         <button
                           onClick={() => handleReorderEntireOrder(order)}
@@ -1052,9 +1286,33 @@ export default function Orders() {
               </div>
             </div>
 
+            <div className="grid grid-cols-5 gap-2">
+              {returnWizardSteps.map((step, index) => {
+                const number = index + 1;
+                const active = number === returnWizardStep;
+                const complete = number < returnWizardStep;
+                return (
+                  <button
+                    key={step}
+                    type="button"
+                    onClick={() => number <= returnWizardStep && setReturnWizardStep(number)}
+                    className={`rounded-lg border px-2 py-2 text-xs font-semibold ${
+                      active
+                        ? "border-primary-500 bg-primary-50 text-primary-700"
+                        : complete
+                          ? "border-green-200 bg-green-50 text-green-700"
+                          : "border-gray-200 bg-gray-50 text-gray-400"
+                    }`}
+                  >
+                    {number}. {step}
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Return Form */}
             <form onSubmit={submitReturnRequest} className="space-y-4">
-              <div>
+              <div className={returnWizardStep === 2 ? "space-y-2" : "hidden"}>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Return Reason *
                 </label>
@@ -1084,7 +1342,7 @@ export default function Orders() {
                 </select>
               </div>
 
-              <div>
+              <div className={returnWizardStep === 3 ? "space-y-3" : "hidden"}>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Description (Optional)
                 </label>
@@ -1103,7 +1361,7 @@ export default function Orders() {
               </div>
 
               {/* Refund Method Section */}
-              <div className="border-t pt-4">
+              <div className={returnWizardStep === 4 ? "border-t pt-4" : "hidden"}>
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">
                   Refund Information
                 </h3>
@@ -1376,6 +1634,32 @@ export default function Orders() {
                 </div>
               </div>
 
+              {returnWizardStep === 5 && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <h4 className="font-semibold text-gray-900">Confirm return request</h4>
+                  <div className="mt-3 space-y-2 text-sm text-gray-700">
+                    <p>
+                      <strong>Item:</strong> {selectedProduct.title}
+                    </p>
+                    <p>
+                      <strong>Reason:</strong> {returnFormData.reason || "Not selected"}
+                    </p>
+                    <p>
+                      <strong>Evidence:</strong>{" "}
+                      {selectedFiles.length > 0
+                        ? `${selectedFiles.length} photo(s) selected`
+                        : "No photo uploaded"}
+                    </p>
+                    <p>
+                      <strong>Refund:</strong> {returnFormData.refundMethod || "Not selected"}{" "}
+                      {returnFormData.refundAccountNumber
+                        ? `to ${returnFormData.refundAccountNumber}`
+                        : ""}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-sm text-blue-700">
                   <strong>Return Policy:</strong> Items can be returned within 7
@@ -1385,6 +1669,24 @@ export default function Orders() {
               </div>
 
               <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={handleReturnBack}
+                  disabled={uploadingImages || returnWizardStep === 1}
+                  className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Back
+                </button>
+                {returnWizardStep < returnWizardSteps.length ? (
+                  <button
+                    type="button"
+                    onClick={handleReturnNext}
+                    disabled={uploadingImages}
+                    className="flex-1 bg-primary-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Continue
+                  </button>
+                ) : (
                 <button
                   type="submit"
                   disabled={uploadingImages}
@@ -1418,6 +1720,7 @@ export default function Orders() {
                     "Submit Return Request"
                   )}
                 </button>
+                )}
                 <button
                   type="button"
                   onClick={closeReturnModal}
@@ -1429,6 +1732,63 @@ export default function Orders() {
               </div>
             </form>
           </div>
+        )}
+      </Modal>
+
+      {/* Cancellation Modal */}
+      <Modal
+        isOpen={showCancelModal}
+        onClose={closeCancelModal}
+        title="Cancel Order"
+      >
+        {cancelOrderTarget && (
+          <form onSubmit={submitCancelOrder} className="space-y-4">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+              <p className="font-semibold text-red-900">
+                Cancel order #{cancelOrderTarget._id.slice(-8).toUpperCase()}
+              </p>
+              <p className="mt-1 text-sm text-red-700">
+                Cancellation is available while the order is still pending. Your selected
+                reason will be shared with the seller and saved in the order timeline.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cancellation reason *
+              </label>
+              <select
+                value={cancelReason}
+                onChange={(event) => setCancelReason(event.target.value)}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+              >
+                {getCancellationReasons(cancelOrderTarget).map((reason) => (
+                  <option key={reason.value} value={reason.value}>
+                    {reason.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={cancellingOrder}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {cancellingOrder ? "Cancelling..." : "Confirm Cancellation"}
+              </button>
+              <button
+                type="button"
+                onClick={closeCancelModal}
+                disabled={cancellingOrder}
+                className="flex-1 rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-300 disabled:opacity-50"
+              >
+                Keep Order
+              </button>
+            </div>
+          </form>
         )}
       </Modal>
 

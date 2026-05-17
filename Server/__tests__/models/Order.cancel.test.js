@@ -36,6 +36,8 @@ describe("Order model cancellation", () => {
           cancelledBy: "customer-1",
           cancelledByRole: "user",
           cancellationSource: "customer",
+          cancellationReason: null,
+          cancellationReasonLabel: null,
           cancellationMessage: "User cancelled this order within 30 minutes.",
         }),
         $push: expect.objectContaining({
@@ -50,6 +52,40 @@ describe("Order model cancellation", () => {
       status: "cancelled",
       products: [expect.objectContaining({ itemStatus: "cancelled" })],
       cancelledAt: expect.any(Date),
+    }));
+  });
+
+  test("cancelOrder stores a customer selected cancellation reason", async () => {
+    const existingOrder = {
+      _id: new ObjectId(orderId),
+      userId: "customer-1",
+      status: "pending",
+      paymentStatus: "pending",
+      createdAt: new Date(),
+      products: [{ productId: "64f000000000000000000002", quantity: 1 }],
+    };
+    const { order, collection } = buildOrderModel(existingOrder);
+
+    const result = await order.cancelOrder(orderId, "customer-1", "wrong_address");
+
+    expect(collection.updateOne).toHaveBeenCalledWith(
+      { _id: new ObjectId(orderId) },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          cancellationReason: "wrong_address",
+          cancellationReasonLabel: "Wrong delivery address",
+          cancellationMessage: "Customer cancelled: Wrong delivery address",
+        }),
+        $push: expect.objectContaining({
+          statusHistory: expect.objectContaining({
+            note: "Customer cancelled within the 30-minute cancellation window: Wrong delivery address",
+          }),
+        }),
+      }),
+    );
+    expect(result).toEqual(expect.objectContaining({
+      cancellationReason: "wrong_address",
+      cancellationReasonLabel: "Wrong delivery address",
     }));
   });
 

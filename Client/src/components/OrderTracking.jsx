@@ -1,179 +1,216 @@
-import { useState, useEffect } from "react";
+import {
+  CalendarClock,
+  CheckCircle2,
+  Circle,
+  ClipboardCheck,
+  ExternalLink,
+  Home,
+  MapPin,
+  PackageCheck,
+  Truck,
+  Warehouse,
+} from "lucide-react";
+
+const fallbackSteps = [
+  { key: "placed", title: "Order Placed", description: "We received your order." },
+  { key: "confirmed", title: "Confirmed", description: "The seller has confirmed the order." },
+  { key: "packed", title: "Packed", description: "Items are packed and ready for dispatch." },
+  { key: "dispatched", title: "Dispatched", description: "The courier has picked up the parcel." },
+  { key: "out_for_delivery", title: "Out for Delivery", description: "The parcel is moving toward your address." },
+  { key: "delivered", title: "Delivered", description: "The order has been delivered." },
+];
+
+const statusToStep = {
+  pending: "placed",
+  processing: "confirmed",
+  packed: "packed",
+  ready_to_ship: "packed",
+  shipped: "dispatched",
+  out_for_delivery: "out_for_delivery",
+  delivered: "delivered",
+  cancelled: "placed",
+};
+
+const iconByStep = {
+  placed: ClipboardCheck,
+  confirmed: CheckCircle2,
+  packed: PackageCheck,
+  dispatched: Truck,
+  out_for_delivery: MapPin,
+  delivered: Home,
+};
+
+const formatDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const buildFallbackTracking = ({ currentStatus, orderDate, estimatedDelivery }) => {
+  const currentStep = statusToStep[currentStatus] || "placed";
+  const activeIndex = Math.max(
+    0,
+    fallbackSteps.findIndex((step) => step.key === currentStep),
+  );
+
+  return {
+    steps: fallbackSteps.map((step, index) => ({
+      ...step,
+      state:
+        currentStatus === "cancelled"
+          ? index === 0
+            ? "completed"
+            : "stopped"
+          : index < activeIndex
+            ? "completed"
+            : index === activeIndex
+              ? "active"
+              : "upcoming",
+      date: index === 0 ? orderDate : null,
+      dateLabel: index === 0 ? formatDate(orderDate) : "",
+    })),
+    eta: estimatedDelivery
+      ? {
+          date: estimatedDelivery,
+          label: new Date(estimatedDelivery).toLocaleDateString("en-US", {
+            weekday: "long",
+            month: "short",
+            day: "numeric",
+          }),
+        }
+      : null,
+    courierName: "Internal courier",
+    trackingNumber: "",
+    trackingUrl: "",
+    integrationMode: "internal_status",
+    reschedule: {
+      supported: false,
+      message: "Delivery rescheduling will appear here when courier API support is connected.",
+    },
+  };
+};
 
 export default function OrderTracking({
   orderId,
   currentStatus,
   orderDate,
   estimatedDelivery,
+  tracking,
 }) {
-  const [activeStep, setActiveStep] = useState(0);
-
-  const trackingSteps = [
-    {
-      id: "pending",
-      title: "Order Placed",
-      description: "Your order has been received",
-      icon: "📝",
-      date: orderDate,
-    },
-    {
-      id: "processing",
-      title: "Processing",
-      description: "We're preparing your order",
-      icon: "⚙️",
-      date: null,
-    },
-    {
-      id: "shipped",
-      title: "Shipped",
-      description: "Your order is on the way",
-      icon: "🚚",
-      date: null,
-    },
-    {
-      id: "delivered",
-      title: "Delivered",
-      description: "Order delivered successfully",
-      icon: "✅",
-      date: null,
-    },
-  ];
-
-  useEffect(() => {
-    const stepIndex = trackingSteps.findIndex(
-      (step) => step.id === currentStatus,
-    );
-    setActiveStep(stepIndex >= 0 ? stepIndex : 0);
-  }, [currentStatus]);
-
-  const getStepStatus = (index) => {
-    if (index < activeStep) return "completed";
-    if (index === activeStep) return "active";
-    return "pending";
-  };
+  const profile =
+    tracking?.steps?.length > 0
+      ? tracking
+      : buildFallbackTracking({ currentStatus, orderDate, estimatedDelivery });
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Order Tracking
-        </h3>
-        <span className="text-sm text-gray-500 dark:text-gray-400">
-          Order #{orderId?.slice(-8).toUpperCase()}
-        </span>
+    <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+            Order Tracking
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Order #{orderId?.slice(-8).toUpperCase()}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          <Truck className="h-4 w-4 text-primary-600" />
+          <span>{profile.courierName || "Internal courier"}</span>
+          {profile.trackingNumber && (
+            <span className="rounded-full bg-gray-100 px-2 py-1 font-mono text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+              {profile.trackingNumber}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Progress Bar */}
-      <div className="relative mb-8">
-        <div className="flex items-center justify-between">
-          {trackingSteps.map((step, index) => {
-            const status = getStepStatus(index);
-            return (
+      <div className="mt-5 grid gap-3 md:grid-cols-6">
+        {profile.steps.map((step) => {
+          const Icon = iconByStep[step.key] || Circle;
+          const isCompleted = step.state === "completed";
+          const isActive = step.state === "active";
+          const isStopped = step.state === "stopped";
+
+          return (
+            <div
+              key={step.key}
+              className={`min-h-[128px] rounded-lg border p-3 transition-colors ${
+                isCompleted
+                  ? "border-green-200 bg-green-50 text-green-900"
+                  : isActive
+                    ? "border-primary-300 bg-primary-50 text-primary-900"
+                    : isStopped
+                      ? "border-gray-200 bg-gray-50 text-gray-400"
+                      : "border-gray-200 bg-gray-50 text-gray-600"
+              }`}
+            >
               <div
-                key={step.id}
-                className="flex flex-col items-center relative"
+                className={`mb-3 flex h-9 w-9 items-center justify-center rounded-full ${
+                  isCompleted
+                    ? "bg-green-600 text-white"
+                    : isActive
+                      ? "bg-primary-600 text-white"
+                      : "bg-white text-gray-400"
+                }`}
               >
-                {/* Step Circle */}
-                <div
-                  className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold transition-all ${
-                    status === "completed"
-                      ? "bg-green-500 text-white"
-                      : status === "active"
-                        ? "bg-blue-500 text-white animate-pulse"
-                        : "bg-gray-200 text-gray-400 dark:bg-gray-700"
-                  }`}
-                >
-                  {status === "completed" ? "✓" : step.icon}
-                </div>
-
-                {/* Step Info */}
-                <div className="mt-3 text-center">
-                  <p
-                    className={`text-sm font-medium ${
-                      status === "active"
-                        ? "text-blue-600 dark:text-blue-400"
-                        : status === "completed"
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-gray-500 dark:text-gray-400"
-                    }`}
-                  >
-                    {step.title}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {step.description}
-                  </p>
-                  {step.date && (
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                      {new Date(step.date).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-
-                {/* Connecting Line */}
-                {index < trackingSteps.length - 1 && (
-                  <div
-                    className={`absolute top-6 left-12 w-full h-0.5 -z-10 ${
-                      index < activeStep
-                        ? "bg-green-500"
-                        : "bg-gray-200 dark:bg-gray-700"
-                    }`}
-                    style={{ width: "calc(100% + 2rem)" }}
-                  />
-                )}
+                {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
               </div>
-            );
-          })}
-        </div>
+              <p className="text-sm font-semibold">{step.title}</p>
+              <p className="mt-1 text-xs leading-5 opacity-80">{step.description}</p>
+              {(step.dateLabel || step.date) && (
+                <p className="mt-2 text-xs font-medium">{step.dateLabel || formatDate(step.date)}</p>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Estimated Delivery */}
-      {estimatedDelivery && currentStatus !== "delivered" && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-          <div className="flex items-center gap-2">
-            <svg
-              className="w-5 h-5 text-blue-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-              Estimated Delivery:{" "}
-              {new Date(estimatedDelivery).toLocaleDateString()}
-            </span>
+      <div className="mt-5 grid gap-3 lg:grid-cols-2">
+        {profile.eta && currentStatus !== "delivered" && currentStatus !== "cancelled" && (
+          <div
+            className={`rounded-lg border p-4 ${
+              profile.eta.overdue
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-blue-200 bg-blue-50 text-blue-900"
+            }`}
+          >
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <CalendarClock className="h-4 w-4" />
+              Expected delivery: {profile.eta.label || formatDate(profile.eta.date)}
+            </div>
+            <p className="mt-1 text-xs">
+              Courier: {profile.courierName || "Internal courier"}
+            </p>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Delivery Confirmation */}
-      {currentStatus === "delivered" && (
-        <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
-          <div className="flex items-center gap-2">
-            <svg
-              className="w-5 h-5 text-green-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span className="text-sm font-medium text-green-900 dark:text-green-100">
-              🎉 Order delivered successfully!
-            </span>
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+          <div className="flex items-center gap-2 font-semibold text-gray-900">
+            <Warehouse className="h-4 w-4 text-primary-600" />
+            Courier tracking
           </div>
+          {profile.trackingUrl ? (
+            <a
+              href={profile.trackingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-2 text-primary-700 hover:text-primary-800"
+            >
+              Open live courier status
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          ) : (
+            <p className="mt-2 text-xs leading-5">
+              Internal marketplace status is active. Live courier map or status link will appear
+              here when a courier API is connected.
+            </p>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+    </section>
   );
 }
