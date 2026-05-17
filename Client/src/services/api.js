@@ -36,6 +36,14 @@ export const getOutOfStockProducts = () =>
 export const updateStockBulk = (updates) =>
   api.patch("/products/bulk-stock-update", { updates });
 
+// Homepage discovery
+export const getHomepageDiscovery = (params = {}) =>
+  api.get("/discovery/homepage", { params });
+export const recordDiscoveryRecentlyViewed = (productId) =>
+  api.post("/discovery/recently-viewed", { productId });
+export const getDailyCheckInStatus = () => api.get("/discovery/check-in/status");
+export const claimDailyCheckInReward = () => api.post("/discovery/check-in");
+
 // Categories
 export const getCategories = () => api.get("/categories");
 export const createCategory = (data) => api.post("/categories", data);

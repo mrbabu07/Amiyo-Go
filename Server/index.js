@@ -89,6 +89,7 @@ const supportRoutes = require("./routes/supportRoutes");
 const userManagementRoutes = require("./routes/userManagementRoutes");
 const flashSaleRoutes = require("./routes/flashSaleRoutes");
 const recommendationRoutes = require("./routes/recommendationRoutes");
+const discoveryRoutes = require("./routes/discoveryRoutes");
 const stockAlertRoutes = require("./routes/stockAlertRoutes");
 const loyaltyRoutes = require("./routes/loyaltyRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
@@ -299,6 +300,7 @@ async function run() {
     console.log("✅ Flash Sales routes registered");
 
     app.use("/api/recommendations", recommendationRoutes);
+    app.use("/api/discovery", discoveryRoutes);
     console.log("✅ Recommendations routes registered");
 
     app.use("/api/stock-alerts", stockAlertRoutes);

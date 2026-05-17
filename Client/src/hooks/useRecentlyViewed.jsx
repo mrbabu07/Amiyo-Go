@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { auth } from "../firebase/firebase.config";
+import { recordDiscoveryRecentlyViewed } from "../services/api";
 
 const STORAGE_KEY = "recentlyViewed";
 const MAX_ITEMS = 10;
@@ -33,6 +35,10 @@ export const useRecentlyViewed = () => {
 
       return updated;
     });
+
+    if (auth.currentUser) {
+      recordDiscoveryRecentlyViewed(product._id).catch(() => {});
+    }
   };
 
   const clearRecentlyViewed = () => {

@@ -1,562 +1,761 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { getProducts } from "../services/api";
-import { getActiveCoupons } from "../services/api";
+import {
+  BadgePercent,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Coins,
+  Flame,
+  Gift,
+  Sparkles,
+  Store,
+  Tag,
+  TrendingUp,
+} from "lucide-react";
+import {
+  claimDailyCheckInReward,
+  getHomepageDiscovery,
+} from "../services/api";
 import ProductCard from "../components/ProductCard";
-import CategoryCarousel from "../components/CategoryCarousel";
-import ProductsByCategory from "../components/ProductsByCategory";
-import RecentlyViewed from "../components/RecentlyViewed";
-import FlashSaleFinal from "../components/FlashSaleFinal";
 import { ProductCardSkeleton } from "../components/Skeleton";
+import { useRecentlyViewed } from "../hooks/useRecentlyViewed";
+import { useCurrency } from "../hooks/useCurrency";
+import useAuth from "../hooks/useAuth";
 
-export default function Home() {
-  const [products, setProducts] = useState([]);
-  const [newArrivals, setNewArrivals] = useState([]);
-  const [activeCoupons, setActiveCoupons] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [currentCouponIndex, setCurrentCouponIndex] = useState(0);
-  const [currentSlide, setCurrentSlide] = useState(0);
+const fallbackHeroImage =
+  "https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=1400&h=700&fit=crop";
 
-  useEffect(() => {
-    fetchProducts();
-    fetchActiveCoupons();
-  }, []);
+const emptyDiscovery = {
+  heroBanners: [],
+  categories: [],
+  promotionStrip: [],
+  flashSales: [],
+  justForYou: [],
+  trendingNow: [],
+  newArrivals: [],
+  curatedCollections: [],
+  followedVendorUpdates: { requiresLogin: true, vendors: [], updates: [] },
+  recentlyViewed: [],
+  dailyCheckIn: { enabled: true, requiresLogin: true, canClaim: false, points: 5 },
+};
 
-  // Auto-rotate coupons
-  useEffect(() => {
-    if (activeCoupons.length > 1) {
-      const interval = setInterval(() => {
-        setCurrentCouponIndex((prev) => (prev + 1) % activeCoupons.length);
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [activeCoupons]);
+const formatDuration = (targetDate, now) => {
+  const end = targetDate ? new Date(targetDate).getTime() : 0;
+  const remaining = Math.max(0, end - now);
+  const hours = Math.floor(remaining / (60 * 60 * 1000));
+  const minutes = Math.floor((remaining / (60 * 1000)) % 60);
+  const seconds = Math.floor((remaining / 1000) % 60);
 
-  // Auto-rotate hero carousel
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
-    }, 6000);
-    return () => clearInterval(interval);
-  }, []);
+  if (!end || remaining <= 0) return "Ending soon";
+  if (hours >= 24) return `${Math.floor(hours / 24)}d ${hours % 24}h`;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+};
 
-  const fetchProducts = async () => {
-    try {
-      const response = await getProducts();
-      const allProducts = response.data.data;
+const sectionProducts = (products = [], count = 8) => products.slice(0, count);
 
-      // Featured products (first 8)
-      setProducts(allProducts.slice(0, 8));
-
-      // New arrivals (last 4 products - most recently added)
-      setNewArrivals(allProducts.slice(-4).reverse());
-    } catch (error) {
-      console.error("Failed to fetch products:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchActiveCoupons = async () => {
-    try {
-      const response = await getActiveCoupons();
-      setActiveCoupons(response.data.data || []);
-    } catch (error) {
-      console.error("Failed to fetch coupons:", error);
-    }
-  };
-
-  // Hero carousel slides
-  const heroSlides = [
-    {
-      title: "Shop Smart, Live Better",
-      subtitle: "Quality You Can Trust",
-      description:
-        "Discover amazing products at unbeatable prices. Fast delivery, easy returns, and 24/7 support.",
-      badge: "🎉 New Arrivals - Up to 50% Off",
-      primaryCTA: { text: "Start Shopping Now", link: "/products" },
-      secondaryCTA: { text: "Browse Categories", link: "/categories" },
-      bgGradient: "from-primary-500 via-primary-600 to-secondary-600",
-      image:
-        "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1200&h=600&fit=crop",
-    },
-    {
-      title: "Electronics Sale",
-      subtitle: "Latest Tech at Best Prices",
-      description:
-        "Upgrade your lifestyle with cutting-edge gadgets and electronics. Limited time offers!",
-      badge: "⚡ Flash Sale - Save Big Today",
-      primaryCTA: { text: "Shop Electronics", link: "/category/electronics" },
-      secondaryCTA: { text: "View Deals", link: "/products" },
-      bgGradient: "from-blue-500 via-indigo-600 to-purple-600",
-      image:
-        "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=1200&h=600&fit=crop",
-    },
-    {
-      title: "Fashion Forward",
-      subtitle: "Style That Speaks",
-      description:
-        "Explore the latest trends in men's and women's fashion. Express yourself with confidence.",
-      badge: "👗 Trending Now - New Collection",
-      primaryCTA: { text: "Shop Fashion", link: "/category/womens" },
-      secondaryCTA: { text: "Men's Collection", link: "/category/mens" },
-      bgGradient: "from-pink-500 via-rose-600 to-red-600",
-      image:
-        "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1200&h=600&fit=crop",
-    },
-  ];
-
-  const testimonials = [
-    {
-      name: "Sarah Johnson",
-      rating: 5,
-      comment: "Amazing quality and fast delivery! Will definitely shop again.",
-      avatar: "SJ",
-    },
-    {
-      name: "Michael Chen",
-      rating: 5,
-      comment:
-        "Great customer service and authentic products. Highly recommended!",
-      avatar: "MC",
-    },
-    {
-      name: "Emily Davis",
-      rating: 4,
-      comment: "Good prices and easy returns. Very satisfied with my purchase.",
-      avatar: "ED",
-    },
-  ];
+function CouponStrip({ coupons, formatPrice }) {
+  if (!coupons?.length) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="animate-fade-in">
-        {/* Promotional Coupon Strip */}
-        {activeCoupons.length > 0 && (
-          <div className="bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 text-white py-3 overflow-hidden">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex items-center justify-center gap-3 text-sm md:text-base font-medium">
-                <span className="animate-pulse">🎉</span>
-                <span>
-                  Use code{" "}
-                  <span className="font-bold bg-white/20 px-2 py-0.5 rounded">
-                    {activeCoupons[currentCouponIndex].code}
-                  </span>{" "}
-                  for{" "}
-                  {activeCoupons[currentCouponIndex].discountType ===
-                  "percentage"
-                    ? `${activeCoupons[currentCouponIndex].discountValue}% OFF`
-                    : `৳${Math.round(activeCoupons[currentCouponIndex].discountValue * 110)} OFF`}
-                  {activeCoupons[currentCouponIndex].minOrderAmount &&
-                    ` on orders over ৳${Math.round(activeCoupons[currentCouponIndex].minOrderAmount * 110)}`}
-                </span>
-                <span className="animate-pulse">🎉</span>
-              </div>
-            </div>
+    <div className="border-b border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/30">
+      <div className="mx-auto flex max-w-7xl gap-3 overflow-x-auto px-4 py-2 sm:px-6 lg:px-8">
+        {coupons.map((coupon) => (
+          <Link
+            key={coupon._id || coupon.code}
+            to="/products"
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-900 transition hover:border-amber-300 dark:border-amber-800 dark:bg-gray-900 dark:text-amber-100"
+          >
+            <Tag className="h-4 w-4" />
+            <span>{coupon.code}</span>
+            <span className="text-amber-700 dark:text-amber-300">
+              {coupon.discountType === "percentage"
+                ? `${coupon.discountValue}% off`
+                : `${formatPrice(coupon.discountValue)} off`}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CategoryQuickAccess({ categories }) {
+  if (!categories?.length) return null;
+
+  return (
+    <div className="sticky top-16 z-30 border-b border-gray-200 bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
+      <div className="mx-auto max-w-7xl overflow-x-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex min-h-[72px] items-center gap-3 py-2">
+          {categories.map((category) => (
+            <Link
+              key={category._id}
+              to={category.slug ? `/products?category=${category.slug}` : `/products?category=${category._id}`}
+              className="group flex w-24 shrink-0 flex-col items-center gap-1 rounded-lg px-2 py-2 text-center transition hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-sm font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
+                {category.image || category.icon ? (
+                  <img
+                    src={category.image || category.icon}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  category.name?.slice(0, 1) || "C"
+                )}
+              </span>
+              <span className="line-clamp-2 text-xs font-medium leading-tight text-gray-700 group-hover:text-primary-600 dark:text-gray-200">
+                {category.name}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HeroCarousel({ banners, activeHero, setActiveHero }) {
+  const slides = banners?.length
+    ? banners
+    : [
+        {
+          id: "fallback",
+          title: "Amiyo Go Marketplace",
+          subtitle: "Fresh deals, local sellers, and trusted delivery across Bangladesh.",
+          badge: "Marketplace picks",
+          imageUrl: fallbackHeroImage,
+          link: "/products",
+          ctaText: "Shop products",
+        },
+      ];
+
+  const currentSlide = slides[activeHero % slides.length];
+
+  return (
+    <div className="relative min-h-[320px] overflow-hidden rounded-lg bg-gray-900 md:min-h-[380px]">
+      {slides.map((slide, index) => (
+        <div
+          key={slide.id || index}
+          className={`absolute inset-0 transition-opacity duration-700 ${
+            index === activeHero % slides.length ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <img
+            src={slide.imageUrl || fallbackHeroImage}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gray-950/45" />
+        </div>
+      ))}
+
+      <div className="relative flex min-h-[320px] flex-col justify-end p-5 md:min-h-[380px] md:p-8">
+        <div className="max-w-2xl">
+          <span className="mb-3 inline-flex items-center gap-2 rounded-lg bg-white/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-900">
+            <Sparkles className="h-3.5 w-3.5" />
+            {currentSlide.badge || "Featured"}
+          </span>
+          <h1 className="text-3xl font-bold leading-tight text-white md:text-5xl">
+            {currentSlide.title}
+          </h1>
+          {currentSlide.subtitle ? (
+            <p className="mt-3 max-w-xl text-sm leading-6 text-white/90 md:text-base">
+              {currentSlide.subtitle}
+            </p>
+          ) : null}
+          <Link
+            to={currentSlide.link || "/products"}
+            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-gray-950 shadow-sm transition hover:bg-gray-100"
+          >
+            {currentSlide.ctaText || "Shop now"}
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+
+      {slides.length > 1 ? (
+        <>
+          <button
+            type="button"
+            aria-label="Previous banner"
+            onClick={() => setActiveHero((current) => (current - 1 + slides.length) % slides.length)}
+            className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg bg-white/85 text-gray-900 shadow-sm transition hover:bg-white"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Next banner"
+            onClick={() => setActiveHero((current) => (current + 1) % slides.length)}
+            className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg bg-white/85 text-gray-900 shadow-sm transition hover:bg-white"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <div className="absolute bottom-4 right-4 flex gap-1">
+            {slides.map((slide, index) => (
+              <button
+                key={slide.id || index}
+                type="button"
+                aria-label={`Go to banner ${index + 1}`}
+                onClick={() => setActiveHero(index)}
+                className={`h-2 rounded-full transition-all ${
+                  index === activeHero % slides.length ? "w-7 bg-white" : "w-2 bg-white/55"
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function DailyCheckInCard({ dailyCheckIn, user, claiming, onClaim }) {
+  if (!dailyCheckIn?.enabled) return null;
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <div className="flex items-start gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+          <Coins className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+            {dailyCheckIn.label || `Check in today for ${dailyCheckIn.points || 5} coins`}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+            Use coins later with loyalty rewards and checkout savings.
+          </p>
+        </div>
+      </div>
+
+      {dailyCheckIn.requiresLogin || !user ? (
+        <Link
+          to="/login"
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gray-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-950"
+        >
+          <Gift className="h-4 w-4" />
+          Sign in to collect
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={onClaim}
+          disabled={!dailyCheckIn.canClaim || claiming}
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
+        >
+          <Gift className="h-4 w-4" />
+          {claiming ? "Collecting..." : dailyCheckIn.canClaim ? "Collect coins" : "Collected today"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function FlashSummary({ flashSales, now, formatPrice }) {
+  const firstDeal = flashSales?.[0];
+  if (!firstDeal) return null;
+
+  return (
+    <Link
+      to={firstDeal.productId ? `/product/${firstDeal.productId}` : "/products"}
+      className="block overflow-hidden rounded-lg border border-red-200 bg-red-50 p-4 shadow-sm transition hover:border-red-300 dark:border-red-900/70 dark:bg-red-950/30"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300">
+            <Flame className="h-4 w-4" />
+            Flash sale live
+          </p>
+          <p className="mt-2 line-clamp-2 text-base font-bold text-gray-950 dark:text-white">
+            {firstDeal.title}
+          </p>
+          <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+            {formatPrice(firstDeal.flashPrice || firstDeal.product?.price || 0)}
+          </p>
+        </div>
+        <img
+          src={firstDeal.image || firstDeal.product?.image || fallbackHeroImage}
+          alt=""
+          className="h-20 w-20 rounded-lg object-cover"
+          loading="lazy"
+        />
+      </div>
+      <div className="mt-3 flex items-center justify-between text-xs font-medium text-red-700 dark:text-red-300">
+        <span>{firstDeal.remainingStock} left</span>
+        <span>{formatDuration(firstDeal.endTime, now)}</span>
+      </div>
+    </Link>
+  );
+}
+
+function ProductGridSection({ title, subtitle, icon: Icon, products, loading, actionTo = "/products", actionLabel = "View all" }) {
+  if (!loading && !products?.length) return null;
+
+  return (
+    <section className="py-8 md:py-10">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="mb-2 inline-flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+              {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
+              {subtitle}
+            </p>
+            <h2 className="text-2xl font-bold text-gray-950 dark:text-white md:text-3xl">
+              {title}
+            </h2>
+          </div>
+          <Link
+            to={actionTo}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-300"
+          >
+            {actionLabel}
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <ProductCardSkeleton key={index} />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {sectionProducts(products).map((product) => (
+              <ProductCard key={product._id} product={product} />
+            ))}
           </div>
         )}
+      </div>
+    </section>
+  );
+}
 
-        {/* Hero Carousel Section */}
-        <section className="relative overflow-hidden">
-          {/* Carousel Container */}
-          <div className="relative h-[500px] md:h-[600px]">
-            {heroSlides.map((slide, index) => (
-              <div
-                key={index}
-                className={`absolute inset-0 transition-all duration-700 ease-in-out ${
-                  index === currentSlide
-                    ? "opacity-100 translate-x-0"
-                    : index < currentSlide
-                      ? "opacity-0 -translate-x-full"
-                      : "opacity-0 translate-x-full"
-                }`}
+function FlashSaleStrip({ flashSales, now, formatPrice }) {
+  if (!flashSales?.length) return null;
+
+  return (
+    <section className="border-y border-gray-200 bg-white py-6 dark:border-gray-800 dark:bg-gray-900">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="inline-flex items-center gap-2 rounded-lg bg-red-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-700 dark:bg-red-900/40 dark:text-red-200">
+              <Clock className="h-3.5 w-3.5" />
+              Live countdown
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-gray-950 dark:text-white">
+              Flash Sale
+            </h2>
+          </div>
+          <Link to="/products?deal=flash" className="inline-flex items-center gap-2 text-sm font-semibold text-red-600">
+            See all
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        <div className="flex gap-4 overflow-x-auto pb-1">
+          {flashSales.map((deal) => {
+            const stockPercent = deal.totalStock
+              ? Math.max(0, Math.min(100, (deal.remainingStock / deal.totalStock) * 100))
+              : 0;
+
+            return (
+              <Link
+                key={deal._id || deal.productId}
+                to={deal.productId ? `/product/${deal.productId}` : "/products"}
+                className="w-64 shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-3 transition hover:border-red-300 hover:bg-red-50 dark:border-gray-800 dark:bg-gray-950 dark:hover:border-red-900 dark:hover:bg-red-950/20"
               >
-                {/* Background with gradient overlay */}
-                <div
-                  className={`absolute inset-0 bg-gradient-to-br ${slide.bgGradient}`}
-                >
-                  {/* Background image with overlay */}
-                  <div className="absolute inset-0 opacity-20">
-                    <img
-                      src={slide.image}
-                      alt={slide.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  {/* Animated background elements */}
-                  <div className="absolute inset-0 bg-black/10"></div>
-                  <div className="absolute inset-0">
-                    <div className="absolute top-20 left-10 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
-                    <div className="absolute bottom-20 right-10 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+                <div className="flex gap-3">
+                  <img
+                    src={deal.image || deal.product?.image || fallbackHeroImage}
+                    alt=""
+                    className="h-20 w-20 rounded-lg object-cover"
+                    loading="lazy"
+                  />
+                  <div className="min-w-0">
+                    <p className="line-clamp-2 text-sm font-semibold text-gray-950 dark:text-white">
+                      {deal.title}
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-red-600">
+                      {formatPrice(deal.flashPrice || deal.product?.price || 0)}
+                    </p>
+                    {deal.originalPrice > deal.flashPrice ? (
+                      <p className="text-xs text-gray-500 line-through">
+                        {formatPrice(deal.originalPrice)}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
+                <div className="mt-3 flex items-center justify-between text-xs font-medium text-gray-600 dark:text-gray-300">
+                  <span>{formatDuration(deal.endTime, now)}</span>
+                  <span>{deal.remainingStock} left</span>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
+                  <div className="h-full rounded-full bg-red-500" style={{ width: `${stockPercent}%` }} />
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-                {/* Content */}
-                <div className="relative h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center">
-                  <div className="text-center w-full">
-                    <span className="inline-block px-4 py-1.5 bg-white/20 backdrop-blur-sm text-white text-sm font-medium rounded-full mb-6 animate-fade-in">
-                      {slide.badge}
-                    </span>
-                    <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight animate-slide-up">
-                      {slide.title}
-                      <span className="block text-white/90 mt-2">
-                        {slide.subtitle}
-                      </span>
-                    </h1>
-                    <p className="text-lg md:text-xl text-white/90 mb-8 max-w-2xl mx-auto animate-slide-up delay-200">
-                      {slide.description}
+function CuratedCollections({ collections }) {
+  if (!collections?.length) return null;
+
+  return (
+    <section className="bg-white py-8 dark:bg-gray-900 md:py-10">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-5">
+          <p className="mb-2 inline-flex items-center gap-2 rounded-lg bg-sky-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-700 dark:bg-sky-900/40 dark:text-sky-200">
+            <BadgePercent className="h-3.5 w-3.5" />
+            Admin curated
+          </p>
+          <h2 className="text-2xl font-bold text-gray-950 dark:text-white md:text-3xl">
+            Collections For Bangladesh
+          </h2>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          {collections.slice(0, 6).map((collection) => (
+            <Link
+              key={collection._id}
+              to={collection.link || "/products"}
+              className="group relative min-h-56 overflow-hidden rounded-lg bg-gray-900"
+            >
+              <img
+                src={collection.imageUrl || collection.products?.[0]?.image || fallbackHeroImage}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gray-950/50" />
+              <div className="relative flex min-h-56 flex-col justify-between p-5">
+                <div>
+                  <h3 className="text-xl font-bold text-white">{collection.title}</h3>
+                  {collection.subtitle ? (
+                    <p className="mt-2 line-clamp-2 text-sm leading-5 text-white/85">
+                      {collection.subtitle}
                     </p>
-
-                    {/* Trust Highlights */}
-                    <div className="flex flex-wrap items-center justify-center gap-6 mb-8 animate-slide-up delay-300">
-                      <div className="flex items-center gap-2 text-white/90">
-                        <svg
-                          className="w-5 h-5"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                          <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                        </svg>
-                        <span className="text-sm font-medium">
-                          Fast Delivery
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-white/90">
-                        <svg
-                          className="w-5 h-5"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        <span className="text-sm font-medium">
-                          Secure Payment
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-white/90">
-                        <svg
-                          className="w-5 h-5"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        <span className="text-sm font-medium">
-                          Easy Returns
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* CTAs */}
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up delay-400">
-                      <Link
-                        to={slide.primaryCTA.link}
-                        className="px-8 py-4 bg-white text-primary-600 font-bold rounded-xl hover:bg-gray-100 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105"
-                      >
-                        {slide.primaryCTA.text}
-                      </Link>
-                      <Link
-                        to={slide.secondaryCTA.link}
-                        className="px-8 py-4 bg-transparent border-2 border-white text-white font-bold rounded-xl hover:bg-white/10 transition-all duration-200"
-                      >
-                        {slide.secondaryCTA.text}
-                      </Link>
-                    </div>
+                  ) : null}
+                </div>
+                <div className="mt-5 flex items-center justify-between gap-3">
+                  <div className="flex -space-x-2">
+                    {(collection.products || []).slice(0, 4).map((product) => (
+                      <img
+                        key={product._id}
+                        src={product.image || fallbackHeroImage}
+                        alt=""
+                        className="h-9 w-9 rounded-lg border-2 border-white object-cover"
+                        loading="lazy"
+                      />
+                    ))}
                   </div>
+                  <span className="inline-flex items-center gap-1 text-sm font-semibold text-white">
+                    Browse
+                    <ChevronRight className="h-4 w-4" />
+                  </span>
                 </div>
               </div>
-            ))}
-          </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-          {/* Navigation Arrows */}
-          <button
-            onClick={() =>
-              setCurrentSlide(
-                (prev) => (prev - 1 + heroSlides.length) % heroSlides.length,
-              )
-            }
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/20 backdrop-blur-sm hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all z-10 group"
-          >
-            <svg
-              className="w-6 h-6 group-hover:-translate-x-1 transition-transform"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </button>
-          <button
-            onClick={() =>
-              setCurrentSlide((prev) => (prev + 1) % heroSlides.length)
-            }
-            className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/20 backdrop-blur-sm hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all z-10 group"
-          >
-            <svg
-              className="w-6 h-6 group-hover:translate-x-1 transition-transform"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </button>
-
-          {/* Dots Indicator */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-            {heroSlides.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentSlide(index)}
-                className={`transition-all ${
-                  index === currentSlide
-                    ? "w-8 h-2 bg-white"
-                    : "w-2 h-2 bg-white/50 hover:bg-white/75"
-                } rounded-full`}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* Flash Sale Scroller - Interactive Product Carousel */}
-        <FlashSaleFinal />
-
-        {/* Category Carousel - Shop by Category */}
-        <CategoryCarousel />
-
-        {/* Trending / Popular Products - Improved */}
-        <section className="py-16 bg-gray-50 dark:bg-gray-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-12">
+function FollowedVendorUpdates({ feed }) {
+  if (feed?.requiresLogin) {
+    return (
+      <section className="py-8 md:py-10">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <span className="inline-block px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 text-sm font-semibold rounded-full mb-3">
-                  🔥 Trending Now
-                </span>
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
-                  Popular Products
-                </h2>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Handpicked products loved by our customers
+                <p className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  <Store className="h-4 w-4" />
+                  Followed vendor updates
+                </p>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Sign in to see new products and announcements from shops you follow.
                 </p>
               </div>
               <Link
-                to="/products"
-                className="mt-4 md:mt-0 inline-flex items-center text-primary-500 dark:text-primary-400 font-semibold hover:text-primary-600 dark:hover:text-primary-300 transition-colors group"
+                to="/login"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-950 px-4 py-2 text-sm font-semibold text-white dark:bg-white dark:text-gray-950"
               >
-                View All Products
-                <svg
-                  className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
+                Sign in
+                <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
-
-            {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <ProductCardSkeleton key={i} />
-                ))}
-              </div>
-            ) : products.length === 0 ? (
-              <div className="text-center py-16 bg-white dark:bg-gray-900 rounded-2xl">
-                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg
-                    className="w-10 h-10 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                    />
-                  </svg>
-                </div>
-                <p className="text-gray-500 dark:text-gray-400 text-lg mb-2">
-                  No products available yet
-                </p>
-                <p className="text-gray-400 dark:text-gray-500 text-sm">
-                  Run: cd Server && npm run seed
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-                {products.map((product) => (
-                  <ProductCard key={product._id} product={product} />
-                ))}
-              </div>
-            )}
           </div>
-        </section>
+        </div>
+      </section>
+    );
+  }
 
-        {/* New Arrivals - Lightweight */}
-        {loading || newArrivals.length > 0 ? (
-          <section className="py-16 bg-white dark:bg-gray-900">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex items-center justify-between mb-12">
-                <div>
-                  <span className="inline-block px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-sm font-semibold rounded-full mb-3">
-                    ✨ Just Arrived
-                  </span>
-                  <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
-                    New Arrivals
-                  </h2>
-                </div>
+  if (!feed?.updates?.length) return null;
+
+  return (
+    <section className="py-8 md:py-10">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-5">
+          <p className="mb-2 inline-flex items-center gap-2 rounded-lg bg-violet-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
+            <Store className="h-3.5 w-3.5" />
+            Shops you follow
+          </p>
+          <h2 className="text-2xl font-bold text-gray-950 dark:text-white md:text-3xl">
+            Vendor Updates
+          </h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {feed.updates.slice(0, 8).map((update) => (
+            <Link
+              key={`${update.vendor?._id}-${update.product?._id}`}
+              to={update.product?._id ? `/product/${update.product._id}` : "/products"}
+              className="flex gap-3 rounded-lg border border-gray-200 bg-white p-3 transition hover:border-primary-300 dark:border-gray-800 dark:bg-gray-900"
+            >
+              <img
+                src={update.product?.image || fallbackHeroImage}
+                alt=""
+                className="h-20 w-20 rounded-lg object-cover"
+                loading="lazy"
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300">
+                  {update.vendor?.shopName}
+                </p>
+                <p className="mt-1 line-clamp-2 text-sm font-semibold text-gray-950 dark:text-white">
+                  {update.product?.title}
+                </p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{update.label}</p>
               </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-              {loading ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <ProductCardSkeleton key={i} />
-                  ))}
+export default function Home() {
+  const [discovery, setDiscovery] = useState(emptyDiscovery);
+  const [loading, setLoading] = useState(true);
+  const [activeHero, setActiveHero] = useState(0);
+  const [newArrivalCategory, setNewArrivalCategory] = useState("all");
+  const [claimingReward, setClaimingReward] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const { recentlyViewed } = useRecentlyViewed();
+  const { formatPrice } = useCurrency();
+  const { user } = useAuth();
+
+  const recentIdsParam = useMemo(
+    () => recentlyViewed.map((product) => product._id).filter(Boolean).join(","),
+    [recentlyViewed],
+  );
+
+  useEffect(() => {
+    let ignore = false;
+
+    const loadDiscovery = async () => {
+      try {
+        setLoading(true);
+        const response = await getHomepageDiscovery({
+          recentProductIds: recentIdsParam,
+          categoryId: newArrivalCategory === "all" ? undefined : newArrivalCategory,
+        });
+
+        if (!ignore) {
+          setDiscovery({ ...emptyDiscovery, ...(response.data.data || {}) });
+        }
+      } catch (error) {
+        console.error("Failed to load homepage discovery:", error);
+        if (!ignore) setDiscovery(emptyDiscovery);
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    };
+
+    loadDiscovery();
+    return () => {
+      ignore = true;
+    };
+  }, [newArrivalCategory, recentIdsParam, user?.uid]);
+
+  useEffect(() => {
+    if (discovery.heroBanners.length <= 1) return undefined;
+    const timer = setInterval(() => {
+      setActiveHero((current) => (current + 1) % discovery.heroBanners.length);
+    }, 7000);
+    return () => clearInterval(timer);
+  }, [discovery.heroBanners.length]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleClaimReward = async () => {
+    if (!user || !discovery.dailyCheckIn?.canClaim) return;
+
+    try {
+      setClaimingReward(true);
+      const response = await claimDailyCheckInReward();
+      setDiscovery((current) => ({
+        ...current,
+        dailyCheckIn: response.data.data || current.dailyCheckIn,
+      }));
+    } catch (error) {
+      if (error.response?.data?.data) {
+        setDiscovery((current) => ({
+          ...current,
+          dailyCheckIn: error.response.data.data,
+        }));
+      } else {
+        console.error("Failed to claim daily reward:", error);
+      }
+    } finally {
+      setClaimingReward(false);
+    }
+  };
+
+  const recentProducts = discovery.recentlyViewed.length ? discovery.recentlyViewed : recentlyViewed;
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <CouponStrip coupons={discovery.promotionStrip} formatPrice={formatPrice} />
+      <CategoryQuickAccess categories={discovery.categories} />
+
+      <section className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <div className="mx-auto grid max-w-7xl gap-4 px-4 py-5 sm:px-6 lg:grid-cols-3 lg:px-8">
+          <div className="lg:col-span-2">
+            <HeroCarousel
+              banners={discovery.heroBanners}
+              activeHero={activeHero}
+              setActiveHero={setActiveHero}
+            />
+          </div>
+          <div className="space-y-4">
+            <DailyCheckInCard
+              dailyCheckIn={discovery.dailyCheckIn}
+              user={user}
+              claiming={claimingReward}
+              onClaim={handleClaimReward}
+            />
+            <FlashSummary flashSales={discovery.flashSales} now={now} formatPrice={formatPrice} />
+            {discovery.trendingNow?.[0] ? (
+              <Link
+                to={`/product/${discovery.trendingNow[0]._id}`}
+                className="block rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:border-primary-300 dark:border-gray-800 dark:bg-gray-900"
+              >
+                <p className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  <TrendingUp className="h-4 w-4" />
+                  Trending now
+                </p>
+                <div className="mt-3 flex gap-3">
+                  <img
+                    src={discovery.trendingNow[0].image || fallbackHeroImage}
+                    alt=""
+                    className="h-20 w-20 rounded-lg object-cover"
+                    loading="lazy"
+                  />
+                  <div className="min-w-0">
+                    <p className="line-clamp-2 text-sm font-semibold text-gray-950 dark:text-white">
+                      {discovery.trendingNow[0].title}
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-primary-600 dark:text-primary-300">
+                      {formatPrice(discovery.trendingNow[0].price)}
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-                  {newArrivals.map((product) => (
-                    <ProductCard key={product._id} product={product} />
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-        ) : null}
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      </section>
 
-        {/* Products by Category */}
-        <ProductsByCategory />
+      <FlashSaleStrip flashSales={discovery.flashSales} now={now} formatPrice={formatPrice} />
 
-        {/* Recently Viewed Products */}
-        <RecentlyViewed />
+      <ProductGridSection
+        title="Just For You"
+        subtitle={discovery.meta?.personalized ? "Based on your activity" : "Marketplace picks"}
+        icon={Sparkles}
+        products={discovery.justForYou}
+        loading={loading}
+      />
 
-        {/* Reviews / Trust Section */}
-        <section className="py-16 bg-gradient-to-br from-primary-50 to-secondary-50 dark:from-gray-800 dark:to-gray-900">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
-                What Our Customers Say
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                Join thousands of satisfied customers who trust us for quality
-                and service
+      <ProductGridSection
+        title="Trending Now"
+        subtitle="Top-selling and high-view products"
+        icon={TrendingUp}
+        products={discovery.trendingNow}
+        loading={loading}
+      />
+
+      <section className="bg-white py-8 dark:bg-gray-900 md:py-10">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="mb-2 inline-flex items-center gap-2 rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+                <Sparkles className="h-3.5 w-3.5" />
+                Listed in the last 7 days
               </p>
+              <h2 className="text-2xl font-bold text-gray-950 dark:text-white md:text-3xl">
+                New Arrivals
+              </h2>
             </div>
+            <select
+              value={newArrivalCategory}
+              onChange={(event) => setNewArrivalCategory(event.target.value)}
+              className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 outline-none transition focus:border-primary-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            >
+              <option value="all">All categories</option>
+              {discovery.categories.map((category) => (
+                <option key={category._id} value={category._id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-              {testimonials.map((testimonial, index) => (
-                <div
-                  key={index}
-                  className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-center gap-1 mb-4">
-                    {[...Array(5)].map((_, i) => (
-                      <svg
-                        key={i}
-                        className={`w-5 h-5 ${
-                          i < testimonial.rating
-                            ? "text-yellow-400 fill-current"
-                            : "text-gray-300 dark:text-gray-600"
-                        }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-                        />
-                      </svg>
-                    ))}
-                  </div>
-                  <p className="text-gray-700 dark:text-gray-300 mb-4 leading-relaxed">
-                    "{testimonial.comment}"
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-secondary-400 rounded-full flex items-center justify-center text-white font-semibold">
-                      {testimonial.avatar}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900 dark:text-white">
-                        {testimonial.name}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Verified Buyer
-                      </p>
-                    </div>
-                  </div>
-                </div>
+          {loading ? (
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <ProductCardSkeleton key={index} />
               ))}
             </div>
-
-            {/* Trust Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-primary-600 dark:text-primary-400 mb-2">
-                  10K+
-                </div>
-                <div className="text-gray-600 dark:text-gray-400 text-sm">
-                  Happy Customers
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-primary-600 dark:text-primary-400 mb-2">
-                  50K+
-                </div>
-                <div className="text-gray-600 dark:text-gray-400 text-sm">
-                  Products Sold
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-primary-600 dark:text-primary-400 mb-2">
-                  4.8★
-                </div>
-                <div className="text-gray-600 dark:text-gray-400 text-sm">
-                  Average Rating
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-primary-600 dark:text-primary-400 mb-2">
-                  99%
-                </div>
-                <div className="text-gray-600 dark:text-gray-400 text-sm">
-                  Satisfaction Rate
-                </div>
-              </div>
+          ) : discovery.newArrivals.length ? (
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {sectionProducts(discovery.newArrivals).map((product) => (
+                <ProductCard key={product._id} product={product} />
+              ))}
             </div>
-          </div>
-        </section>
-      </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              No new arrivals found for this category yet.
+            </div>
+          )}
+        </div>
+      </section>
+
+      <CuratedCollections collections={discovery.curatedCollections} />
+      <FollowedVendorUpdates feed={discovery.followedVendorUpdates} />
+
+      <ProductGridSection
+        title="Recently Viewed"
+        subtitle="Saved on this device and your account"
+        icon={Clock}
+        products={recentProducts}
+        loading={false}
+        actionTo="/products"
+        actionLabel="Keep browsing"
+      />
     </div>
   );
 }

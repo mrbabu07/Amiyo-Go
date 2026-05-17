@@ -14,6 +14,16 @@ jest.mock("../middleware/auth", () => ({
     };
     return next();
   },
+  verifyOptionalToken: (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      req.user = {
+        uid: "test-user",
+        role: req.headers["x-test-role"] || "customer",
+      };
+    }
+    return next();
+  },
   verifyAdmin: (req, res, next) => {
     if (req.user?.role !== "admin") {
       return res.status(403).json({ error: "Admin access required" });
@@ -48,6 +58,19 @@ jest.mock("../controllers/productController", () => ({
   incrementProductView: (req, res) => res.json({ route: "products:view", id: req.params.id }),
   updateProductVariants: (req, res) => res.json({ route: "products:update-variants", id: req.params.id }),
   getProductVariants: (req, res) => res.json({ route: "products:variants", id: req.params.id }),
+}));
+
+jest.mock("../controllers/discoveryController", () => ({
+  getHomepageDiscovery: (req, res) =>
+    res.json({
+      route: "discovery:homepage",
+      personalized: Boolean(req.user?.uid),
+      recentProductIds: req.query.recentProductIds || "",
+    }),
+  getDailyCheckInStatus: (req, res) => res.json({ route: "discovery:check-in-status" }),
+  claimDailyCheckInReward: (req, res) => res.json({ route: "discovery:check-in-claim" }),
+  recordRecentlyViewed: (req, res) =>
+    res.json({ route: "discovery:recently-viewed", productId: req.body.productId }),
 }));
 
 jest.mock("../controllers/orderController", () => ({
@@ -509,6 +532,7 @@ const buildApp = () => {
   const app = express();
   app.use(express.json());
   app.use("/api/products", require("../routes/productRoutes"));
+  app.use("/api/discovery", require("../routes/discoveryRoutes"));
   app.use("/api/orders", require("../routes/orderRoutes"));
   app.use("/api/vendors", require("../routes/vendorRoutes"));
   app.use("/api/vendor-chat", require("../routes/vendorChatRoutes"));
@@ -554,6 +578,58 @@ describe("Black-box API tests", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ route: "products:id", id: "abc123" });
+    });
+  });
+
+  describe("homepage discovery API behavior", () => {
+    test("GET /api/discovery/homepage works for guests with recent product hints", async () => {
+      const response = await request(app).get("/api/discovery/homepage?recentProductIds=p1,p2");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "discovery:homepage",
+        personalized: false,
+        recentProductIds: "p1,p2",
+      });
+    });
+
+    test("GET /api/discovery/homepage accepts optional auth for personalization", async () => {
+      const response = await request(app)
+        .get("/api/discovery/homepage")
+        .set("Authorization", "Bearer test");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "discovery:homepage",
+        personalized: true,
+        recentProductIds: "",
+      });
+    });
+
+    test("POST /api/discovery/recently-viewed requires a token and records product views", async () => {
+      const rejected = await request(app)
+        .post("/api/discovery/recently-viewed")
+        .send({ productId: "p1" });
+      const accepted = await request(app)
+        .post("/api/discovery/recently-viewed")
+        .set("Authorization", "Bearer test")
+        .send({ productId: "p1" });
+
+      expect(rejected.status).toBe(401);
+      expect(accepted.status).toBe(200);
+      expect(accepted.body).toEqual({ route: "discovery:recently-viewed", productId: "p1" });
+    });
+
+    test("daily check-in endpoints are protected", async () => {
+      const status = await request(app)
+        .get("/api/discovery/check-in/status")
+        .set("Authorization", "Bearer test");
+      const claim = await request(app)
+        .post("/api/discovery/check-in")
+        .set("Authorization", "Bearer test");
+
+      expect(status.body).toEqual({ route: "discovery:check-in-status" });
+      expect(claim.body).toEqual({ route: "discovery:check-in-claim" });
     });
   });
 
