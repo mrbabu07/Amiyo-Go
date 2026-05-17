@@ -24,3 +24,18 @@ export const addToWishlist = (productId) =>
 export const removeFromWishlist = (productId) =>
   wishlistApi.delete(`/${productId}`);
 export const clearWishlist = () => wishlistApi.delete("/");
+export const toggleWishlistPublic = () => wishlistApi.post("/toggle-public");
+export const createWishlistCollection = (name) =>
+  wishlistApi.post("/collections", { name });
+export const updateWishlistCollection = (collectionId, data) =>
+  wishlistApi.patch(`/collections/${collectionId}`, data);
+export const deleteWishlistCollection = (collectionId) =>
+  wishlistApi.delete(`/collections/${collectionId}`);
+export const addWishlistCollectionItem = (collectionId, productId) =>
+  wishlistApi.post(`/collections/${collectionId}/items`, { productId });
+export const removeWishlistCollectionItem = (collectionId, productId) =>
+  wishlistApi.delete(`/collections/${collectionId}/items/${productId}`);
+export const shareWishlistCollection = (collectionId, isPublic = true) =>
+  wishlistApi.post(`/collections/${collectionId}/share`, { isPublic });
+export const updateWishlistAlert = (productId, data) =>
+  wishlistApi.patch(`/alerts/${productId}`, data);

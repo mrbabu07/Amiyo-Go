@@ -8,6 +8,13 @@ const {
   clearWishlist,
   toggleWishlistPublic,
   getSharedWishlist,
+  createWishlistCollection,
+  updateWishlistCollection,
+  deleteWishlistCollection,
+  addWishlistCollectionItem,
+  removeWishlistCollectionItem,
+  shareWishlistCollection,
+  updateWishlistAlert,
 } = require("../controllers/wishlistController");
 
 // Public route - Get shared wishlist
@@ -24,6 +31,17 @@ router.post("/", addToWishlist);
 
 // POST /api/wishlist/toggle-public - Toggle wishlist public/private
 router.post("/toggle-public", toggleWishlistPublic);
+
+// Collection organization
+router.post("/collections", createWishlistCollection);
+router.patch("/collections/:collectionId", updateWishlistCollection);
+router.delete("/collections/:collectionId", deleteWishlistCollection);
+router.post("/collections/:collectionId/items", addWishlistCollectionItem);
+router.delete("/collections/:collectionId/items/:productId", removeWishlistCollectionItem);
+router.post("/collections/:collectionId/share", shareWishlistCollection);
+
+// Alert preferences per wishlist item
+router.patch("/alerts/:productId", updateWishlistAlert);
 
 // DELETE /api/wishlist/:productId - Remove product from wishlist
 router.delete("/:productId", removeFromWishlist);

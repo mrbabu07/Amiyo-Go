@@ -162,6 +162,20 @@ export const addToWishlist = (productId) =>
 export const removeFromWishlist = (productId) =>
   api.delete(`/wishlist/${productId}`);
 export const clearWishlist = () => api.delete("/wishlist");
+export const createWishlistCollection = (name) =>
+  api.post("/wishlist/collections", { name });
+export const updateWishlistCollection = (collectionId, data) =>
+  api.patch(`/wishlist/collections/${collectionId}`, data);
+export const deleteWishlistCollection = (collectionId) =>
+  api.delete(`/wishlist/collections/${collectionId}`);
+export const addWishlistCollectionItem = (collectionId, productId) =>
+  api.post(`/wishlist/collections/${collectionId}/items`, { productId });
+export const removeWishlistCollectionItem = (collectionId, productId) =>
+  api.delete(`/wishlist/collections/${collectionId}/items/${productId}`);
+export const shareWishlistCollection = (collectionId, isPublic = true) =>
+  api.post(`/wishlist/collections/${collectionId}/share`, { isPublic });
+export const updateWishlistAlert = (productId, data) =>
+  api.patch(`/wishlist/alerts/${productId}`, data);
 
 // Reviews
 export const getProductReviews = (productId) =>

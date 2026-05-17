@@ -11,6 +11,7 @@ export const WishlistContext = createContext();
 
 export default function WishlistProvider({ children }) {
   const [wishlist, setWishlist] = useState([]);
+  const [wishlistData, setWishlistData] = useState(null);
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const { success, error } = useToast();
@@ -20,6 +21,7 @@ export default function WishlistProvider({ children }) {
       fetchWishlist();
     } else {
       setWishlist([]);
+      setWishlistData(null);
     }
   }, [user]);
 
@@ -27,10 +29,13 @@ export default function WishlistProvider({ children }) {
     try {
       setLoading(true);
       const response = await getWishlist();
-      setWishlist(response.data.data.productDetails || []);
+      const data = response.data.data || {};
+      setWishlistData(data);
+      setWishlist(data.productDetails || []);
     } catch (error) {
       console.error("Failed to fetch wishlist:", error);
       setWishlist([]);
+      setWishlistData(null);
     } finally {
       setLoading(false);
     }
@@ -45,7 +50,10 @@ export default function WishlistProvider({ children }) {
     try {
       console.log("Adding to wishlist:", product._id);
       await addToWishlistApi(product._id);
-      setWishlist((prev) => [...prev, product]);
+      setWishlist((prev) =>
+        prev.some((item) => item._id === product._id) ? prev : [...prev, product],
+      );
+      await fetchWishlist();
 
       // Show toast after state update
       setTimeout(() => {
@@ -77,6 +85,16 @@ export default function WishlistProvider({ children }) {
       const productToRemove = wishlist.find((item) => item._id === productId);
       await removeFromWishlistApi(productId);
       setWishlist((prev) => prev.filter((item) => item._id !== productId));
+      setWishlistData((prev) =>
+        prev
+          ? {
+              ...prev,
+              productDetails: (prev.productDetails || []).filter(
+                (item) => item._id !== productId,
+              ),
+            }
+          : prev,
+      );
 
       // Show toast after state update
       if (productToRemove) {
@@ -108,6 +126,8 @@ export default function WishlistProvider({ children }) {
     <WishlistContext.Provider
       value={{
         wishlist,
+        wishlistData,
+        collections: wishlistData?.collections || [],
         loading,
         addToWishlist,
         removeFromWishlist,

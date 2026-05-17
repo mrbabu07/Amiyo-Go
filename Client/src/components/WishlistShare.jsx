@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function WishlistShare({
@@ -10,7 +10,14 @@ export default function WishlistShare({
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const shareUrl = `${window.location.origin}/wishlist/shared/${wishlistId}`;
+  const shareUrl = wishlistId
+    ? `${window.location.origin}/wishlist/shared/${wishlistId}`
+    : "";
+
+  useEffect(() => {
+    setQrCodeUrl("");
+    setCopied(false);
+  }, [wishlistId, isPublic]);
 
   const generateQRCode = async () => {
     try {
@@ -35,7 +42,7 @@ export default function WishlistShare({
 
   const handleShare = async () => {
     setShowModal(true);
-    if (!qrCodeUrl) {
+    if (isPublic && shareUrl && !qrCodeUrl) {
       await generateQRCode();
     }
   };
@@ -149,7 +156,7 @@ export default function WishlistShare({
                         Public Wishlist
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Anyone with the link can view
+                        {isPublic ? "Anyone with the link can view" : "Enable to generate a share link"}
                       </p>
                     </div>
                     <button
@@ -168,7 +175,7 @@ export default function WishlistShare({
                     </button>
                   </div>
 
-                  {isPublic && (
+                  {isPublic && shareUrl && (
                     <>
                       {/* Share Link */}
                       <div>

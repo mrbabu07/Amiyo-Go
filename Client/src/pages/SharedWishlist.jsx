@@ -75,8 +75,9 @@ export default function SharedWishlist() {
     );
   }
 
-  const products = wishlist?.productDetails || [];
+  const products = wishlist?.collection?.productDetails || wishlist?.productDetails || [];
   const userName = wishlist?.userDetails?.[0]?.name || "Someone";
+  const listName = wishlist?.collection?.name || "Wishlist";
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -103,7 +104,7 @@ export default function SharedWishlist() {
         </Link>
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            {userName}'s Wishlist
+            {userName}'s {listName}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             {products.length} {products.length === 1 ? "item" : "items"} shared
@@ -132,7 +133,7 @@ export default function SharedWishlist() {
               You're viewing a shared wishlist
             </p>
             <p className="text-blue-700 dark:text-blue-400 text-sm mt-1">
-              {userName} has shared their favorite items with you. You can add
+              {userName} has shared this list with you. You can add
               any of these items to your own cart.
             </p>
           </div>
