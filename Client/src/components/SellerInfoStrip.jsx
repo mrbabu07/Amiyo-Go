@@ -78,23 +78,23 @@ export default function SellerInfoStrip({ seller, vendorId }) {
   };
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
           {vendor.logo ? (
             <img
               src={vendor.logo}
               alt={vendor.shopName}
-              className="h-14 w-14 rounded-lg border border-gray-200 object-cover dark:border-gray-700"
+              className="h-14 w-14 shrink-0 rounded-lg border border-gray-200 object-cover dark:border-gray-700"
             />
           ) : (
-            <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-800">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-800">
               <Store className="h-6 w-6" />
             </div>
           )}
-          <div>
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+              <h2 className="min-w-0 truncate text-base font-semibold text-gray-900 dark:text-white">
                 {vendor.shopName}
               </h2>
               {vendor.verified && (
@@ -121,25 +121,27 @@ export default function SellerInfoStrip({ seller, vendorId }) {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 xl:w-auto xl:flex xl:shrink-0">
           <Link
             to={storePath}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800 sm:flex-none"
+            className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800"
           >
-            <Store className="h-4 w-4" />
-            Visit Store
+            <Store className="h-4 w-4 shrink-0" />
+            <span className="truncate">Visit Store</span>
           </Link>
           <button
             type="button"
             onClick={handleFollow}
             disabled={busy}
-            className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-60 sm:flex-none ${
+            className={`inline-flex min-h-11 min-w-0 items-center justify-center rounded-lg px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-60 ${
               isFollowing
                 ? "bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100"
                 : "bg-primary-600 text-white hover:bg-primary-700"
             }`}
           >
-            {busy ? "Saving..." : isFollowing ? "Following" : "Follow"}
+            <span className="truncate">
+              {busy ? "Saving..." : isFollowing ? "Following" : "Follow"}
+            </span>
           </button>
         </div>
       </div>
