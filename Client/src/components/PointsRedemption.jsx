@@ -16,6 +16,18 @@ export default function PointsRedemption({
     userLoyalty?.points || 0,
     Math.floor((Number(orderTotal) || 0) * 100),
   );
+  const quickRedeemPoints =
+    maxRedeemablePoints >= 100
+      ? Math.min(200, Math.floor(maxRedeemablePoints / 100) * 100)
+      : 0;
+
+  const applyPoints = (points) => {
+    onPointsApplied({
+      points,
+      discountAmount: pointsToTaka(points),
+      remainingPoints: (userLoyalty?.points || 0) - points,
+    });
+  };
 
   const handleRedeemPoints = async () => {
     const points = parseInt(pointsToRedeem, 10);
@@ -38,11 +50,7 @@ export default function PointsRedemption({
     setIsRedeeming(true);
     setError("");
 
-    onPointsApplied({
-      points,
-      discountAmount: pointsToTaka(points),
-      remainingPoints: (userLoyalty?.points || 0) - points,
-    });
+    applyPoints(points);
 
     setPointsToRedeem("");
     setIsRedeeming(false);
@@ -109,11 +117,12 @@ export default function PointsRedemption({
                 Points Redeemed: {appliedPoints.points} points
               </p>
               <p className="text-xs text-green-600 dark:text-green-400">
-                You saved ৳{pointsToTaka(appliedPoints.points).toFixed(2)}!
+                You saved BDT {pointsToTaka(appliedPoints.points).toFixed(2)}!
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={handleRemovePoints}
             className="text-sm font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
           >
@@ -135,6 +144,24 @@ export default function PointsRedemption({
         </span>
       </div>
 
+      {quickRedeemPoints > 0 && (
+        <button
+          type="button"
+          onClick={() => applyPoints(quickRedeemPoints)}
+          className="flex w-full items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-left transition-colors hover:bg-blue-100"
+        >
+          <span>
+            <span className="block text-sm font-semibold text-blue-900">
+              Use {quickRedeemPoints} coins
+            </span>
+            <span className="text-xs text-blue-700">
+              Save BDT {pointsToTaka(quickRedeemPoints).toFixed(2)} on this order
+            </span>
+          </span>
+          <span className="text-sm font-bold text-blue-700">Apply</span>
+        </button>
+      )}
+
       <div className="flex gap-2">
         <div className="flex-1">
           <input
@@ -151,6 +178,7 @@ export default function PointsRedemption({
           />
         </div>
         <button
+          type="button"
           onClick={handleRedeemPoints}
           disabled={isRedeeming || !pointsToRedeem || parseInt(pointsToRedeem, 10) < 100}
           className="flex items-center gap-2 rounded-lg bg-primary-500 px-6 py-2.5 font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
@@ -184,15 +212,17 @@ export default function PointsRedemption({
         {[100, 500, 1000].map((points) => (
           <button
             key={points}
+            type="button"
             onClick={() => setPointsToRedeem(points.toString())}
             disabled={points > maxRedeemablePoints}
             className="rounded-md border border-gray-300 px-3 py-1 text-xs transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:hover:bg-gray-700"
           >
-            {points} pts (৳{pointsToTaka(points).toFixed(2)})
+            {points} pts (BDT {pointsToTaka(points).toFixed(2)})
           </button>
         ))}
         {maxRedeemablePoints > 1000 && (
           <button
+            type="button"
             onClick={() => setPointsToRedeem(maxRedeemablePoints.toString())}
             className="rounded-md border border-primary-500 px-3 py-1 text-xs text-primary-600 transition-colors hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/20"
           >
@@ -221,7 +251,7 @@ export default function PointsRedemption({
       )}
 
       <div className="text-xs text-gray-500 dark:text-gray-400">
-        100 points = ৳1 discount. Minimum 100 points required.
+        100 points = BDT 1 discount. Minimum 100 points required.
       </div>
     </div>
   );

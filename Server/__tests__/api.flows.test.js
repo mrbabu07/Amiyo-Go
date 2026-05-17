@@ -77,6 +77,7 @@ jest.mock("../controllers/orderController", () => ({
       couponCode: req.body.couponCode || null,
       itemsCount: Array.isArray(req.body.items) ? req.body.items.length : 0,
       shippingAddressType: req.body.shippingAddress ? "provided" : "default",
+      vendorNotes: req.body.vendorNotes || {},
     }),
   updateOrderStatus: (req, res) => res.json({ route: "orders:update-status", id: req.params.id }),
   cancelOrder: (req, res) => res.json({ route: "orders:cancel", id: req.params.id }),
@@ -271,6 +272,7 @@ describe("Black-box workflow API tests", () => {
         couponCode: "SAVE10",
         itemsCount: 1,
         shippingAddressType: "provided",
+        vendorNotes: {},
       });
     });
 
@@ -290,6 +292,30 @@ describe("Black-box workflow API tests", () => {
         couponCode: "STORE5",
         itemsCount: 2,
         shippingAddressType: "default",
+        vendorNotes: {},
+      });
+    });
+
+    test("POST /api/orders accepts per-vendor checkout notes", async () => {
+      const response = await request(app)
+        .post("/api/orders")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "user")
+        .send({
+          items: [{ productId: "p1", quantity: 1 }],
+          vendorNotes: {
+            "vendor-1": "Call before delivery",
+            "vendor-2": "Leave at reception",
+          },
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toMatchObject({
+        route: "orders:create",
+        vendorNotes: {
+          "vendor-1": "Call before delivery",
+          "vendor-2": "Leave at reception",
+        },
       });
     });
   });

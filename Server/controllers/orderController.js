@@ -3,6 +3,10 @@ const invoiceService = require("../services/invoiceService");
 const { ObjectId } = require("mongodb");
 const DeliverySettings = require("../models/DeliverySettings");
 const { calculateDeliveryBreakdown } = require("../utils/deliveryCalculator");
+const {
+  getVendorNote,
+  sanitizeVendorNotes,
+} = require("../utils/checkoutVendorNotes");
 const { appendOrderEvent, getTimelineForOrder } = require("../services/orderEventService");
 
 const normalizeId = (id) => {
@@ -440,10 +444,12 @@ const createOrder = async (req, res) => {
       paymentMethod,
       transactionId,
       specialInstructions,
+      vendorNotes = {},
       couponCode,
       deliveryMethod = "standard",
       isGuest = false,
     } = req.body;
+    const sanitizedVendorNotes = sanitizeVendorNotes(vendorNotes);
 
     // Log the received data for debugging
     console.log("📦 Creating order with data:", {
@@ -546,6 +552,11 @@ const createOrder = async (req, res) => {
       }
 
       const vendorSnapshot = await getVendorSnapshotForProduct(product.vendorId);
+      const vendorNote = getVendorNote(
+        sanitizedVendorNotes,
+        vendorSnapshot.vendorId || "platform",
+        item.vendorNote || "",
+      );
 
       // Add vendor/store snapshot and categoryId to product item.
       // categoryId is needed for commission calculation and vendor data is needed for invoices/admin order views.
@@ -561,6 +572,7 @@ const createOrder = async (req, res) => {
         vendorEmail: vendorSnapshot.vendorEmail || "",
         vendorAddress: vendorSnapshot.vendorAddress || "",
         vendorSlug: vendorSnapshot.vendorSlug || "",
+        vendorNote,
         categoryId: normalizeId(product.categoryId),
         weight: Number(product.weight || 0),
         isPerishable: Boolean(product.isPerishable),
@@ -598,6 +610,7 @@ const createOrder = async (req, res) => {
       paymentMethod,
       transactionId: transactionId || null,
       specialInstructions,
+      vendorNotes: sanitizedVendorNotes,
       couponCode,
       deliveryMethod,
       deliveryCharge: delivery.totalDeliveryFee,
@@ -663,6 +676,11 @@ const createOrder = async (req, res) => {
 
       // Calculate vendor order total
       const vendorTotal = vendorSubtotal - vendorTotalDiscount + vendorDeliveryCharge;
+      const vendorSpecialInstructions = getVendorNote(
+        sanitizedVendorNotes,
+        vendorId,
+        specialInstructions || "",
+      );
 
       const vendorOrderData = {
         vendorId: vendorId === 'platform' ? null : vendorId,
@@ -680,7 +698,8 @@ const createOrder = async (req, res) => {
         shippingInfo,
         paymentMethod,
         transactionId: transactionId || null,
-        specialInstructions,
+        specialInstructions: vendorSpecialInstructions,
+        vendorNote: vendorSpecialInstructions,
         status: 'pending',
         paymentStatus: paymentMethod === 'cod' ? 'pending' : 'pending_verification',
       };

@@ -151,7 +151,7 @@ export default function AddressLocationFields({ value, onChange, className = "" 
       </label>
 
       <label className="block">
-        <span className="block text-sm font-semibold text-gray-700 mb-2">Upazila *</span>
+        <span className="block text-sm font-semibold text-gray-700 mb-2">Thana / Upazila *</span>
         <select
           value={value.upazilaId || ""}
           onChange={(event) => updateLocation("upazila", event.target.value)}
@@ -159,7 +159,7 @@ export default function AddressLocationFields({ value, onChange, className = "" 
           disabled={!value.districtId}
           className={selectClass}
         >
-          <option value="">Select Upazila</option>
+          <option value="">Select Thana / Upazila</option>
           {upazilas.map((upazila) => (
             <option key={upazila.id} value={upazila.id}>{upazila.name}</option>
           ))}
@@ -167,7 +167,7 @@ export default function AddressLocationFields({ value, onChange, className = "" 
       </label>
 
       <label className="block">
-        <span className="block text-sm font-semibold text-gray-700 mb-2">Union *</span>
+        <span className="block text-sm font-semibold text-gray-700 mb-2">Area / Union *</span>
         <select
           value={value.unionId || ""}
           onChange={(event) => updateLocation("union", event.target.value)}
@@ -175,7 +175,7 @@ export default function AddressLocationFields({ value, onChange, className = "" 
           disabled={!value.upazilaId}
           className={selectClass}
         >
-          <option value="">Select Union</option>
+          <option value="">Select Area / Union</option>
           {unions.map((union) => (
             <option key={union.id} value={union.id}>{union.name}</option>
           ))}

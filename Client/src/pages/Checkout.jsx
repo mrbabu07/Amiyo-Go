@@ -6,6 +6,7 @@ import {
   getDefaultAddress,
   getUserAddresses,
   getPublicVendorMarketingItems,
+  setDefaultAddress as setDefaultAddressApi,
   validateCoupon,
 } from "../services/api";
 import { auth } from "../firebase/firebase.config";
@@ -16,6 +17,16 @@ import { useCurrency } from "../hooks/useCurrency";
 import BackButton from "../components/BackButton";
 import Breadcrumb from "../components/Breadcrumb";
 import AddressLocationFields from "../components/AddressLocationFields";
+import {
+  CART_COUPON_STORAGE_KEY,
+  checkoutSteps,
+  estimateAddressDelivery,
+  getCartItemImage,
+  getCartItemKey,
+  getCheckoutStep,
+  getCouponDiscountBreakdown,
+  groupCartByVendor,
+} from "../utils/cartCheckout";
 
 const CHECKOUT_VOUCHER_KEY = "hnilabazar_selected_voucher";
 
@@ -26,7 +37,6 @@ export default function Checkout() {
   const location = useLocation();
   const { addNotification } = useNotifications();
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState(1);
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [appliedPoints, setAppliedPoints] = useState(null);
   const [userLoyalty, setUserLoyalty] = useState(null);
@@ -44,8 +54,16 @@ export default function Checkout() {
   const [couponFeedback, setCouponFeedback] = useState("");
   const [couponError, setCouponError] = useState("");
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [vendorNotes, setVendorNotes] = useState({});
+  const [savedPaymentMethod, setSavedPaymentMethod] = useState(() => {
+    try {
+      return localStorage.getItem("checkoutPaymentMethod") || "";
+    } catch {
+      return "";
+    }
+  });
   const preferredVoucherTriedRef = useRef(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => ({
     name: "",
     email: "",
     phone: "",
@@ -62,10 +80,12 @@ export default function Checkout() {
     wardNo: "",
     area: "",
     zipCode: "",
-    paymentMethod: "cod",
+    paymentMethod: ["cod", "bkash", "nagad", "card"].includes(savedPaymentMethod)
+      ? savedPaymentMethod
+      : "cod",
     specialInstructions: "",
     transactionId: "",
-  });
+  }));
 
   // Fetch delivery settings
   useEffect(() => {
@@ -125,6 +145,7 @@ export default function Checkout() {
   const couponDiscount = appliedCoupon?.discountAmount || 0;
   const pointsDiscount = appliedPoints?.discountAmount || 0;
   const totalDiscount = couponDiscount + pointsDiscount;
+  const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const fallbackDeliveryCharge =
     freeDeliveryEnabled && subtotal - totalDiscount >= freeDeliveryThreshold
@@ -132,6 +153,80 @@ export default function Checkout() {
       : deliveryChargeAmount;
   const deliveryCharge = deliveryQuote?.totalDeliveryFee ?? fallbackDeliveryCharge;
   const finalTotal = subtotal - totalDiscount + deliveryCharge;
+  const vendorGroups = useMemo(
+    () =>
+      groupCartByVendor(cart, deliveryQuote?.breakdown || [], {
+        freeDeliveryThreshold,
+        standardDeliveryCharge: deliveryChargeAmount,
+        estimateDelivery: false,
+      }),
+    [cart, deliveryQuote, freeDeliveryThreshold, deliveryChargeAmount],
+  );
+  const { platformVoucherDiscount, vendorVoucherDiscount } =
+    getCouponDiscountBreakdown(appliedCoupon);
+  const hasCompleteAddress = Boolean(
+    formData.name &&
+      formData.phone &&
+      formData.division &&
+      formData.district &&
+      formData.upazila &&
+      formData.union &&
+      formData.wardNo &&
+      formData.area &&
+      formData.address,
+  );
+  const activeCheckoutStep = getCheckoutStep({
+    cartCount: itemCount,
+    hasAddress: hasCompleteAddress,
+    paymentMethod: formData.paymentMethod,
+    loading,
+  });
+  const step = activeCheckoutStep;
+
+  const paymentMethods = [
+    {
+      value: "cod",
+      logo: "COD",
+      title: "Cash on Delivery",
+      description: "Pay the rider when the order arrives.",
+      instruction: "No advance payment is required for this order.",
+    },
+    {
+      value: "bkash",
+      logo: "bKash",
+      title: "bKash",
+      description: "Pay from your bKash wallet and enter the transaction ID.",
+      instruction: "Use the Payment option, then paste the transaction ID below.",
+    },
+    {
+      value: "nagad",
+      logo: "Nagad",
+      title: "Nagad",
+      description: "Pay from your Nagad wallet and enter the transaction ID.",
+      instruction: "Complete the Nagad payment, then paste the transaction ID below.",
+    },
+    {
+      value: "card",
+      logo: "Card",
+      title: "Debit or Credit Card",
+      description: "Use a saved or new card when card gateway is enabled.",
+      instruction: "Card details are collected by the payment gateway when enabled.",
+    },
+  ];
+
+  useEffect(() => {
+    setVendorNotes((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      vendorGroups.forEach((group) => {
+        if (next[group.vendorId] === undefined) {
+          next[group.vendorId] = "";
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [vendorGroups]);
 
   useEffect(() => {
     const canQuote =
@@ -297,6 +392,8 @@ export default function Checkout() {
             setDefaultAddress(response.data.data);
             loadAddress(response.data.data);
           }
+          const addressesResponse = await getUserAddresses();
+          setSavedAddresses(addressesResponse.data.data || []);
         } catch (error) {
           // If no default address, fetch all addresses
           if (error.response?.status === 404) {
@@ -378,12 +475,53 @@ export default function Checkout() {
   };
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    if (name === "paymentMethod") {
+      try {
+        localStorage.setItem("checkoutPaymentMethod", value);
+      } catch (error) {
+        console.error("Failed to save checkout payment method:", error);
+      }
+      setSavedPaymentMethod(value);
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === "paymentMethod" && ["cod", "card"].includes(value)
+        ? { transactionId: "" }
+        : {}),
+    }));
+  };
+
+  const handleMakeDefaultAddress = async (address, event) => {
+    event.stopPropagation();
+    try {
+      await setDefaultAddressApi(address._id);
+      setDefaultAddress({ ...address, isDefault: true });
+      setSavedAddresses((prev) =>
+        prev.map((item) => ({
+          ...item,
+          isDefault: item._id === address._id,
+        })),
+      );
+    } catch (error) {
+      console.error("Failed to set default address:", error);
+    }
+  };
+
+  const handleVendorNoteChange = (vendorId, value) => {
+    setVendorNotes((prev) => ({
+      ...prev,
+      [vendorId]: value,
+    }));
   };
 
   const clearPreferredVoucher = () => {
     try {
       sessionStorage.removeItem(CHECKOUT_VOUCHER_KEY);
+      sessionStorage.removeItem(CART_COUPON_STORAGE_KEY);
     } catch (error) {
       console.error("Failed to clear selected voucher:", error);
     }
@@ -463,7 +601,12 @@ export default function Checkout() {
 
     try {
       const fromStorage = sessionStorage.getItem(CHECKOUT_VOUCHER_KEY);
-      preferredVoucher = fromStorage ? JSON.parse(fromStorage) : null;
+      const fromCartStorage = sessionStorage.getItem(CART_COUPON_STORAGE_KEY);
+      preferredVoucher = fromStorage
+        ? JSON.parse(fromStorage)
+        : fromCartStorage
+          ? JSON.parse(fromCartStorage)
+          : null;
     } catch (error) {
       console.error("Failed to parse preferred voucher:", error);
       clearPreferredVoucher();
@@ -542,14 +685,17 @@ export default function Checkout() {
               `Cart item "${item.title || "Unknown"}" is missing product ID`,
             );
           }
+          const vendorId = item.vendorId || "platform";
           return {
             productId: item._id,
             title: item.title,
             price: item.price,
             quantity: item.quantity,
+            vendorId,
             selectedSize: item.selectedSize || null,
             selectedColor: item.selectedColor || null,
             image: item.selectedImage || item.image,
+            vendorNote: vendorNotes[vendorId] || "",
           };
         }),
         total: finalTotal,
@@ -573,9 +719,13 @@ export default function Checkout() {
           zipCode: formData.zipCode,
         },
         paymentMethod: formData.paymentMethod,
-        transactionId:
-          formData.paymentMethod !== "cod" ? formData.transactionId : null,
+        transactionId: ["bkash", "nagad", "rocket"].includes(
+          formData.paymentMethod,
+        )
+          ? formData.transactionId
+          : null,
         specialInstructions: formData.specialInstructions,
+        vendorNotes,
         deliveryMethod,
         deliveryBreakdown: deliveryQuote?.breakdown || [],
         deliveryCharge,
@@ -716,7 +866,71 @@ export default function Checkout() {
           ]}
         />
 
-        <div className="flex items-center justify-center mb-8">
+        <div className="mb-8 overflow-x-auto">
+          <div className="flex min-w-max items-center justify-center">
+            {checkoutSteps.map((item, index) => {
+              const isDone = activeCheckoutStep > item.step;
+              const isActive = activeCheckoutStep === item.step;
+
+              return (
+                <div key={item.step} className="flex items-center">
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold transition-all ${
+                      isDone || isActive
+                        ? "bg-gradient-to-r from-primary-500 to-secondary-500 text-white shadow"
+                        : "bg-gray-200 text-gray-500"
+                    }`}
+                  >
+                    {isDone ? (
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    ) : (
+                      item.step
+                    )}
+                  </div>
+                  <div className="ml-3 mr-5">
+                    <p
+                      className={`text-xs font-semibold ${
+                        isDone || isActive ? "text-primary-600" : "text-gray-500"
+                      }`}
+                    >
+                      Step {item.step}
+                    </p>
+                    <p
+                      className={`text-sm font-bold ${
+                        isDone || isActive ? "text-gray-900" : "text-gray-400"
+                      }`}
+                    >
+                      {item.title}
+                    </p>
+                  </div>
+                  {index < checkoutSteps.length - 1 && (
+                    <div
+                      className={`mr-5 h-1 w-12 rounded-full ${
+                        isDone
+                          ? "bg-gradient-to-r from-primary-500 to-secondary-500"
+                          : "bg-gray-200"
+                      }`}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="hidden">
           {[
             { step: 1, title: "Shipping", icon: "📦" },
             { step: 2, title: "Payment", icon: "💳" },
@@ -869,6 +1083,9 @@ export default function Checkout() {
                           {defaultAddress.area}, {defaultAddress.union},{" "}
                           {defaultAddress.upazila}, {defaultAddress.district || defaultAddress.city}
                         </p>
+                        <p className="mb-2 text-xs font-semibold text-blue-800">
+                          {estimateAddressDelivery(defaultAddress)}
+                        </p>
                         <button
                           type="button"
                           onClick={() => loadAddress(defaultAddress)}
@@ -907,9 +1124,17 @@ export default function Checkout() {
                 {showAddressSelector && savedAddresses.length > 0 && (
                   <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-semibold text-gray-900">
-                        Select a saved address
-                      </h3>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900">
+                          Select a saved address
+                        </h3>
+                        <Link
+                          to="/addresses"
+                          className="text-xs font-semibold text-primary-600 hover:text-primary-700"
+                        >
+                          Add or edit addresses
+                        </Link>
+                      </div>
                       <button
                         type="button"
                         onClick={() => setShowAddressSelector(false)}
@@ -955,6 +1180,26 @@ export default function Checkout() {
                                 {addr.address}, Ward {addr.wardNo}, {addr.area},{" "}
                                 {addr.union}, {addr.upazila}, {addr.district || addr.city}
                               </p>
+                              <p className="mt-1 text-xs font-semibold text-primary-700">
+                                {estimateAddressDelivery(addr)}
+                              </p>
+                              {!addr.isDefault && (
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(event) =>
+                                    handleMakeDefaultAddress(addr, event)
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      handleMakeDefaultAddress(addr, event);
+                                    }
+                                  }}
+                                  className="mt-2 inline-flex rounded-full border border-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-600 hover:bg-white"
+                                >
+                                  Set default
+                                </span>
+                              )}
                             </div>
                             <svg
                               className="w-5 h-5 text-primary-600 flex-shrink-0"
@@ -1132,7 +1377,50 @@ export default function Checkout() {
                   </h2>
                 </div>
 
-                <div className="space-y-3">
+                <div className="grid gap-3">
+                  {paymentMethods.map((method) => (
+                    <label
+                      key={method.value}
+                      className={`flex cursor-pointer items-center gap-4 rounded-xl border-2 p-4 transition-all hover:bg-gray-50 ${
+                        formData.paymentMethod === method.value
+                          ? "border-primary-500 bg-primary-50 shadow-sm"
+                          : "border-gray-200"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value={method.value}
+                        checked={formData.paymentMethod === method.value}
+                        onChange={handleChange}
+                        className="h-5 w-5 border-gray-300 text-primary-500 focus:ring-primary-500"
+                      />
+                      <span className="flex h-10 w-14 items-center justify-center rounded-lg bg-gray-900 text-xs font-black text-white">
+                        {method.logo}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2 font-semibold text-gray-900">
+                          {method.title}
+                          {savedPaymentMethod === method.value && (
+                            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+                              Last used
+                            </span>
+                          )}
+                        </span>
+                        <span className="mt-1 block text-sm text-gray-500">
+                          {method.description}
+                        </span>
+                        {formData.paymentMethod === method.value && (
+                          <span className="mt-2 block text-xs font-medium text-primary-700">
+                            {method.instruction}
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="hidden">
                   <label
                     className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all hover:bg-gray-50 ${
                       formData.paymentMethod === "cod"
@@ -1321,6 +1609,19 @@ export default function Checkout() {
                     )}
                   </label>
                 </div>
+
+                {formData.paymentMethod === "card" && (
+                  <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                    <h3 className="text-sm font-bold text-gray-900">
+                      Card payment
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Your saved card preference is remembered on this device.
+                      A live card gateway can collect card details here when it is
+                      enabled.
+                    </p>
+                  </div>
+                )}
 
                 {/* Payment Instructions for Mobile Banking */}
                 {(formData.paymentMethod === "bkash" ||
@@ -1795,7 +2096,7 @@ export default function Checkout() {
                 )}
               </div>
 
-              {/* Special Instructions */}
+              {/* Order Notes */}
               <div className="bg-white rounded-2xl shadow-sm border p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center">
@@ -1814,15 +2115,33 @@ export default function Checkout() {
                     </svg>
                   </div>
                   <h2 className="text-xl font-bold text-gray-900">
-                    Special Instructions
+                    Order Notes
                   </h2>
+                </div>
+                <div className="mb-4 space-y-3">
+                  {vendorGroups.map((group) => (
+                    <label key={group.vendorId} className="block">
+                      <span className="mb-1 block text-sm font-semibold text-gray-700">
+                        Note for {group.vendorName}
+                      </span>
+                      <textarea
+                        value={vendorNotes[group.vendorId] || ""}
+                        onChange={(event) =>
+                          handleVendorNoteChange(group.vendorId, event.target.value)
+                        }
+                        rows="2"
+                        placeholder="Leave at door, call before delivery, or seller-specific note"
+                        className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </label>
+                  ))}
                 </div>
                 <textarea
                   name="specialInstructions"
                   value={formData.specialInstructions}
                   onChange={handleChange}
                   rows="3"
-                  placeholder="Any special delivery instructions? (Optional)"
+                  placeholder="Overall delivery note for the full order (optional)"
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all resize-none"
                 />
               </div>
@@ -1836,7 +2155,56 @@ export default function Checkout() {
               </h2>
 
               {/* Items */}
-              <div className="space-y-4 mb-6 max-h-64 overflow-y-auto">
+              <div className="mb-6 max-h-72 space-y-4 overflow-y-auto">
+                {vendorGroups.map((group) => (
+                  <div
+                    key={group.vendorId}
+                    className="rounded-xl border border-gray-100 bg-gray-50 p-3"
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          Seller
+                        </p>
+                        <p className="text-sm font-bold text-gray-900">
+                          {group.vendorName}
+                        </p>
+                      </div>
+                      <p className="text-sm font-bold text-primary-600">
+                        {formatPrice(group.subtotal)}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {group.items.map((item) => (
+                        <div
+                          key={getCartItemKey(item)}
+                          className="flex gap-3 rounded-lg bg-white p-2"
+                        >
+                          <img
+                            src={getCartItemImage(item)}
+                            alt={item.title}
+                            className="h-14 w-14 rounded-lg object-cover"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <h4 className="truncate text-sm font-semibold text-gray-900">
+                              {item.title}
+                            </h4>
+                            <div className="mt-1 flex items-center justify-between text-xs">
+                              <span className="text-gray-500">
+                                Qty: {item.quantity}
+                              </span>
+                              <span className="font-bold text-primary-600">
+                                {formatPrice(item.price * item.quantity)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden">
                 {cart.map((item) => (
                   <div
                     key={`${item._id}-${item.selectedSize || "no-size"}`}
@@ -2012,13 +2380,12 @@ export default function Checkout() {
               <div className="border-t pt-4 space-y-3">
                 <div className="flex justify-between text-gray-600">
                   <span>
-                    Subtotal (
-                    {cart.reduce((sum, item) => sum + item.quantity, 0)} items)
+                    Subtotal ({itemCount} items)
                   </span>
                   <span>{formatPrice(cartTotal)}</span>
                 </div>
 
-                {appliedCoupon && (
+                {platformVoucherDiscount > 0 && (
                   <div className="flex justify-between text-green-600">
                     <span className="flex items-center gap-2">
                       <svg
@@ -2034,10 +2401,34 @@ export default function Checkout() {
                           d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
                         />
                       </svg>
-                      Coupon Discount ({appliedCoupon.code})
+                      Platform Voucher ({appliedCoupon.code})
                     </span>
                     <span className="font-semibold">
-                      -{formatPrice(couponDiscount)}
+                      -{formatPrice(platformVoucherDiscount)}
+                    </span>
+                  </div>
+                )}
+
+                {vendorVoucherDiscount > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span className="flex items-center gap-2">
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                        />
+                      </svg>
+                      Store Voucher ({appliedCoupon.code})
+                    </span>
+                    <span className="font-semibold">
+                      -{formatPrice(vendorVoucherDiscount)}
                     </span>
                   </div>
                 )}

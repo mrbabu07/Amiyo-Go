@@ -1,5 +1,10 @@
 import { createContext, useState, useEffect } from "react";
 import { useToast } from "./ToastContext";
+import {
+  getCartItemKey,
+  getCartColorName,
+  getItemMaxOrder,
+} from "../utils/cartCheckout";
 
 export const CartContext = createContext();
 
@@ -8,11 +13,28 @@ export default function CartProvider({ children }) {
     const saved = localStorage.getItem("cart");
     return saved ? JSON.parse(saved) : [];
   });
+  const [savedForLater, setSavedForLater] = useState(() => {
+    const saved = localStorage.getItem("cartSavedForLater");
+    return saved ? JSON.parse(saved) : [];
+  });
   const { success } = useToast();
 
   useEffect(() => {
     localStorage.setItem("cart", JSON.stringify(cart));
   }, [cart]);
+
+  useEffect(() => {
+    localStorage.setItem("cartSavedForLater", JSON.stringify(savedForLater));
+  }, [savedForLater]);
+
+  const matchesItem = (item, productId, selectedSize = null, selectedColor = null) =>
+    item._id === productId &&
+    (item.selectedSize || "no-size") ===
+      (selectedSize || item.selectedSize || "no-size") &&
+    (getCartColorName(item.selectedColor) || "no-color") ===
+      (getCartColorName(selectedColor) ||
+        getCartColorName(item.selectedColor) ||
+        "no-color");
 
   const addToCart = (
     product,
@@ -26,7 +48,7 @@ export default function CartProvider({ children }) {
     setCart((prev) => {
       const cartItem = {
         ...product,
-        quantity,
+        quantity: Math.min(quantity, getItemMaxOrder(product)),
         selectedImage:
           selectedImage ||
           product.image ||
@@ -40,8 +62,8 @@ export default function CartProvider({ children }) {
         (item) =>
           item._id === product._id &&
           (item.selectedSize || "no-size") === (selectedSize || "no-size") &&
-          (item.selectedColor?.name || "no-color") ===
-            (selectedColor?.name || "no-color"),
+          (getCartColorName(item.selectedColor) || "no-color") ===
+            (getCartColorName(selectedColor) || "no-color"),
       );
 
       if (existing) {
@@ -49,9 +71,12 @@ export default function CartProvider({ children }) {
         return prev.map((item) =>
           item._id === product._id &&
           (item.selectedSize || "no-size") === (selectedSize || "no-size") &&
-          (item.selectedColor?.name || "no-color") ===
-            (selectedColor?.name || "no-color")
-            ? { ...item, quantity: item.quantity + quantity }
+          (getCartColorName(item.selectedColor) || "no-color") ===
+            (getCartColorName(selectedColor) || "no-color")
+            ? {
+                ...item,
+                quantity: Math.min(item.quantity + quantity, getItemMaxOrder(item)),
+              }
             : item,
         );
       }
@@ -77,24 +102,12 @@ export default function CartProvider({ children }) {
     let removedItem = null;
 
     setCart((prev) => {
-      removedItem = prev.find(
-        (item) =>
-          item._id === productId &&
-          (item.selectedSize || "no-size") ===
-            (selectedSize || item.selectedSize || "no-size") &&
-          (item.selectedColor?.name || "no-color") ===
-            (selectedColor?.name || item.selectedColor?.name || "no-color"),
+      removedItem = prev.find((item) =>
+        matchesItem(item, productId, selectedSize, selectedColor),
       );
 
       return prev.filter(
-        (item) =>
-          !(
-            item._id === productId &&
-            (item.selectedSize || "no-size") ===
-              (selectedSize || item.selectedSize || "no-size") &&
-            (item.selectedColor?.name || "no-color") ===
-              (selectedColor?.name || item.selectedColor?.name || "no-color")
-          ),
+        (item) => !matchesItem(item, productId, selectedSize, selectedColor),
       );
     });
 
@@ -118,15 +131,49 @@ export default function CartProvider({ children }) {
     }
     setCart((prev) =>
       prev.map((item) =>
-        item._id === productId &&
-        (item.selectedSize || "no-size") ===
-          (selectedSize || item.selectedSize || "no-size") &&
-        (item.selectedColor?.name || "no-color") ===
-          (selectedColor?.name || item.selectedColor?.name || "no-color")
-          ? { ...item, quantity }
+        matchesItem(item, productId, selectedSize, selectedColor)
+          ? { ...item, quantity: Math.min(quantity, getItemMaxOrder(item)) }
           : item,
       ),
     );
+  };
+
+  const saveForLater = (item) => {
+    const key = getCartItemKey(item);
+    setSavedForLater((prev) => {
+      if (prev.some((savedItem) => getCartItemKey(savedItem) === key)) {
+        return prev;
+      }
+      return [{ ...item, savedAt: Date.now() }, ...prev];
+    });
+    removeFromCart(item._id, item.selectedSize, item.selectedColor);
+    setTimeout(() => {
+      success(`${item.title} saved for later`);
+    }, 0);
+  };
+
+  const moveSavedToCart = (item) => {
+    const key = getCartItemKey(item);
+    setSavedForLater((prev) =>
+      prev.filter((savedItem) => getCartItemKey(savedItem) !== key),
+    );
+    addToCart(
+      item,
+      item.quantity || 1,
+      item.selectedImage,
+      item.selectedSize,
+      item.selectedColor,
+    );
+  };
+
+  const removeSavedItem = (item) => {
+    const key = getCartItemKey(item);
+    setSavedForLater((prev) =>
+      prev.filter((savedItem) => getCartItemKey(savedItem) !== key),
+    );
+    setTimeout(() => {
+      success(`${item.title} removed from saved items`);
+    }, 0);
   };
 
   const clearCart = () => {
@@ -150,6 +197,10 @@ export default function CartProvider({ children }) {
         removeFromCart,
         updateQuantity,
         clearCart,
+        saveForLater,
+        moveSavedToCart,
+        removeSavedItem,
+        savedForLater,
         cartTotal,
         cartCount,
       }}
