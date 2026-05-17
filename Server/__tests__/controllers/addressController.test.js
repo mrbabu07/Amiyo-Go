@@ -34,6 +34,8 @@ describe("addressController", () => {
         wardNo: "1",
         area: "Station",
         address: "House 12",
+        latitude: "23.8103",
+        longitude: "90.4125",
       },
     });
     const res = buildResponse();
@@ -43,6 +45,15 @@ describe("addressController", () => {
     expect(Address.create).toHaveBeenCalledWith(expect.objectContaining({
       userId: "customer-1",
       isDefault: true,
+      city: "Cox's Bazar",
+      latitude: 23.8103,
+      longitude: 90.4125,
+      location: {
+        type: "Point",
+        coordinates: [90.4125, 23.8103],
+        latitude: 23.8103,
+        longitude: 90.4125,
+      },
     }));
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({

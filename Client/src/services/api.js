@@ -95,6 +95,28 @@ export const downloadOrderInvoice = (id) =>
 
 // User
 export const getCurrentUser = () => api.get("/user/me");
+export const getAccountProfile = () => api.get("/user/account");
+export const updateAccountProfile = (data) =>
+  api.patch("/user/account/profile", data);
+export const updateAccountPreferences = (data) =>
+  api.patch("/user/account/preferences", data);
+export const addSavedPaymentMethod = (data) =>
+  api.post("/user/account/payment-methods", data);
+export const deleteSavedPaymentMethod = (methodId) =>
+  api.delete(`/user/account/payment-methods/${methodId}`);
+export const setupAccountTwoFactor = () => api.post("/user/account/2fa/setup");
+export const verifyAccountTwoFactor = (data) =>
+  api.post("/user/account/2fa/verify", data);
+export const disableAccountTwoFactor = (data) =>
+  api.post("/user/account/2fa/disable", data);
+export const getAccountLoginActivity = () =>
+  api.get("/user/account/login-activity");
+export const exportAccountData = () =>
+  api.get("/user/account/export", { responseType: "blob" });
+export const requestAccountDeletion = (data = {}) =>
+  api.post("/user/account/delete", data);
+export const cancelAccountDeletion = () =>
+  api.post("/user/account/delete/cancel");
 
 // Vendor profile
 export const getVendorPublicInfo = (vendorId) =>
@@ -618,9 +640,6 @@ export const getVendorStaff = () => api.get("/vendors/staff");
 export const inviteVendorStaff = (data) => api.post("/vendors/staff", data);
 export const updateVendorStaff = (id, data) => api.patch(`/vendors/staff/${id}`, data);
 export const removeVendorStaff = (id) => api.delete(`/vendors/staff/${id}`);
-export const exportAccountData = () => api.get("/account/export", { responseType: "blob" });
-export const scheduleAccountDeletion = (data = {}) => api.post("/account/delete", data);
-export const cancelAccountDeletion = () => api.post("/account/delete/cancel");
 
 // ── Admin: Vendor orders ──────────────────────────────────────
 export const getAdminVendorOrders = (vendorId, params = {}) =>

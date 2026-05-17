@@ -10,6 +10,59 @@ import {
 import Loading from "../components/Loading";
 import Modal from "../components/Modal";
 import AddressLocationFields from "../components/AddressLocationFields";
+import AddressMapPicker from "../components/AddressMapPicker";
+
+const compactParts = (parts) =>
+  parts.map((part) => String(part || "").trim()).filter(Boolean);
+
+const getSavedCoordinates = (address = {}) => ({
+  latitude: address.latitude ?? address.location?.latitude ?? address.location?.coordinates?.[1] ?? "",
+  longitude: address.longitude ?? address.location?.longitude ?? address.location?.coordinates?.[0] ?? "",
+});
+
+const formatAddressLines = (address = {}) => {
+  const areaLine = compactParts([
+    address.wardNo ? `Ward ${address.wardNo}` : "",
+    address.area,
+  ]).join(", ");
+  const localityLine = compactParts([
+    address.union,
+    address.upazila,
+    address.district || address.city,
+    address.division,
+  ]).join(", ");
+  const postalLine = compactParts([
+    address.zipCode,
+    "Bangladesh",
+  ]).join(", ");
+
+  return compactParts([address.address, areaLine, localityLine, postalLine]);
+};
+
+const buildAddressPayload = (formData) => {
+  const latitude = Number(formData.latitude);
+  const longitude = Number(formData.longitude);
+  const hasPin = Number.isFinite(latitude) && Number.isFinite(longitude);
+  const payload = {
+    ...formData,
+    city: formData.district || formData.city,
+    latitude: hasPin ? latitude : "",
+    longitude: hasPin ? longitude : "",
+  };
+
+  if (hasPin) {
+    payload.location = {
+      type: "Point",
+      coordinates: [longitude, latitude],
+      latitude,
+      longitude,
+    };
+  } else {
+    payload.location = null;
+  }
+
+  return payload;
+};
 
 export default function Addresses() {
   const [addresses, setAddresses] = useState([]);
@@ -32,6 +85,8 @@ export default function Addresses() {
     wardNo: "",
     area: "",
     zipCode: "",
+    latitude: "",
+    longitude: "",
     isDefault: false,
   });
 
@@ -58,10 +113,7 @@ export default function Addresses() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const payload = {
-        ...formData,
-        city: formData.district,
-      };
+      const payload = buildAddressPayload(formData);
       if (editingAddress) {
         await updateAddress(editingAddress._id, payload);
       } else {
@@ -80,6 +132,7 @@ export default function Addresses() {
   };
 
   const handleEdit = (address) => {
+    const coordinates = getSavedCoordinates(address);
     setEditingAddress(address);
     setFormData({
       name: address.name,
@@ -97,6 +150,8 @@ export default function Addresses() {
       wardNo: address.wardNo || "",
       area: address.area,
       zipCode: address.zipCode || "",
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude,
       isDefault: address.isDefault,
     });
     setShowModal(true);
@@ -142,6 +197,8 @@ export default function Addresses() {
       wardNo: "",
       area: "",
       zipCode: "",
+      latitude: "",
+      longitude: "",
       isDefault: false,
     });
   };
@@ -250,6 +307,12 @@ export default function Addresses() {
                 key={address._id}
                 className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 relative"
               >
+                {(() => {
+                  const coordinates = getSavedCoordinates(address);
+                  const hasPin = coordinates.latitude && coordinates.longitude;
+                  const lines = formatAddressLines(address);
+                  return (
+                    <>
                 {address.isDefault && (
                   <div className="absolute top-4 right-4">
                     <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-primary-100 text-primary-800">
@@ -267,13 +330,17 @@ export default function Addresses() {
 
                 <div className="mb-4">
                   <p className="text-gray-700 text-sm leading-relaxed">
-                    {address.address}
-                    <br />
-                    Ward {address.wardNo}, {address.area}
-                    <br />
-                    {address.union}, {address.upazila}, {address.district || address.city}
-                    {address.zipCode && ` - ${address.zipCode}`}
+                    {lines.map((line) => (
+                      <span key={line} className="block">
+                        {line}
+                      </span>
+                    ))}
                   </p>
+                  {hasPin && (
+                    <p className="mt-3 inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                      Map pin: {Number(coordinates.latitude).toFixed(5)}, {Number(coordinates.longitude).toFixed(5)}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-200">
@@ -301,6 +368,9 @@ export default function Addresses() {
                     </button>
                   )}
                 </div>
+                    </>
+                  );
+                })()}
               </div>
             ))}
           </div>
@@ -411,6 +481,23 @@ export default function Addresses() {
               }
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               placeholder="e.g., 1205"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Map Pin
+            </label>
+            <AddressMapPicker
+              latitude={formData.latitude}
+              longitude={formData.longitude}
+              onChange={(location) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                }))
+              }
             />
           </div>
 

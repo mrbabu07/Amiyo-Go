@@ -1,3 +1,45 @@
+const readCoordinate = (...values) => {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return null;
+};
+
+const normalizeAddressData = (addressData = {}) => {
+  const latitude = readCoordinate(
+    addressData.latitude,
+    addressData.location?.latitude,
+    addressData.location?.coordinates?.[1],
+  );
+  const longitude = readCoordinate(
+    addressData.longitude,
+    addressData.location?.longitude,
+    addressData.location?.coordinates?.[0],
+  );
+  const normalized = {
+    ...addressData,
+    city: addressData.district || addressData.city || "",
+  };
+
+  if (latitude !== null && longitude !== null) {
+    normalized.latitude = latitude;
+    normalized.longitude = longitude;
+    normalized.location = {
+      type: "Point",
+      coordinates: [longitude, latitude],
+      latitude,
+      longitude,
+    };
+  } else if ("location" in normalized || "latitude" in normalized || "longitude" in normalized) {
+    normalized.latitude = "";
+    normalized.longitude = "";
+    normalized.location = null;
+  }
+
+  return normalized;
+};
+
 const getUserAddresses = async (req, res) => {
   try {
     const Address = req.app.locals.models.Address;
@@ -61,10 +103,10 @@ const createAddress = async (req, res) => {
   try {
     const Address = req.app.locals.models.Address;
     const userId = req.user.uid;
-    const addressData = {
+    const addressData = normalizeAddressData({
       ...req.body,
       userId,
-    };
+    });
 
     // Validate address data
     const validation = await Address.validateAddress(addressData);
@@ -99,7 +141,7 @@ const updateAddress = async (req, res) => {
     const Address = req.app.locals.models.Address;
     const { id } = req.params;
     const userId = req.user.uid;
-    const updateData = req.body;
+    const updateData = normalizeAddressData(req.body);
 
     // Check if address exists and belongs to user
     const existingAddress = await Address.findById(id);

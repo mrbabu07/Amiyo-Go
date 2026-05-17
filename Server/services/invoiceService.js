@@ -72,6 +72,70 @@ const getDeliveryCharge = (order = {}) => {
   );
 };
 
+const uniqueAddressParts = (parts = []) => {
+  const seen = new Set();
+  return parts
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .filter((part) => {
+      const key = part.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
+const buildAddressLines = (shippingInfo = {}) => {
+  const hasShippingInfo = [
+    shippingInfo.name,
+    shippingInfo.phone,
+    shippingInfo.email,
+    shippingInfo.address,
+    shippingInfo.area,
+    shippingInfo.wardNo,
+    shippingInfo.union,
+    shippingInfo.thana,
+    shippingInfo.upazila,
+    shippingInfo.district,
+    shippingInfo.city,
+    shippingInfo.division,
+    shippingInfo.zipCode,
+    shippingInfo.postalCode,
+    shippingInfo.country,
+  ].some(Boolean);
+  const houseLine = uniqueAddressParts([
+    shippingInfo.address,
+    shippingInfo.house,
+    shippingInfo.houseNo,
+    shippingInfo.road,
+    shippingInfo.flat,
+  ]).join(", ");
+  const areaLine = uniqueAddressParts([
+    shippingInfo.area,
+    shippingInfo.wardNo ? `Ward ${shippingInfo.wardNo}` : "",
+    shippingInfo.union,
+  ]).join(", ");
+  const localityLine = uniqueAddressParts([
+    shippingInfo.thana || shippingInfo.upazila,
+    shippingInfo.district || shippingInfo.city,
+    shippingInfo.division,
+  ]).join(", ");
+  const postalLine = uniqueAddressParts([
+    shippingInfo.zipCode || shippingInfo.postalCode,
+    shippingInfo.country || (hasShippingInfo ? "Bangladesh" : ""),
+  ]).join(", ");
+
+  return [
+    shippingInfo.name,
+    houseLine,
+    areaLine,
+    localityLine,
+    postalLine,
+    shippingInfo.phone ? `Phone: ${shippingInfo.phone}` : "",
+    shippingInfo.email ? `Email: ${shippingInfo.email}` : "",
+  ].filter(Boolean);
+};
+
 class InvoiceService {
   constructor() {
     this.invoicesDir = path.join(__dirname, "../invoices");
@@ -134,20 +198,7 @@ class InvoiceService {
       : 0;
 
     const shippingInfo = order.shippingInfo || {};
-    const addressLines = [
-      shippingInfo.name,
-      shippingInfo.address,
-      [
-        shippingInfo.area,
-        shippingInfo.thana || shippingInfo.upazila,
-        shippingInfo.district || shippingInfo.city,
-      ].filter(Boolean).join(", "),
-      [shippingInfo.division, shippingInfo.zipCode || shippingInfo.postalCode]
-        .filter(Boolean)
-        .join(" "),
-      shippingInfo.phone,
-      shippingInfo.email,
-    ].filter(Boolean);
+    const addressLines = buildAddressLines(shippingInfo);
 
     const summaryRows = [
       { label: "Subtotal", amount: subtotal },
@@ -205,8 +256,8 @@ class InvoiceService {
         doc.pipe(stream);
 
         this.generateHeader(doc, invoice);
-        this.generateCustomerInformation(doc, invoice);
-        this.generateInvoiceTable(doc, invoice);
+        const tableStartY = this.generateCustomerInformation(doc, invoice);
+        this.generateInvoiceTable(doc, invoice, tableStartY);
         this.generateFooter(doc);
 
         doc.end();
@@ -271,7 +322,7 @@ class InvoiceService {
       : ["Customer information unavailable"];
     customerLines.forEach((line) => {
       doc.fontSize(10).text(line, 50, lineY, { width: 220 });
-      lineY += 15;
+      lineY += Math.max(15, doc.heightOfString(line, { width: 220 }) + 3);
     });
 
     doc
@@ -287,6 +338,8 @@ class InvoiceService {
     if (invoice.transactionId) {
       doc.text(`Transaction ID: ${invoice.transactionId}`, 315, top + 95);
     }
+
+    return Math.max(280, lineY + 20);
   }
 
   drawInvoiceTableHeader(doc, y) {
@@ -307,8 +360,8 @@ class InvoiceService {
       .stroke();
   }
 
-  generateInvoiceTable(doc, invoice) {
-    let position = 280;
+  generateInvoiceTable(doc, invoice, startY = 280) {
+    let position = startY;
     this.drawInvoiceTableHeader(doc, position);
     position += 25;
     doc.fillColor("#444444");

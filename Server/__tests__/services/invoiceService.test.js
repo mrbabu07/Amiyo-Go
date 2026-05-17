@@ -14,9 +14,12 @@ describe("invoiceService customer invoice data", () => {
         email: "rahim@example.com",
         address: "House 12, Road 3",
         area: "Dhanmondi",
+        wardNo: "12",
+        union: "Kalabagan",
         thana: "Dhanmondi",
         district: "Dhaka",
         division: "Dhaka",
+        zipCode: "1205",
       },
       products: [
         {
@@ -76,7 +79,16 @@ describe("invoiceService customer invoice data", () => {
       "Loyalty points",
       "Delivery charge",
     ]);
-    expect(invoice.addressLines).toContain("Dhanmondi, Dhanmondi, Dhaka");
+    expect(invoice.addressLines).toEqual(
+      expect.arrayContaining([
+        "House 12, Road 3",
+        "Dhanmondi, Ward 12, Kalabagan",
+        "Dhanmondi, Dhaka",
+        "1205, Bangladesh",
+        "Phone: 01700000000",
+        "Email: rahim@example.com",
+      ]),
+    );
   });
 
   it("uses delivery breakdown and transparent adjustment when stored paid total differs", () => {
@@ -102,5 +114,14 @@ describe("invoiceService customer invoice data", () => {
 
   it("formats money with ASCII BDT text for PDF font compatibility", () => {
     expect(invoiceService.formatMoney(1234.5)).toBe("BDT 1,234.50");
+  });
+
+  it("does not invent a Bangladesh-only address for empty shipping info", () => {
+    const invoice = invoiceService.buildInvoiceData({
+      _id: "order-3",
+      products: [{ title: "Notebook", quantity: 1, price: 50 }],
+    });
+
+    expect(invoice.addressLines).toEqual([]);
   });
 });
