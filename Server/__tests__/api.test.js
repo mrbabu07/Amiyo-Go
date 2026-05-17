@@ -305,6 +305,47 @@ jest.mock("../controllers/adminCustomerController", () => ({
   getCustomerAuditLog: (req, res) => res.json({ route: "admin-customers:audit-log" }),
 }));
 
+jest.mock("../controllers/adminTrustSafetyController", () => ({
+  getTrustSafetyOverview: (req, res) => res.json({ route: "admin-trust-safety:overview" }),
+  getFraudDashboard: (req, res) => res.json({ route: "admin-trust-safety:fraud", status: req.query.status || "all" }),
+  createFraudFlag: (req, res) =>
+    res.status(201).json({ route: "admin-trust-safety:create-fraud-flag", subjectId: req.body.subjectId }),
+  updateFraudFlag: (req, res) =>
+    res.json({ route: "admin-trust-safety:update-fraud-flag", flagId: req.params.flagId, status: req.body.status }),
+  getReviewModerationQueue: (req, res) =>
+    res.json({ route: "admin-trust-safety:reviews", status: req.query.status || "all" }),
+  moderateReview: (req, res) =>
+    res.json({ route: "admin-trust-safety:moderate-review", reviewId: req.params.reviewId, action: req.body.action }),
+  getDisputeCenter: (req, res) =>
+    res.json({ route: "admin-trust-safety:disputes", type: req.query.type || "all" }),
+  createDispute: (req, res) =>
+    res.status(201).json({ route: "admin-trust-safety:create-dispute", type: req.body.type }),
+  resolveDispute: (req, res) =>
+    res.json({ route: "admin-trust-safety:resolve-dispute", disputeId: req.params.disputeId, decision: req.body.decision }),
+  getSellerPenaltyLog: (req, res) =>
+    res.json({ route: "admin-trust-safety:seller-penalties", status: req.query.status || "all" }),
+  createSellerPenalty: (req, res) =>
+    res.status(201).json({ route: "admin-trust-safety:create-penalty", vendorId: req.body.vendorId, type: req.body.type }),
+  updateSellerPenaltyAppeal: (req, res) =>
+    res.json({ route: "admin-trust-safety:update-appeal", penaltyId: req.params.penaltyId, status: req.body.status }),
+  getContentPolicyViolations: (req, res) =>
+    res.json({ route: "admin-trust-safety:content-violations", source: req.query.source || "all" }),
+  reviewContentPolicyViolation: (req, res) =>
+    res.json({ route: "admin-trust-safety:review-content", violationId: req.params.violationId, action: req.body.action }),
+  getBanList: (req, res) =>
+    res.json({ route: "admin-trust-safety:bans", type: req.query.type || "all" }),
+  createBanListEntry: (req, res) =>
+    res.status(201).json({ route: "admin-trust-safety:create-ban", type: req.body.type, value: req.body.value }),
+  updateBanListEntry: (req, res) =>
+    res.json({ route: "admin-trust-safety:update-ban", banId: req.params.banId, status: req.body.status }),
+  getTermsVersions: (req, res) => res.json({ route: "admin-trust-safety:terms" }),
+  createTermsVersion: (req, res) =>
+    res.status(201).json({ route: "admin-trust-safety:create-terms", type: req.body.type, version: req.body.version }),
+  publishTermsVersion: (req, res) =>
+    res.json({ route: "admin-trust-safety:publish-terms", versionId: req.params.versionId }),
+  getTrustSafetyAuditLog: (req, res) => res.json({ route: "admin-trust-safety:audit-log" }),
+}));
+
 jest.mock("../controllers/adminVendorManagementController", () => ({
   getVendorManagementProfile: (req, res) =>
     res.json({ route: "admin-vendors:management", id: req.params.vendorId }),
@@ -400,6 +441,7 @@ const buildApp = () => {
   app.use("/api/admin/promotions", require("../routes/adminPromotionRoutes"));
   app.use("/api/admin/logistics", require("../routes/adminLogisticsRoutes"));
   app.use("/api/admin/customers", require("../routes/adminCustomerRoutes"));
+  app.use("/api/admin/trust-safety", require("../routes/adminTrustSafetyRoutes"));
   app.use("/api/admin/vendors", require("../routes/adminVendorRoutes"));
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
   return app;
@@ -1141,6 +1183,232 @@ describe("Black-box API tests", () => {
     test("GET /api/admin/customers rejects vendor access", async () => {
       const response = await request(app)
         .get("/api/admin/customers")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "Admin access required" });
+    });
+  });
+
+  describe("admin trust safety API behavior", () => {
+    test("GET /api/admin/trust-safety/overview uses the trust safety command route", async () => {
+      const response = await request(app)
+        .get("/api/admin/trust-safety/overview")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-trust-safety:overview" });
+    });
+
+    test("GET /api/admin/trust-safety/fraud returns the fraud dashboard", async () => {
+      const response = await request(app)
+        .get("/api/admin/trust-safety/fraud?status=open")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-trust-safety:fraud", status: "open" });
+    });
+
+    test("POST /api/admin/trust-safety/fraud-flags creates a manual fraud flag", async () => {
+      const response = await request(app)
+        .post("/api/admin/trust-safety/fraud-flags")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ subjectId: "customer-1", reason: "COD abuse" });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        route: "admin-trust-safety:create-fraud-flag",
+        subjectId: "customer-1",
+      });
+    });
+
+    test("PATCH /api/admin/trust-safety/fraud-flags/:flagId updates a fraud flag", async () => {
+      const response = await request(app)
+        .patch("/api/admin/trust-safety/fraud-flags/flag-1")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ status: "resolved" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "admin-trust-safety:update-fraud-flag",
+        flagId: "flag-1",
+        status: "resolved",
+      });
+    });
+
+    test("GET and PATCH review moderation routes are wired", async () => {
+      const listResponse = await request(app)
+        .get("/api/admin/trust-safety/reviews?status=flagged")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const actionResponse = await request(app)
+        .patch("/api/admin/trust-safety/reviews/review-1/moderate")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ action: "mark_verified" });
+
+      expect(listResponse.status).toBe(200);
+      expect(listResponse.body).toEqual({ route: "admin-trust-safety:reviews", status: "flagged" });
+      expect(actionResponse.status).toBe(200);
+      expect(actionResponse.body).toEqual({
+        route: "admin-trust-safety:moderate-review",
+        reviewId: "review-1",
+        action: "mark_verified",
+      });
+    });
+
+    test("dispute center supports listing, creating, and resolving disputes", async () => {
+      const listResponse = await request(app)
+        .get("/api/admin/trust-safety/disputes?type=payment")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const createResponse = await request(app)
+        .post("/api/admin/trust-safety/disputes")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ type: "vendor_customer", reason: "Conflict" });
+      const resolveResponse = await request(app)
+        .patch("/api/admin/trust-safety/disputes/dispute-1/resolve")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ decision: "close", resolutionNote: "Resolved" });
+
+      expect(listResponse.body).toEqual({ route: "admin-trust-safety:disputes", type: "payment" });
+      expect(createResponse.status).toBe(201);
+      expect(createResponse.body).toEqual({ route: "admin-trust-safety:create-dispute", type: "vendor_customer" });
+      expect(resolveResponse.body).toEqual({
+        route: "admin-trust-safety:resolve-dispute",
+        disputeId: "dispute-1",
+        decision: "close",
+      });
+    });
+
+    test("seller penalty routes support log, issue, and appeal response", async () => {
+      const listResponse = await request(app)
+        .get("/api/admin/trust-safety/seller-penalties?status=active")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const createResponse = await request(app)
+        .post("/api/admin/trust-safety/seller-penalties")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ vendorId: "vendor-1", type: "strike", reason: "Violation" });
+      const appealResponse = await request(app)
+        .patch("/api/admin/trust-safety/seller-penalties/penalty-1/appeal")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ status: "upheld" });
+
+      expect(listResponse.body).toEqual({ route: "admin-trust-safety:seller-penalties", status: "active" });
+      expect(createResponse.status).toBe(201);
+      expect(createResponse.body).toEqual({
+        route: "admin-trust-safety:create-penalty",
+        vendorId: "vendor-1",
+        type: "strike",
+      });
+      expect(appealResponse.body).toEqual({
+        route: "admin-trust-safety:update-appeal",
+        penaltyId: "penalty-1",
+        status: "upheld",
+      });
+    });
+
+    test("content policy routes support listing and review actions", async () => {
+      const listResponse = await request(app)
+        .get("/api/admin/trust-safety/content-violations?source=products")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const actionResponse = await request(app)
+        .patch("/api/admin/trust-safety/content-violations/product:abc:0/review")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ action: "request_changes" });
+
+      expect(listResponse.body).toEqual({ route: "admin-trust-safety:content-violations", source: "products" });
+      expect(actionResponse.body).toEqual({
+        route: "admin-trust-safety:review-content",
+        violationId: "product:abc:0",
+        action: "request_changes",
+      });
+    });
+
+    test("ban list routes support list, create, and update", async () => {
+      const listResponse = await request(app)
+        .get("/api/admin/trust-safety/bans?type=ip")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const createResponse = await request(app)
+        .post("/api/admin/trust-safety/bans")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ type: "ip", value: "103.1.1.1", reason: "Fraud" });
+      const updateResponse = await request(app)
+        .patch("/api/admin/trust-safety/bans/ban-1")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ status: "inactive" });
+
+      expect(listResponse.body).toEqual({ route: "admin-trust-safety:bans", type: "ip" });
+      expect(createResponse.status).toBe(201);
+      expect(createResponse.body).toEqual({
+        route: "admin-trust-safety:create-ban",
+        type: "ip",
+        value: "103.1.1.1",
+      });
+      expect(updateResponse.body).toEqual({
+        route: "admin-trust-safety:update-ban",
+        banId: "ban-1",
+        status: "inactive",
+      });
+    });
+
+    test("terms routes support version listing, creation, and publish", async () => {
+      const listResponse = await request(app)
+        .get("/api/admin/trust-safety/terms")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const createResponse = await request(app)
+        .post("/api/admin/trust-safety/terms")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ type: "terms", version: "2026.05", title: "Terms", body: "Rules" });
+      const publishResponse = await request(app)
+        .patch("/api/admin/trust-safety/terms/version-1/publish")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ forceAccept: true });
+
+      expect(listResponse.body).toEqual({ route: "admin-trust-safety:terms" });
+      expect(createResponse.status).toBe(201);
+      expect(createResponse.body).toEqual({
+        route: "admin-trust-safety:create-terms",
+        type: "terms",
+        version: "2026.05",
+      });
+      expect(publishResponse.body).toEqual({
+        route: "admin-trust-safety:publish-terms",
+        versionId: "version-1",
+      });
+    });
+
+    test("GET /api/admin/trust-safety/audit-log uses audit route", async () => {
+      const response = await request(app)
+        .get("/api/admin/trust-safety/audit-log")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-trust-safety:audit-log" });
+    });
+
+    test("GET /api/admin/trust-safety/overview rejects vendor access", async () => {
+      const response = await request(app)
+        .get("/api/admin/trust-safety/overview")
         .set("Authorization", "Bearer test")
         .set("x-test-role", "vendor");
 

@@ -488,6 +488,50 @@ export const getReferralDashboard = () =>
 export const getCustomerAuditLog = () =>
   api.get("/admin/customers/audit-log");
 
+// Admin Trust, Safety & Compliance
+export const getTrustSafetyOverview = () =>
+  api.get("/admin/trust-safety/overview");
+export const getFraudDashboard = (params = {}) =>
+  api.get("/admin/trust-safety/fraud", { params });
+export const createFraudFlag = (data) =>
+  api.post("/admin/trust-safety/fraud-flags", data);
+export const updateFraudFlag = (flagId, data) =>
+  api.patch(`/admin/trust-safety/fraud-flags/${flagId}`, data);
+export const getReviewModerationQueue = (params = {}) =>
+  api.get("/admin/trust-safety/reviews", { params });
+export const moderateTrustSafetyReview = (reviewId, data) =>
+  api.patch(`/admin/trust-safety/reviews/${reviewId}/moderate`, data);
+export const getDisputeCenter = (params = {}) =>
+  api.get("/admin/trust-safety/disputes", { params });
+export const createTrustSafetyDispute = (data) =>
+  api.post("/admin/trust-safety/disputes", data);
+export const resolveTrustSafetyDispute = (disputeId, data) =>
+  api.patch(`/admin/trust-safety/disputes/${disputeId}/resolve`, data);
+export const getSellerPenaltyLog = (params = {}) =>
+  api.get("/admin/trust-safety/seller-penalties", { params });
+export const createSellerPenalty = (data) =>
+  api.post("/admin/trust-safety/seller-penalties", data);
+export const updateSellerPenaltyAppeal = (penaltyId, data) =>
+  api.patch(`/admin/trust-safety/seller-penalties/${penaltyId}/appeal`, data);
+export const getContentPolicyViolations = (params = {}) =>
+  api.get("/admin/trust-safety/content-violations", { params });
+export const reviewContentPolicyViolation = (violationId, data) =>
+  api.patch(`/admin/trust-safety/content-violations/${violationId}/review`, data);
+export const getTrustSafetyBans = (params = {}) =>
+  api.get("/admin/trust-safety/bans", { params });
+export const createTrustSafetyBan = (data) =>
+  api.post("/admin/trust-safety/bans", data);
+export const updateTrustSafetyBan = (banId, data) =>
+  api.patch(`/admin/trust-safety/bans/${banId}`, data);
+export const getTermsVersions = () =>
+  api.get("/admin/trust-safety/terms");
+export const createTermsVersion = (data) =>
+  api.post("/admin/trust-safety/terms", data);
+export const publishTermsVersion = (versionId, data = {}) =>
+  api.patch(`/admin/trust-safety/terms/${versionId}/publish`, data);
+export const getTrustSafetyAuditLog = () =>
+  api.get("/admin/trust-safety/audit-log");
+
 export const getDispatchAssignments = (params = {}) =>
   api.get("/admin/dispatch/assignments", { params });
 export const createDispatchAssignment = (data) =>
