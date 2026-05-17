@@ -13,7 +13,17 @@ import { getCurrentUser, getMyVendorProfile } from "../services/api";
 export const AuthContext = createContext(null);
 
 const googleProvider = new GoogleAuthProvider();
-const ADMIN_ROLES = ["admin", "manager", "support", "moderator"];
+const ADMIN_ROLES = [
+  "admin",
+  "manager",
+  "support",
+  "moderator",
+  "finance_manager",
+  "support_agent",
+  "vendor_manager",
+  "campaign_manager",
+  "logistics_manager",
+];
 
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);

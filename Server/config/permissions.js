@@ -1,4 +1,14 @@
-const STAFF_ROLES = ["admin", "manager", "support", "moderator"];
+const STAFF_ROLES = [
+  "admin",
+  "manager",
+  "support",
+  "moderator",
+  "finance_manager",
+  "support_agent",
+  "vendor_manager",
+  "campaign_manager",
+  "logistics_manager",
+];
 
 const DEFAULT_ROLE_PERMISSIONS = {
   customer: {
@@ -38,6 +48,18 @@ const DEFAULT_ROLE_PERMISSIONS = {
     tickets: ["read", "create", "update"],
     payments: ["read"],
   },
+  support_agent: {
+    orders: ["read", "update"],
+    users: ["read"],
+    vendors: ["read"],
+    products: ["read"],
+    returns: ["read", "update"],
+    support: ["read", "create", "update"],
+    chat: ["read", "create", "update"],
+    tickets: ["read", "create", "update"],
+    payments: ["read"],
+    system: ["read"],
+  },
   moderator: {
     orders: ["read", "update"],
     users: ["read", "update"],
@@ -51,6 +73,40 @@ const DEFAULT_ROLE_PERMISSIONS = {
     chat: ["read", "create", "update", "delete"],
     tickets: ["read", "create", "update", "delete"],
     payments: ["read", "update"],
+  },
+  finance_manager: {
+    payments: ["read", "create", "update"],
+    finance: ["read", "create", "update"],
+    analytics: ["read"],
+    orders: ["read"],
+    returns: ["read", "update"],
+    vendors: ["read"],
+    audit_logs: ["read"],
+    system: ["read"],
+  },
+  vendor_manager: {
+    vendors: ["read", "create", "update"],
+    users: ["read"],
+    products: ["read"],
+    orders: ["read"],
+    analytics: ["read"],
+    audit_logs: ["read"],
+    system: ["read"],
+  },
+  campaign_manager: {
+    coupons: ["read", "create", "update", "delete"],
+    products: ["read"],
+    categories: ["read"],
+    analytics: ["read"],
+    system: ["read", "create", "update"],
+  },
+  logistics_manager: {
+    orders: ["read", "update"],
+    vendors: ["read"],
+    payments: ["read", "update"],
+    returns: ["read", "update"],
+    analytics: ["read"],
+    system: ["read", "create", "update"],
   },
   manager: {
     orders: ["read", "create", "update", "delete"],

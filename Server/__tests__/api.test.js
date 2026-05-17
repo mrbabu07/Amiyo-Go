@@ -367,6 +367,63 @@ jest.mock("../controllers/adminTrustSafetyController", () => ({
   getTrustSafetyAuditLog: (req, res) => res.json({ route: "admin-trust-safety:audit-log" }),
 }));
 
+jest.mock("../controllers/adminPlatformController", () => ({
+  getPlatformControlOverview: (req, res) => res.json({ route: "admin-platform:overview" }),
+  listNotificationBroadcasts: (req, res) => res.json({ route: "admin-platform:broadcasts" }),
+  sendNotificationBroadcast: (req, res) =>
+    res.status(201).json({
+      route: "admin-platform:send-broadcast",
+      target: req.body.target,
+      channels: req.body.channels,
+    }),
+  listMessageTemplates: (req, res) => res.json({ route: "admin-platform:templates" }),
+  upsertMessageTemplate: (req, res) =>
+    res.json({ route: "admin-platform:save-template", key: req.params.templateKey, subject: req.body.subject }),
+  listEmailCampaigns: (req, res) => res.json({ route: "admin-platform:email-campaigns" }),
+  createEmailCampaign: (req, res) =>
+    res.status(201).json({ route: "admin-platform:create-email-campaign", subject: req.body.subject }),
+  listAnnouncements: (req, res) => res.json({ route: "admin-platform:announcements" }),
+  upsertAnnouncement: (req, res) =>
+    res.status(req.params.announcementId ? 200 : 201).json({
+      route: "admin-platform:save-announcement",
+      announcementId: req.params.announcementId || null,
+      title: req.body.title,
+    }),
+  getPlatformConfig: (req, res) => res.json({ route: "admin-platform:config" }),
+  updatePlatformConfig: (req, res) =>
+    res.json({ route: "admin-platform:update-config", guestCheckout: req.body.featureFlags?.guestCheckout }),
+  upsertCategoryNode: (req, res) =>
+    res.status(req.params.categoryId ? 200 : 201).json({
+      route: "admin-platform:save-category",
+      categoryId: req.params.categoryId || null,
+      name: req.body.name,
+    }),
+  upsertCategoryAttributes: (req, res) =>
+    res.json({
+      route: "admin-platform:save-attributes",
+      categoryId: req.params.categoryId,
+      count: req.body.attributes?.length || 0,
+    }),
+  updateCommissionRuleTable: (req, res) =>
+    res.json({ route: "admin-platform:commission-rules", count: req.body.rules?.length || 0 }),
+  listStaffAccess: (req, res) => res.json({ route: "admin-platform:staff" }),
+  inviteStaffAccount: (req, res) =>
+    res.status(201).json({ route: "admin-platform:invite-staff", email: req.body.email, role: req.body.role }),
+  updateStaffRole: (req, res) =>
+    res.json({ route: "admin-platform:update-staff-role", staffId: req.params.staffId, role: req.body.role }),
+  getStaffActivityLog: (req, res) => res.json({ route: "admin-platform:activity-log" }),
+  setupAdminTwoFactor: (req, res) =>
+    res.json({ route: "admin-platform:2fa-setup", staffId: req.params.staffId }),
+  verifyAdminTwoFactor: (req, res) =>
+    res.json({ route: "admin-platform:2fa-verify", staffId: req.params.staffId }),
+  updateRoleSessionPolicy: (req, res) =>
+    res.json({
+      route: "admin-platform:session-policy",
+      role: req.params.role,
+      sessionTimeoutMinutes: req.body.sessionTimeoutMinutes,
+    }),
+}));
+
 jest.mock("../controllers/adminVendorManagementController", () => ({
   getVendorManagementProfile: (req, res) =>
     res.json({ route: "admin-vendors:management", id: req.params.vendorId }),
@@ -464,6 +521,7 @@ const buildApp = () => {
   app.use("/api/admin/logistics", require("../routes/adminLogisticsRoutes"));
   app.use("/api/admin/customers", require("../routes/adminCustomerRoutes"));
   app.use("/api/admin/trust-safety", require("../routes/adminTrustSafetyRoutes"));
+  app.use("/api/admin/platform", require("../routes/adminPlatformRoutes"));
   app.use("/api/admin/vendors", require("../routes/adminVendorRoutes"));
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
   return app;
@@ -1494,6 +1552,138 @@ describe("Black-box API tests", () => {
     test("GET /api/admin/trust-safety/overview rejects vendor access", async () => {
       const response = await request(app)
         .get("/api/admin/trust-safety/overview")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "Admin access required" });
+    });
+  });
+
+  describe("admin platform control API behavior", () => {
+    test("GET /api/admin/platform/overview uses the platform control route", async () => {
+      const response = await request(app)
+        .get("/api/admin/platform/overview")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-platform:overview" });
+    });
+
+    test("POST /api/admin/platform/broadcasts sends a segmented broadcast", async () => {
+      const response = await request(app)
+        .post("/api/admin/platform/broadcasts")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ title: "Sale", body: "Starts now", target: "all_vendors", channels: ["in_app", "email"] });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        route: "admin-platform:send-broadcast",
+        target: "all_vendors",
+        channels: ["in_app", "email"],
+      });
+    });
+
+    test("message templates, campaigns, and announcements are wired", async () => {
+      const template = await request(app)
+        .put("/api/admin/platform/templates/order_confirm")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ subject: "Order {order_id}", body: "Confirmed" });
+      const campaign = await request(app)
+        .post("/api/admin/platform/email-campaigns")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ subject: "Newsletter", body: "Hello" });
+      const announcement = await request(app)
+        .post("/api/admin/platform/announcements")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ title: "Maintenance", message: "Tonight" });
+
+      expect(template.body).toEqual({ route: "admin-platform:save-template", key: "order_confirm", subject: "Order {order_id}" });
+      expect(campaign.status).toBe(201);
+      expect(campaign.body).toEqual({ route: "admin-platform:create-email-campaign", subject: "Newsletter" });
+      expect(announcement.status).toBe(201);
+      expect(announcement.body).toEqual({
+        route: "admin-platform:save-announcement",
+        announcementId: null,
+        title: "Maintenance",
+      });
+    });
+
+    test("configuration routes save settings, categories, attributes, and commission rules", async () => {
+      const config = await request(app)
+        .put("/api/admin/platform/config")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ featureFlags: { guestCheckout: false } });
+      const category = await request(app)
+        .post("/api/admin/platform/categories")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ name: "Electronics" });
+      const attributes = await request(app)
+        .put("/api/admin/platform/categories/cat-1/attributes")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ attributes: [{ name: "RAM" }] });
+      const commission = await request(app)
+        .put("/api/admin/platform/commission-rules")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ rules: [{ name: "Electronics", commissionRate: 5 }] });
+
+      expect(config.body).toEqual({ route: "admin-platform:update-config", guestCheckout: false });
+      expect(category.status).toBe(201);
+      expect(category.body).toEqual({ route: "admin-platform:save-category", categoryId: null, name: "Electronics" });
+      expect(attributes.body).toEqual({ route: "admin-platform:save-attributes", categoryId: "cat-1", count: 1 });
+      expect(commission.body).toEqual({ route: "admin-platform:commission-rules", count: 1 });
+    });
+
+    test("staff RBAC routes invite, update role, start 2FA, verify 2FA, and update session policy", async () => {
+      const invite = await request(app)
+        .post("/api/admin/platform/staff")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ email: "finance@example.com", role: "finance_manager" });
+      const role = await request(app)
+        .patch("/api/admin/platform/staff/staff-1/role")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ role: "logistics_manager" });
+      const setup = await request(app)
+        .post("/api/admin/platform/staff/staff-1/2fa/setup")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const verify = await request(app)
+        .post("/api/admin/platform/staff/staff-1/2fa/verify")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ token: "123456" });
+      const session = await request(app)
+        .put("/api/admin/platform/roles/finance_manager/session-policy")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ sessionTimeoutMinutes: 15 });
+
+      expect(invite.status).toBe(201);
+      expect(invite.body).toEqual({ route: "admin-platform:invite-staff", email: "finance@example.com", role: "finance_manager" });
+      expect(role.body).toEqual({ route: "admin-platform:update-staff-role", staffId: "staff-1", role: "logistics_manager" });
+      expect(setup.body).toEqual({ route: "admin-platform:2fa-setup", staffId: "staff-1" });
+      expect(verify.body).toEqual({ route: "admin-platform:2fa-verify", staffId: "staff-1" });
+      expect(session.body).toEqual({
+        route: "admin-platform:session-policy",
+        role: "finance_manager",
+        sessionTimeoutMinutes: 15,
+      });
+    });
+
+    test("GET /api/admin/platform/overview rejects vendor access", async () => {
+      const response = await request(app)
+        .get("/api/admin/platform/overview")
         .set("Authorization", "Bearer test")
         .set("x-test-role", "vendor");
 

@@ -92,6 +92,7 @@ const AdminChatDetail = lazy(() => import("../pages/admin/AdminChatDetail"));
 const VendorActivityDashboard = lazy(() => import("../pages/admin/VendorActivityDashboard"));
 const AdminVendorKyc = lazy(() => import("../pages/admin/AdminVendorKyc"));
 const AdminNewsletter = lazy(() => import("../pages/admin/AdminNewsletter"));
+const AdminPlatformControls = lazy(() => import("../pages/admin/AdminPlatformControls"));
 
 const lazyElement = (Component) => (
   <Suspense fallback={<Loading />}>
@@ -199,6 +200,7 @@ const router = createBrowserRouter([
     children: [
       { path: "", element: lazyElement(AdminDashboard) },
       { path: "analytics", element: lazyElement(AdminAnalyticsReports) },
+      { path: "platform", element: lazyElement(AdminPlatformControls) },
       { path: "vendors", element: lazyElement(AdminVendors) },
       { path: "vendor-requests", element: lazyElement(AdminVendors) },
       { path: "vendors/:vendorId", element: lazyElement(AdminVendorDetail) },

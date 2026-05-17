@@ -15,6 +15,7 @@ import {
   Menu,
   Package,
   ShoppingBag,
+  Settings,
   Store,
   Truck,
   Users,
@@ -35,6 +36,12 @@ const navigation = [
     name: 'Analytics & Reports',
     icon: BarChart3,
     path: '/admin/analytics',
+    exact: true,
+  },
+  {
+    name: 'Platform Control',
+    icon: Settings,
+    path: '/admin/platform',
     exact: true,
   },
   {

@@ -536,6 +536,54 @@ export const publishTermsVersion = (versionId, data = {}) =>
 export const getTrustSafetyAuditLog = () =>
   api.get("/admin/trust-safety/audit-log");
 
+// Admin Platform Control
+export const getPlatformControlOverview = () =>
+  api.get("/admin/platform/overview");
+export const getPlatformNotificationBroadcasts = (params = {}) =>
+  api.get("/admin/platform/broadcasts", { params });
+export const sendPlatformNotificationBroadcast = (data) =>
+  api.post("/admin/platform/broadcasts", data);
+export const getPlatformMessageTemplates = () =>
+  api.get("/admin/platform/templates");
+export const savePlatformMessageTemplate = (templateKey, data) =>
+  api.put(`/admin/platform/templates/${templateKey}`, data);
+export const getPlatformEmailCampaigns = (params = {}) =>
+  api.get("/admin/platform/email-campaigns", { params });
+export const createPlatformEmailCampaign = (data) =>
+  api.post("/admin/platform/email-campaigns", data);
+export const getPlatformAnnouncements = (params = {}) =>
+  api.get("/admin/platform/announcements", { params });
+export const savePlatformAnnouncement = (data) =>
+  data.announcementId
+    ? api.patch(`/admin/platform/announcements/${data.announcementId}`, data)
+    : api.post("/admin/platform/announcements", data);
+export const getPlatformConfig = () =>
+  api.get("/admin/platform/config");
+export const updatePlatformConfig = (data) =>
+  api.put("/admin/platform/config", data);
+export const savePlatformCategory = (data) =>
+  data.categoryId
+    ? api.patch(`/admin/platform/categories/${data.categoryId}`, data)
+    : api.post("/admin/platform/categories", data);
+export const savePlatformCategoryAttributes = (categoryId, attributes) =>
+  api.put(`/admin/platform/categories/${categoryId}/attributes`, { attributes });
+export const updatePlatformCommissionRules = (rules) =>
+  api.put("/admin/platform/commission-rules", { rules });
+export const getPlatformStaffAccess = () =>
+  api.get("/admin/platform/staff");
+export const invitePlatformStaff = (data) =>
+  api.post("/admin/platform/staff", data);
+export const updatePlatformStaffRole = (staffId, data) =>
+  api.patch(`/admin/platform/staff/${staffId}/role`, data);
+export const getPlatformStaffActivityLog = (params = {}) =>
+  api.get("/admin/platform/staff/activity-log", { params });
+export const setupPlatformStaffTwoFactor = (staffId) =>
+  api.post(`/admin/platform/staff/${staffId}/2fa/setup`);
+export const verifyPlatformStaffTwoFactor = (staffId, data) =>
+  api.post(`/admin/platform/staff/${staffId}/2fa/verify`, data);
+export const updatePlatformRoleSessionPolicy = (role, data) =>
+  api.put(`/admin/platform/roles/${role}/session-policy`, data);
+
 export const getDispatchAssignments = (params = {}) =>
   api.get("/admin/dispatch/assignments", { params });
 export const createDispatchAssignment = (data) =>

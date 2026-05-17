@@ -1,5 +1,5 @@
 const { ObjectId } = require("mongodb");
-const { getDefaultPermissions } = require("../config/permissions");
+const { STAFF_ROLES, getDefaultPermissions } = require("../config/permissions");
 
 class User {
   constructor(db) {
@@ -153,7 +153,7 @@ class User {
   async getStaffUsers() {
     return await this.collection
       .find({
-        role: { $in: ["admin", "manager", "support", "moderator"] },
+        role: { $in: STAFF_ROLES },
       })
       .sort({ createdAt: -1 })
       .toArray();

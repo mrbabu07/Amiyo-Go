@@ -110,6 +110,7 @@ const adminPromotionRoutes = require("./routes/adminPromotionRoutes");
 const adminLogisticsRoutes = require("./routes/adminLogisticsRoutes");
 const adminCustomerRoutes = require("./routes/adminCustomerRoutes");
 const adminTrustSafetyRoutes = require("./routes/adminTrustSafetyRoutes");
+const adminPlatformRoutes = require("./routes/adminPlatformRoutes");
 const categoryRequestRoutes = require("./routes/categoryRequestRoutes");
 const vendorChatRoutes = require("./routes/vendorChatRoutes");
 const adminVendorChatRoutes = require("./routes/chatRoutes");
@@ -363,6 +364,9 @@ async function run() {
 
     app.use("/api/admin/trust-safety", adminTrustSafetyRoutes);
     console.log("Admin Trust Safety routes registered");
+
+    app.use("/api/admin/platform", adminPlatformRoutes);
+    console.log("Admin Platform Control routes registered");
 
     app.use("/api/category-requests", categoryRequestRoutes);
     console.log("✅ Category Request routes registered");
