@@ -65,6 +65,22 @@ describe("couponController.validateCoupon vendor voucher flow", () => {
         finalTotal: 280,
         scopeVendorId: "vendor-1",
         vendorSubtotal: 200,
+        discountBreakdown: expect.objectContaining({
+          validation: expect.objectContaining({ valid: true }),
+          totals: expect.objectContaining({
+            subtotal: 300,
+            discountTotal: 20,
+            payableTotal: 280,
+          }),
+          lines: [
+            expect.objectContaining({
+              type: "vendor_voucher",
+              code: "SHOP10",
+              amount: 20,
+              scopeVendorId: "vendor-1",
+            }),
+          ],
+        }),
         coupon: expect.objectContaining({
           code: "SHOP10",
           type: "vendor_voucher",

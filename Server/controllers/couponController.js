@@ -3,6 +3,7 @@ const {
   getApprovedVendorVoucher,
   calculateVendorVoucherDiscount,
 } = require("../utils/vendorMarketingVoucher");
+const { buildDiscountBreakdown } = require("../utils/promotionRulesEngine");
 
 const parseOptionalNumber = (value) => {
   if (value === undefined || value === null || value === "") return null;
@@ -15,6 +16,63 @@ const parseOptionalInteger = (value) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? Number.NaN : parsed;
 };
+
+const normalizeId = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  return value.toString ? value.toString() : String(value);
+};
+
+const getAuditActor = (req) => ({
+  userId: normalizeId(req.user?._id || req.user?.uid || "admin"),
+  role: req.user?.role || "admin",
+  email: req.user?.email || "",
+});
+
+const appendCouponAudit = async (req, { action, target, changes = {}, metadata = {} }) => {
+  const db = req.app.locals.db || req.app.locals.models?.Coupon?.collection?.db;
+  if (!db?.collection) return null;
+
+  const payload = {
+    action,
+    module: "promotions",
+    actor: getAuditActor(req),
+    target,
+    changes,
+    metadata,
+    createdAt: new Date(),
+  };
+
+  try {
+    const AuditLog = req.app.locals.models?.AuditLog;
+    if (AuditLog?.append) return await AuditLog.append(payload);
+    return await db.collection("audit_logs").insertOne(payload);
+  } catch (error) {
+    console.error("Failed to append coupon audit log:", error.message);
+    return null;
+  }
+};
+
+const buildValidationBreakdown = ({
+  orderTotal,
+  deliveryCharge = 0,
+  coupon,
+  discountAmount,
+  source,
+  scopeVendorId = null,
+  vendorSubtotal = null,
+}) =>
+  buildDiscountBreakdown({
+    subtotal: Number(orderTotal || 0),
+    deliveryCharge: Number(deliveryCharge || 0),
+    couponApplied: {
+      ...coupon,
+      couponId: coupon?._id || coupon?.id || null,
+      source,
+      scopeVendorId,
+      vendorSubtotal,
+    },
+    couponDiscountAmount: Number(discountAmount || 0),
+  });
 
 const validateCouponPayload = (payload, { partial = false } = {}) => {
   const normalized = {
@@ -158,8 +216,10 @@ const validateCoupon = async (req, res) => {
   try {
     const Coupon = req.app.locals.models.Coupon;
     const Offer = require("../models/Offer"); // Import Mongoose model directly
-    const { code, orderTotal, items = [] } = req.body;
+    const { code, orderTotal, deliveryCharge = 0, items = [] } = req.body;
     const userId = req.user?.uid;
+    const normalizedOrderTotal = Number(orderTotal || 0);
+    const hasDeliveryCharge = req.body.deliveryCharge !== undefined && req.body.deliveryCharge !== null;
 
     console.log("📋 Validating coupon/offer code:", {
       code,
@@ -190,12 +250,25 @@ const validateCoupon = async (req, res) => {
       console.log("✅ Coupon validation result:", couponValidation);
 
       if (couponValidation.valid) {
+        const effectiveDiscountAmount =
+          couponValidation.coupon?.discountType === "free_shipping" && hasDeliveryCharge
+            ? Math.min(Number(deliveryCharge || 0), Number(couponValidation.discountAmount || 0))
+            : couponValidation.discountAmount;
+        const discountBreakdown = buildValidationBreakdown({
+          orderTotal: normalizedOrderTotal,
+          deliveryCharge,
+          coupon: couponValidation.coupon,
+          discountAmount: effectiveDiscountAmount,
+          source: couponValidation.coupon?.isPlatformVoucher ? "platform_voucher" : "admin_coupon",
+        });
+
         return res.json({
           success: true,
           data: {
             coupon: couponValidation.coupon,
-            discountAmount: couponValidation.discountAmount,
-            finalTotal: orderTotal - couponValidation.discountAmount,
+            discountAmount: effectiveDiscountAmount,
+            finalTotal: Math.max(0, normalizedOrderTotal - effectiveDiscountAmount),
+            discountBreakdown,
           },
         });
       }
@@ -221,6 +294,22 @@ const validateCoupon = async (req, res) => {
           });
         }
 
+        const discountBreakdown = buildValidationBreakdown({
+          orderTotal: normalizedOrderTotal,
+          deliveryCharge,
+          coupon: {
+            _id: vendorVoucher._id,
+            code: vendorVoucher.code,
+            name: vendorVoucher.title,
+            discountType: vendorVoucher.discountType,
+            discountValue: vendorVoucher.discountValue,
+          },
+          discountAmount: voucherValidation.discountAmount,
+          source: "vendor_voucher",
+          scopeVendorId: voucherValidation.scopeVendorId,
+          vendorSubtotal: voucherValidation.vendorSubtotal,
+        });
+
         return res.json({
           success: true,
           data: {
@@ -236,9 +325,10 @@ const validateCoupon = async (req, res) => {
               minOrderAmount: vendorVoucher.minOrderAmount || 0,
             },
             discountAmount: voucherValidation.discountAmount,
-            finalTotal: Number(orderTotal || 0) - voucherValidation.discountAmount,
+            finalTotal: Math.max(0, normalizedOrderTotal - voucherValidation.discountAmount),
             scopeVendorId: voucherValidation.scopeVendorId,
             vendorSubtotal: voucherValidation.vendorSubtotal,
+            discountBreakdown,
           },
         });
       }
@@ -266,13 +356,26 @@ const validateCoupon = async (req, res) => {
       // Calculate discount amount
       let discountAmount = 0;
       if (offer.discountType === "percentage") {
-        discountAmount = (orderTotal * offer.discountValue) / 100;
+        discountAmount = (normalizedOrderTotal * offer.discountValue) / 100;
       } else if (offer.discountType === "fixed") {
-        discountAmount = Math.min(offer.discountValue, orderTotal);
+        discountAmount = Math.min(offer.discountValue, normalizedOrderTotal);
       }
 
       // Ensure discount doesn't exceed order total
-      discountAmount = Math.min(discountAmount, orderTotal);
+      discountAmount = Math.min(discountAmount, normalizedOrderTotal);
+      const discountBreakdown = buildValidationBreakdown({
+        orderTotal: normalizedOrderTotal,
+        deliveryCharge,
+        coupon: {
+          code: offer.couponCode,
+          name: offer.title,
+          discountType: offer.discountType,
+          discountValue: offer.discountValue,
+          type: "offer",
+        },
+        discountAmount,
+        source: "offer",
+      });
 
       console.log("✅ Offer validation successful:", {
         offer: offer.title,
@@ -291,7 +394,8 @@ const validateCoupon = async (req, res) => {
             type: "offer", // Indicate this is from an offer
           },
           discountAmount,
-          finalTotal: orderTotal - discountAmount,
+          finalTotal: Math.max(0, normalizedOrderTotal - discountAmount),
+          discountBreakdown,
         },
       });
     } catch (offerError) {
@@ -344,6 +448,22 @@ const createCoupon = async (req, res) => {
       expiresAt: normalized.expiresAt,
       isActive: normalized.isActive ?? true,
       usedBy: [],
+    });
+
+    await appendCouponAudit(req, {
+      action: "promotions.coupon.created",
+      target: { type: "coupon", id: normalizeId(couponId), code: normalized.code },
+      changes: {
+        code: normalized.code,
+        name: normalized.name,
+        discountType: normalized.discountType,
+        discountValue: normalized.discountValue,
+        minOrderAmount: normalized.minOrderAmount,
+        usageLimit: normalized.usageLimit,
+        userUsageLimit: normalized.userUsageLimit,
+        expiresAt: normalized.expiresAt,
+        isActive: normalized.isActive ?? true,
+      },
     });
 
     res.status(201).json({
@@ -413,6 +533,16 @@ const updateCoupon = async (req, res) => {
       });
     }
 
+    await appendCouponAudit(req, {
+      action: "promotions.coupon.updated",
+      target: { type: "coupon", id: normalizeId(id), code: normalized.code },
+      changes: updateData,
+      metadata: {
+        previousCode: existingCoupon.code,
+        previousIsActive: existingCoupon.isActive,
+      },
+    });
+
     res.json({
       success: true,
       message: "Coupon updated successfully",
@@ -427,6 +557,7 @@ const deleteCoupon = async (req, res) => {
   try {
     const Coupon = req.app.locals.models.Coupon;
     const { id } = req.params;
+    const existingCoupon = await Coupon.findById(id);
 
     const result = await Coupon.delete(id);
 
@@ -436,6 +567,22 @@ const deleteCoupon = async (req, res) => {
         error: "Coupon not found",
       });
     }
+
+    await appendCouponAudit(req, {
+      action: "promotions.coupon.deleted",
+      target: {
+        type: "coupon",
+        id: normalizeId(id),
+        code: existingCoupon?.code || "",
+      },
+      changes: {
+        deleted: true,
+      },
+      metadata: {
+        previousName: existingCoupon?.name || "",
+        previousDiscountType: existingCoupon?.discountType || "",
+      },
+    });
 
     res.json({
       success: true,

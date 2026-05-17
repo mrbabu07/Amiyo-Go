@@ -46,12 +46,17 @@ const buildDb = () => {
     findOne: jest.fn().mockResolvedValue(null),
   };
 
+  const promotionSettingsCollection = {
+    findOne: jest.fn().mockResolvedValue(null),
+  };
+
   const db = {
     collection: jest.fn((name) => {
       if (name === "orders") return ordersCollection;
       if (name === "categories") return categoriesCollection;
       if (name === "coupons") return couponsCollection;
       if (name === "vendorMarketingItems") return voucherCollection;
+      if (name === "promotion_settings") return promotionSettingsCollection;
       if (["campaignVendorJoins", "vendorMarketingEvents", "campaignVoucherAnalytics"].includes(name)) {
         return analyticsCollection;
       }
@@ -99,6 +104,62 @@ describe("Order model vendor voucher flow", () => {
         discountAmount: 20,
       }),
     );
+    expect(insertedOrder.discountBreakdown).toEqual(
+      expect.objectContaining({
+        version: 1,
+        validation: expect.objectContaining({ valid: true }),
+        totals: expect.objectContaining({
+          subtotal: 300,
+          deliveryCharge: 0,
+          discountTotal: 20,
+          payableTotal: 280,
+        }),
+        lines: [
+          expect.objectContaining({
+            type: "vendor_voucher",
+            code: "SHOP10",
+            amount: 20,
+            scopeVendorId: "vendor-1",
+            vendorSubtotal: 200,
+          }),
+        ],
+      }),
+    );
     expect(voucherCollection.updateOne).toHaveBeenCalled();
+  });
+
+  test("create applies platform free-shipping coupon against delivery charge", async () => {
+    const { db, inserted, couponsCollection } = buildDb();
+    couponsCollection.findOne.mockResolvedValueOnce({
+      _id: "coupon-1",
+      code: "SHIPFREE",
+      discountType: "free_shipping",
+      discountValue: 0,
+      maxDiscountAmount: 80,
+      isActive: true,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const orderModel = new Order(db);
+
+    await orderModel.create({
+      userId: "user-1",
+      products: [{ title: "A", vendorId: "vendor-1", price: 200, quantity: 1 }],
+      couponCode: "shipfree",
+      paymentMethod: "cod",
+      deliveryCharge: 60,
+    });
+
+    const insertedOrder = inserted[0];
+    expect(insertedOrder.couponDiscount).toBe(60);
+    expect(insertedOrder.totalDiscount).toBe(60);
+    expect(insertedOrder.total).toBe(200);
+    expect(insertedOrder.discountBreakdown.lines[0]).toEqual(
+      expect.objectContaining({
+        type: "free_shipping",
+        code: "SHIPFREE",
+        amount: 60,
+      }),
+    );
+    expect(couponsCollection.updateOne).toHaveBeenCalled();
   });
 });

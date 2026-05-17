@@ -9,6 +9,7 @@ const {
   getLoyaltyRules,
   getPromotionAuditLog,
   getPromotionOverview,
+  getPromotionRules,
   listClearanceRules,
   listFlashDeals,
   listHomepageSlots,
@@ -20,6 +21,7 @@ const {
   updatePromotionCampaign,
   upsertHomepageSlot,
   upsertLoyaltyRules,
+  upsertPromotionRules,
 } = require("../controllers/adminPromotionController");
 
 const router = express.Router();
@@ -50,6 +52,9 @@ router.post("/clearance", verifyToken, verifyAdmin, applyClearanceSale);
 
 router.get("/loyalty-rules", verifyToken, verifyAdmin, getLoyaltyRules);
 router.put("/loyalty-rules", verifyToken, verifyAdmin, upsertLoyaltyRules);
+
+router.get("/rules", verifyToken, verifyAdmin, getPromotionRules);
+router.put("/rules", verifyToken, verifyAdmin, upsertPromotionRules);
 
 router.get("/audit-log", verifyToken, verifyAdmin, getPromotionAuditLog);
 

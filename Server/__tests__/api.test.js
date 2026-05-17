@@ -293,6 +293,9 @@ jest.mock("../controllers/adminPromotionController", () => ({
   getLoyaltyRules: (req, res) => res.json({ route: "admin-promotions:loyalty-rules" }),
   upsertLoyaltyRules: (req, res) =>
     res.json({ route: "admin-promotions:update-loyalty-rules", earnRate: req.body.earnRate }),
+  getPromotionRules: (req, res) => res.json({ route: "admin-promotions:rules" }),
+  upsertPromotionRules: (req, res) =>
+    res.json({ route: "admin-promotions:update-rules", allowVoucherWithFlashSale: req.body.allowVoucherWithFlashSale }),
   getPromotionAuditLog: (req, res) => res.json({ route: "admin-promotions:audit-log" }),
 }));
 
@@ -1242,6 +1245,28 @@ describe("Black-box API tests", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ route: "admin-promotions:update-loyalty-rules", earnRate: 2 });
+    });
+
+    test("GET and PUT /api/admin/promotions/rules manage promotion stacking rules", async () => {
+      const getResponse = await request(app)
+        .get("/api/admin/promotions/rules")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(getResponse.status).toBe(200);
+      expect(getResponse.body).toEqual({ route: "admin-promotions:rules" });
+
+      const updateResponse = await request(app)
+        .put("/api/admin/promotions/rules")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ allowVoucherWithFlashSale: true });
+
+      expect(updateResponse.status).toBe(200);
+      expect(updateResponse.body).toEqual({
+        route: "admin-promotions:update-rules",
+        allowVoucherWithFlashSale: true,
+      });
     });
 
     test("GET /api/admin/promotions/overview rejects vendor access", async () => {

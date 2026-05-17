@@ -1,4 +1,9 @@
 const { ObjectId } = require("mongodb");
+const {
+  DEFAULT_PROMOTION_RULES,
+  PROMOTION_RULES_SETTING_ID,
+  normalizePromotionRules,
+} = require("../utils/promotionRulesEngine");
 
 const DEFAULT_LOYALTY_RULES = {
   earnRate: 1,
@@ -184,6 +189,7 @@ const buildPromotionOverview = ({
   homepageSlots = [],
   clearanceRules = [],
   loyaltyRules = DEFAULT_LOYALTY_RULES,
+  promotionRules = DEFAULT_PROMOTION_RULES,
 }) => {
   const now = new Date();
   const nominationRows = buildNominationRows(nominationItems);
@@ -221,11 +227,21 @@ const buildPromotionOverview = ({
       productsDiscounted: clearanceRules.reduce((sum, rule) => sum + Number(rule.productsAffected || 0), 0),
     },
     loyaltyRules,
+    promotionRules: normalizePromotionRules(promotionRules),
   };
 };
 
 const loadPromotionSource = async (db) => {
-  const [campaigns, nominationItems, flashDeals, vouchers, homepageSlots, clearanceRules, savedLoyaltyRules] =
+  const [
+    campaigns,
+    nominationItems,
+    flashDeals,
+    vouchers,
+    homepageSlots,
+    clearanceRules,
+    savedLoyaltyRules,
+    savedPromotionRules,
+  ] =
     await Promise.all([
       collectionToArray(db, "campaigns", {}, { createdAt: -1 }),
       collectionToArray(db, "vendorMarketingItems", { type: "campaign_nomination" }, { createdAt: -1 }),
@@ -234,6 +250,7 @@ const loadPromotionSource = async (db) => {
       collectionToArray(db, "homepage_slots", {}, { position: 1, createdAt: -1 }),
       collectionToArray(db, "clearance_rules", {}, { createdAt: -1 }),
       db.collection("promotion_settings").findOne({ _id: "loyalty_rules" }),
+      db.collection("promotion_settings").findOne({ _id: PROMOTION_RULES_SETTING_ID }),
     ]);
 
   return {
@@ -244,6 +261,7 @@ const loadPromotionSource = async (db) => {
     homepageSlots,
     clearanceRules,
     loyaltyRules: { ...DEFAULT_LOYALTY_RULES, ...(savedLoyaltyRules || {}) },
+    promotionRules: normalizePromotionRules(savedPromotionRules || {}),
   };
 };
 
@@ -261,6 +279,7 @@ exports.getPromotionOverview = async (req, res) => {
         homepageSlots: source.homepageSlots.slice(0, 12).map(serializeDoc),
         clearanceRules: source.clearanceRules.slice(0, 8).map(serializeDoc),
         loyaltyRules: source.loyaltyRules,
+        promotionRules: source.promotionRules,
       },
     });
   } catch (error) {
@@ -824,6 +843,60 @@ exports.upsertLoyaltyRules = async (req, res) => {
   }
 };
 
+exports.getPromotionRules = async (req, res) => {
+  try {
+    const saved = await req.app.locals.db
+      .collection("promotion_settings")
+      .findOne({ _id: PROMOTION_RULES_SETTING_ID });
+    res.json({
+      success: true,
+      data: {
+        _id: PROMOTION_RULES_SETTING_ID,
+        ...normalizePromotionRules(saved || {}),
+        updatedAt: saved?.updatedAt || null,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.upsertPromotionRules = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const actor = getActor(req);
+    const rules = normalizePromotionRules(req.body || {});
+    const payload = {
+      ...rules,
+      updatedAt: new Date(),
+      updatedBy: actor.userId,
+    };
+
+    await db.collection("promotion_settings").updateOne(
+      { _id: PROMOTION_RULES_SETTING_ID },
+      { $set: payload, $setOnInsert: { createdAt: new Date() } },
+      { upsert: true },
+    );
+
+    await appendPromotionAudit(req, {
+      action: "promotions.rules.updated",
+      target: { type: "promotion_setting", id: PROMOTION_RULES_SETTING_ID },
+      changes: rules,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        _id: PROMOTION_RULES_SETTING_ID,
+        ...payload,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating promotion rules:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 exports.getPromotionAuditLog = async (req, res) => {
   try {
     const logs = await req.app.locals.db
@@ -843,5 +916,7 @@ exports._promotionTestUtils = {
   buildNominationRows,
   buildPromotionOverview,
   calculateDiscountPercentage,
+  DEFAULT_PROMOTION_RULES,
   normalizeCampaignPayload,
+  normalizePromotionRules,
 };

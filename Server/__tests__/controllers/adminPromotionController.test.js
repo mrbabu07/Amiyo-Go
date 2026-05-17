@@ -7,6 +7,7 @@ const {
   createPromotionCampaign,
   reviewCampaignNomination,
   upsertLoyaltyRules,
+  upsertPromotionRules,
 } = require("../../controllers/adminPromotionController");
 
 const stringify = (value) => (value instanceof ObjectId ? value.toString() : String(value || ""));
@@ -408,6 +409,42 @@ describe("adminPromotionController", () => {
     );
     expect(db.collection("promotion_settings").docs[0]).toEqual(
       expect.objectContaining({ _id: "loyalty_rules", earnRate: 2 }),
+    );
+  });
+
+  test("updates promotion stacking rules with audit visibility", async () => {
+    const db = buildDb();
+    const res = createRes();
+
+    await upsertPromotionRules(
+      buildReq({
+        db,
+        body: {
+          allowVoucherWithFlashSale: true,
+          allowPlatformVoucherWithVendorVoucher: true,
+          maxStackedDiscountPercent: 80,
+        },
+      }),
+      res,
+    );
+
+    expect(res.json.mock.calls[0][0].data).toEqual(
+      expect.objectContaining({
+        _id: "promotion_rules",
+        allowVoucherWithFlashSale: true,
+        allowPlatformVoucherWithVendorVoucher: true,
+        maxStackedDiscountPercent: 80,
+      }),
+    );
+    expect(db.collection("promotion_settings").docs[0]).toEqual(
+      expect.objectContaining({
+        _id: "promotion_rules",
+        allowVoucherWithFlashSale: true,
+        maxStackedDiscountPercent: 80,
+      }),
+    );
+    expect(db.collection("audit_logs").docs[0]).toEqual(
+      expect.objectContaining({ action: "promotions.rules.updated" }),
     );
   });
 });

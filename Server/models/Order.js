@@ -7,6 +7,10 @@ const {
 } = require("../utils/vendorMarketingVoucher");
 const { sanitizeCancellationReason } = require("../utils/customerOrderExperience");
 const campaignVoucherAnalyticsService = require("../services/campaignVoucherAnalyticsService");
+const {
+  buildDiscountBreakdown,
+  loadPromotionRules,
+} = require("../utils/promotionRulesEngine");
 
 class Order {
   constructor(db) {
@@ -266,6 +270,9 @@ class Order {
                 coupon.maxDiscountAmount,
               );
             }
+          } else if (coupon.discountType === "free_shipping") {
+            const shippingCap = Number(coupon.maxDiscountAmount || deliveryCharge || coupon.discountValue || 0);
+            couponDiscountAmount = Math.min(deliveryCharge, shippingCap);
           } else {
             couponDiscountAmount = coupon.discountValue;
           }
@@ -355,15 +362,31 @@ class Order {
     // Handle points redemption
     const pointsDiscountAmount = orderData.pointsDiscount || 0;
     const redeemedPoints = orderData.redeemedPoints || 0;
+    const flashDiscountAmount = orderData.flashDiscount || orderData.flashSaleDiscount || 0;
+    const promotionRules = await loadPromotionRules(this.collection.db);
+    const discountBreakdown = buildDiscountBreakdown({
+      subtotal,
+      deliveryCharge,
+      couponApplied,
+      couponDiscountAmount,
+      pointsDiscountAmount,
+      redeemedPoints,
+      flashDiscountAmount,
+      rules: promotionRules,
+    });
+
+    if (!discountBreakdown.validation.valid) {
+      const reason = discountBreakdown.validation.violations
+        .map((violation) => violation.message)
+        .join(" ");
+      throw new Error(`Promotion rules conflict: ${reason}`);
+    }
 
     // Calculate total discount
-    const totalDiscountAmount = couponDiscountAmount + pointsDiscountAmount;
-
-    // Calculate order amount after discounts (before delivery)
-    const orderAmountAfterDiscount = subtotal - totalDiscountAmount;
+    const totalDiscountAmount = discountBreakdown.totals.discountTotal;
 
     // Calculate final total (secure calculation)
-    const finalTotal = subtotal - totalDiscountAmount + deliveryCharge;
+    const finalTotal = discountBreakdown.totals.payableTotal;
 
     // Determine payment status based on payment method
     const paymentStatus =
@@ -374,12 +397,14 @@ class Order {
       subtotal: Math.round(subtotal * 100) / 100,
       couponDiscount: round2(couponDiscountAmount),
       pointsDiscount: round2(pointsDiscountAmount),
+      flashDiscount: round2(flashDiscountAmount),
       totalDiscount: round2(totalDiscountAmount),
       deliveryCharge: round2(deliveryCharge),
       deliveryMethod: orderData.deliveryMethod || "standard",
       deliveryBreakdown: orderData.deliveryBreakdown || [],
       total: round2(finalTotal),
       couponApplied,
+      discountBreakdown,
       redeemedPoints,
       transactionId: orderData.transactionId || null,
       paymentStatus,
