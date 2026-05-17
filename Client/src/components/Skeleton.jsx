@@ -6,11 +6,11 @@ export default function Skeleton({
   lines = 1,
   animation = "pulse",
 }) {
-  const baseClasses = "bg-gray-200 dark:bg-gray-700";
+  const baseClasses = "skeleton-surface";
 
   const animationClasses = {
-    pulse: "animate-pulse",
-    wave: "animate-pulse", // Can be enhanced with wave animation
+    pulse: "skeleton-shimmer",
+    wave: "skeleton-shimmer",
     none: "",
   };
 

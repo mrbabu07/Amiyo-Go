@@ -12,24 +12,44 @@ export const useTheme = () => {
 
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
-    // Get theme from localStorage or default to light
+    if (typeof window === "undefined") return "light";
     const savedTheme = localStorage.getItem("theme");
-    return savedTheme || "light";
+    if (savedTheme) return savedTheme;
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
+  const [manualTheme, setManualTheme] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("theme") !== null;
   });
 
   useEffect(() => {
-    // Apply theme to document
     const root = document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
     } else {
       root.classList.remove("dark");
     }
-    // Save to localStorage
-    localStorage.setItem("theme", theme);
-  }, [theme]);
+    if (manualTheme) localStorage.setItem("theme", theme);
+  }, [manualTheme, theme]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || manualTheme) {
+      return undefined;
+    }
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const handlePreferenceChange = (event) => {
+      setTheme(event.matches ? "dark" : "light");
+    };
+
+    media.addEventListener("change", handlePreferenceChange);
+    return () => media.removeEventListener("change", handlePreferenceChange);
+  }, [manualTheme]);
 
   const toggleTheme = () => {
+    setManualTheme(true);
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 

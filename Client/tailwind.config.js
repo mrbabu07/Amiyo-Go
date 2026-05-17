@@ -6,16 +6,16 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: "#f0fdf4",
-          100: "#dcfce7",
-          200: "#bbf7d0",
-          300: "#86efac",
-          400: "#4ade80",
-          500: "#10B981", // Main primary color
-          600: "#059669",
-          700: "#047857",
-          800: "#065f46",
-          900: "#064e3b",
+          50: "#eef8fb",
+          100: "#d5eef6",
+          200: "#b0deed",
+          300: "#7dc6df",
+          400: "#45a4c8",
+          500: "#1e7098", // Main brand color
+          600: "#1a6387",
+          700: "#17516f",
+          800: "#16445d",
+          900: "#14384d",
         },
         secondary: {
           50: "#eff6ff",
@@ -159,11 +159,11 @@ export default {
           "-webkit-line-clamp": "3",
         },
         ".btn-primary": {
-          "@apply bg-primary-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-600 transition-all shadow-md hover:shadow-lg active:scale-95":
+          "@apply bg-primary-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-600 transition-all shadow-md hover:shadow-lg active:scale-95 focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2":
             {},
         },
         ".btn-secondary": {
-          "@apply border-2 border-primary-500 text-primary-500 px-6 py-3 rounded-lg font-semibold hover:bg-primary-500 hover:text-white transition-all":
+          "@apply border-2 border-primary-500 text-primary-500 px-6 py-3 rounded-lg font-semibold hover:bg-primary-50 transition-all focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2":
             {},
         },
         ".btn-danger": {
@@ -171,7 +171,7 @@ export default {
             {},
         },
         ".card": {
-          "@apply bg-white rounded-2xl shadow-sm hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100":
+          "@apply bg-white rounded-lg shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border border-gray-100 dark:bg-gray-900 dark:border-gray-800":
             {},
         },
         ".input-field": {

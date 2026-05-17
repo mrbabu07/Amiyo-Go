@@ -32,15 +32,15 @@ function App() {
                     <ToastContainer />
                     <GlobalLoading />
                     <Toaster
-                      position="top-right"
+                      position="bottom-center"
                       toastOptions={{
-                        duration: 4000,
+                        duration: 3000,
                         style: {
                           background: "white",
                           color: "#374151",
                           fontWeight: "600",
-                          borderRadius: "12px",
-                          padding: "16px 20px",
+                          borderRadius: "8px",
+                          padding: "12px 16px",
                           boxShadow:
                             "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
                           border: "1px solid #E5E7EB",

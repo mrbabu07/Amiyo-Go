@@ -32,6 +32,13 @@
     "welcome_message": "বাংলাদেশের ক্রেতা ও সেলারদের মার্কেটপ্লেস Amiyo-Go-তে স্বাগতম।",
     "follow_us": "আমাদের অনুসরণ করুন:"
   },
+  "mobileNav": {
+    "home": "\u09b9\u09cb\u09ae",
+    "categories": "\u0995\u09cd\u09af\u09be\u099f\u09be\u0997\u09b0\u09bf",
+    "cart": "\u0995\u09be\u09b0\u09cd\u099f",
+    "orders": "\u0985\u09b0\u09cd\u09a1\u09be\u09b0",
+    "account": "\u0985\u09cd\u09af\u09be\u0995\u09be\u0989\u09a8\u09cd\u099f"
+  },
   "common": {
     "loading": "লোড হচ্ছে...",
     "error": "ত্রুটি",

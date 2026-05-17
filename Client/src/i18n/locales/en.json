@@ -32,6 +32,13 @@
     "welcome_message": "Welcome to Amiyo-Go, a Bangladesh marketplace for buyers and sellers.",
     "follow_us": "Follow us:"
   },
+  "mobileNav": {
+    "home": "Home",
+    "categories": "Categories",
+    "cart": "Cart",
+    "orders": "Orders",
+    "account": "Account"
+  },
   "common": {
     "loading": "Loading...",
     "error": "Error",

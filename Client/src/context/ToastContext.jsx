@@ -20,7 +20,7 @@ export const ToastProvider = ({ children }) => {
       type: "success", // success, error, warning, info
       title: "",
       message: "",
-      duration: 4000,
+      duration: 3000,
       ...toast,
     };
 

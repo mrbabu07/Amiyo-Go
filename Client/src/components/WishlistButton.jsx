@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Heart, Loader2 } from "lucide-react";
 import useWishlist from "../hooks/useWishlist";
 
 export default function WishlistButton({
@@ -47,40 +48,23 @@ export default function WishlistButton({
         ${
           inWishlist
             ? "bg-red-500 text-white hover:bg-red-600"
-            : "bg-white text-gray-600 hover:bg-gray-50 hover:text-red-500"
+            : "bg-white text-gray-600 hover:bg-gray-50 hover:text-red-500 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
         }
         rounded-full border border-gray-200 transition-all duration-200 
-        flex items-center justify-center shadow-sm hover:shadow-md
+        flex items-center justify-center shadow-sm hover:shadow-md active:scale-95
         disabled:opacity-50 disabled:cursor-not-allowed
+        dark:border-gray-700
         ${className}
       `}
       title={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
     >
       {isLoading ? (
-        <div className={`${iconSizes[size]} animate-spin`}>
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-        </div>
+        <Loader2 className={`${iconSizes[size]} animate-spin`} />
       ) : (
-        <svg
-          className={iconSizes[size]}
+        <Heart
+          className={`${iconSizes[size]} transition-transform duration-200 ${inWishlist ? "scale-110" : ""}`}
           fill={inWishlist ? "currentColor" : "none"}
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-          />
-        </svg>
+        />
       )}
     </button>
   );
