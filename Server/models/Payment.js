@@ -93,29 +93,14 @@ class Payment {
   }
 
   async processBkashPayment(paymentData) {
-    // This would integrate with bKash API
-    // For now, we'll simulate the payment process
-    
     try {
-      // Simulate bKash payment processing
-      const bkashPayment = {
-        bkashTransactionId: `TXN${Date.now()}`,
-        bkashStatus: 'Completed',
-        bkashFee: Math.round(paymentData.amount * 0.015), // bKash fee
-        currency: 'bdt'
-      };
-
-      const paymentId = await this.create({
-        ...paymentData,
-        paymentMethod: 'bkash',
-        ...bkashPayment,
-        status: 'completed'
-      });
+      const paymentId = await this.createManualMobilePayment(paymentData, 'bkash');
 
       return {
         success: true,
         paymentId,
-        transactionId: bkashPayment.bkashTransactionId
+        transactionId: paymentData.transactionId,
+        status: 'pending_verification'
       };
     } catch (error) {
       console.error('bKash payment error:', error);
@@ -127,29 +112,14 @@ class Payment {
   }
 
   async processNagadPayment(paymentData) {
-    // This would integrate with Nagad API
-    // For now, we'll simulate the payment process
-    
     try {
-      // Simulate Nagad payment processing
-      const nagadPayment = {
-        nagadTransactionId: `NGD${Date.now()}`,
-        nagadStatus: 'Success',
-        nagadFee: Math.round(paymentData.amount * 0.015), // Nagad fee
-        currency: 'bdt'
-      };
-
-      const paymentId = await this.create({
-        ...paymentData,
-        paymentMethod: 'nagad',
-        ...nagadPayment,
-        status: 'completed'
-      });
+      const paymentId = await this.createManualMobilePayment(paymentData, 'nagad');
 
       return {
         success: true,
         paymentId,
-        transactionId: nagadPayment.nagadTransactionId
+        transactionId: paymentData.transactionId,
+        status: 'pending_verification'
       };
     } catch (error) {
       console.error('Nagad payment error:', error);
@@ -158,6 +128,43 @@ class Payment {
         error: error.message
       };
     }
+  }
+
+  async processRocketPayment(paymentData) {
+    try {
+      const paymentId = await this.createManualMobilePayment(paymentData, 'rocket');
+
+      return {
+        success: true,
+        paymentId,
+        transactionId: paymentData.transactionId,
+        status: 'pending_verification'
+      };
+    } catch (error) {
+      console.error('Rocket payment error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  async createManualMobilePayment(paymentData, paymentMethod) {
+    if (!paymentData.transactionId) {
+      throw new Error('Transaction ID is required for manual mobile payment verification');
+    }
+
+    return this.create({
+      ...paymentData,
+      paymentMethod,
+      status: 'pending_verification',
+      manualVerification: {
+        status: 'pending',
+        submittedAt: new Date(),
+        senderNumber: paymentData.senderNumber || null,
+        transactionId: paymentData.transactionId,
+      },
+    });
   }
 
   async processCODPayment(paymentData) {

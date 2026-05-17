@@ -294,7 +294,19 @@ describe("adminLogisticsController", () => {
 
   test("records COD remittance and marks selected dispatch assignments remitted", async () => {
     const db = buildDb({
+      orders: [
+        {
+          _id: "order-1",
+          userId: "buyer-1",
+          paymentMethod: "cod",
+          paymentStatus: "pending",
+          total: 1200,
+          codCollectionStatus: "collected",
+        },
+      ],
       dispatch_assignments: [{ orderId: "order-1", courierName: "Pathao", codCollectionStatus: "collected" }],
+      vendorOrders: [{ parentOrderId: "order-1", paymentStatus: "pending" }],
+      payments: [],
     });
     const res = createRes();
 
@@ -314,9 +326,36 @@ describe("adminLogisticsController", () => {
 
     expect(res.status).toHaveBeenCalledWith(201);
     expect(db.collection("cod_remittances").docs[0]).toEqual(
-      expect.objectContaining({ courierName: "Pathao", remittedAmount: 1000, discrepancyAmount: 200 }),
+      expect.objectContaining({
+        courierName: "Pathao",
+        remittedAmount: 1000,
+        discrepancyAmount: 200,
+        orderIds: ["order-1"],
+      }),
     );
-    expect(db.collection("dispatch_assignments").docs[0].codCollectionStatus).toBe("remitted");
+    expect(db.collection("dispatch_assignments").docs[0].codCollectionStatus).toBe("discrepancy");
+    expect(db.collection("orders").docs[0]).toEqual(
+      expect.objectContaining({
+        paymentStatus: "paid",
+        codRemittanceStatus: "remitted",
+        codRemitted: true,
+        codDiscrepancyAmount: 200,
+      }),
+    );
+    expect(db.collection("vendorOrders").docs[0]).toEqual(
+      expect.objectContaining({
+        paymentStatus: "paid",
+        codRemittanceStatus: "remitted",
+      }),
+    );
+    expect(db.collection("payments").docs[0]).toEqual(
+      expect.objectContaining({
+        orderId: "order-1",
+        paymentMethod: "cod",
+        status: "completed",
+        amount: 1200,
+      }),
+    );
   });
 
   test("schedules failed delivery re-attempt and updates order delivery status", async () => {

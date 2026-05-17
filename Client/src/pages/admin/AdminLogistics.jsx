@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Banknote,
@@ -156,12 +156,12 @@ const formatDate = (value) => {
 
 const shortId = (id = "") => id.toString().slice(-8).toUpperCase();
 
-function Metric({ icon: Icon, label, value, tone = "text-slate-950" }) {
+function Metric({ icon, label, value, tone = "text-slate-950" }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-slate-500">{label}</p>
-        <Icon className="h-4 w-4 text-slate-400" />
+        {createElement(icon, { className: "h-4 w-4 text-slate-400" })}
       </div>
       <p className={`mt-2 text-2xl font-bold ${tone}`}>{value}</p>
     </div>
@@ -177,6 +177,10 @@ function StatusPill({ status }) {
     reattempt_scheduled: "border-blue-200 bg-blue-50 text-blue-700",
     return_to_seller: "border-orange-200 bg-orange-50 text-orange-700",
     failed_delivery: "border-red-200 bg-red-50 text-red-700",
+    collected: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    remitted: "border-blue-200 bg-blue-50 text-blue-700",
+    discrepancy: "border-red-200 bg-red-50 text-red-700",
+    pending: "border-amber-200 bg-amber-50 text-amber-700",
   }[status] || "border-slate-200 bg-slate-50 text-slate-600";
 
   return (
@@ -215,6 +219,7 @@ export default function AdminLogistics() {
   const [staffForm, setStaffForm] = useState(emptyStaff);
   const [ruleForm, setRuleForm] = useState(emptyRule);
   const [codForm, setCodForm] = useState(emptyCodRemittance);
+  const [selectedCodOrderIds, setSelectedCodOrderIds] = useState([]);
   const [failureAction, setFailureAction] = useState(emptyFailureAction);
 
   const zoneOptions = useMemo(
@@ -222,9 +227,28 @@ export default function AdminLogistics() {
     [zones],
   );
 
-  const courierOptions = useMemo(
-    () => couriers.map((courier) => ({ value: courier._id, label: courier.name })),
-    [couriers],
+  const outstandingCodOrders = useMemo(
+    () =>
+      (codFloat.orders || []).filter(
+        (row) =>
+          Number(row.outstandingAmount || 0) > 0 ||
+          ["collected", "discrepancy"].includes(row.collectionStatus),
+      ),
+    [codFloat.orders],
+  );
+
+  const selectedCodOrders = useMemo(
+    () => outstandingCodOrders.filter((row) => selectedCodOrderIds.includes(row.orderId)),
+    [outstandingCodOrders, selectedCodOrderIds],
+  );
+
+  const selectedCodAmount = useMemo(
+    () =>
+      selectedCodOrders.reduce(
+        (sum, row) => sum + Number(row.outstandingAmount || row.amount || 0),
+        0,
+      ),
+    [selectedCodOrders],
   );
 
   const loadData = async () => {
@@ -363,10 +387,35 @@ export default function AdminLogistics() {
 
   const submitCodRemittance = (event) => {
     event.preventDefault();
+    const collectedAmount = codForm.collectedAmount || (selectedCodAmount ? String(selectedCodAmount) : "");
+    const remittedAmount = codForm.remittedAmount || (selectedCodAmount ? String(selectedCodAmount) : "");
     runSave(
-      () => recordCodRemittance(codForm),
+      () =>
+        recordCodRemittance({
+          ...codForm,
+          collectedAmount,
+          remittedAmount,
+          orderIds: selectedCodOrderIds,
+        }),
       "COD remittance recorded",
-    ).then(() => setCodForm(emptyCodRemittance));
+    ).then(() => {
+      setCodForm(emptyCodRemittance);
+      setSelectedCodOrderIds([]);
+    });
+  };
+
+  const toggleCodOrder = (row) => {
+    setSelectedCodOrderIds((current) => {
+      const exists = current.includes(row.orderId);
+      const next = exists
+        ? current.filter((id) => id !== row.orderId)
+        : [...current, row.orderId];
+      return next;
+    });
+    setCodForm((current) => ({
+      ...current,
+      courierName: current.courierName || row.courierName || "",
+    }));
   };
 
   const submitReattempt = (event) => {
@@ -775,19 +824,85 @@ export default function AdminLogistics() {
               <Metric icon={CheckCircle2} label="Remitted platform" value={formatPrice(codFloat.summary?.remittedToPlatform || 0)} tone="text-emerald-700" />
               <Metric icon={AlertTriangle} label="Outstanding" value={formatPrice(codFloat.summary?.outstandingWithCouriers || 0)} tone="text-orange-700" />
             </div>
-            <form onSubmit={submitCodRemittance} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-6">
-              <select className="input-control md:col-span-2" value={codForm.courierName} onChange={(event) => setCodForm({ ...codForm, courierName: event.target.value })}>
-                <option value="">Courier</option>
-                {couriers.map((courier) => <option key={courier._id} value={courier.name}>{courier.name}</option>)}
-              </select>
-              <input className="input-control" type="number" min="0" placeholder="Collected" value={codForm.collectedAmount} onChange={(event) => setCodForm({ ...codForm, collectedAmount: event.target.value })} />
-              <input className="input-control" type="number" min="0" placeholder="Remitted" value={codForm.remittedAmount} onChange={(event) => setCodForm({ ...codForm, remittedAmount: event.target.value })} />
-              <input className="input-control" placeholder="Reference" value={codForm.reference} onChange={(event) => setCodForm({ ...codForm, reference: event.target.value })} />
-              <button type="submit" disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
-                <Save className="h-4 w-4" />
-                Record
-              </button>
+            <form onSubmit={submitCodRemittance} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-slate-950">Record COD remittance</h2>
+                  <p className="text-sm text-slate-500">
+                    Select collected orders below, then record the courier cash handover.
+                  </p>
+                </div>
+                <div className="rounded-lg bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-700">
+                  {selectedCodOrderIds.length} selected · {formatPrice(selectedCodAmount)}
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-6">
+                <select className="input-control md:col-span-2" value={codForm.courierName} onChange={(event) => setCodForm({ ...codForm, courierName: event.target.value })}>
+                  <option value="">Courier</option>
+                  {couriers.map((courier) => <option key={courier._id} value={courier.name}>{courier.name}</option>)}
+                </select>
+                <input className="input-control" type="number" min="0" placeholder={selectedCodAmount ? `Collected ${selectedCodAmount}` : "Collected"} value={codForm.collectedAmount} onChange={(event) => setCodForm({ ...codForm, collectedAmount: event.target.value })} />
+                <input className="input-control" type="number" min="0" placeholder={selectedCodAmount ? `Remitted ${selectedCodAmount}` : "Remitted"} value={codForm.remittedAmount} onChange={(event) => setCodForm({ ...codForm, remittedAmount: event.target.value })} />
+                <input className="input-control" placeholder="Reference" value={codForm.reference} onChange={(event) => setCodForm({ ...codForm, reference: event.target.value })} />
+                <button type="submit" disabled={saving || !codForm.courierName || (!codForm.remittedAmount && !selectedCodAmount)} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
+                  <Save className="h-4 w-4" />
+                  Record
+                </button>
+              </div>
             </form>
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <div>
+                  <h2 className="font-bold text-slate-950">Collected COD waiting for remittance</h2>
+                  <p className="text-xs text-slate-500">{outstandingCodOrders.length} orders need platform reconciliation</p>
+                </div>
+                {selectedCodOrderIds.length > 0 && (
+                  <button type="button" onClick={() => setSelectedCodOrderIds([])} className="text-sm font-semibold text-slate-500 hover:text-slate-900">
+                    Clear
+                  </button>
+                )}
+              </div>
+              {outstandingCodOrders.length === 0 ? (
+                <EmptyPanel>No collected COD orders are waiting for remittance.</EmptyPanel>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Select</th>
+                        <th className="px-4 py-3">Order</th>
+                        <th className="px-4 py-3">Courier</th>
+                        <th className="px-4 py-3">Customer</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Outstanding</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {outstandingCodOrders.map((row) => (
+                        <tr key={row.orderId} className={selectedCodOrderIds.includes(row.orderId) ? "bg-orange-50/60" : "hover:bg-slate-50"}>
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedCodOrderIds.includes(row.orderId)}
+                              onChange={() => toggleCodOrder(row)}
+                              className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-slate-900">#{shortId(row.orderId)}</td>
+                          <td className="px-4 py-3 text-slate-600">{row.courierName}</td>
+                          <td className="px-4 py-3 text-slate-600">
+                            <div>{row.customerName || "Customer"}</div>
+                            <div className="text-xs text-slate-400">{row.customerPhone || "No phone"}</div>
+                          </td>
+                          <td className="px-4 py-3"><StatusPill status={row.collectionStatus} /></td>
+                          <td className="px-4 py-3 text-right font-bold text-slate-900">{formatPrice(row.outstandingAmount || row.amount || 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
             <div className="grid gap-3 lg:grid-cols-2">
               {codFloat.byCourier?.map((row) => (
                 <div key={row.courierName} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">

@@ -175,6 +175,8 @@ jest.mock("../controllers/vendorDashboardController", () => ({
 jest.mock("../controllers/adminDashboardController", () => ({
   getAdminDashboardOverview: (req, res) =>
     res.json({ route: "admin-dashboard:overview", range: req.query.range || "7d" }),
+  getAdminOperationsOverview: (req, res) =>
+    res.json({ route: "admin-dashboard:operations" }),
 }));
 
 jest.mock("../controllers/adminAnalyticsController", () => ({

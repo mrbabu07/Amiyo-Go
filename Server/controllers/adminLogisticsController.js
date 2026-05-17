@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const { appendOrderEvent } = require("../services/orderEventService");
 
 const READY_FOR_DISPATCH_STATUSES = ["packed", "ready_to_ship", "pickup_ready"];
 const FAILED_DELIVERY_STATUSES = ["failed_delivery", "delivery_failed", "reattempt_scheduled", "return_to_seller"];
@@ -290,9 +291,18 @@ const buildCodFloatTracker = ({ orders = [], assignments = [], remittances = [] 
     const assignment = getAssignmentForOrder(order, assignmentsByOrderId);
     const amount = orderAmount(order);
     const collectionStatus = assignment?.codCollectionStatus || order.codCollectionStatus || "pending";
+    const remittanceStatus = assignment?.codRemittanceStatus || order.codRemittanceStatus || "pending";
     const courierName = assignment?.courierName || order.courierName || "Unassigned";
-    const collected = ["collected", "remitted", "forwarded_to_vendor"].includes(collectionStatus) || order.status === "delivered";
-    const remitted = ["remitted", "forwarded_to_vendor"].includes(collectionStatus);
+    const collected =
+      ["collected", "remitted", "forwarded_to_vendor"].includes(collectionStatus) ||
+      order.codCollected === true ||
+      Boolean(order.codCollectedAt) ||
+      order.status === "delivered";
+    const remitted =
+      ["remitted", "forwarded_to_vendor"].includes(collectionStatus) ||
+      ["remitted", "forwarded_to_vendor"].includes(remittanceStatus) ||
+      order.codRemitted === true ||
+      Boolean(order.codRemittedAt || order.vendorRemittedAt);
 
     return {
       orderId: normalizeId(order._id),
@@ -300,6 +310,9 @@ const buildCodFloatTracker = ({ orders = [], assignments = [], remittances = [] 
       amount,
       orderStatus: order.status,
       collectionStatus,
+      remittanceStatus,
+      customerName: order.shippingInfo?.name || "",
+      customerPhone: order.shippingInfo?.phone || "",
       collectedAmount: collected ? amount : 0,
       outstandingAmount: collected && !remitted ? amount : 0,
       remittedAmount: remitted ? amount : 0,
@@ -852,29 +865,126 @@ exports.recordCodRemittance = async (req, res) => {
     const db = req.app.locals.db;
     const courierName = String(req.body.courierName || "").trim();
     const remittedAmount = Number(req.body.remittedAmount || 0);
+    const selectedOrderIds = Array.isArray(req.body.orderIds)
+      ? [...new Set(req.body.orderIds.map(normalizeId).filter(Boolean))]
+      : [];
 
     if (!courierName) return res.status(400).json({ success: false, error: "Courier name is required" });
     if (remittedAmount <= 0) return res.status(400).json({ success: false, error: "Remitted amount must be greater than zero" });
 
+    const now = new Date();
+    const remittedAt = asDate(req.body.remittedAt) || now;
     const doc = {
       courierName,
       collectedAmount: Number(req.body.collectedAmount || remittedAmount),
       remittedAmount,
       forwardedToVendorAmount: Number(req.body.forwardedToVendorAmount || 0),
       discrepancyAmount: roundMoney(Number(req.body.collectedAmount || remittedAmount) - remittedAmount),
+      orderIds: selectedOrderIds,
       reference: String(req.body.reference || "").trim(),
       notes: String(req.body.notes || "").trim(),
-      remittedAt: asDate(req.body.remittedAt) || new Date(),
+      remittedAt,
       recordedBy: getActor(req),
-      createdAt: new Date(),
+      createdAt: now,
     };
     const result = await db.collection("cod_remittances").insertOne(doc);
     const saved = { ...doc, _id: result.insertedId };
 
-    if (Array.isArray(req.body.orderIds) && req.body.orderIds.length > 0) {
+    let reconciledOrders = [];
+    if (selectedOrderIds.length > 0) {
+      const objectIds = selectedOrderIds.filter(ObjectId.isValid).map((id) => new ObjectId(id));
+      const orderQuery =
+        objectIds.length > 0
+          ? { $or: [{ _id: { $in: objectIds } }, { _id: { $in: selectedOrderIds } }] }
+          : { _id: { $in: selectedOrderIds } };
+
+      reconciledOrders = await collectionToArray(db, "orders", orderQuery);
+      const reconciliationPatch = {
+        codCollectionStatus: doc.discrepancyAmount > 0 ? "discrepancy" : "remitted",
+        codRemittanceStatus: "remitted",
+        codRemitted: true,
+        codRemittedAt: remittedAt,
+        codRemittedBy: getActor(req),
+        codRemittanceReference: doc.reference,
+        codDiscrepancyAmount: doc.discrepancyAmount,
+        paymentStatus: "paid",
+        updatedAt: now,
+      };
+
       await db.collection("dispatch_assignments").updateMany(
-        { orderId: { $in: req.body.orderIds.map(normalizeId) } },
-        { $set: { codCollectionStatus: "remitted", codRemittedAt: doc.remittedAt, updatedAt: new Date() } },
+        { orderId: { $in: selectedOrderIds } },
+        {
+          $set: {
+            codCollectionStatus: doc.discrepancyAmount > 0 ? "discrepancy" : "remitted",
+            codRemittanceStatus: "remitted",
+            codRemittedAt: remittedAt,
+            codRemittanceReference: doc.reference,
+            updatedAt: now,
+          },
+        },
+      );
+
+      await db.collection("orders").updateMany(orderQuery, { $set: reconciliationPatch });
+      await db.collection("vendorOrders").updateMany(
+        { parentOrderId: { $in: selectedOrderIds } },
+        {
+          $set: {
+            paymentStatus: "paid",
+            codCollectionStatus: reconciliationPatch.codCollectionStatus,
+            codRemittanceStatus: "remitted",
+            codRemittedAt: remittedAt,
+            updatedAt: now,
+          },
+        },
+      );
+
+      await Promise.all(
+        reconciledOrders.map(async (order) => {
+          const orderId = normalizeId(order._id);
+          await db.collection("payments").updateOne(
+            { orderId },
+            {
+              $set: {
+                userId: order.userId || null,
+                orderId,
+                amount: orderAmount(order),
+                currency: "bdt",
+                paymentMethod: "cod",
+                transactionId: doc.reference || `COD-${orderId.slice(-8).toUpperCase()}`,
+                status: "completed",
+                codReconciliation: {
+                  remittanceId: normalizeId(result.insertedId),
+                  courierName,
+                  remittedAmount,
+                  collectedAmount: doc.collectedAmount,
+                  discrepancyAmount: doc.discrepancyAmount,
+                  remittedAt,
+                  reference: doc.reference,
+                },
+                completedAt: remittedAt,
+                updatedAt: now,
+              },
+              $setOnInsert: { createdAt: now },
+            },
+            { upsert: true },
+          );
+
+          await appendOrderEvent({
+            app: req.app,
+            orderId,
+            status: "cod_remitted",
+            label: "COD remitted to platform",
+            actorId: getActor(req).userId,
+            actorRole: "admin",
+            courierName,
+            note: doc.reference ? `Reference: ${doc.reference}` : "COD cash reconciled",
+            metadata: {
+              remittanceId: normalizeId(result.insertedId),
+              remittedAmount,
+              discrepancyAmount: doc.discrepancyAmount,
+            },
+          });
+        }),
       );
     }
 
@@ -884,7 +994,14 @@ exports.recordCodRemittance = async (req, res) => {
       changes: doc,
     });
 
-    res.status(201).json({ success: true, data: serializeDoc(saved) });
+    res.status(201).json({
+      success: true,
+      data: {
+        ...serializeDoc(saved),
+        reconciledOrderCount: reconciledOrders.length,
+        reconciledAmount: roundMoney(reconciledOrders.reduce((sum, order) => sum + orderAmount(order), 0)),
+      },
+    });
   } catch (error) {
     console.error("Error recording COD remittance:", error);
     res.status(500).json({ success: false, error: "Failed to record COD remittance" });

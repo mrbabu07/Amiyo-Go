@@ -1,6 +1,8 @@
 const { ObjectId } = require("mongodb");
+const { appendOrderEvent } = require("../services/orderEventService");
 
-const MANUAL_PAYMENT_METHODS = ["bkash", "nagad", "cod"];
+const MANUAL_PAYMENT_METHODS = ["bkash", "nagad", "rocket", "cod"];
+const MOBILE_PAYMENT_METHODS = ["bkash", "nagad", "rocket"];
 
 const getAllPayments = async (req, res) => {
   try {
@@ -66,10 +68,13 @@ const processPayment = async (req, res) => {
       stripeToken,
       // bKash specific
       bkashNumber,
-      bkashPin,
       // Nagad specific
       nagadNumber,
-      nagadPin,
+      // Rocket specific
+      rocketNumber,
+      // Manual verification
+      transactionId,
+      senderNumber,
     } = req.body;
 
     if (!orderId || !amount || !paymentMethod) {
@@ -111,27 +116,60 @@ const processPayment = async (req, res) => {
         break;
 
       case "bkash":
-        if (!bkashNumber) {
+        if (!bkashNumber && !senderNumber) {
           return res.status(400).json({
             success: false,
             error: "bKash number is required",
           });
         }
-        paymentData.bkashNumber = bkashNumber;
-        paymentData.bkashPin = bkashPin;
+        if (!transactionId) {
+          return res.status(400).json({
+            success: false,
+            error: "bKash transaction ID is required for manual verification",
+          });
+        }
+        paymentData.bkashNumber = bkashNumber || senderNumber;
+        paymentData.senderNumber = senderNumber || bkashNumber;
+        paymentData.transactionId = transactionId;
         result = await Payment.processBkashPayment(paymentData);
         break;
 
       case "nagad":
-        if (!nagadNumber) {
+        if (!nagadNumber && !senderNumber) {
           return res.status(400).json({
             success: false,
             error: "Nagad number is required",
           });
         }
-        paymentData.nagadNumber = nagadNumber;
-        paymentData.nagadPin = nagadPin;
+        if (!transactionId) {
+          return res.status(400).json({
+            success: false,
+            error: "Nagad transaction ID is required for manual verification",
+          });
+        }
+        paymentData.nagadNumber = nagadNumber || senderNumber;
+        paymentData.senderNumber = senderNumber || nagadNumber;
+        paymentData.transactionId = transactionId;
         result = await Payment.processNagadPayment(paymentData);
+        break;
+
+      case "rocket":
+        if (!rocketNumber && !senderNumber) {
+          return res.status(400).json({
+            success: false,
+            error: "Rocket number is required",
+          });
+        }
+        if (!transactionId) {
+          return res.status(400).json({
+            success: false,
+            error: "Rocket transaction ID is required for manual verification",
+          });
+        }
+        paymentData.rocketNumber = rocketNumber || senderNumber;
+        paymentData.senderNumber = senderNumber || rocketNumber;
+        paymentData.transactionId = transactionId;
+        result = await Payment.processRocketPayment(paymentData);
         break;
 
       case "cod":
@@ -152,10 +190,31 @@ const processPayment = async (req, res) => {
       });
     }
 
-    // Update order status if payment is successful
-    if (paymentMethod !== "cod") {
-      const Order = req.app.locals.models.Order;
+    const Order = req.app.locals.models.Order;
+    if (result.status === "completed" && paymentMethod !== "cod") {
       await Order.updateStatus(orderId, "processing");
+    } else if (MOBILE_PAYMENT_METHODS.includes(paymentMethod)) {
+      const now = new Date();
+      await Order.collection.updateOne(
+        { _id: new ObjectId(orderId), userId },
+        {
+          $set: {
+            paymentStatus: "pending_verification",
+            transactionId,
+            paymentSubmittedAt: now,
+            updatedAt: now,
+          },
+        },
+      );
+      await appendOrderEvent({
+        app: req.app,
+        orderId,
+        status: "payment_pending_verification",
+        label: "Payment submitted for verification",
+        actorId: userId,
+        actorRole: "user",
+        note: `${paymentMethod} transaction ${transactionId}`,
+      });
     }
 
     res.json({
@@ -163,8 +222,11 @@ const processPayment = async (req, res) => {
       data: {
         paymentId: result.paymentId,
         transactionId: result.transactionId,
+        status: result.status || "completed",
       },
-      message: "Payment processed successfully",
+      message: MOBILE_PAYMENT_METHODS.includes(paymentMethod)
+        ? "Payment submitted for manual verification"
+        : "Payment processed successfully",
     });
   } catch (error) {
     console.error("Error processing payment:", error);
@@ -188,6 +250,8 @@ const updatePaymentStatus = async (req, res) => {
     const validStatuses = [
       "pending",
       "processing",
+      "pending_verification",
+      "manual_review",
       "completed",
       "failed",
       "refunded",
@@ -265,7 +329,7 @@ const getDuplicateTransactionMap = async (ordersCollection) => {
       {
         $match: {
           transactionId: { $nin: [null, ""] },
-          paymentMethod: { $in: ["bkash", "nagad"] },
+          paymentMethod: { $in: MOBILE_PAYMENT_METHODS },
         },
       },
       {
@@ -306,6 +370,17 @@ const normalizeManualPayment = (order, duplicateMap) => {
     duplicateCount: duplicate?.count || 0,
     duplicateOrderIds: duplicate?.orderIds || [],
     manualPaymentVerification: order.manualPaymentVerification || null,
+    paymentSubmittedAt: order.paymentSubmittedAt || null,
+    reviewedAt: order.manualPaymentVerification?.reviewedAt || null,
+    reviewedBy: order.manualPaymentVerification?.reviewedBy || null,
+    reviewNote:
+      order.manualPaymentVerification?.note ||
+      order.manualPaymentVerification?.reason ||
+      "",
+    riskFlags: [
+      duplicate ? "duplicate_transaction" : null,
+      !order.transactionId && MOBILE_PAYMENT_METHODS.includes(order.paymentMethod) ? "missing_transaction_id" : null,
+    ].filter(Boolean),
     createdAt: order.createdAt,
   };
 };
@@ -314,21 +389,40 @@ const getManualPaymentQueue = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
     const { status = "pending", method = "all", page = 1, limit = 50 } = req.query;
+    const selectedMethods =
+      method !== "all" && MANUAL_PAYMENT_METHODS.includes(method)
+        ? [method]
+        : MANUAL_PAYMENT_METHODS;
     const query = {
-      paymentMethod: { $in: MANUAL_PAYMENT_METHODS },
+      $and: [{ paymentMethod: { $in: selectedMethods } }],
     };
 
-    if (method !== "all" && MANUAL_PAYMENT_METHODS.includes(method)) {
-      query.paymentMethod = method;
-    }
-
     if (status === "pending") {
-      query.paymentStatus = { $in: ["pending", "pending_verification", "manual_review"] };
+      const pendingBranches = [];
+      const selectedMobileMethods = selectedMethods.filter((item) =>
+        MOBILE_PAYMENT_METHODS.includes(item),
+      );
+      if (selectedMobileMethods.length > 0) {
+        pendingBranches.push({
+          paymentMethod: { $in: selectedMobileMethods },
+          paymentStatus: { $in: ["pending", "pending_verification", "manual_review"] },
+        });
+      }
+      if (selectedMethods.includes("cod")) {
+        pendingBranches.push({
+          paymentMethod: "cod",
+          paymentStatus: { $in: ["pending", "pending_verification", "manual_review"] },
+          codCollectionStatus: { $in: ["collected", "discrepancy", "manual_review"] },
+        });
+      }
+      query.$and.push({ $or: pendingBranches });
     } else if (status === "approved") {
-      query.paymentStatus = "paid";
-      query["manualPaymentVerification.status"] = "approved";
+      query.$and.push({
+        paymentStatus: "paid",
+        "manualPaymentVerification.status": "approved",
+      });
     } else if (status === "rejected") {
-      query.paymentStatus = "payment_rejected";
+      query.$and.push({ paymentStatus: "payment_rejected" });
     }
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
@@ -453,6 +547,21 @@ const approveManualPayment = async (req, res) => {
       { upsert: true },
     );
 
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      status: "payment_approved",
+      label: "Manual payment approved",
+      actorId: req.user?.uid || req.dbUser?._id?.toString() || "admin",
+      actorRole: "admin",
+      note,
+      metadata: {
+        paymentMethod: order.paymentMethod,
+        transactionId: order.transactionId || null,
+        duplicateAcknowledged: Boolean(duplicate && allowDuplicate),
+      },
+    });
+
     const updatedOrder = await Order.findById(orderId);
     res.json({
       success: true,
@@ -542,6 +651,20 @@ const rejectManualPayment = async (req, res) => {
       },
       { upsert: true },
     );
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      status: "payment_rejected",
+      label: "Manual payment rejected",
+      actorId: req.user?.uid || req.dbUser?._id?.toString() || "admin",
+      actorRole: "admin",
+      note: reason,
+      metadata: {
+        paymentMethod: order.paymentMethod,
+        transactionId: order.transactionId || null,
+      },
+    });
 
     const duplicateMap = await getDuplicateTransactionMap(Order.collection);
     const updatedOrder = await Order.findById(orderId);
