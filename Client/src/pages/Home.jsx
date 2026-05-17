@@ -59,6 +59,29 @@ const formatDuration = (targetDate, now, t) => {
 
 const sectionProducts = (products = [], count = 8) => products.slice(0, count);
 
+const categoryTileThemes = [
+  {
+    tile: "hover:border-orange-200 hover:bg-orange-50 dark:hover:border-orange-900/60 dark:hover:bg-orange-950/20",
+    icon: "bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-200",
+  },
+  {
+    tile: "hover:border-emerald-200 hover:bg-emerald-50 dark:hover:border-emerald-900/60 dark:hover:bg-emerald-950/20",
+    icon: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200",
+  },
+  {
+    tile: "hover:border-blue-200 hover:bg-blue-50 dark:hover:border-blue-900/60 dark:hover:bg-blue-950/20",
+    icon: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200",
+  },
+  {
+    tile: "hover:border-rose-200 hover:bg-rose-50 dark:hover:border-rose-900/60 dark:hover:bg-rose-950/20",
+    icon: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-200",
+  },
+  {
+    tile: "hover:border-amber-200 hover:bg-amber-50 dark:hover:border-amber-900/60 dark:hover:bg-amber-950/20",
+    icon: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200",
+  },
+];
+
 function CouponStrip({ coupons, formatPrice, t }) {
   if (!coupons?.length) return null;
 
@@ -85,46 +108,77 @@ function CouponStrip({ coupons, formatPrice, t }) {
   );
 }
 
-function CategoryQuickAccess({ categories, t }) {
+function TopCategorySection({ categories, t }) {
   if (!categories?.length) return null;
+  const visibleCategories = categories.slice(0, 11);
+  const hasMoreCategories = categories.length > visibleCategories.length;
 
   return (
-    <div className="sticky top-16 z-30 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
-      <div className="mx-auto max-w-7xl overflow-x-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex min-h-[72px] items-center gap-3 py-2">
+    <section className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-2 text-lg font-extrabold text-gray-950 dark:text-white">
+              <Store className="h-5 w-5 text-orange-500" />
+              {t("home.topCategories")}
+            </p>
+            <p className="mt-1 text-xs font-medium text-gray-500 dark:text-gray-400 sm:text-sm">
+              {t("home.categorySubtitle")}
+            </p>
+          </div>
           <Link
             to="/products"
-            className="hidden shrink-0 items-center gap-2 rounded-lg bg-gray-950 px-3 py-2 text-xs font-bold uppercase text-white dark:bg-white dark:text-gray-950 sm:inline-flex"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-800 transition hover:border-orange-300 hover:bg-orange-50 dark:border-gray-700 dark:text-gray-100 dark:hover:border-orange-900 dark:hover:bg-orange-950/30 sm:text-sm"
           >
-            <Store className="h-4 w-4" />
-            {t("home.topCategories")}
+            {t("home.browseAllCategories")}
+            <ChevronRight className="h-4 w-4" />
           </Link>
-          {categories.map((category) => (
+        </div>
+
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:gap-3 lg:grid-cols-8 xl:grid-cols-12">
+          {visibleCategories.map((category, index) => {
+            const theme = categoryTileThemes[index % categoryTileThemes.length];
+            return (
+              <Link
+                key={category._id}
+                to={category.slug ? `/products?category=${category.slug}` : `/products?category=${category._id}`}
+                className={`group flex min-h-28 flex-col items-center justify-between rounded-lg border border-gray-200 bg-white p-2 text-center shadow-sm transition dark:border-gray-800 dark:bg-gray-950 ${theme.tile}`}
+              >
+                <span className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg text-sm font-extrabold shadow-sm sm:h-14 sm:w-14 ${theme.icon}`}>
+                  {category.image || category.icon ? (
+                    <img
+                      src={category.image || category.icon}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    category.name?.slice(0, 1) || "C"
+                  )}
+                </span>
+                <span className="mt-2 line-clamp-2 min-h-[2rem] text-xs font-bold leading-4 text-gray-800 group-hover:text-orange-600 dark:text-gray-100">
+                  {category.name}
+                </span>
+              </Link>
+            );
+          })}
+
+          {hasMoreCategories ? (
             <Link
-              key={category._id}
-              to={category.slug ? `/products?category=${category.slug}` : `/products?category=${category._id}`}
-              className="group flex w-24 shrink-0 flex-col items-center gap-1 rounded-lg px-2 py-2 text-center transition hover:bg-orange-50 dark:hover:bg-gray-800"
+              to="/products"
+              className="group flex min-h-28 flex-col items-center justify-between rounded-lg border border-dashed border-orange-300 bg-orange-50 p-2 text-center shadow-sm transition hover:bg-orange-100 dark:border-orange-900/70 dark:bg-orange-950/30 dark:hover:bg-orange-950/50"
             >
-              <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-sm font-bold text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
-                {category.image || category.icon ? (
-                  <img
-                    src={category.image || category.icon}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                ) : (
-                  category.name?.slice(0, 1) || "C"
-                )}
+              <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-orange-600 shadow-sm dark:bg-gray-900 dark:text-orange-200 sm:h-14 sm:w-14">
+                <ChevronRight className="h-6 w-6" />
               </span>
-              <span className="line-clamp-2 text-xs font-semibold leading-tight text-gray-700 group-hover:text-orange-600 dark:text-gray-200">
-                {category.name}
+              <span className="mt-2 line-clamp-2 min-h-[2rem] text-xs font-extrabold leading-4 text-orange-700 dark:text-orange-200">
+                {t("home.viewAllCategories")}
               </span>
             </Link>
-          ))}
+          ) : null}
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -829,7 +883,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
       <CouponStrip coupons={discovery.promotionStrip} formatPrice={formatPrice} t={t} />
-      <CategoryQuickAccess categories={discovery.categories} t={t} />
+      <TopCategorySection categories={discovery.categories} t={t} />
 
       <section className="border-b border-gray-200 bg-white py-4 dark:border-gray-800 dark:bg-gray-900">
         <div className="mx-auto grid max-w-7xl gap-4 px-4 sm:px-6 lg:px-8 xl:grid-cols-[240px_minmax(0,1fr)_300px]">
