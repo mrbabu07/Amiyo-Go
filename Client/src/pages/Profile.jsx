@@ -15,6 +15,7 @@ import {
   Mail,
   MapPin,
   PackageSearch,
+  Phone,
   RotateCcw,
   Save,
   ShieldAlert,
