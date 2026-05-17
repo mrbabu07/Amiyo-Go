@@ -133,6 +133,27 @@ jest.mock("../controllers/adminDashboardController", () => ({
     res.json({ route: "admin-dashboard:overview", range: req.query.range || "7d" }),
 }));
 
+jest.mock("../controllers/adminAnalyticsController", () => ({
+  getAdminAnalyticsReports: (req, res) =>
+    res.json({
+      route: "admin-analytics:reports",
+      range: req.query.range || "30d",
+      granularity: req.query.granularity || "day",
+    }),
+  downloadAdminAnalyticsReport: (req, res) => {
+    if (req.query.format === "pdf") {
+      res.set("Content-Type", "application/pdf");
+      return res.send("%PDF-1.3 analytics");
+    }
+    res.set("Content-Type", "text/csv");
+    return res.send("Report,Value\nGMV,1000");
+  },
+  getAdminAnalyticsSummary: (req, res) =>
+    res.json({ route: "admin-analytics:summary", granularity: req.query.granularity || "daily" }),
+  rebuildAdminAnalyticsSummary: (req, res) =>
+    res.json({ route: "admin-analytics:rebuild", start: req.body.start || null }),
+}));
+
 jest.mock("../controllers/adminProductController", () => ({
   getAllAdminProducts: (req, res) =>
     res.json({ route: "admin-products:list", status: req.query.status || req.query.approvalStatus || "all" }),
@@ -435,6 +456,7 @@ const buildApp = () => {
   app.use("/api/vendors", require("../routes/vendorRoutes"));
   app.use("/api/vendor-chat", require("../routes/vendorChatRoutes"));
   app.use("/api/admin/dashboard", require("../routes/adminDashboardRoutes"));
+  app.use("/api/admin/analytics", require("../routes/analyticsRoutes"));
   app.use("/api/admin/products", require("../routes/adminProductRoutes"));
   app.use("/api/admin/payouts", require("../routes/adminPayoutRoutes"));
   app.use("/api/admin/finance", require("../routes/adminFinanceRoutes"));
@@ -677,6 +699,69 @@ describe("Black-box API tests", () => {
     test("GET /api/admin/dashboard/overview rejects vendor access", async () => {
       const response = await request(app)
         .get("/api/admin/dashboard/overview")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "Admin access required" });
+    });
+  });
+
+  describe("admin analytics API behavior", () => {
+    test("GET /api/admin/analytics/reports returns the real reports route", async () => {
+      const response = await request(app)
+        .get("/api/admin/analytics/reports?range=90d&granularity=week")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "admin-analytics:reports",
+        range: "90d",
+        granularity: "week",
+      });
+    });
+
+    test("GET /api/admin/analytics/reports/export downloads CSV reports", async () => {
+      const response = await request(app)
+        .get("/api/admin/analytics/reports/export?report=vendorLeague&format=csv")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["content-type"]).toContain("text/csv");
+      expect(response.text).toContain("GMV");
+    });
+
+    test("GET /api/admin/analytics/reports/export downloads PDF reports", async () => {
+      const response = await request(app)
+        .get("/api/admin/analytics/reports/export?report=gmvTrend&format=pdf")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["content-type"]).toContain("application/pdf");
+      expect(response.text || response.body.toString()).toContain("%PDF-1.3");
+    });
+
+    test("legacy analytics summary and rebuild routes stay available", async () => {
+      const summary = await request(app)
+        .get("/api/admin/analytics/summary?granularity=daily")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const rebuild = await request(app)
+        .post("/api/admin/analytics/rebuild")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ start: "2026-05-01" });
+
+      expect(summary.body).toEqual({ route: "admin-analytics:summary", granularity: "daily" });
+      expect(rebuild.body).toEqual({ route: "admin-analytics:rebuild", start: "2026-05-01" });
+    });
+
+    test("GET /api/admin/analytics/reports rejects vendor access", async () => {
+      const response = await request(app)
+        .get("/api/admin/analytics/reports")
         .set("Authorization", "Bearer test")
         .set("x-test-role", "vendor");
 

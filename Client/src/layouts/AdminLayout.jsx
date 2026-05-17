@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
+  BarChart3,
   Bell,
   ChevronDown,
   ClipboardList,
@@ -29,6 +30,12 @@ const navigation = [
     path: '/admin',
     exact: true,
     alertKey: 'dashboard',
+  },
+  {
+    name: 'Analytics & Reports',
+    icon: BarChart3,
+    path: '/admin/analytics',
+    exact: true,
   },
   {
     name: 'Vendors',

@@ -379,6 +379,10 @@ export const getAdminAnalyticsSummary = (params = {}) =>
   api.get("/admin/analytics/summary", { params });
 export const rebuildAdminAnalyticsSummary = (data = {}) =>
   api.post("/admin/analytics/rebuild", data);
+export const getAdminAnalyticsReports = (params = {}) =>
+  api.get("/admin/analytics/reports", { params });
+export const downloadAdminAnalyticsReport = (params = {}) =>
+  api.get("/admin/analytics/reports/export", { params, responseType: "blob" });
 
 // Admin Promotions
 export const getPromotionOverview = () =>
