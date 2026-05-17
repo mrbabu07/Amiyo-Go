@@ -5,7 +5,7 @@ import useAuth from "../hooks/useAuth";
 import useCart from "../hooks/useCart";
 import useWishlist from "../hooks/useWishlist";
 import { useComparison } from "../context/ComparisonContext";
-import { getCategories } from "../services/api";
+import { getCategories, getSearchNavigation } from "../services/api";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
 import TopBarLanguageSwitcher from "./SimpleLanguageSwitcher";
@@ -28,10 +28,16 @@ export default function Navbar() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await getCategories();
-        setCategories(response.data.data || []);
+        const response = await getSearchNavigation();
+        setCategories(response.data.data?.categories || []);
       } catch (error) {
         console.error("Failed to fetch categories:", error);
+        try {
+          const fallback = await getCategories();
+          setCategories(fallback.data.data || []);
+        } catch (fallbackError) {
+          console.error("Failed to fetch fallback categories:", fallbackError);
+        }
       }
     };
 
@@ -54,12 +60,25 @@ export default function Navbar() {
   const navLinks = [
     { name: t("navbar.home"), path: "/" },
     { name: t("navbar.products"), path: "/products" },
-    { name: "⚡ Flash Sales", path: "/flash-sales" },
+    { name: "Flash Sales", path: "/flash-sales" },
     { name: t("navbar.support"), path: "/support" },
   ];
 
   const categoryGroups = useMemo(() => {
     const activeCategories = categories.filter((category) => category.isActive !== false);
+    if (activeCategories.some((category) => Array.isArray(category.children))) {
+      return activeCategories.map((root) => ({
+        ...root,
+        children: root.children || [],
+        grandchildrenByChild: (root.children || []).reduce(
+          (acc, child) => ({
+            ...acc,
+            [child._id.toString()]: child.children || [],
+          }),
+          {},
+        ),
+      }));
+    }
     const byParent = activeCategories.reduce((acc, category) => {
       const parentKey = category.parentId ? category.parentId.toString() : "root";
       acc[parentKey] = [...(acc[parentKey] || []), category];
@@ -682,7 +701,7 @@ export default function Navbar() {
                               className="mx-3 mb-2 flex items-center justify-between rounded-md px-3 py-2 text-sm font-bold text-[#1e7098] hover:bg-white dark:hover:bg-gray-800"
                             >
                               <span>All Categories</span>
-                              <span>›</span>
+                              <span>&gt;</span>
                             </Link>
                             <div className="max-h-[calc(100vh-15rem)] overflow-y-auto">
                             {categoryGroups.map((root) => (
@@ -699,7 +718,7 @@ export default function Navbar() {
                                 }`}
                               >
                                 <span className="line-clamp-1">{root.name}</span>
-                                <span className="text-lg leading-none">›</span>
+                                <span className="text-lg leading-none">&gt;</span>
                               </button>
                             ))}
                             </div>
@@ -711,7 +730,7 @@ export default function Navbar() {
                                 <div className="mb-5 flex items-start justify-between gap-4 border-b border-gray-100 pb-4 dark:border-gray-700">
                                   <div>
                                     <Link
-                                      to={`/category/${activeCategory.slug}`}
+                                      to={`/products?category=${activeCategory._id}`}
                                       onClick={() => setCategoriesOpen(false)}
                                       className="text-xl font-black text-gray-900 hover:text-[#1e7098] dark:text-white"
                                     >
@@ -722,7 +741,7 @@ export default function Navbar() {
                                     </p>
                                   </div>
                                   <Link
-                                    to={`/category/${activeCategory.slug}`}
+                                    to={`/products?category=${activeCategory._id}`}
                                     onClick={() => setCategoriesOpen(false)}
                                     className="rounded-md border border-[#1e7098]/30 px-3 py-2 text-xs font-bold text-[#1e7098] hover:bg-[#1e7098] hover:text-white"
                                   >
@@ -734,7 +753,7 @@ export default function Navbar() {
                                   {(activeCategory.children.length > 0 ? activeCategory.children : [activeCategory]).map((section) => (
                                     <div key={section._id} className="min-w-0">
                                       <Link
-                                        to={`/category/${section.slug}`}
+                                        to={`/products?category=${section._id}`}
                                         onClick={() => setCategoriesOpen(false)}
                                         className="line-clamp-2 text-sm font-bold text-gray-900 hover:text-[#1e7098] dark:text-white"
                                       >
@@ -744,7 +763,7 @@ export default function Navbar() {
                                         {(activeCategory.grandchildrenByChild[section._id.toString()] || []).slice(0, 8).map((leaf) => (
                                           <Link
                                             key={leaf._id}
-                                            to={`/category/${leaf.slug}`}
+                                            to={`/products?category=${leaf._id}`}
                                             onClick={() => setCategoriesOpen(false)}
                                             className="block truncate text-sm text-gray-500 hover:text-[#1e7098] dark:text-gray-400"
                                           >
@@ -755,6 +774,53 @@ export default function Navbar() {
                                     </div>
                                   ))}
                                 </div>
+
+                                {(activeCategory.featuredBrands?.length > 0 || activeCategory.banner) && (
+                                  <div className="mt-6 grid gap-4 border-t border-gray-100 pt-5 dark:border-gray-700 lg:grid-cols-[1fr_280px]">
+                                    <div>
+                                      <p className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                        Featured brands
+                                      </p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {(activeCategory.featuredBrands || []).slice(0, 8).map((brand) => (
+                                          <Link
+                                            key={brand.name}
+                                            to={`/products?category=${activeCategory._id}&brands=${encodeURIComponent(brand.name)}`}
+                                            onClick={() => setCategoriesOpen(false)}
+                                            className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-700 hover:border-[#1e7098]/40 hover:text-[#1e7098] dark:border-gray-700 dark:text-gray-200"
+                                          >
+                                            {brand.name}
+                                          </Link>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    {activeCategory.banner && (
+                                      <Link
+                                        to={activeCategory.banner.link || `/products?category=${activeCategory._id}`}
+                                        onClick={() => setCategoriesOpen(false)}
+                                        className="relative min-h-28 overflow-hidden rounded-lg bg-gray-900"
+                                      >
+                                        {activeCategory.banner.imageUrl && (
+                                          <img
+                                            src={activeCategory.banner.imageUrl}
+                                            alt=""
+                                            className="absolute inset-0 h-full w-full object-cover opacity-75"
+                                            loading="lazy"
+                                          />
+                                        )}
+                                        <div className="absolute inset-0 bg-black/35" />
+                                        <div className="relative p-4">
+                                          <p className="text-sm font-black text-white">
+                                            {activeCategory.banner.title}
+                                          </p>
+                                          <p className="mt-1 line-clamp-2 text-xs text-white/85">
+                                            {activeCategory.banner.subtitle || "Explore current marketplace picks"}
+                                          </p>
+                                        </div>
+                                      </Link>
+                                    )}
+                                  </div>
+                                )}
                               </>
                             )}
                           </div>
@@ -946,7 +1012,7 @@ export default function Navbar() {
                   {categoryGroups.map((root) => (
                     <div key={root._id} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
                       <Link
-                        to={`/category/${root.slug}`}
+                        to={`/products?category=${root._id}`}
                         onClick={() => setMobileMenuOpen(false)}
                         className="block text-sm font-bold text-gray-900 hover:text-[#1e7098] dark:text-white"
                       >
@@ -956,7 +1022,7 @@ export default function Navbar() {
                         {root.children.slice(0, 6).map((section) => (
                           <Link
                             key={section._id}
-                            to={`/category/${section.slug}`}
+                            to={`/products?category=${section._id}`}
                             onClick={() => setMobileMenuOpen(false)}
                             className="rounded-md bg-white px-3 py-2 text-xs font-semibold text-gray-600 hover:text-[#1e7098] dark:bg-gray-900 dark:text-gray-300"
                           >

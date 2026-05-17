@@ -1,9 +1,43 @@
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
-import { searchProducts } from "../services/api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Clock,
+  Mic,
+  Search,
+  Sparkles,
+  Tags,
+  TrendingUp,
+  X,
+} from "lucide-react";
+import { getSearchAutocomplete } from "../services/api";
 import { useDebounce } from "../hooks/useDebounce";
 import VoiceSearch from "./VoiceSearch";
+
+const HISTORY_KEY = "amiyoSearchHistory";
+const defaultAutocomplete = {
+  recentSearches: [],
+  trendingSearches: [],
+  matchingCategories: [],
+  products: [],
+  correctedQuery: "",
+};
+
+const readLocalHistory = () => {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+  } catch {
+    return [];
+  }
+};
+
+const saveLocalHistory = (query) => {
+  const clean = String(query || "").trim();
+  if (!clean) return [];
+  const next = [clean, ...readLocalHistory().filter((item) => item.toLowerCase() !== clean.toLowerCase())].slice(0, 8);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+  return next;
+};
 
 export default function SearchBar({
   placeholder = "Search products...",
@@ -12,296 +46,291 @@ export default function SearchBar({
   onSearch,
 }) {
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState([]);
+  const [autocomplete, setAutocomplete] = useState(defaultAutocomplete);
+  const [localHistory, setLocalHistory] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-
   const searchRef = useRef(null);
   const navigate = useNavigate();
-  const debouncedQuery = useDebounce(query, 300);
+  const debouncedQuery = useDebounce(query, 250);
 
-  // Fetch suggestions
   useEffect(() => {
-    if (debouncedQuery.length >= 2 && showSuggestions) {
-      fetchSuggestions(debouncedQuery);
-    } else {
-      setSuggestions([]);
-      setIsOpen(false);
-    }
-  }, [debouncedQuery, showSuggestions]);
+    setLocalHistory(readLocalHistory());
+  }, []);
 
-  const fetchSuggestions = async (searchQuery) => {
-    setLoading(true);
-    try {
-      const response = await searchProducts(searchQuery);
-      const products = response.data.data || [];
-      setSuggestions(products.slice(0, 5)); // Limit to 5 suggestions
-      setIsOpen(products.length > 0);
-    } catch (error) {
-      console.error("Search suggestions failed:", error);
-      setSuggestions([]);
-      setIsOpen(false);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!showSuggestions || !isOpen) return undefined;
 
-  const handleSearch = (searchQuery = query) => {
-    if (searchQuery.trim()) {
-      setIsOpen(false);
-      setQuery("");
-      if (onSearch) {
-        onSearch(searchQuery);
-      } else {
-        navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
+    let ignore = false;
+    const fetchSuggestions = async () => {
+      try {
+        setLoading(true);
+        const response = await getSearchAutocomplete({ q: debouncedQuery });
+        if (!ignore) setAutocomplete({ ...defaultAutocomplete, ...(response.data.data || {}) });
+      } catch (error) {
+        console.error("Search autocomplete failed:", error);
+        if (!ignore) setAutocomplete(defaultAutocomplete);
+      } finally {
+        if (!ignore) setLoading(false);
       }
-    }
-  };
+    };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    handleSearch();
-  };
+    fetchSuggestions();
+    return () => {
+      ignore = true;
+    };
+  }, [debouncedQuery, isOpen, showSuggestions]);
 
-  const handleKeyDown = (e) => {
-    if (!isOpen) return;
-
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        setSelectedIndex((prev) =>
-          prev < suggestions.length - 1 ? prev + 1 : prev,
-        );
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
-        break;
-      case "Enter":
-        e.preventDefault();
-        if (selectedIndex >= 0 && suggestions[selectedIndex]) {
-          navigate(`/product/${suggestions[selectedIndex]._id}`);
-          setIsOpen(false);
-          setQuery("");
-        } else {
-          handleSearch();
-        }
-        break;
-      case "Escape":
-        setIsOpen(false);
-        setSelectedIndex(-1);
-        break;
-    }
-  };
-
-  const handleSuggestionClick = (product) => {
-    navigate(`/product/${product._id}`);
-    setIsOpen(false);
-    setQuery("");
-  };
-
-  // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (searchRef.current && !searchRef.current.contains(event.target)) {
         setIsOpen(false);
-        setSelectedIndex(-1);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const recentSearches = useMemo(() => {
+    const serverRecent = (autocomplete.recentSearches || []).map((item) => item.query || item);
+    return [...new Set([...localHistory, ...serverRecent].filter(Boolean))].slice(0, 8);
+  }, [autocomplete.recentSearches, localHistory]);
+
+  const hasContent =
+    recentSearches.length > 0 ||
+    autocomplete.trendingSearches?.length > 0 ||
+    autocomplete.matchingCategories?.length > 0 ||
+    autocomplete.products?.length > 0;
+
+  const runSearch = (searchQuery = query) => {
+    const clean = String(searchQuery || "").trim();
+    if (!clean) return;
+    setLocalHistory(saveLocalHistory(clean));
+    setIsOpen(false);
+    setQuery("");
+    if (onSearch) {
+      onSearch(clean);
+    } else {
+      navigate(`/search?q=${encodeURIComponent(clean)}`);
+    }
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    runSearch();
+  };
+
+  const handleProductClick = () => {
+    setIsOpen(false);
+    setQuery("");
+  };
+
+  const clearHistory = () => {
+    localStorage.removeItem(HISTORY_KEY);
+    setLocalHistory([]);
+  };
+
   return (
     <div ref={searchRef} className="relative w-full">
-      {/* Search Form */}
       <form onSubmit={handleSubmit} className="relative w-full">
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
+          onChange={(event) => setQuery(event.target.value)}
           onFocus={() => {
-            if (suggestions.length > 0) setIsOpen(true);
+            if (showSuggestions) setIsOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setIsOpen(false);
           }}
           placeholder={placeholder}
           className={className}
         />
 
-        {/* Search and Voice Buttons */}
-        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+        {query ? (
+          <button
+            type="button"
+            aria-label="Clear search"
+            onClick={() => setQuery("")}
+            className="absolute right-[5.75rem] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
+
+        <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1">
           <VoiceSearch
             onSearch={(searchTerm) => {
               setQuery(searchTerm);
-              handleSearch(searchTerm);
+              runSearch(searchTerm);
             }}
+            idleIcon={<Mic className="h-5 w-5" />}
           />
-
           <button
             type="submit"
-            className="h-10 w-10 bg-[#1e7098] text-white rounded-md hover:bg-[#1a5f7f] transition-colors flex items-center justify-center"
+            className="flex h-10 w-10 items-center justify-center rounded-md bg-[#1e7098] text-white transition hover:bg-[#1a5f7f]"
+            aria-label="Search"
           >
             {loading ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
             ) : (
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
+              <Search className="h-5 w-5" />
             )}
           </button>
         </div>
       </form>
 
-      {/* Search Suggestions */}
       <AnimatePresence>
-        {isOpen && suggestions.length > 0 && (
+        {isOpen && showSuggestions && hasContent ? (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-            className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden"
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.18 }}
+            className="absolute left-0 right-0 top-full z-[400] mt-2 max-h-[min(620px,calc(100vh-8rem))] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
           >
-            <div className="p-2">
-              {suggestions.map((product, index) => (
-                <motion.div
-                  key={product._id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                    selectedIndex === index
-                      ? "bg-[#1e7098] text-white"
-                      : "hover:bg-gray-50 dark:hover:bg-gray-700"
-                  }`}
-                  onClick={() => handleSuggestionClick(product)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  {/* Product Image */}
-                  <div className="w-12 h-12 bg-gray-100 dark:bg-gray-600 rounded-lg overflow-hidden flex-shrink-0">
-                    <img
-                      src={product.image || product.images?.[0]}
-                      alt={product.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = "none";
-                      }}
-                    />
-                  </div>
-
-                  {/* Product Info */}
-                  <div className="flex-1 min-w-0">
-                    <h4
-                      className={`font-medium truncate ${
-                        selectedIndex === index
-                          ? "text-white"
-                          : "text-gray-900 dark:text-white"
-                      }`}
-                    >
-                      {product.title}
-                    </h4>
-                    <p
-                      className={`text-sm truncate ${
-                        selectedIndex === index
-                          ? "text-white/80"
-                          : "text-gray-500 dark:text-gray-400"
-                      }`}
-                    >
-                      ৳{product.price?.toFixed(2)}
-                    </p>
-                  </div>
-
-                  {/* Arrow Icon */}
-                  <div
-                    className={
-                      selectedIndex === index ? "text-white" : "text-gray-400"
-                    }
+            <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="max-h-[inherit] overflow-y-auto p-3">
+                {query && autocomplete.correctedQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => runSearch(autocomplete.correctedQuery)}
+                    className="mb-2 flex w-full items-center gap-2 rounded-lg bg-sky-50 px-3 py-2 text-left text-sm font-medium text-sky-800 transition hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-200"
                   >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
+                    <Sparkles className="h-4 w-4" />
+                    Search instead for "{autocomplete.correctedQuery}"
+                  </button>
+                ) : null}
+
+                {autocomplete.products?.length ? (
+                  <div>
+                    <p className="mb-2 px-2 text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Top product matches
+                    </p>
+                    <div className="space-y-1">
+                      {autocomplete.products.map((product) => (
+                        <Link
+                          key={product._id}
+                          to={`/product/${product._id}`}
+                          onClick={handleProductClick}
+                          className="flex items-center gap-3 rounded-lg p-2 transition hover:bg-gray-50 dark:hover:bg-gray-800"
+                        >
+                          <img
+                            src={product.image || product.images?.[0]}
+                            alt=""
+                            className="h-12 w-12 rounded-md bg-gray-100 object-cover dark:bg-gray-800"
+                            loading="lazy"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-gray-950 dark:text-white">
+                              {product.title}
+                            </p>
+                            <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                              {product.brand || product.categoryName || "Product"} - BDT {Number(product.price || 0).toLocaleString()}
+                            </p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
                   </div>
-                </motion.div>
-              ))}
-            </div>
+                ) : null}
 
-            {/* View All Results */}
-            <div className="border-t border-gray-100 dark:border-gray-600 p-2">
-              <button
-                onClick={() => handleSearch()}
-                className="w-full p-3 text-center text-[#1e7098] hover:bg-[#1e7098] hover:text-white rounded-lg transition-colors font-medium"
-              >
-                View all results for "{query}"
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                {autocomplete.matchingCategories?.length ? (
+                  <div className="mt-3">
+                    <p className="mb-2 px-2 text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Matching categories
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {autocomplete.matchingCategories.slice(0, 6).map((category) => (
+                        <Link
+                          key={category._id}
+                          to={`/products?category=${category._id}`}
+                          onClick={handleProductClick}
+                          className="flex items-center gap-3 rounded-lg border border-gray-100 p-2 transition hover:border-[#1e7098]/40 hover:bg-[#1e7098]/5 dark:border-gray-800 dark:hover:border-[#1e7098]/50"
+                        >
+                          <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-md bg-gray-100 text-xs font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                            {category.image || category.icon ? (
+                              <img src={category.image || category.icon} alt="" className="h-full w-full object-cover" loading="lazy" />
+                            ) : (
+                              category.name?.slice(0, 1)
+                            )}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold text-gray-900 dark:text-white">
+                              {category.name}
+                            </span>
+                            <span className="block text-xs text-gray-500 dark:text-gray-400">
+                              {category.productCount || 0} products
+                            </span>
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
 
-      {/* Popular Searches (when no query) */}
-      <AnimatePresence>
-        {isOpen && !query && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden"
-          >
-            <div className="p-4">
-              <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
-                Popular Searches
-              </h4>
-              <div className="space-y-2">
-                {["T-shirt", "Jeans", "Shoes", "Dress", "Jacket"].map(
-                  (term) => (
-                    <button
-                      key={term}
-                      onClick={() => handleSearch(term)}
-                      className="block w-full text-left p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-                    >
-                      <svg
-                        className="w-4 h-4 inline mr-2 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                        />
-                      </svg>
-                      {term}
-                    </button>
-                  ),
-                )}
+              <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950 lg:border-l lg:border-t-0">
+                {recentSearches.length ? (
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        <Clock className="h-3.5 w-3.5" />
+                        Recent searches
+                      </p>
+                      <button type="button" onClick={clearHistory} className="text-xs font-semibold text-[#1e7098]">
+                        Clear
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {recentSearches.slice(0, 6).map((term) => (
+                        <button
+                          type="button"
+                          key={term}
+                          onClick={() => runSearch(term)}
+                          className="rounded-md bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                        >
+                          {term}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {autocomplete.trendingSearches?.length ? (
+                  <div className="mt-4">
+                    <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      <TrendingUp className="h-3.5 w-3.5" />
+                      Trending searches
+                    </p>
+                    <div className="space-y-1">
+                      {autocomplete.trendingSearches.slice(0, 6).map((item) => (
+                        <button
+                          type="button"
+                          key={item.query || item}
+                          onClick={() => runSearch(item.query || item)}
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium text-gray-700 transition hover:bg-white dark:text-gray-200 dark:hover:bg-gray-900"
+                        >
+                          <Tags className="h-3.5 w-3.5 text-gray-400" />
+                          <span className="truncate">{item.query || item}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => runSearch(query || recentSearches[0] || autocomplete.trendingSearches?.[0]?.query || "products")}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-[#1e7098] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#1a5f7f]"
+                >
+                  <Search className="h-4 w-4" />
+                  View all results
+                </button>
               </div>
             </div>
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
     </div>
   );

@@ -73,6 +73,25 @@ jest.mock("../controllers/discoveryController", () => ({
     res.json({ route: "discovery:recently-viewed", productId: req.body.productId }),
 }));
 
+jest.mock("../controllers/searchController", () => ({
+  getAutocomplete: (req, res) =>
+    res.json({
+      route: "search:autocomplete",
+      q: req.query.q || "",
+      personalized: Boolean(req.user?.uid),
+    }),
+  getSearchResults: (req, res) =>
+    res.json({
+      route: "search:results",
+      q: req.query.q || "",
+      sort: req.query.sort || "best_match",
+    }),
+  getSearchNavigation: (req, res) =>
+    res.json({ route: "search:navigation" }),
+  saveSearchHistory: (req, res) =>
+    res.json({ route: "search:history", query: req.body.query }),
+}));
+
 jest.mock("../controllers/orderController", () => ({
   getAllOrders: (req, res) => res.json({ route: "orders:list" }),
   getAdminOrders: (req, res) => res.json({ route: "orders:admin-list" }),
@@ -532,6 +551,7 @@ const buildApp = () => {
   const app = express();
   app.use(express.json());
   app.use("/api/products", require("../routes/productRoutes"));
+  app.use("/api/search", require("../routes/searchRoutes"));
   app.use("/api/discovery", require("../routes/discoveryRoutes"));
   app.use("/api/orders", require("../routes/orderRoutes"));
   app.use("/api/vendors", require("../routes/vendorRoutes"));
@@ -630,6 +650,64 @@ describe("Black-box API tests", () => {
 
       expect(status.body).toEqual({ route: "discovery:check-in-status" });
       expect(claim.body).toEqual({ route: "discovery:check-in-claim" });
+    });
+  });
+
+  describe("search navigation API behavior", () => {
+    test("GET /api/search/autocomplete works for guests", async () => {
+      const response = await request(app).get("/api/search/autocomplete?q=samsng%20phon");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "search:autocomplete",
+        q: "samsng phon",
+        personalized: false,
+      });
+    });
+
+    test("GET /api/search/autocomplete accepts optional auth for search history", async () => {
+      const response = await request(app)
+        .get("/api/search/autocomplete")
+        .set("Authorization", "Bearer test");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "search:autocomplete",
+        q: "",
+        personalized: true,
+      });
+    });
+
+    test("GET /api/search/results supports sort and query parameters", async () => {
+      const response = await request(app).get("/api/search/results?q=headphones&sort=top_rated");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "search:results",
+        q: "headphones",
+        sort: "top_rated",
+      });
+    });
+
+    test("GET /api/search/navigation exposes the marketplace navigation source", async () => {
+      const response = await request(app).get("/api/search/navigation");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "search:navigation" });
+    });
+
+    test("POST /api/search/history requires auth and records a search", async () => {
+      const rejected = await request(app)
+        .post("/api/search/history")
+        .send({ query: "phone" });
+      const accepted = await request(app)
+        .post("/api/search/history")
+        .set("Authorization", "Bearer test")
+        .send({ query: "phone" });
+
+      expect(rejected.status).toBe(401);
+      expect(accepted.status).toBe(200);
+      expect(accepted.body).toEqual({ route: "search:history", query: "phone" });
     });
   });
 

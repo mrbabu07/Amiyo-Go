@@ -26,6 +26,12 @@ export const getProductById = (id) => api.get(`/products/${id}`);
 export const searchProducts = (query) =>
   api.get(`/products/search?q=${encodeURIComponent(query)}`);
 export const getFilterOptions = () => api.get("/products/filter-options");
+export const getSearchAutocomplete = (params = {}) =>
+  api.get("/search/autocomplete", { params });
+export const getSearchResults = (params = {}) =>
+  api.get("/search/results", { params });
+export const getSearchNavigation = () => api.get("/search/navigation");
+export const saveSearchHistory = (data) => api.post("/search/history", data);
 export const createProduct = (data) => api.post("/products", data);
 export const updateProduct = (id, data) => api.put(`/products/${id}`, data);
 export const deleteProduct = (id) => api.delete(`/products/${id}`);

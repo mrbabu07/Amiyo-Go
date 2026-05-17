@@ -105,6 +105,7 @@ export default function VoiceSearch({ onSearch }) {
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={isListening ? stopListening : startListening}
         className={`p-2 rounded-full transition-all duration-200 ${
           isListening

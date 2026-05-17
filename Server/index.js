@@ -75,6 +75,7 @@ const DynamicProduct = require("./models/DynamicProduct");
 
 // Import routes
 const productRoutes = require("./routes/productRoutes");
+const searchRoutes = require("./routes/searchRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const userRoutes = require("./routes/userRoutes");
@@ -259,6 +260,7 @@ async function run() {
     app.use(auditSensitiveOperations);
 
     app.use("/api/products", productRoutes);
+    app.use("/api/search", searchRoutes);
     console.log("✅ Products routes registered");
 
     app.use("/api/categories", categoryRoutes);
