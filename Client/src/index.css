@@ -319,6 +319,58 @@
   .badge-danger {
     @apply badge bg-error-100 text-error-800;
   }
+
+  .ds-page {
+    @apply min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-100;
+  }
+
+  .ds-shell {
+    @apply mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8;
+  }
+
+  .ds-card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900;
+  }
+
+  .ds-card-header {
+    @apply border-b border-slate-200 px-4 py-3 dark:border-slate-800 sm:px-5;
+  }
+
+  .ds-input {
+    @apply h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-primary-900/40;
+  }
+
+  .ds-button-primary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .ds-button-secondary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
+  }
+
+  .ds-button-danger {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-error-200 bg-error-50 px-4 py-2.5 text-sm font-semibold text-error-700 transition hover:bg-error-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-error-900/60 dark:bg-error-900/30 dark:text-error-200;
+  }
+
+  .ds-tab {
+    @apply inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
+  }
+
+  .ds-tab-active {
+    @apply border-primary-500 bg-primary-500 text-white hover:bg-primary-600 dark:border-primary-500 dark:bg-primary-500 dark:text-white;
+  }
+
+  .ds-table {
+    @apply min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800;
+  }
+
+  .ds-table-head {
+    @apply bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-950/60 dark:text-slate-400;
+  }
+
+  .ds-table-row {
+    @apply transition hover:bg-slate-50 dark:hover:bg-slate-800/60;
+  }
 }
 
 @layer utilities {

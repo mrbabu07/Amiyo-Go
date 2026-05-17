@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
 import {
   BadgePercent,
   CalendarDays,
@@ -9,12 +9,22 @@ import {
   Megaphone,
   PackageSearch,
   RefreshCw,
+  SlidersHorizontal,
   Sparkles,
   Tag,
   TicketPercent,
   Timer,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import {
+  FormField,
+  MetricCard,
+  PageHeader,
+  SectionCard,
+  SkeletonBlock,
+  StatusBadge,
+  formInputClass,
+} from "../../components/ui";
 import useCurrency from "../../hooks/useCurrency";
 import {
   applyClearanceSale,
@@ -31,10 +41,12 @@ import {
   getPromotionCampaigns,
   getPromotionFlashDeals,
   getPromotionOverview,
+  getPromotionRules,
   reviewCampaignNomination,
   saveHomepageSlot,
   selectDealOfDay,
   updateLoyaltyRules,
+  updatePromotionRules,
 } from "../../services/api";
 
 const tabs = [
@@ -45,6 +57,7 @@ const tabs = [
   { key: "slots", label: "Homepage Slots", icon: Image },
   { key: "clearance", label: "Clearance", icon: Tag },
   { key: "loyalty", label: "Loyalty Rules", icon: Gift },
+  { key: "rules", label: "Stacking Rules", icon: SlidersHorizontal },
 ];
 
 const nowLocalInput = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -133,6 +146,61 @@ const loyaltyDefaults = {
   },
 };
 
+const promotionRuleDefaults = {
+  allowMultipleVoucherCodes: false,
+  allowPlatformVoucherWithVendorVoucher: false,
+  allowVoucherWithFlashSale: false,
+  allowLoyaltyWithPlatformVoucher: true,
+  allowLoyaltyWithVendorVoucher: true,
+  allowLoyaltyWithFreeShipping: true,
+  allowLoyaltyWithFlashSale: true,
+  allowFreeShippingWithVoucher: false,
+  maxStackedDiscountPercent: 100,
+};
+
+const promotionRuleFields = [
+  {
+    key: "allowMultipleVoucherCodes",
+    label: "Multiple voucher codes",
+    helper: "Allows more than one voucher line on the same order.",
+  },
+  {
+    key: "allowPlatformVoucherWithVendorVoucher",
+    label: "Platform + seller voucher",
+    helper: "Lets a platform voucher stack with a seller-funded voucher.",
+  },
+  {
+    key: "allowVoucherWithFlashSale",
+    label: "Voucher with flash sale",
+    helper: "Controls whether vouchers can discount already time-boxed flash deals.",
+  },
+  {
+    key: "allowLoyaltyWithPlatformVoucher",
+    label: "Coins with platform voucher",
+    helper: "Lets loyalty coins reduce the payable total after platform voucher discount.",
+  },
+  {
+    key: "allowLoyaltyWithVendorVoucher",
+    label: "Coins with seller voucher",
+    helper: "Lets loyalty coins combine with seller vouchers.",
+  },
+  {
+    key: "allowLoyaltyWithFreeShipping",
+    label: "Coins with free shipping",
+    helper: "Lets loyalty coins combine with free-shipping offers.",
+  },
+  {
+    key: "allowLoyaltyWithFlashSale",
+    label: "Coins with flash sale",
+    helper: "Lets loyalty coins combine with flash sale pricing.",
+  },
+  {
+    key: "allowFreeShippingWithVoucher",
+    label: "Free shipping + another voucher",
+    helper: "Allows shipping promos to stack with another voucher type.",
+  },
+];
+
 const parseList = (value) =>
   String(value || "")
     .split(",")
@@ -146,49 +214,10 @@ const formatDate = (value) => {
   return date.toLocaleString("en-BD", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 };
 
-function Badge({ value }) {
-  const status = String(value || "pending").toLowerCase();
-  const classes = {
-    active: "border-green-200 bg-green-50 text-green-700",
-    approved: "border-green-200 bg-green-50 text-green-700",
-    scheduled: "border-blue-200 bg-blue-50 text-blue-700",
-    upcoming: "border-blue-200 bg-blue-50 text-blue-700",
-    draft: "border-gray-200 bg-gray-50 text-gray-700",
-    pending: "border-yellow-200 bg-yellow-50 text-yellow-800",
-    rejected: "border-red-200 bg-red-50 text-red-700",
-    expired: "border-gray-200 bg-gray-50 text-gray-500",
-    inactive: "border-gray-200 bg-gray-50 text-gray-500",
-  };
-
-  return (
-    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${classes[status] || classes.pending}`}>
-      {String(value || "pending").replace(/_/g, " ")}
-    </span>
-  );
-}
-
-function Metric({ icon: Icon, label, value }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-gray-500">{label}</p>
-        <Icon className="h-4 w-4 text-gray-400" />
-      </div>
-      <p className="mt-2 text-2xl font-bold text-gray-950">{value}</p>
-    </div>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-const inputClass = "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none";
+const inputClass = formInputClass;
+const Field = FormField;
+const Metric = MetricCard;
+const Badge = ({ value }) => <StatusBadge status={value} />;
 
 export default function AdminPromotions() {
   const { formatPrice } = useCurrency();
@@ -202,6 +231,7 @@ export default function AdminPromotions() {
   const [slots, setSlots] = useState([]);
   const [clearanceRules, setClearanceRules] = useState([]);
   const [loyaltyRules, setLoyaltyRules] = useState(loyaltyDefaults);
+  const [promotionRules, setPromotionRules] = useState(promotionRuleDefaults);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [nominationNotes, setNominationNotes] = useState({});
@@ -226,6 +256,7 @@ export default function AdminPromotions() {
         slotRes,
         clearanceRes,
         loyaltyRes,
+        promotionRulesRes,
         productRes,
         categoryRes,
       ] = await Promise.all([
@@ -237,6 +268,7 @@ export default function AdminPromotions() {
         getHomepageSlots(),
         getClearanceRules(),
         getLoyaltyRules(),
+        getPromotionRules(),
         getProducts({ limit: 100 }),
         getCategories(),
       ]);
@@ -249,6 +281,7 @@ export default function AdminPromotions() {
       setSlots(slotRes.data.data || []);
       setClearanceRules(clearanceRes.data.data || []);
       setLoyaltyRules({ ...loyaltyDefaults, ...(loyaltyRes.data.data || {}) });
+      setPromotionRules({ ...promotionRuleDefaults, ...(promotionRulesRes.data.data || {}) });
       setProducts(productRes.data.products || productRes.data.data || []);
       setCategories(categoryRes.data.data || categoryRes.data || []);
     } catch (error) {
@@ -403,28 +436,36 @@ export default function AdminPromotions() {
     }
   };
 
+  const savePromotionRules = async (event) => {
+    event.preventDefault();
+    try {
+      await updatePromotionRules({
+        ...promotionRules,
+        maxStackedDiscountPercent: Number(promotionRules.maxStackedDiscountPercent),
+      });
+      toast.success("Promotion stacking rules updated");
+      loadAll();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to update promotion rules");
+    }
+  };
+
   const summary = overview || {};
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-950">Campaigns & Promotions</h1>
-            <p className="text-sm text-gray-500">Campaign builder, nomination review, flash deals, vouchers, slots, clearance, and loyalty controls.</p>
-          </div>
-          <button
-            type="button"
-            onClick={loadAll}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
+    <div className="ds-page">
+      <PageHeader
+        title="Campaigns & Promotions"
+        subtitle="Campaign builder, nomination review, flash deals, vouchers, slots, clearance, loyalty, and discount stacking controls."
+        actions={(
+          <button type="button" onClick={loadAll} className="ds-button-secondary">
             <RefreshCw className="h-4 w-4" />
             Refresh
           </button>
-        </div>
-      </div>
+        )}
+      />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <main className="ds-shell">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Metric icon={CalendarDays} label="Active Campaigns" value={summary.campaigns?.active || 0} />
           <Metric icon={PackageSearch} label="Pending SKUs" value={summary.nominations?.pending || 0} />
@@ -438,18 +479,19 @@ export default function AdminPromotions() {
               key={key}
               type="button"
               onClick={() => setActiveTab(key)}
-              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${
-                activeTab === key ? "bg-gray-950 text-white" : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
+              className={`ds-tab ${activeTab === key ? "ds-tab-active" : ""}`}
             >
-              <Icon className="h-4 w-4" />
+              {createElement(Icon, { className: "h-4 w-4" })}
               {label}
             </button>
           ))}
         </div>
 
         {loading ? (
-          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-10 text-center text-gray-500">Loading promotions...</div>
+          <div className="mt-6 grid gap-4">
+            <SkeletonBlock className="h-24" />
+            <SkeletonBlock className="h-80" />
+          </div>
         ) : (
           <div className="mt-6">
             {activeTab === "campaigns" && (
@@ -741,6 +783,88 @@ export default function AdminPromotions() {
                 </div>
                 <button type="submit" className="mt-4 rounded-lg bg-gray-950 px-4 py-2 text-sm font-semibold text-white">Save Loyalty Rules</button>
               </form>
+            )}
+
+            {activeTab === "rules" && (
+              <SectionCard
+                title="Promotion Stacking Rules"
+                subtitle="Control which discounts can combine before checkout writes an immutable order discount snapshot."
+                actions={(
+                  <StatusBadge status={promotionRules.allowVoucherWithFlashSale ? "active" : "draft"}>
+                    {promotionRules.allowVoucherWithFlashSale ? "Flash stacking enabled" : "Flash stacking locked"}
+                  </StatusBadge>
+                )}
+              >
+                <form onSubmit={savePromotionRules} className="space-y-5">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {promotionRuleFields.map((rule) => (
+                      <label
+                        key={rule.key}
+                        className="flex min-h-24 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 transition hover:border-primary-300 hover:bg-primary-50/40 dark:border-slate-800 dark:bg-slate-950/50 dark:hover:border-primary-700 dark:hover:bg-primary-900/20"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(promotionRules[rule.key])}
+                          onChange={(event) =>
+                            setPromotionRules({
+                              ...promotionRules,
+                              [rule.key]: event.target.checked,
+                            })
+                          }
+                          className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span>
+                          <span className="block text-sm font-semibold text-slate-950 dark:text-white">
+                            {rule.label}
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
+                            {rule.helper}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[minmax(0,1fr)_220px] md:items-end">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-950 dark:text-white">
+                        Maximum stacked discount
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                        Caps total discount as a percentage of item subtotal plus delivery charge.
+                      </p>
+                    </div>
+                    <Field label="Max discount %">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        className={inputClass}
+                        value={promotionRules.maxStackedDiscountPercent}
+                        onChange={(event) =>
+                          setPromotionRules({
+                            ...promotionRules,
+                            maxStackedDiscountPercent: event.target.value,
+                          })
+                        }
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPromotionRules(promotionRuleDefaults)}
+                      className="ds-button-secondary"
+                    >
+                      Reset Defaults
+                    </button>
+                    <button type="submit" className="ds-button-primary">
+                      Save Stacking Rules
+                    </button>
+                  </div>
+                </form>
+              </SectionCard>
             )}
           </div>
         )}

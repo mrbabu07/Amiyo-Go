@@ -1,4 +1,4 @@
-import BackButton from "./BackButton";
+import { PageHeader as SharedPageHeader } from "./ui";
 
 export default function PageHeader({
   title,
@@ -8,26 +8,12 @@ export default function PageHeader({
   className = "",
 }) {
   return (
-    <div className={`mb-8 ${className}`}>
-      {showBack && (
-        <div className="mb-4">
-          <BackButton />
-        </div>
-      )}
-
-      <div className="text-center">
-        {title && (
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3">
-            {title}
-          </h1>
-        )}
-        {subtitle && (
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            {subtitle}
-          </p>
-        )}
-        {children}
-      </div>
-    </div>
+    <SharedPageHeader
+      title={title}
+      subtitle={subtitle}
+      showBack={showBack}
+      actions={children}
+      className={className}
+    />
   );
 }

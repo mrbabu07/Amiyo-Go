@@ -499,6 +499,10 @@ export const getLoyaltyRules = () =>
   api.get("/admin/promotions/loyalty-rules");
 export const updateLoyaltyRules = (data) =>
   api.put("/admin/promotions/loyalty-rules", data);
+export const getPromotionRules = () =>
+  api.get("/admin/promotions/rules");
+export const updatePromotionRules = (data) =>
+  api.put("/admin/promotions/rules", data);
 export const getPromotionAuditLog = () =>
   api.get("/admin/promotions/audit-log");
 
