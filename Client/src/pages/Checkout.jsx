@@ -27,6 +27,7 @@ import {
   getCouponDiscountBreakdown,
   groupCartByVendor,
 } from "../utils/cartCheckout";
+import { notifyLoyaltyBalanceChanged } from "../utils/loyaltyBalance";
 
 const CHECKOUT_VOUCHER_KEY = "hnilabazar_selected_voucher";
 
@@ -380,6 +381,7 @@ export default function Checkout() {
           if (loyaltyResponse.ok) {
             const loyaltyData = await loyaltyResponse.json();
             setUserLoyalty(loyaltyData.data);
+            notifyLoyaltyBalanceChanged(loyaltyData.data);
           }
         } catch (loyaltyError) {
           console.error("Failed to fetch loyalty data:", loyaltyError);
@@ -750,6 +752,10 @@ export default function Checkout() {
         message: `Your order #${orderIdShort} has been placed and is being processed.`,
         link: "/orders",
       });
+
+      if (appliedPoints?.points) {
+        notifyLoyaltyBalanceChanged();
+      }
 
       clearCart();
       navigate("/orders", { state: { orderSuccess: true } });

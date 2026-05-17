@@ -12,6 +12,7 @@ import NotificationBell from "./NotificationBell";
 import TopBarLanguageSwitcher from "./SimpleLanguageSwitcher";
 import LanguageSwitcher from "./LanguageSwitcher";
 import SearchBar from "./SearchBar";
+import { LOYALTY_BALANCE_EVENT, getLoyaltyPointsFromPayload } from "../utils/loyaltyBalance";
 
 export default function Navbar() {
   const { t } = useTranslation();
@@ -20,13 +21,18 @@ export default function Navbar() {
   const { wishlistCount } = useWishlist();
   const { compareCount } = useComparison();
   const navigate = useNavigate();
+  const loyaltyUserKey = user?.uid || user?.email || "";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [categories, setCategories] = useState([]);
   const [activeCategoryId, setActiveCategoryId] = useState("");
   const [scrolled, setScrolled] = useState(false);
-  const [loyaltyPoints, setLoyaltyPoints] = useState(null);
+  const [loyaltyBalance, setLoyaltyBalance] = useState({ userKey: "", points: null });
+  const loyaltyPoints =
+    loyaltyUserKey && loyaltyBalance.userKey === loyaltyUserKey ? loyaltyBalance.points : null;
+  const loyaltyPointsLabel =
+    loyaltyPoints === null ? "..." : Number(loyaltyPoints || 0).toLocaleString();
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -55,24 +61,51 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      setLoyaltyPoints(null);
-      return;
-    }
+    if (!loyaltyUserKey) return;
 
     let cancelled = false;
-    getMyLoyalty()
-      .then((response) => {
-        if (!cancelled) setLoyaltyPoints(response.data?.data?.points ?? 0);
-      })
-      .catch(() => {
-        if (!cancelled) setLoyaltyPoints(null);
-      });
+    const loadLoyaltyPoints = async ({ silent = true } = {}) => {
+      try {
+        const response = await getMyLoyalty();
+        const nextPoints = getLoyaltyPointsFromPayload(response);
+        if (!cancelled) {
+          setLoyaltyBalance({ userKey: loyaltyUserKey, points: nextPoints ?? 0 });
+        }
+      } catch (error) {
+        if (!silent) {
+          console.error("Failed to fetch loyalty points:", error);
+        }
+      }
+    };
+
+    const handleBalanceChanged = (event) => {
+      const nextPoints = getLoyaltyPointsFromPayload(event.detail);
+      if (nextPoints !== null) {
+        setLoyaltyBalance({ userKey: loyaltyUserKey, points: nextPoints });
+        return;
+      }
+      loadLoyaltyPoints();
+    };
+
+    const handleFocus = () => loadLoyaltyPoints();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") loadLoyaltyPoints();
+    };
+
+    loadLoyaltyPoints({ silent: false });
+    window.addEventListener(LOYALTY_BALANCE_EVENT, handleBalanceChanged);
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const refreshTimer = window.setInterval(loadLoyaltyPoints, 60000);
 
     return () => {
       cancelled = true;
+      window.removeEventListener(LOYALTY_BALANCE_EVENT, handleBalanceChanged);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.clearInterval(refreshTimer);
     };
-  }, [user]);
+  }, [loyaltyUserKey]);
 
   const handleSearch = (query) => {
     if (query.trim()) {
@@ -226,14 +259,14 @@ export default function Navbar() {
                 {/* Theme Toggle */}
                 <ThemeToggle />
 
-                {user && loyaltyPoints !== null && (
+                {user && (
                   <Link
                     to="/loyalty"
                     className="inline-flex h-10 items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 text-sm font-semibold text-yellow-800 transition-colors hover:bg-yellow-100 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
                     title="Coins balance"
                   >
                     <Coins className="h-4 w-4" aria-hidden="true" />
-                    <span>{loyaltyPoints}</span>
+                    <span>{loyaltyPointsLabel}</span>
                   </Link>
                 )}
 
@@ -996,14 +1029,14 @@ export default function Navbar() {
                   </Link>
                 )}
 
-                {user && loyaltyPoints !== null && (
+                {user && (
                   <Link
                     to="/loyalty"
                     onClick={() => setMobileMenuOpen(false)}
                     className="inline-flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm font-semibold text-yellow-800 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
                   >
                     <Coins className="h-4 w-4" aria-hidden="true" />
-                    <span>{loyaltyPoints}</span>
+                    <span>{loyaltyPointsLabel}</span>
                   </Link>
                 )}
 

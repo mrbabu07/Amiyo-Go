@@ -10,6 +10,7 @@ import {
   getLoyaltyMultiplierEvents,
   getLoyaltyTierBenefits,
 } from "../services/api";
+import { notifyLoyaltyBalanceChanged } from "../utils/loyaltyBalance";
 
 const tierThresholds = {
   bronze: { min: 0, next: "silver", nextThreshold: 1000, badge: "BR" },
@@ -75,6 +76,7 @@ export default function LoyaltyDashboard() {
 
       const data = await response.json();
       setLoyalty(data.data);
+      notifyLoyaltyBalanceChanged(data.data);
     } catch (err) {
       console.error("Error fetching loyalty data:", err);
       error(err.message || "Failed to fetch loyalty data");
