@@ -1173,11 +1173,12 @@ const downloadInvoice = async (req, res) => {
       });
     }
 
-    // Check if invoice exists, if not generate it
-    if (!invoiceService.invoiceExists(id)) {
-      console.log("📄 Invoice not found, generating...");
-      await invoiceService.generateInvoice(order);
+    // Always regenerate on download so totals, discounts, and address/order edits
+    // are reflected even when an older PDF was generated before checkout fixes.
+    if (invoiceService.invoiceExists(id)) {
+      invoiceService.deleteInvoice(id);
     }
+    await invoiceService.generateInvoice(order);
 
     // Get invoice path
     const invoicePath = invoiceService.getInvoicePath(id);
