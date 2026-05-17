@@ -121,10 +121,10 @@ export default function SellerInfoStrip({ seller, vendorId }) {
           </div>
         </div>
 
-        <div className="grid w-full grid-cols-2 gap-2 xl:w-auto xl:flex xl:shrink-0">
+        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[14rem] xl:min-w-0 xl:shrink-0">
           <Link
             to={storePath}
-            className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800"
+            className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 px-3 text-xs font-bold text-gray-800 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800 sm:text-sm"
           >
             <Store className="h-4 w-4 shrink-0" />
             <span className="truncate">Visit Store</span>
@@ -133,7 +133,7 @@ export default function SellerInfoStrip({ seller, vendorId }) {
             type="button"
             onClick={handleFollow}
             disabled={busy}
-            className={`inline-flex min-h-11 min-w-0 items-center justify-center rounded-lg px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-60 ${
+            className={`inline-flex h-10 min-w-0 items-center justify-center rounded-md px-3 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-60 sm:text-sm ${
               isFollowing
                 ? "bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100"
                 : "bg-primary-600 text-white hover:bg-primary-700"

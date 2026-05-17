@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Check, Eye, ShoppingCart } from "lucide-react";
 import useCart from "../hooks/useCart";
 import useProductView from "../hooks/useProductView";
 import WishlistButton from "./WishlistButton";
@@ -204,22 +205,26 @@ export default function ProductCard({ product }) {
             )}
 
             {/* Quick Actions Overlay */}
-            <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
-              <div className="flex gap-2">
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent p-3 opacity-0 transition-all duration-300 translate-y-2 group-hover:translate-y-0 group-hover:opacity-100">
+              <div className="grid grid-cols-[2.375rem_minmax(0,1fr)] gap-2">
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setShowQuickView(true);
                   }}
-                  className="flex-1 py-2.5 px-4 bg-white/90 backdrop-blur-sm text-gray-900 rounded-lg font-medium text-sm hover:bg-white transition-colors"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/95 text-gray-900 shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+                  aria-label={t("productCard.quickView")}
+                  title={t("productCard.quickView")}
                 >
-                  {t("productCard.quickView")}
+                  <Eye className="h-4 w-4" />
                 </button>
                 <button
+                  type="button"
                   onClick={handleAddToCart}
                   disabled={!stockStatus.available || isAdding}
-                  className={`flex-1 py-2.5 px-4 rounded-lg font-medium text-sm transition-all ${
+                  className={`inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-bold shadow-sm transition-all sm:text-sm ${
                     isAdding
                       ? "bg-green-500 text-white"
                       : !stockStatus.available
@@ -228,32 +233,17 @@ export default function ProductCard({ product }) {
                   }`}
                 >
                   {isAdding ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg
-                        className="w-4 h-4 animate-spin"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      {t("productCard.added")}
-                    </span>
+                    <>
+                      <Check className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{t("productCard.added")}</span>
+                    </>
                   ) : !stockStatus.available ? (
-                    t("productCard.outOfStock")
+                    <span className="truncate">{t("productCard.outOfStock")}</span>
                   ) : (
-                    t("productCard.addToCart")
+                    <>
+                      <ShoppingCart className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{t("productCard.addToCart")}</span>
+                    </>
                   )}
                 </button>
               </div>
@@ -390,21 +380,25 @@ export default function ProductCard({ product }) {
             )}
 
             {/* Action Buttons - Always visible on mobile */}
-            <div className="flex gap-2 md:hidden">
+            <div className="grid grid-cols-[2.375rem_minmax(0,1fr)] gap-2 md:hidden">
               <button
+                type="button"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   setShowQuickView(true);
                 }}
-                className="flex-1 py-2 px-3 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                aria-label={t("productCard.quickView")}
+                title={t("productCard.quickView")}
               >
-                {t("productCard.quickView")}
+                <Eye className="h-4 w-4" />
               </button>
               <button
+                type="button"
                 onClick={handleAddToCart}
                 disabled={!stockStatus.available || isAdding}
-                className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-colors ${
+                className={`inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-bold transition-colors ${
                   isAdding
                     ? "bg-green-500 text-white"
                     : !stockStatus.available
@@ -412,11 +406,19 @@ export default function ProductCard({ product }) {
                       : "bg-primary-600 text-white hover:bg-primary-700"
                 }`}
               >
-                {isAdding
-                  ? t("productCard.added")
-                  : !stockStatus.available
-                    ? t("productCard.outOfStock")
-                    : t("productCard.addToCart")}
+                {isAdding ? (
+                  <>
+                    <Check className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{t("productCard.added")}</span>
+                  </>
+                ) : !stockStatus.available ? (
+                  <span className="truncate">{t("productCard.outOfStock")}</span>
+                ) : (
+                  <>
+                    <ShoppingCart className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{t("productCard.addToCart")}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { MessageCircle, Store } from "lucide-react";
 import useAuth from "../hooks/useAuth";
 import axios from "axios";
 
@@ -165,31 +166,21 @@ export default function VendorInfo({ vendorId, productId }) {
           )}
         </div>
 
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
           <Link
             to={`/vendor/${vendorIdString}/products`}
-            className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-lg text-center text-sm font-medium transition"
+            className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-md bg-gray-100 px-3 text-center text-xs font-bold text-gray-900 transition hover:bg-gray-200 sm:min-w-[7rem] sm:text-sm"
           >
-            Visit Store
+            <Store className="h-4 w-4 shrink-0" />
+            <span className="truncate">Visit Store</span>
           </Link>
           <button
+            type="button"
             onClick={() => setShowChatModal(true)}
-            className="flex-1 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
+            className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-md bg-orange-600 px-3 text-xs font-bold text-white transition hover:bg-orange-700 sm:min-w-[7rem] sm:text-sm"
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-              />
-            </svg>
-            Chat Now
+            <MessageCircle className="h-4 w-4 shrink-0" />
+            <span className="truncate">Chat Now</span>
           </button>
         </div>
       </div>
