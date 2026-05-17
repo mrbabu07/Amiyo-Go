@@ -145,6 +145,36 @@ describe("discoveryController homepage builders", () => {
     expect(arrivals.map((product) => product._id)).toEqual(["prod-shirt"]);
   });
 
+  test("builds category quick access from top-level groups, not leaf categories", () => {
+    const groupedCategories = [
+      { _id: "cat-phones", name: "Phones", slug: "phones", parentId: "cat-tech", isActive: true, displayOrder: 1 },
+      { _id: "cat-tech", name: "Electronics", slug: "electronics", isActive: true, displayOrder: 2 },
+      { _id: "cat-fashion", name: "Fashion", slug: "fashion", isActive: true, displayOrder: 3 },
+      { _id: "cat-shirts", name: "Shirts", slug: "shirts", parentId: "cat-fashion", isActive: true, displayOrder: 4 },
+    ];
+    const groupedProducts = [
+      { _id: "prod-phone", categoryId: "cat-phones" },
+      { _id: "prod-laptop", categoryId: "cat-tech" },
+      { _id: "prod-shirt", categoryId: "cat-shirts" },
+    ];
+
+    const quickAccess = buildCategoryQuickAccess({ categories: groupedCategories, products: groupedProducts });
+
+    expect(quickAccess.map((category) => category._id)).toEqual(["cat-tech", "cat-fashion"]);
+    expect(quickAccess.find((category) => category._id === "cat-phones")).toBeUndefined();
+    expect(quickAccess[0]).toEqual(expect.objectContaining({
+      name: "Electronics",
+      productCount: 2,
+      childCount: 1,
+      parentId: "",
+    }));
+    expect(quickAccess[1]).toEqual(expect.objectContaining({
+      name: "Fashion",
+      productCount: 1,
+      childCount: 1,
+    }));
+  });
+
   test("builds curated collections, recently viewed products, followed vendor feed, and check-in prompt", () => {
     const collections = buildCuratedCollections({
       collections: [{ _id: "collection-1", title: "Under BDT 500", productIds: ["prod-shirt"], imageUrl: "collection.jpg", status: "active" }],

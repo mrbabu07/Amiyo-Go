@@ -403,24 +403,56 @@ const buildHeroBanners = ({
 };
 
 const buildCategoryQuickAccess = ({ categories = [], products = [], limit = 16 }) => {
-  const counts = products.reduce((map, product) => {
-    const key = normalizeId(product.categoryId);
-    if (key) map.set(key, (map.get(key) || 0) + 1);
+  const activeCategories = categories
+    .filter((category) => category.isActive !== false)
+    .map((category) => ({
+      ...category,
+      id: normalizeId(category._id),
+      parentKey: normalizeId(category.parentId),
+    }));
+
+  const byId = new Map(activeCategories.map((category) => [category.id, category]));
+  const childrenByParent = activeCategories.reduce((map, category) => {
+    if (!category.parentKey || !byId.has(category.parentKey)) return map;
+    const children = map.get(category.parentKey) || [];
+    children.push(category);
+    map.set(category.parentKey, children);
     return map;
   }, new Map());
 
-  return categories
-    .filter((category) => category.isActive !== false)
+  const findRootCategory = (categoryId) => {
+    let current = byId.get(normalizeId(categoryId));
+    const seen = new Set();
+
+    while (current?.parentKey && byId.has(current.parentKey) && !seen.has(current.id)) {
+      seen.add(current.id);
+      current = byId.get(current.parentKey);
+    }
+
+    return current || null;
+  };
+
+  const counts = products.reduce((map, product) => {
+    const root = findRootCategory(product.categoryId);
+    if (root?.id) map.set(root.id, (map.get(root.id) || 0) + 1);
+    return map;
+  }, new Map());
+
+  const groupCategories = activeCategories.filter((category) => !category.parentKey || !byId.has(category.parentKey));
+  const categoriesForRail = groupCategories.length ? groupCategories : activeCategories;
+
+  return categoriesForRail
     .sort((a, b) => Number(a.displayOrder || 0) - Number(b.displayOrder || 0) || String(a.name || "").localeCompare(String(b.name || "")))
     .slice(0, limit)
     .map((category) => ({
-      _id: normalizeId(category._id),
+      _id: category.id,
       name: category.name || "Category",
       slug: category.slug || "",
       icon: category.icon || category.iconUrl || "",
       image: category.image || category.imageUrl || "",
-      productCount: counts.get(normalizeId(category._id)) || 0,
-      parentId: normalizeId(category.parentId),
+      productCount: counts.get(category.id) || 0,
+      childCount: childrenByParent.get(category.id)?.length || 0,
+      parentId: "",
     }));
 };
 
