@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { verifyToken, verifyAdmin } = require("../middleware/auth");
+const { verifyToken, verifyAdmin, verifyOptionalToken } = require("../middleware/auth");
 const {
   getAllProducts,
   getProductById,
@@ -13,6 +13,7 @@ const {
   getOutOfStockProducts,
   updateStockBulk,
   incrementProductView,
+  reportProduct,
   updateProductVariants,
   getProductVariants,
 } = require("../controllers/productController");
@@ -37,6 +38,7 @@ router.patch("/bulk-stock-update", verifyToken, verifyAdmin, updateStockBulk);
 router.get("/:id", getProductById);
 router.get("/:id/variants", getProductVariants);
 router.post("/:id/view", incrementProductView);
+router.post("/:id/report", verifyOptionalToken, reportProduct);
 router.put("/:id", verifyToken, verifyAdmin, updateProduct);
 router.put("/:id/variants", verifyToken, verifyAdmin, updateProductVariants);
 router.delete("/:id", verifyToken, verifyAdmin, deleteProduct);

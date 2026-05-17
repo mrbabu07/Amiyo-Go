@@ -35,6 +35,7 @@ export const saveSearchHistory = (data) => api.post("/search/history", data);
 export const createProduct = (data) => api.post("/products", data);
 export const updateProduct = (id, data) => api.put(`/products/${id}`, data);
 export const deleteProduct = (id) => api.delete(`/products/${id}`);
+export const reportProduct = (id, data) => api.post(`/products/${id}/report`, data);
 export const getLowStockProducts = (threshold = 10) =>
   api.get(`/products/admin/low-stock?threshold=${threshold}`);
 export const getOutOfStockProducts = () =>
@@ -94,6 +95,13 @@ export const getOrderTimeline = (id) => api.get(`/orders/${id}/timeline`);
 export const getCurrentUser = () => api.get("/user/me");
 
 // Vendor profile
+export const getVendorPublicInfo = (vendorId) =>
+  api.get(`/vendors/${vendorId}/public`);
+export const getVendorFollowStatus = (vendorId) =>
+  api.get(`/vendors/${vendorId}/follow-status`);
+export const followVendor = (vendorId) => api.post(`/vendors/${vendorId}/follow`);
+export const unfollowVendor = (vendorId) =>
+  api.delete(`/vendors/${vendorId}/unfollow`);
 export const getMyVendorProfile = () => api.get("/vendors/me");
 export const updateMyVendorProfile = (data) => api.patch("/vendors/me", data);
 export const getMyVendorCategories = () => api.get("/vendors/my-categories");

@@ -1,0 +1,293 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Minus,
+  PlayCircle,
+  Plus,
+  RotateCcw,
+  X,
+} from "lucide-react";
+
+const fallbackImage =
+  "https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=900&h=900&fit=crop";
+
+const asArray = (value) => (Array.isArray(value) ? value.filter(Boolean) : value ? [value] : []);
+
+const unique = (items) => [...new Set(items.filter(Boolean))];
+
+export default function ProductMediaGallery({
+  product,
+  selectedVariant,
+  selectedImage,
+  onImageSelect,
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const touchRef = useRef({ startX: 0, startDistance: 0, zoom: 1 });
+
+  const media = useMemo(() => {
+    const variantImages = unique([
+      ...asArray(selectedVariant?.images),
+      selectedVariant?.image,
+      selectedVariant?.imageUrl,
+      selectedVariant?.coverImage,
+    ]);
+    const detailImages = product?.detail?.media?.images || [];
+    const productImages = unique([
+      ...variantImages,
+      ...detailImages,
+      ...asArray(product?.images),
+      product?.image,
+      product?.coverImage,
+    ]);
+    const imageItems = (productImages.length ? productImages : [fallbackImage]).map((url, index) => ({
+      type: "image",
+      url,
+      title: index === 0 ? product?.title || "Product image" : `${product?.title || "Product"} ${index + 1}`,
+    }));
+    const rawVideos = [
+          ...asArray(product?.videos),
+          product?.video,
+          product?.videoUrl,
+          product?.demoVideo,
+        ].filter(Boolean);
+    const videos = product?.detail?.media?.videos?.length
+      ? product.detail.media.videos
+      : rawVideos
+          .map((video, index) => {
+            if (!video) return null;
+            if (typeof video === "string") return { url: video, title: index === 0 ? "Product demo" : `Video ${index + 1}` };
+            return {
+              url: video.url || video.src || video.videoUrl,
+              title: video.title || video.name || `Video ${index + 1}`,
+              thumbnail: video.thumbnail || video.poster || null,
+            };
+          })
+          .filter((video) => video?.url);
+    const videoItems = videos.map((video) => ({ type: "video", ...video }));
+    return [...imageItems, ...videoItems];
+  }, [product, selectedVariant]);
+
+  useEffect(() => {
+    if (!selectedImage) return;
+    const index = media.findIndex((item) => item.type === "image" && item.url === selectedImage);
+    if (index >= 0) setActiveIndex(index);
+  }, [media, selectedImage]);
+
+  const activeMedia = media[activeIndex] || media[0];
+
+  const getImageFocus = (imageUrl) =>
+    product?.imageSettings?.crops?.[imageUrl]?.objectPosition || "center";
+
+  const selectIndex = (nextIndex) => {
+    const boundedIndex = (nextIndex + media.length) % media.length;
+    setActiveIndex(boundedIndex);
+    setImageLoaded(false);
+    setZoom(1);
+    if (media[boundedIndex]?.type === "image") {
+      onImageSelect?.(media[boundedIndex].url);
+    }
+  };
+
+  const handleTouchStart = (event) => {
+    if (event.touches.length === 1) {
+      touchRef.current.startX = event.touches[0].clientX;
+      return;
+    }
+    if (event.touches.length === 2) {
+      const [first, second] = event.touches;
+      touchRef.current.startDistance = Math.hypot(
+        first.clientX - second.clientX,
+        first.clientY - second.clientY,
+      );
+      touchRef.current.zoom = zoom;
+    }
+  };
+
+  const handleTouchMove = (event) => {
+    if (!showModal || event.touches.length !== 2) return;
+    const [first, second] = event.touches;
+    const distance = Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+    const ratio = distance / Math.max(touchRef.current.startDistance, 1);
+    setZoom(Math.min(Math.max(touchRef.current.zoom * ratio, 1), 4));
+  };
+
+  const handleTouchEnd = (event) => {
+    if (event.changedTouches.length === 0 || showModal) return;
+    const delta = event.changedTouches[0].clientX - touchRef.current.startX;
+    if (Math.abs(delta) < 45) return;
+    selectIndex(delta < 0 ? activeIndex + 1 : activeIndex - 1);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div
+        className="relative aspect-square overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-800 group"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        {activeMedia?.type === "video" ? (
+          <video
+            key={activeMedia.url}
+            src={activeMedia.url}
+            poster={activeMedia.thumbnail}
+            controls
+            playsInline
+            className="h-full w-full bg-black object-contain"
+          />
+        ) : (
+          <>
+            {!imageLoaded && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-200 dark:bg-gray-700 animate-pulse">
+                <Maximize2 className="h-10 w-10 text-gray-400" />
+              </div>
+            )}
+            <img
+              src={activeMedia?.url || fallbackImage}
+              alt={activeMedia?.title || product?.title || "Product image"}
+              style={{ objectPosition: getImageFocus(activeMedia?.url) }}
+              className={`h-full w-full cursor-zoom-in object-cover transition-opacity duration-300 ${
+                imageLoaded ? "opacity-100" : "opacity-0"
+              }`}
+              onLoad={() => setImageLoaded(true)}
+              onClick={() => setShowModal(true)}
+            />
+          </>
+        )}
+
+        {media.length > 1 && (
+          <>
+            <button
+              type="button"
+              aria-label="Previous media"
+              onClick={() => selectIndex(activeIndex - 1)}
+              className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-800 shadow-sm transition hover:bg-white"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Next media"
+              onClick={() => selectIndex(activeIndex + 1)}
+              className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-800 shadow-sm transition hover:bg-white"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </>
+        )}
+
+        {activeMedia?.type === "image" && (
+          <button
+            type="button"
+            aria-label="Zoom product image"
+            onClick={() => setShowModal(true)}
+            className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100"
+          >
+            <Maximize2 className="h-5 w-5" />
+          </button>
+        )}
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto pb-2">
+        {media.map((item, index) => (
+          <button
+            key={`${item.type}-${item.url}-${index}`}
+            type="button"
+            onClick={() => selectIndex(index)}
+            className={`relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border-2 transition ${
+              activeIndex === index
+                ? "border-primary-500 shadow-sm"
+                : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
+            }`}
+          >
+            {item.type === "video" ? (
+              <div className="flex h-full w-full items-center justify-center bg-gray-950 text-white">
+                {item.thumbnail ? (
+                  <img src={item.thumbnail} alt={item.title} className="h-full w-full object-cover opacity-70" />
+                ) : null}
+                <PlayCircle className="absolute h-7 w-7" />
+              </div>
+            ) : (
+              <img
+                src={item.url}
+                alt={item.title}
+                style={{ objectPosition: getImageFocus(item.url) }}
+                className="h-full w-full object-cover"
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {showModal && activeMedia?.type === "image" && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setShowModal(false)}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+        >
+          <div className="absolute right-4 top-4 flex gap-2">
+            <button
+              type="button"
+              aria-label="Zoom out"
+              onClick={(event) => {
+                event.stopPropagation();
+                setZoom((value) => Math.max(value - 0.35, 1));
+              }}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+            >
+              <Minus className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Zoom in"
+              onClick={(event) => {
+                event.stopPropagation();
+                setZoom((value) => Math.min(value + 0.35, 4));
+              }}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Reset zoom"
+              onClick={(event) => {
+                event.stopPropagation();
+                setZoom(1);
+              }}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+            >
+              <RotateCcw className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Close image zoom"
+              onClick={() => setShowModal(false)}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <img
+            src={activeMedia.url}
+            alt={activeMedia.title}
+            className="max-h-full max-w-full object-contain transition-transform"
+            style={{ transform: `scale(${zoom})` }}
+            onClick={(event) => event.stopPropagation()}
+            onWheel={(event) => {
+              event.preventDefault();
+              const direction = event.deltaY < 0 ? 0.15 : -0.15;
+              setZoom((value) => Math.min(Math.max(value + direction, 1), 4));
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}

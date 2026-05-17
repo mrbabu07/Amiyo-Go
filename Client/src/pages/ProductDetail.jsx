@@ -5,15 +5,19 @@ import useCart from "../hooks/useCart";
 import { useRecentlyViewed } from "../hooks/useRecentlyViewed";
 import { useCurrency } from "../hooks/useCurrency";
 import { ProductDetailSkeleton } from "../components/Skeleton";
-import StockIndicator from "../components/StockIndicator";
 import ReviewsSection from "../components/reviews/ReviewsSection";
 import ProductRecommendations from "../components/ProductRecommendations";
 import SizeGuide from "../components/SizeGuide";
 import BackButton from "../components/BackButton";
-import Breadcrumb from "../components/Breadcrumb";
 import ProductVariantSelector from "../components/ProductVariantSelector";
 import ProductQA from "../components/ProductQA";
 import VendorInfo from "../components/VendorInfo";
+import ProductMediaGallery from "../components/ProductMediaGallery";
+import ProductTrustAndDelivery from "../components/ProductTrustAndDelivery";
+import SellerInfoStrip from "../components/SellerInfoStrip";
+import PriceHistorySparkline from "../components/PriceHistorySparkline";
+import ProductShareReportActions from "../components/ProductShareReportActions";
+import FrequentlyBoughtTogether from "../components/FrequentlyBoughtTogether";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -30,8 +34,6 @@ export default function ProductDetail() {
   const [selectedImage, setSelectedImage] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [showSizeGuide, setShowSizeGuide] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [showImageModal, setShowImageModal] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [categoryPath, setCategoryPath] = useState([]);
   const addToRecentlyViewedRef = useRef(addToRecentlyViewed);
@@ -75,7 +77,11 @@ export default function ProductDetail() {
       addToRecentlyViewedRef.current(data);
 
       // Set initial selected image
-      const initialImage = data.image || (data.images && data.images[0]) || "";
+      const initialImage =
+        data.detail?.media?.images?.[0] ||
+        data.image ||
+        (data.images && data.images[0]) ||
+        "";
       setSelectedImage(initialImage);
 
       if (data.sizes && data.sizes.length > 0) {
@@ -114,9 +120,9 @@ export default function ProductDetail() {
     setSelectedVariant(variant);
     if (variant.size) setSelectedSize(variant.size);
     if (variant.color) setSelectedColor(variant.color);
-    if (variant.image) {
-      setSelectedImage(variant.image);
-      setImageLoaded(false);
+    const variantImage = variant.image || variant.images?.[0];
+    if (variantImage) {
+      setSelectedImage(variantImage);
     }
   };
 
@@ -130,7 +136,15 @@ export default function ProductDetail() {
       return;
     }
     setIsAdding(true);
-    addToCart(product, quantity, selectedImage, selectedSize, selectedColor);
+    const cartProduct = selectedVariant
+      ? {
+          ...product,
+          price: selectedVariant.price || product.price,
+          selectedVariantId: selectedVariant._id || selectedVariant.id || selectedVariant.sku,
+          sku: selectedVariant.sku || product.sku,
+        }
+      : product;
+    addToCart(cartProduct, quantity, selectedImage, selectedSize, selectedColor);
     setTimeout(() => setIsAdding(false), 1500);
   };
 
@@ -143,28 +157,22 @@ export default function ProductDetail() {
       alert("Please select a color");
       return;
     }
-    addToCart(product, quantity, selectedImage, selectedSize, selectedColor);
+    const cartProduct = selectedVariant
+      ? {
+          ...product,
+          price: selectedVariant.price || product.price,
+          selectedVariantId: selectedVariant._id || selectedVariant.id || selectedVariant.sku,
+          sku: selectedVariant.sku || product.sku,
+        }
+      : product;
+    addToCart(cartProduct, quantity, selectedImage, selectedSize, selectedColor);
     navigate("/cart");
   };
 
-  // Prepare images for display
-  const allImages = [];
-  if (product?.images?.length > 0) {
-    allImages.push(...product.images);
-  } else if (product?.image) {
-    allImages.push(product.image);
-  }
-
-  const fallbackImage =
-    "https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=600&h=600&fit=crop";
-
-  const displayImages = allImages.length > 0 ? allImages : [fallbackImage];
-
-  const getImageFocus = (imageUrl) =>
-    product?.imageSettings?.crops?.[imageUrl]?.objectPosition || "center";
-
   const getStockStatus = () => {
-    const stock = selectedVariant ? selectedVariant.stock : product?.stock;
+    const stock = selectedVariant
+      ? selectedVariant.stock
+      : product?.detail?.stock?.stock ?? product?.stock;
     const allowsBackorder = Boolean(product?.allowBackorder);
 
     if (stock === 0 && allowsBackorder)
@@ -273,7 +281,8 @@ export default function ProductDetail() {
   }
 
   const stockStatus = getStockStatus();
-  const currentStock = Number(selectedVariant ? selectedVariant.stock : product.stock) || 0;
+  const currentStock =
+    Number(selectedVariant ? selectedVariant.stock : product.detail?.stock?.stock ?? product.stock) || 0;
   const maxPurchasable = stockStatus.isBackorder ? 99 : Math.max(currentStock, 1);
   const restockDateLabel = formatListingDate(product.restockDate);
   const preorderDateLabel = formatListingDate(product.expectedShipDate);
@@ -325,82 +334,12 @@ export default function ProductDetail() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
         {/* Product Images */}
-        <div className="space-y-4">
-          {/* Main Image */}
-          <div className="relative aspect-square overflow-hidden rounded-2xl bg-gray-100 dark:bg-gray-800 group">
-            {!imageLoaded && (
-              <div className="absolute inset-0 bg-gray-200 dark:bg-gray-700 animate-pulse flex items-center justify-center">
-                <svg
-                  className="w-12 h-12 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-              </div>
-            )}
-            <img
-              src={selectedImage || displayImages[0]}
-              alt={product.title}
-              style={{ objectPosition: getImageFocus(selectedImage || displayImages[0]) }}
-              className={`w-full h-full object-cover cursor-zoom-in transition-opacity duration-300 ${
-                imageLoaded ? "opacity-100" : "opacity-0"
-              }`}
-              onLoad={() => setImageLoaded(true)}
-              onClick={() => setShowImageModal(true)}
-            />
-
-            {/* Zoom indicator */}
-            <div className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </div>
-          </div>
-
-          {/* Thumbnail Gallery */}
-          {displayImages.length > 1 && (
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {displayImages.map((img, index) => (
-                <button
-                  key={index}
-                  onClick={() => {
-                    setSelectedImage(img);
-                    setImageLoaded(false);
-                  }}
-                  className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-all hover:shadow-md ${
-                    selectedImage === img || (!selectedImage && index === 0)
-                      ? "border-primary-500 shadow-md"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  <img
-                    src={img}
-                    alt={`View ${index + 1}`}
-                    style={{ objectPosition: getImageFocus(img) }}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <ProductMediaGallery
+          product={product}
+          selectedVariant={selectedVariant}
+          selectedImage={selectedImage}
+          onImageSelect={setSelectedImage}
+        />
 
         {/* Product Info */}
         <div className="flex flex-col space-y-6">
@@ -456,7 +395,16 @@ export default function ProductDetail() {
                 </span>
               </div>
             )}
+
+            <ProductShareReportActions product={product} />
           </div>
+
+          <SellerInfoStrip
+            seller={product.detail?.seller}
+            vendorId={product.vendorId}
+          />
+
+          <PriceHistorySparkline history={product.detail?.priceHistory || []} />
 
           {/* Description */}
           {product.description && (
@@ -573,15 +521,6 @@ export default function ProductDetail() {
               </div>
             )}
 
-          {/* Stock Alert */}
-          {!stockStatus.available && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-              <p className="text-sm text-red-800 font-medium">
-                This product is currently out of stock.
-              </p>
-            </div>
-          )}
-
           {stockStatus.isBackorder && (
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
               <p className="text-sm font-medium text-blue-800">
@@ -598,6 +537,8 @@ export default function ProductDetail() {
             </div>
           )}
 
+          <ProductTrustAndDelivery product={product} stockStatus={stockStatus} />
+
           {/* Quantity & Actions */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-6 space-y-6">
             <div className="flex items-center gap-4">
@@ -609,7 +550,7 @@ export default function ProductDetail() {
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   className="w-12 h-12 flex items-center justify-center text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
-                  −
+                  -
                 </button>
                 <span className="w-16 text-center font-semibold text-lg">
                   {quantity}
@@ -682,111 +623,21 @@ export default function ProductDetail() {
             </div>
           </div>
 
-          {/* Features */}
-          <div className="grid grid-cols-3 gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <div className="text-center p-4">
-              <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/20 rounded-full flex items-center justify-center mx-auto mb-2">
-                <svg
-                  className="w-6 h-6 text-primary-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
-                  />
-                </svg>
-              </div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Free Shipping
-              </p>
-            </div>
-            <div className="text-center p-4">
-              <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/20 rounded-full flex items-center justify-center mx-auto mb-2">
-                <svg
-                  className="w-6 h-6 text-primary-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357 2m15.357-2H15"
-                  />
-                </svg>
-              </div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                30-Day Returns
-              </p>
-            </div>
-            <div className="text-center p-4">
-              <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/20 rounded-full flex items-center justify-center mx-auto mb-2">
-                <svg
-                  className="w-6 h-6 text-primary-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                  />
-                </svg>
-              </div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Secure Payment
-              </p>
-            </div>
-          </div>
         </div>
       </div>
+
+      <FrequentlyBoughtTogether
+        product={product}
+        selectedVariant={selectedVariant}
+        selectedImage={selectedImage}
+        selectedSize={selectedSize}
+        selectedColor={selectedColor}
+      />
 
       {/* Vendor Information */}
       {product.vendorId && (
         <div className="mt-8">
           <VendorInfo vendorId={product.vendorId} productId={id} />
-        </div>
-      )}
-
-      {/* Image Modal */}
-      {showImageModal && (
-        <div
-          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowImageModal(false)}
-        >
-          <div className="relative max-w-4xl max-h-full">
-            <button
-              onClick={() => setShowImageModal(false)}
-              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
-            >
-              <svg
-                className="w-8 h-8"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-            <img
-              src={selectedImage || displayImages[0]}
-              alt={product.title}
-              className="max-w-full max-h-full object-contain"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
         </div>
       )}
 
@@ -806,7 +657,9 @@ export default function ProductDetail() {
           productId={id}
           category={product?.categoryId || product?.category}
           title="Similar Products"
-          limit={4}
+          limit={8}
+          initialProducts={product.detail?.similarProducts || []}
+          layout="carousel"
         />
       </div>
 

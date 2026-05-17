@@ -10,13 +10,21 @@ const ProductRecommendations = ({
   type = "similar",
   title = "Similar Products",
   limit = 4,
+  initialProducts = null,
+  layout = "grid",
 }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const seededProducts = initialProducts || [];
 
   useEffect(() => {
+    if (seededProducts.length > 0) {
+      setProducts(seededProducts.slice(0, limit));
+      setLoading(false);
+      return;
+    }
     fetchRecommendations();
-  }, [productId, type, category]);
+  }, [productId, type, category, seededProducts.length, limit]);
 
   const fetchRecommendations = async () => {
     try {
@@ -179,9 +187,20 @@ const ProductRecommendations = ({
           </Link>
         )}
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div
+        className={
+          layout === "carousel"
+            ? "flex gap-6 overflow-x-auto pb-2"
+            : "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+        }
+      >
         {products.map((product) => (
-          <ProductCard key={product._id} product={product} />
+          <div
+            key={product._id}
+            className={layout === "carousel" ? "w-60 flex-shrink-0" : ""}
+          >
+            <ProductCard product={product} />
+          </div>
         ))}
       </div>
     </div>

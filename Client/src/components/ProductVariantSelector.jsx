@@ -21,31 +21,26 @@ export default function ProductVariantSelector({
   }, [onVariantChange]);
 
   const allSizes = useMemo(
-    () => uniqueValues(variants.map((variant) => variant.size)),
-    [variants],
+    () =>
+      product.detail?.variantMatrix?.sizes?.length
+        ? product.detail.variantMatrix.sizes
+        : uniqueValues(variants.map((variant) => variant.size)),
+    [product.detail?.variantMatrix?.sizes, variants],
   );
   const allColors = useMemo(
-    () => uniqueValues(variants.map((variant) => variant.color)),
-    [variants],
+    () =>
+      product.detail?.variantMatrix?.colors?.length
+        ? product.detail.variantMatrix.colors.map((color) => color.name)
+        : uniqueValues(variants.map((variant) => variant.color)),
+    [product.detail?.variantMatrix?.colors, variants],
   );
-
-  const availableSizes = useMemo(() => {
-    if (!selectedColor) return allSizes;
-    return uniqueValues(
-      variants
-        .filter((variant) => variant.color === selectedColor)
-        .map((variant) => variant.size),
-    );
-  }, [allSizes, selectedColor, variants]);
-
-  const availableColors = useMemo(() => {
-    if (!selectedSize) return allColors;
-    return uniqueValues(
-      variants
-        .filter((variant) => variant.size === selectedSize)
-        .map((variant) => variant.color),
-    );
-  }, [allColors, selectedSize, variants]);
+  const colorOptions = useMemo(
+    () =>
+      product.detail?.variantMatrix?.colors?.length
+        ? product.detail.variantMatrix.colors
+        : allColors.map((color) => ({ name: color, value: getColorHex(color) })),
+    [allColors, product.detail?.variantMatrix?.colors],
+  );
 
   const currentVariant = useMemo(() => {
     if (variants.length === 0) return null;
@@ -54,7 +49,7 @@ export default function ProductVariantSelector({
         const sizeMatch = !selectedSize || variant.size === selectedSize;
         const colorMatch = !selectedColor || variant.color === selectedColor;
         return sizeMatch && colorMatch;
-      }) || variants[0]
+      }) || null
     );
   }, [selectedColor, selectedSize, variants]);
 
@@ -101,6 +96,13 @@ export default function ProductVariantSelector({
     return variant && (variant.stock > 0 || product.allowBackorder);
   };
 
+  const hasAvailableOption = (size, color) =>
+    variants.some((item) => {
+      const sizeMatch = !size || item.size === size;
+      const colorMatch = !color || item.color === color;
+      return sizeMatch && colorMatch && (item.stock > 0 || product.allowBackorder);
+    });
+
   const variantPrice = Number(currentVariant?.price || product.price || 0);
   const productPrice = Number(product.price || 0);
   const variantStock = Number(currentVariant?.stock || product.stock || 0);
@@ -111,7 +113,7 @@ export default function ProductVariantSelector({
 
   return (
     <div className="space-y-6">
-      {availableSizes.length > 0 && (
+      {allSizes.length > 0 && (
         <div>
           <div className="mb-3 flex items-center justify-between">
             <label className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -124,8 +126,9 @@ export default function ProductVariantSelector({
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            {availableSizes.map((size) => {
-              const available = isVariantAvailable(size, selectedColor);
+            {allSizes.map((size) => {
+              const available = hasAvailableOption(size, selectedColor) || hasAvailableOption(size, null);
+              const comboUnavailable = selectedColor && !isVariantAvailable(size, selectedColor);
               const isSelected = selectedSize === size;
 
               return (
@@ -142,7 +145,7 @@ export default function ProductVariantSelector({
                   }`}
                 >
                   {size}
-                  {!available && (
+                  {comboUnavailable && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="h-0.5 w-full rotate-45 bg-gray-400 dark:bg-gray-600" />
                     </div>
@@ -154,7 +157,7 @@ export default function ProductVariantSelector({
         </div>
       )}
 
-      {availableColors.length > 0 && (
+      {allColors.length > 0 && (
         <div>
           <div className="mb-3 flex items-center justify-between">
             <label className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -167,10 +170,11 @@ export default function ProductVariantSelector({
             )}
           </div>
           <div className="flex flex-wrap gap-3">
-            {availableColors.map((color) => {
-              const available = isVariantAvailable(selectedSize, color);
+            {allColors.map((color) => {
+              const available = hasAvailableOption(selectedSize, color) || hasAvailableOption(null, color);
+              const comboUnavailable = selectedSize && !isVariantAvailable(selectedSize, color);
               const isSelected = selectedColor === color;
-              const colorHex = getColorHex(color);
+              const colorHex = colorOptions.find((item) => item.name === color)?.value || getColorHex(color);
 
               return (
                 <button
@@ -205,7 +209,7 @@ export default function ProductVariantSelector({
                         />
                       </svg>
                     )}
-                    {!available && (
+                    {comboUnavailable && (
                       <div className="absolute inset-0 flex items-center justify-center">
                         <div className="h-0.5 w-full rotate-45 bg-gray-400 dark:bg-gray-600" />
                       </div>
@@ -273,14 +277,15 @@ export default function ProductVariantSelector({
         </MotionDiv>
       )}
 
-      {currentVariant?.image && currentVariant.image !== product.image && (
+      {(currentVariant?.image || currentVariant?.images?.[0]) &&
+        (currentVariant.image || currentVariant.images?.[0]) !== product.image && (
         <MotionDiv
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
         >
           <img
-            src={currentVariant.image}
+            src={currentVariant.image || currentVariant.images?.[0]}
             alt={`${selectedSize || ""} ${selectedColor || ""}`.trim()}
             className="h-48 w-full object-cover"
           />

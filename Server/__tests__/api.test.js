@@ -56,6 +56,8 @@ jest.mock("../controllers/productController", () => ({
   getOutOfStockProducts: (req, res) => res.json({ route: "products:out-of-stock" }),
   updateStockBulk: (req, res) => res.json({ route: "products:bulk-stock-update" }),
   incrementProductView: (req, res) => res.json({ route: "products:view", id: req.params.id }),
+  reportProduct: (req, res) =>
+    res.status(201).json({ route: "products:report", id: req.params.id, reason: req.body.reason }),
   updateProductVariants: (req, res) => res.json({ route: "products:update-variants", id: req.params.id }),
   getProductVariants: (req, res) => res.json({ route: "products:variants", id: req.params.id }),
 }));
@@ -598,6 +600,19 @@ describe("Black-box API tests", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ route: "products:id", id: "abc123" });
+    });
+
+    test("POST /api/products/:id/report accepts buyer listing reports", async () => {
+      const response = await request(app)
+        .post("/api/products/abc123/report")
+        .send({ reason: "counterfeit" });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        route: "products:report",
+        id: "abc123",
+        reason: "counterfeit",
+      });
     });
   });
 

@@ -15,6 +15,13 @@ const ReviewCard = ({
   const [replyText, setReplyText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(null);
+  const reviewVideos = [
+    ...(review.videos || []),
+    ...(review.videoUrls || []),
+    ...((review.media || [])
+      .filter((item) => item?.type === "video")
+      .map((item) => item.url || item.src || item.videoUrl)),
+  ].filter(Boolean);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -135,6 +142,26 @@ const ReviewCard = ({
                   </svg>
                 </div>
               </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Review Videos */}
+      {reviewVideos.length > 0 && (
+        <div className="space-y-3">
+          <h6 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Videos from this review:
+          </h6>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {reviewVideos.map((videoUrl, index) => (
+              <video
+                key={`${videoUrl}-${index}`}
+                src={videoUrl}
+                controls
+                playsInline
+                className="h-40 w-full rounded-lg border border-gray-200 bg-black object-contain dark:border-gray-600"
+              />
             ))}
           </div>
         </div>
