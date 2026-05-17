@@ -10,6 +10,7 @@ import { getCategories, getMyLoyalty, getSearchNavigation } from "../services/ap
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
 import TopBarLanguageSwitcher from "./SimpleLanguageSwitcher";
+import LanguageSwitcher from "./LanguageSwitcher";
 import SearchBar from "./SearchBar";
 
 export default function Navbar() {
@@ -82,7 +83,7 @@ export default function Navbar() {
   const navLinks = [
     { name: t("navbar.home"), path: "/" },
     { name: t("navbar.products"), path: "/products" },
-    { name: "Flash Sales", path: "/flash-sales" },
+    { name: t("navbar.flashSales"), path: "/flash-sales" },
     { name: t("navbar.support"), path: "/support" },
   ];
 
@@ -384,7 +385,7 @@ export default function Navbar() {
                               />
                             </svg>
                             <span className="text-sm text-gray-700 dark:text-gray-300">
-                              My Alerts
+                              {t("navbar.my_alerts")}
                             </span>
                           </Link>
 
@@ -407,7 +408,7 @@ export default function Navbar() {
                               />
                             </svg>
                             <span className="text-sm text-gray-700 dark:text-gray-300">
-                              Loyalty Rewards
+                              {t("navbar.loyalty_rewards")}
                             </span>
                           </Link>
 
@@ -430,7 +431,7 @@ export default function Navbar() {
                               />
                             </svg>
                             <span className="text-sm text-gray-700 dark:text-gray-300">
-                              Become a Seller
+                              {t("navbar.become_seller")}
                             </span>
                           </Link>
 
@@ -453,7 +454,7 @@ export default function Navbar() {
                               />
                             </svg>
                             <span className="text-sm text-blue-600 font-medium">
-                              Seller Dashboard
+                              {t("navbar.seller_dashboard")}
                             </span>
                           </Link>
 
@@ -506,7 +507,7 @@ export default function Navbar() {
                                   />
                                 </svg>
                                 <span className="text-sm text-[#1e7098] font-medium">
-                                  Manage Vendors
+                                  {t("navbar.manage_vendors")}
                                 </span>
                               </Link>
                               <Link
@@ -528,7 +529,7 @@ export default function Navbar() {
                                   />
                                 </svg>
                                 <span className="text-sm text-[#1e7098] font-medium">
-                                  Vendor Payouts
+                                  {t("navbar.vendor_payouts")}
                                 </span>
                               </Link>
                               <Link
@@ -550,7 +551,7 @@ export default function Navbar() {
                                   />
                                 </svg>
                                 <span className="text-sm text-green-600 font-medium">
-                                  💬 Vendor Messages
+                                  {t("navbar.vendor_messages")}
                                 </span>
                               </Link>
                               <Link
@@ -572,7 +573,7 @@ export default function Navbar() {
                                   />
                                 </svg>
                                 <span className="text-sm text-[#1e7098] font-medium">
-                                  Category Requests
+                                  {t("navbar.category_requests")}
                                 </span>
                               </Link>
                             </>
@@ -943,6 +944,8 @@ export default function Navbar() {
             <div className="space-y-1 px-4">
               {/* Mobile Action Icons */}
               <div className="flex items-center space-x-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <LanguageSwitcher />
+
                 <Link
                   to="/cart"
                   className="relative p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
@@ -1101,14 +1104,14 @@ export default function Navbar() {
                     onClick={() => setMobileMenuOpen(false)}
                     className="block px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors"
                   >
-                    Become a Seller
+                    {t("navbar.become_seller")}
                   </Link>
                   <Link
                     to="/vendor/dashboard"
                     onClick={() => setMobileMenuOpen(false)}
                     className="block px-4 py-3 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-lg transition-colors"
                   >
-                    Seller Dashboard
+                    {t("navbar.seller_dashboard")}
                   </Link>
                   {isAdmin && (
                     <Link

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import {
   ArrowLeft,
@@ -152,6 +153,7 @@ function Toggle({ checked, onChange, label }) {
 }
 
 export default function Profile() {
+  const { t, i18n } = useTranslation();
   const { user, isAdmin, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
@@ -226,6 +228,10 @@ export default function Profile() {
       ...defaultAppPreferences,
       ...(nextAccount.appPreferences || {}),
     });
+    const preferredLanguage = nextAccount.appPreferences?.language;
+    if (preferredLanguage && preferredLanguage !== i18n.resolvedLanguage) {
+      i18n.changeLanguage(preferredLanguage);
+    }
     setLoginActivity(nextAccount.loginActivity || []);
   };
 
@@ -276,7 +282,10 @@ export default function Profile() {
         appPreferences,
       });
       applyAccount(response.data.data);
-      toast.success("Preferences saved");
+      if (appPreferences.language !== i18n.resolvedLanguage) {
+        i18n.changeLanguage(appPreferences.language);
+      }
+      toast.success(t("profile.preferencesSaved"));
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to save preferences"));
     } finally {
@@ -750,7 +759,7 @@ export default function Profile() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Language">
+                <Field label={t("profile.languageLabel")}>
                   <select
                     className="input-control"
                     value={appPreferences.language}
@@ -758,11 +767,11 @@ export default function Profile() {
                       setAppPreferences((prev) => ({ ...prev, language: event.target.value }))
                     }
                   >
-                    <option value="en">English</option>
-                    <option value="bn">Bengali</option>
+                    <option value="en">{t("profile.english")}</option>
+                    <option value="bn">{t("profile.bangla")}</option>
                   </select>
                 </Field>
-                <Field label="Currency">
+                <Field label={t("profile.currencyLabel")}>
                   <select
                     className="input-control"
                     value={appPreferences.currency}

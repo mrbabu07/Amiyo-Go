@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import useCart from "../hooks/useCart";
 import useProductView from "../hooks/useProductView";
 import WishlistButton from "./WishlistButton";
@@ -11,6 +12,7 @@ import { formatViewCount } from "../utils/formatters";
 import { useCurrency } from "../hooks/useCurrency";
 
 export default function ProductCard({ product }) {
+  const { t } = useTranslation();
   const { addToCart } = useCart();
   const { formatPrice } = useCurrency();
   const [isAdding, setIsAdding] = useState(false);
@@ -41,34 +43,34 @@ export default function ProductCard({ product }) {
   const getStockStatus = () => {
     if (product.stock === 0 && product.allowBackorder)
       return {
-        text: "Backorder",
+        text: t("productCard.backorder"),
         color: "text-blue-600",
         bgColor: "bg-blue-100",
         available: true,
       };
     if (product.stock === 0)
       return {
-        text: "Out of Stock",
+        text: t("productCard.outOfStock"),
         color: "text-red-600",
         bgColor: "bg-red-100",
         available: false,
       };
     if (product.stock <= 3)
       return {
-        text: `Only ${product.stock} left`,
+        text: t("productCard.onlyLeft", { count: product.stock }),
         color: "text-orange-600",
         bgColor: "bg-orange-100",
         available: true,
       };
     if (product.stock <= 10)
       return {
-        text: "Low Stock",
+        text: t("productCard.lowStock"),
         color: "text-yellow-600",
         bgColor: "bg-yellow-100",
         available: true,
       };
     return {
-      text: "In Stock",
+      text: t("productCard.inStock"),
       color: "text-green-600",
       bgColor: "bg-green-100",
       available: true,
@@ -150,7 +152,7 @@ export default function ProductCard({ product }) {
               <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                 <div className="bg-white/95 backdrop-blur-sm px-4 py-2 rounded-full">
                   <span className="text-gray-900 font-semibold text-sm">
-                    Out of Stock
+                    {t("productCard.outOfStock")}
                   </span>
                 </div>
               </div>
@@ -167,7 +169,7 @@ export default function ProductCard({ product }) {
                   }}
                   className="flex-1 py-2.5 px-4 bg-white/90 backdrop-blur-sm text-gray-900 rounded-lg font-medium text-sm hover:bg-white transition-colors"
                 >
-                  Quick View
+                  {t("productCard.quickView")}
                 </button>
                 <button
                   onClick={handleAddToCart}
@@ -201,12 +203,12 @@ export default function ProductCard({ product }) {
                           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                         ></path>
                       </svg>
-                      Added!
+                      {t("productCard.added")}
                     </span>
                   ) : !stockStatus.available ? (
-                    "Out of Stock"
+                    t("productCard.outOfStock")
                   ) : (
-                    "Add to Cart"
+                    t("productCard.addToCart")
                   )}
                 </button>
               </div>
@@ -286,17 +288,17 @@ export default function ProductCard({ product }) {
                 {product.sizes?.length > 0 && (
                   <div className="flex items-center gap-1">
                     <span className="text-gray-500 dark:text-gray-400">
-                      Sizes:
+                      {t("productCard.sizes")}
                     </span>
                     <span className="text-gray-700 dark:text-gray-300 font-medium">
-                      {product.sizes.length} options
+                      {t("productCard.options", { count: product.sizes.length })}
                     </span>
                   </div>
                 )}
                 {product.colors?.length > 0 && (
                   <div className="flex items-center gap-2">
                     <span className="text-gray-500 dark:text-gray-400">
-                      Colors:
+                      {t("productCard.colors")}
                     </span>
                     <div className="flex gap-1">
                       {product.colors.slice(0, 4).map((color, index) => (
@@ -344,7 +346,7 @@ export default function ProductCard({ product }) {
                       d="M5 13l4 4L19 7"
                     />
                   </svg>
-                  Free Shipping
+                  {t("productCard.freeShipping")}
                 </span>
               </div>
             )}
@@ -359,7 +361,7 @@ export default function ProductCard({ product }) {
                 }}
                 className="flex-1 py-2 px-3 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
-                Quick View
+                {t("productCard.quickView")}
               </button>
               <button
                 onClick={handleAddToCart}
@@ -373,10 +375,10 @@ export default function ProductCard({ product }) {
                 }`}
               >
                 {isAdding
-                  ? "Added!"
+                  ? t("productCard.added")
                   : !stockStatus.available
-                    ? "Out of Stock"
-                    : "Add to Cart"}
+                    ? t("productCard.outOfStock")
+                    : t("productCard.addToCart")}
               </button>
             </div>
           </div>

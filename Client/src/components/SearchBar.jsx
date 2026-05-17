@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Clock,
   Mic,
@@ -45,6 +46,7 @@ export default function SearchBar({
   showSuggestions = true,
   onSearch,
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [autocomplete, setAutocomplete] = useState(defaultAutocomplete);
   const [localHistory, setLocalHistory] = useState([]);
@@ -150,7 +152,7 @@ export default function SearchBar({
         {query ? (
           <button
             type="button"
-            aria-label="Clear search"
+            aria-label={t("search.clearSearch")}
             onClick={() => setQuery("")}
             className="absolute right-[5.75rem] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
           >
@@ -169,7 +171,7 @@ export default function SearchBar({
           <button
             type="submit"
             className="flex h-10 w-10 items-center justify-center rounded-md bg-[#1e7098] text-white transition hover:bg-[#1a5f7f]"
-            aria-label="Search"
+            aria-label={t("common.search")}
           >
             {loading ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -198,14 +200,14 @@ export default function SearchBar({
                     className="mb-2 flex w-full items-center gap-2 rounded-lg bg-sky-50 px-3 py-2 text-left text-sm font-medium text-sky-800 transition hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-200"
                   >
                     <Sparkles className="h-4 w-4" />
-                    Search instead for "{autocomplete.correctedQuery}"
+                    {t("search.searchInsteadFor", { query: autocomplete.correctedQuery })}
                   </button>
                 ) : null}
 
                 {autocomplete.products?.length ? (
                   <div>
                     <p className="mb-2 px-2 text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Top product matches
+                      {t("search.topProductMatches")}
                     </p>
                     <div className="space-y-1">
                       {autocomplete.products.map((product) => (
@@ -226,7 +228,7 @@ export default function SearchBar({
                               {product.title}
                             </p>
                             <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-                              {product.brand || product.categoryName || "Product"} - BDT {Number(product.price || 0).toLocaleString()}
+                              {product.brand || product.categoryName || t("search.productFallback")} - BDT {Number(product.price || 0).toLocaleString()}
                             </p>
                           </div>
                         </Link>
@@ -238,7 +240,7 @@ export default function SearchBar({
                 {autocomplete.matchingCategories?.length ? (
                   <div className="mt-3">
                     <p className="mb-2 px-2 text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Matching categories
+                      {t("search.matchingCategories")}
                     </p>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {autocomplete.matchingCategories.slice(0, 6).map((category) => (
@@ -276,10 +278,10 @@ export default function SearchBar({
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                         <Clock className="h-3.5 w-3.5" />
-                        Recent searches
+                        {t("search.recentSearches")}
                       </p>
                       <button type="button" onClick={clearHistory} className="text-xs font-semibold text-[#1e7098]">
-                        Clear
+                        {t("common.clear")}
                       </button>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -301,7 +303,7 @@ export default function SearchBar({
                   <div className="mt-4">
                     <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       <TrendingUp className="h-3.5 w-3.5" />
-                      Trending searches
+                      {t("search.trendingSearches")}
                     </p>
                     <div className="space-y-1">
                       {autocomplete.trendingSearches.slice(0, 6).map((item) => (

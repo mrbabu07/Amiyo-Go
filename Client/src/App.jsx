@@ -12,6 +12,7 @@ import OfferPopup from "./components/OfferPopup";
 import ToastContainer from "./components/Toast";
 import GlobalLoading from "./components/GlobalLoading";
 import MobileOptimized from "./components/MobileOptimized";
+import LanguagePreferenceSync from "./components/LanguagePreferenceSync";
 import router from "./routes/Routes";
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
     <MobileOptimized>
       <ThemeProvider>
         <AuthProvider>
+          <LanguagePreferenceSync />
           <NotificationProvider>
             <ToastProvider>
               <ComparisonProvider>

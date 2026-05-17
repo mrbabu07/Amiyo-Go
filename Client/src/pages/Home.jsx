@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   BadgePercent,
   ChevronLeft,
@@ -40,21 +41,21 @@ const emptyDiscovery = {
   dailyCheckIn: { enabled: true, requiresLogin: true, canClaim: false, points: 5 },
 };
 
-const formatDuration = (targetDate, now) => {
+const formatDuration = (targetDate, now, t) => {
   const end = targetDate ? new Date(targetDate).getTime() : 0;
   const remaining = Math.max(0, end - now);
   const hours = Math.floor(remaining / (60 * 60 * 1000));
   const minutes = Math.floor((remaining / (60 * 1000)) % 60);
   const seconds = Math.floor((remaining / 1000) % 60);
 
-  if (!end || remaining <= 0) return "Ending soon";
+  if (!end || remaining <= 0) return t("home.endingSoon");
   if (hours >= 24) return `${Math.floor(hours / 24)}d ${hours % 24}h`;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 };
 
 const sectionProducts = (products = [], count = 8) => products.slice(0, count);
 
-function CouponStrip({ coupons, formatPrice }) {
+function CouponStrip({ coupons, formatPrice, t }) {
   if (!coupons?.length) return null;
 
   return (
@@ -70,8 +71,8 @@ function CouponStrip({ coupons, formatPrice }) {
             <span>{coupon.code}</span>
             <span className="text-amber-700 dark:text-amber-300">
               {coupon.discountType === "percentage"
-                ? `${coupon.discountValue}% off`
-                : `${formatPrice(coupon.discountValue)} off`}
+                ? t("home.discountPercent", { value: coupon.discountValue })
+                : t("home.discountFixed", { value: formatPrice(coupon.discountValue) })}
             </span>
           </Link>
         ))}
@@ -116,18 +117,18 @@ function CategoryQuickAccess({ categories }) {
   );
 }
 
-function HeroCarousel({ banners, activeHero, setActiveHero }) {
+function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
   const slides = banners?.length
     ? banners
     : [
         {
           id: "fallback",
-          title: "Amiyo Go Marketplace",
-          subtitle: "Fresh deals, local sellers, and trusted delivery across Bangladesh.",
-          badge: "Marketplace picks",
+          title: t("home.fallbackHeroTitle"),
+          subtitle: t("home.fallbackHeroSubtitle"),
+          badge: t("home.fallbackHeroBadge"),
           imageUrl: fallbackHeroImage,
           link: "/products",
-          ctaText: "Shop products",
+          ctaText: t("home.fallbackHeroCta"),
         },
       ];
 
@@ -155,7 +156,7 @@ function HeroCarousel({ banners, activeHero, setActiveHero }) {
         <div className="max-w-2xl">
           <span className="mb-3 inline-flex items-center gap-2 rounded-lg bg-white/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-900">
             <Sparkles className="h-3.5 w-3.5" />
-            {currentSlide.badge || "Featured"}
+            {currentSlide.badge || t("home.featured")}
           </span>
           <h1 className="text-3xl font-bold leading-tight text-white md:text-5xl">
             {currentSlide.title}
@@ -169,7 +170,7 @@ function HeroCarousel({ banners, activeHero, setActiveHero }) {
             to={currentSlide.link || "/products"}
             className="mt-5 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-gray-950 shadow-sm transition hover:bg-gray-100"
           >
-            {currentSlide.ctaText || "Shop now"}
+            {currentSlide.ctaText || t("home.shopNow")}
             <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
@@ -179,7 +180,7 @@ function HeroCarousel({ banners, activeHero, setActiveHero }) {
         <>
           <button
             type="button"
-            aria-label="Previous banner"
+            aria-label={t("home.previousBanner")}
             onClick={() => setActiveHero((current) => (current - 1 + slides.length) % slides.length)}
             className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg bg-white/85 text-gray-900 shadow-sm transition hover:bg-white"
           >
@@ -187,7 +188,7 @@ function HeroCarousel({ banners, activeHero, setActiveHero }) {
           </button>
           <button
             type="button"
-            aria-label="Next banner"
+            aria-label={t("home.nextBanner")}
             onClick={() => setActiveHero((current) => (current + 1) % slides.length)}
             className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg bg-white/85 text-gray-900 shadow-sm transition hover:bg-white"
           >
@@ -198,7 +199,7 @@ function HeroCarousel({ banners, activeHero, setActiveHero }) {
               <button
                 key={slide.id || index}
                 type="button"
-                aria-label={`Go to banner ${index + 1}`}
+                aria-label={t("home.goToBanner", { number: index + 1 })}
                 onClick={() => setActiveHero(index)}
                 className={`h-2 rounded-full transition-all ${
                   index === activeHero % slides.length ? "w-7 bg-white" : "w-2 bg-white/55"
@@ -212,7 +213,7 @@ function HeroCarousel({ banners, activeHero, setActiveHero }) {
   );
 }
 
-function DailyCheckInCard({ dailyCheckIn, user, claiming, onClaim }) {
+function DailyCheckInCard({ dailyCheckIn, user, claiming, onClaim, t }) {
   if (!dailyCheckIn?.enabled) return null;
 
   return (
@@ -226,7 +227,7 @@ function DailyCheckInCard({ dailyCheckIn, user, claiming, onClaim }) {
             {dailyCheckIn.label || `Check in today for ${dailyCheckIn.points || 5} coins`}
           </p>
           <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-            Use coins later with loyalty rewards and checkout savings.
+            {t("home.dailyUseCoins")}
           </p>
         </div>
       </div>
@@ -237,7 +238,7 @@ function DailyCheckInCard({ dailyCheckIn, user, claiming, onClaim }) {
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gray-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-950"
         >
           <Gift className="h-4 w-4" />
-          Sign in to collect
+          {t("home.signInToCollect")}
         </Link>
       ) : (
         <button
@@ -247,14 +248,14 @@ function DailyCheckInCard({ dailyCheckIn, user, claiming, onClaim }) {
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
         >
           <Gift className="h-4 w-4" />
-          {claiming ? "Collecting..." : dailyCheckIn.canClaim ? "Collect coins" : "Collected today"}
+          {claiming ? t("home.collecting") : dailyCheckIn.canClaim ? t("home.collectCoins") : t("home.collectedToday")}
         </button>
       )}
     </div>
   );
 }
 
-function FlashSummary({ flashSales, now, formatPrice }) {
+function FlashSummary({ flashSales, now, formatPrice, t }) {
   const firstDeal = flashSales?.[0];
   if (!firstDeal) return null;
 
@@ -267,7 +268,7 @@ function FlashSummary({ flashSales, now, formatPrice }) {
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300">
             <Flame className="h-4 w-4" />
-            Flash sale live
+            {t("home.flashSaleLive")}
           </p>
           <p className="mt-2 line-clamp-2 text-base font-bold text-gray-950 dark:text-white">
             {firstDeal.title}
@@ -284,8 +285,8 @@ function FlashSummary({ flashSales, now, formatPrice }) {
         />
       </div>
       <div className="mt-3 flex items-center justify-between text-xs font-medium text-red-700 dark:text-red-300">
-        <span>{firstDeal.remainingStock} left</span>
-        <span>{formatDuration(firstDeal.endTime, now)}</span>
+        <span>{firstDeal.remainingStock} {t("home.left")}</span>
+        <span>{formatDuration(firstDeal.endTime, now, t)}</span>
       </div>
     </Link>
   );
@@ -334,7 +335,7 @@ function ProductGridSection({ title, subtitle, icon: Icon, products, loading, ac
   );
 }
 
-function FlashSaleStrip({ flashSales, now, formatPrice }) {
+function FlashSaleStrip({ flashSales, now, formatPrice, t }) {
   if (!flashSales?.length) return null;
 
   return (
@@ -344,14 +345,14 @@ function FlashSaleStrip({ flashSales, now, formatPrice }) {
           <div>
             <p className="inline-flex items-center gap-2 rounded-lg bg-red-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-700 dark:bg-red-900/40 dark:text-red-200">
               <Clock className="h-3.5 w-3.5" />
-              Live countdown
+              {t("home.liveCountdown")}
             </p>
             <h2 className="mt-2 text-2xl font-bold text-gray-950 dark:text-white">
-              Flash Sale
+              {t("home.flashSale")}
             </h2>
           </div>
           <Link to="/products?deal=flash" className="inline-flex items-center gap-2 text-sm font-semibold text-red-600">
-            See all
+            {t("common.seeAll")}
             <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
@@ -390,8 +391,8 @@ function FlashSaleStrip({ flashSales, now, formatPrice }) {
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-between text-xs font-medium text-gray-600 dark:text-gray-300">
-                  <span>{formatDuration(deal.endTime, now)}</span>
-                  <span>{deal.remainingStock} left</span>
+                  <span>{formatDuration(deal.endTime, now, t)}</span>
+                  <span>{deal.remainingStock} {t("home.left")}</span>
                 </div>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
                   <div className="h-full rounded-full bg-red-500" style={{ width: `${stockPercent}%` }} />
@@ -405,7 +406,7 @@ function FlashSaleStrip({ flashSales, now, formatPrice }) {
   );
 }
 
-function CuratedCollections({ collections }) {
+function CuratedCollections({ collections, t }) {
   if (!collections?.length) return null;
 
   return (
@@ -414,10 +415,10 @@ function CuratedCollections({ collections }) {
         <div className="mb-5">
           <p className="mb-2 inline-flex items-center gap-2 rounded-lg bg-sky-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-700 dark:bg-sky-900/40 dark:text-sky-200">
             <BadgePercent className="h-3.5 w-3.5" />
-            Admin curated
+            {t("home.collectionsLabel")}
           </p>
           <h2 className="text-2xl font-bold text-gray-950 dark:text-white md:text-3xl">
-            Collections For Bangladesh
+            {t("home.collectionsTitle")}
           </h2>
         </div>
 
@@ -457,7 +458,7 @@ function CuratedCollections({ collections }) {
                     ))}
                   </div>
                   <span className="inline-flex items-center gap-1 text-sm font-semibold text-white">
-                    Browse
+                    {t("common.browse")}
                     <ChevronRight className="h-4 w-4" />
                   </span>
                 </div>
@@ -470,7 +471,7 @@ function CuratedCollections({ collections }) {
   );
 }
 
-function FollowedVendorUpdates({ feed }) {
+function FollowedVendorUpdates({ feed, t }) {
   if (feed?.requiresLogin) {
     return (
       <section className="py-8 md:py-10">
@@ -480,17 +481,17 @@ function FollowedVendorUpdates({ feed }) {
               <div>
                 <p className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
                   <Store className="h-4 w-4" />
-                  Followed vendor updates
+                  {t("home.followedVendorUpdates")}
                 </p>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Sign in to see new products and announcements from shops you follow.
+                  {t("home.followedVendorLoginText")}
                 </p>
               </div>
               <Link
                 to="/login"
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-950 px-4 py-2 text-sm font-semibold text-white dark:bg-white dark:text-gray-950"
               >
-                Sign in
+                {t("common.signIn")}
                 <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
@@ -508,10 +509,10 @@ function FollowedVendorUpdates({ feed }) {
         <div className="mb-5">
           <p className="mb-2 inline-flex items-center gap-2 rounded-lg bg-violet-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
             <Store className="h-3.5 w-3.5" />
-            Shops you follow
+            {t("home.shopsYouFollow")}
           </p>
           <h2 className="text-2xl font-bold text-gray-950 dark:text-white md:text-3xl">
-            Vendor Updates
+            {t("home.vendorUpdates")}
           </h2>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -545,6 +546,7 @@ function FollowedVendorUpdates({ feed }) {
 }
 
 export default function Home() {
+  const { t } = useTranslation();
   const [discovery, setDiscovery] = useState(emptyDiscovery);
   const [loading, setLoading] = useState(true);
   const [activeHero, setActiveHero] = useState(0);
@@ -629,7 +631,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <CouponStrip coupons={discovery.promotionStrip} formatPrice={formatPrice} />
+      <CouponStrip coupons={discovery.promotionStrip} formatPrice={formatPrice} t={t} />
       <CategoryQuickAccess categories={discovery.categories} />
 
       <section className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
@@ -639,6 +641,7 @@ export default function Home() {
               banners={discovery.heroBanners}
               activeHero={activeHero}
               setActiveHero={setActiveHero}
+              t={t}
             />
           </div>
           <div className="space-y-4">
@@ -647,8 +650,9 @@ export default function Home() {
               user={user}
               claiming={claimingReward}
               onClaim={handleClaimReward}
+              t={t}
             />
-            <FlashSummary flashSales={discovery.flashSales} now={now} formatPrice={formatPrice} />
+            <FlashSummary flashSales={discovery.flashSales} now={now} formatPrice={formatPrice} t={t} />
             {discovery.trendingNow?.[0] ? (
               <Link
                 to={`/product/${discovery.trendingNow[0]._id}`}
@@ -656,7 +660,7 @@ export default function Home() {
               >
                 <p className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
                   <TrendingUp className="h-4 w-4" />
-                  Trending now
+                  {t("home.trendingNow")}
                 </p>
                 <div className="mt-3 flex gap-3">
                   <img
@@ -680,22 +684,24 @@ export default function Home() {
         </div>
       </section>
 
-      <FlashSaleStrip flashSales={discovery.flashSales} now={now} formatPrice={formatPrice} />
+      <FlashSaleStrip flashSales={discovery.flashSales} now={now} formatPrice={formatPrice} t={t} />
 
       <ProductGridSection
-        title="Just For You"
-        subtitle={discovery.meta?.personalized ? "Based on your activity" : "Marketplace picks"}
+        title={t("home.justForYou")}
+        subtitle={discovery.meta?.personalized ? t("home.basedOnActivity") : t("home.marketplacePicks")}
         icon={Sparkles}
         products={discovery.justForYou}
         loading={loading}
+        actionLabel={t("common.viewAll")}
       />
 
       <ProductGridSection
-        title="Trending Now"
-        subtitle="Top-selling and high-view products"
+        title={t("home.trendingNow")}
+        subtitle={t("home.trendingSubtitle")}
         icon={TrendingUp}
         products={discovery.trendingNow}
         loading={loading}
+        actionLabel={t("common.viewAll")}
       />
 
       <section className="bg-white py-8 dark:bg-gray-900 md:py-10">
@@ -704,10 +710,10 @@ export default function Home() {
             <div>
               <p className="mb-2 inline-flex items-center gap-2 rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
                 <Sparkles className="h-3.5 w-3.5" />
-                Listed in the last 7 days
+                {t("home.newArrivalsSubtitle")}
               </p>
               <h2 className="text-2xl font-bold text-gray-950 dark:text-white md:text-3xl">
-                New Arrivals
+                {t("home.newArrivals")}
               </h2>
             </div>
             <select
@@ -715,7 +721,7 @@ export default function Home() {
               onChange={(event) => setNewArrivalCategory(event.target.value)}
               className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 outline-none transition focus:border-primary-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             >
-              <option value="all">All categories</option>
+              <option value="all">{t("common.allCategories")}</option>
               {discovery.categories.map((category) => (
                 <option key={category._id} value={category._id}>
                   {category.name}
@@ -738,23 +744,23 @@ export default function Home() {
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-              No new arrivals found for this category yet.
+              {t("home.noNewArrivals")}
             </div>
           )}
         </div>
       </section>
 
-      <CuratedCollections collections={discovery.curatedCollections} />
-      <FollowedVendorUpdates feed={discovery.followedVendorUpdates} />
+      <CuratedCollections collections={discovery.curatedCollections} t={t} />
+      <FollowedVendorUpdates feed={discovery.followedVendorUpdates} t={t} />
 
       <ProductGridSection
-        title="Recently Viewed"
-        subtitle="Saved on this device and your account"
+        title={t("home.recentlyViewed")}
+        subtitle={t("home.recentlyViewedSubtitle")}
         icon={Clock}
         products={recentProducts}
         loading={false}
         actionTo="/products"
-        actionLabel="Keep browsing"
+        actionLabel={t("common.keepBrowsing")}
       />
     </div>
   );

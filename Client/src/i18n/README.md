@@ -1,69 +1,36 @@
-# Multi-Language System (i18n)
+# Dual-Language Workflow
 
-This application supports multiple languages using react-i18next.
+The client supports two marketplace languages:
 
-## Supported Languages
+- English (`en`)
+- Bangla (`bn`)
 
-- **English (en)** - Default language
-- **বাংলা (bn)** - Bengali/Bangla
-- **हिन्दी (hi)** - Hindi
+## How Selection Works
 
-## Features
+1. Guests use the language saved in `localStorage` under `amiyo_go_language`.
+2. Logged-in users load `account.appPreferences.language` from the backend.
+3. When a logged-in user changes language, the choice is saved back to account preferences.
+4. `document.documentElement.lang` and `data-language` are updated on every language change.
 
-- **Automatic Language Detection**: Detects browser language on first visit
-- **Persistent Language Selection**: Saves user's language preference in localStorage
-- **Dynamic Language Switching**: Switch languages without page reload
-- **Professional UI**: Modern language switcher with flags and smooth animations
+## Files
 
-## Usage
+```text
+src/i18n/i18n.js              # i18next setup
+src/i18n/languages.js         # supported language config
+src/i18n/locales/en.json      # English copy
+src/i18n/locales/bn.json      # Bangla copy
+src/components/LanguagePreferenceSync.jsx
+```
 
-### In Components
+## Component Usage
 
 ```jsx
 import { useTranslation } from "react-i18next";
 
-function MyComponent() {
+function Example() {
   const { t } = useTranslation();
-
-  return (
-    <div>
-      <h1>{t("navbar.home")}</h1>
-      <p>{t("common.loading")}</p>
-    </div>
-  );
+  return <h1>{t("navbar.home")}</h1>;
 }
 ```
 
-### Language Switcher
-
-The `LanguageSwitcher` component is already integrated into the navbar and provides:
-
-- Flag icons for each language
-- Current language indicator
-- Dropdown menu with smooth animations
-- Mobile-responsive design
-
-## Adding New Translations
-
-1. Add new keys to all language files in `src/i18n/locales/`
-2. Use the translation keys in your components with `t('key.path')`
-
-## File Structure
-
-```
-src/i18n/
-├── i18n.js              # i18n configuration
-├── locales/
-│   ├── en.json          # English translations
-│   ├── bn.json          # Bengali translations
-│   └── hi.json          # Hindi translations
-└── README.md            # This file
-```
-
-## Language Codes
-
-- `en` - English
-- `bn` - Bengali/Bangla
-- `hi` - Hindi
-
-The language preference is automatically saved and restored on subsequent visits.
+When adding UI text, add the same key to both locale files. Use the second argument to `t()` only as a temporary fallback while wiring a new screen.
