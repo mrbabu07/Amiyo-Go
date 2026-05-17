@@ -111,6 +111,142 @@ const countActiveDisputes = async (returnsCollection) =>
     ],
   });
 
+const normalizeStatus = (value) => String(value || "").trim().toLowerCase();
+
+const failedStatusQuery = {
+  $in: ["failed", "error", "partial_failed", "delivery_failed", "webhook_failed"],
+};
+
+const getEventDate = (doc = {}) =>
+  doc.failedAt ||
+  doc.completedAt ||
+  doc.sentAt ||
+  doc.updatedAt ||
+  doc.createdAt ||
+  doc.timestamp ||
+  null;
+
+const toOperationIssue = ({
+  type,
+  title,
+  detail,
+  status,
+  severity = "medium",
+  at,
+  owner = "Operations",
+  path = null,
+  meta = {},
+}) => ({
+  id: `${type}-${normalizeId(meta.id || title)}-${new Date(at || Date.now()).getTime()}`,
+  type,
+  title,
+  detail,
+  status: status || "needs_attention",
+  severity,
+  at,
+  owner,
+  path,
+  meta,
+});
+
+const summarizeOperationsHealth = (metrics = {}) => {
+  const critical =
+    Number(metrics.webhookFailures || 0) +
+    Number(metrics.auditServerErrors || 0) +
+    Number(metrics.failedBulkJobs || 0);
+  const warnings =
+    Number(metrics.failedNotifications || 0) +
+    Number(metrics.failedNewsletterRecipients || 0) +
+    Number(metrics.openSupportTickets || 0) +
+    Number(metrics.returnDisputes || 0);
+
+  const deduction = critical * 12 + warnings * 3;
+  const score = Math.max(0, Math.min(100, 100 - deduction));
+  const status = score >= 85 ? "healthy" : score >= 65 ? "watch" : "critical";
+
+  return {
+    score,
+    status,
+    critical,
+    warnings,
+    message:
+      status === "healthy"
+        ? "Core operations are within normal thresholds."
+        : status === "watch"
+          ? "Some queues need attention before they become customer-facing issues."
+          : "Multiple operational queues are unhealthy and need immediate review.",
+  };
+};
+
+const buildOperationsJobCards = ({
+  analyticsSummary,
+  scheduledNewsletterCount,
+  sendingNewsletterCount,
+  failedNewsletterCount,
+  failedBulkJobs,
+  processingBulkJobs,
+  failedNotifications,
+  failedPayments,
+}) => {
+  const analyticsUpdatedAt = analyticsSummary?.updatedAt || analyticsSummary?.createdAt || null;
+  const analyticsFresh =
+    analyticsUpdatedAt && Date.now() - new Date(analyticsUpdatedAt).getTime() <= 2 * 60 * 60 * 1000;
+
+  return [
+    {
+      key: "campaign_scheduler",
+      label: "Campaign Scheduler",
+      schedule: "0 * * * *, 0 */6 * * *, */10 * * * *",
+      status: failedNotifications > 0 ? "watch" : "running",
+      detail: failedNotifications > 0
+        ? `${failedNotifications} campaign/notification delivery issue${failedNotifications > 1 ? "s" : ""} in the last 24h.`
+        : "Campaign jobs are registered and no delivery failures were found in the window.",
+      lastSignalAt: null,
+      failures: failedNotifications,
+    },
+    {
+      key: "analytics_summary",
+      label: "Analytics Summary Cron",
+      schedule: "17 * * * *",
+      status: analyticsFresh ? "running" : "watch",
+      detail: analyticsFresh
+        ? "Latest analytics summary is fresh."
+        : "No analytics summary refreshed in the last 2 hours.",
+      lastSignalAt: analyticsUpdatedAt,
+      failures: analyticsFresh ? 0 : 1,
+    },
+    {
+      key: "newsletter_broadcast",
+      label: "Newsletter Broadcast Cron",
+      schedule: "* * * * *",
+      status: failedNewsletterCount > 0 ? "watch" : "running",
+      detail: `${scheduledNewsletterCount} scheduled, ${sendingNewsletterCount} sending, ${failedNewsletterCount} failed broadcasts.`,
+      lastSignalAt: null,
+      failures: failedNewsletterCount,
+    },
+    {
+      key: "bulk_upload_queue",
+      label: "Vendor Bulk Upload Queue",
+      schedule: "On demand",
+      status: failedBulkJobs > 0 ? "critical" : processingBulkJobs > 0 ? "running" : "idle",
+      detail: `${processingBulkJobs} processing, ${failedBulkJobs} failed jobs in the last 24h.`,
+      lastSignalAt: null,
+      failures: failedBulkJobs,
+    },
+    {
+      key: "payment_webhooks",
+      label: "Payment Webhooks",
+      schedule: "Real time",
+      status: failedPayments > 0 ? "critical" : "running",
+      detail: failedPayments > 0
+        ? `${failedPayments} failed payment/webhook event${failedPayments > 1 ? "s" : ""} in the last 24h.`
+        : "No failed payment webhook events in the window.",
+      lastSignalAt: null,
+      failures: failedPayments,
+    },
+  ];
+};
+
 const buildDateBuckets = (start, end) => {
   const buckets = [];
   for (let cursor = startOfDay(start); cursor < end; cursor = addDays(cursor, 1)) {
@@ -515,10 +651,256 @@ exports.getAdminDashboardOverview = async (req, res) => {
   }
 };
 
+exports.getAdminOperationsOverview = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const now = new Date();
+    const windowHours = Math.min(Math.max(parseInt(req.query.windowHours, 10) || 24, 1), 168);
+    const since = new Date(now.getTime() - windowHours * 60 * 60 * 1000);
+
+    const paymentsCollection = safeCollection(db, "payments");
+    const auditCollection = safeCollection(db, "audit_logs");
+    const notificationsCollection = safeCollection(db, "notifications");
+    const notificationDeliveriesCollection = safeCollection(db, "notification_deliveries");
+    const notificationBroadcastsCollection = safeCollection(db, "notification_broadcasts");
+    const newsletterBroadcastsCollection = safeCollection(db, "newsletterBroadcasts");
+    const newsletterRecipientsCollection = safeCollection(db, "newsletterBroadcastRecipients");
+    const bulkJobsCollection = safeCollection(db, "bulk_upload_jobs");
+    const supportTicketsCollection = safeCollection(db, "supportTickets");
+    const returnsCollection = safeCollection(db, "returns");
+    const analyticsSummaryCollection = safeCollection(db, "analytics_summaries");
+
+    const failedQuery = {
+      status: failedStatusQuery,
+      $or: [
+        { createdAt: { $gte: since } },
+        { updatedAt: { $gte: since } },
+        { failedAt: { $gte: since } },
+      ],
+    };
+
+    const webhookAuditQuery = {
+      action: { $regex: "webhook|payments", $options: "i" },
+      createdAt: { $gte: since },
+      "diff.statusCode": { $gte: 400 },
+    };
+
+    const [
+      failedPayments,
+      webhookAuditFailures,
+      notificationDeliveries,
+      failedNotificationDeliveries,
+      notificationBroadcasts,
+      newsletterBroadcasts,
+      failedNewsletterRecipients,
+      bulkJobs,
+      openSupportTickets,
+      returnDisputes,
+      auditServerErrors,
+      recentAuditLogs,
+      recentNotifications,
+      latestAnalyticsSummary,
+    ] = await Promise.all([
+      safeFind(paymentsCollection, failedQuery, { sort: { failedAt: -1, updatedAt: -1, createdAt: -1 }, limit: 20 }),
+      safeFind(auditCollection, webhookAuditQuery, { sort: { createdAt: -1 }, limit: 20 }),
+      safeFind(notificationDeliveriesCollection, { createdAt: { $gte: since } }, { sort: { createdAt: -1 }, limit: 2000 }),
+      safeFind(notificationDeliveriesCollection, failedQuery, { sort: { failedAt: -1, updatedAt: -1, createdAt: -1 }, limit: 20 }),
+      safeFind(notificationBroadcastsCollection, { createdAt: { $gte: since } }, { sort: { createdAt: -1 }, limit: 200 }),
+      safeFind(newsletterBroadcastsCollection, { createdAt: { $gte: since } }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 200 }),
+      safeFind(newsletterRecipientsCollection, failedQuery, { sort: { failedAt: -1, updatedAt: -1, createdAt: -1 }, limit: 20 }),
+      safeFind(bulkJobsCollection, { createdAt: { $gte: since } }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 200 }),
+      safeFind(supportTicketsCollection, { status: { $in: ["open", "in_progress"] } }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 20 }),
+      safeFind(returnsCollection, {
+        $or: [
+          { vendorResponse: "disputed" },
+          { status: { $in: ["disputed", "under_review"] } },
+        ],
+      }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 20 }),
+      safeFind(auditCollection, { createdAt: { $gte: since }, "diff.statusCode": { $gte: 500 } }, { sort: { createdAt: -1 }, limit: 20 }),
+      safeFind(auditCollection, {}, { sort: { createdAt: -1 }, limit: 30 }),
+      safeFind(notificationsCollection, { createdAt: { $gte: since } }, { sort: { createdAt: -1 }, limit: 30 }),
+      safeFind(analyticsSummaryCollection, {}, { sort: { updatedAt: -1, createdAt: -1 }, limit: 1 }),
+    ]);
+
+    const failedNewsletterBroadcasts = newsletterBroadcasts.filter((broadcast) =>
+      ["failed", "partial_failed"].includes(normalizeStatus(broadcast.status)),
+    );
+    const scheduledNewsletterCount = newsletterBroadcasts.filter((broadcast) =>
+      normalizeStatus(broadcast.status) === "scheduled",
+    ).length;
+    const sendingNewsletterCount = newsletterBroadcasts.filter((broadcast) =>
+      normalizeStatus(broadcast.status) === "sending",
+    ).length;
+    const failedBulkJobs = bulkJobs.filter((job) =>
+      ["failed", "error"].includes(normalizeStatus(job.status)),
+    );
+    const processingBulkJobs = bulkJobs.filter((job) =>
+      ["queued", "processing", "running", "pending"].includes(normalizeStatus(job.status)),
+    );
+
+    const metrics = {
+      failedPayments: failedPayments.length,
+      webhookFailures: Math.max(webhookAuditFailures.length, failedPayments.length),
+      failedNotifications: failedNotificationDeliveries.length,
+      failedNewsletterBroadcasts: failedNewsletterBroadcasts.length,
+      failedNewsletterRecipients: failedNewsletterRecipients.length,
+      failedBulkJobs: failedBulkJobs.length,
+      processingBulkJobs: processingBulkJobs.length,
+      openSupportTickets: openSupportTickets.length,
+      returnDisputes: returnDisputes.length,
+      auditServerErrors: auditServerErrors.length,
+    };
+
+    const issues = [
+      ...failedPayments.map((payment) => toOperationIssue({
+        type: "payment",
+        title: `Payment failed ${normalizeId(payment._id).slice(-6)}`,
+        detail: payment.error || payment.failureReason || payment.gatewayMessage || payment.paymentMethod || "Payment failure recorded.",
+        status: payment.status,
+        severity: "critical",
+        at: getEventDate(payment),
+        owner: "Finance",
+        path: "/admin/payment-verifications",
+        meta: { id: payment._id, amount: payment.amount, method: payment.paymentMethod || payment.gateway },
+      })),
+      ...webhookAuditFailures.map((log) => toOperationIssue({
+        type: "webhook",
+        title: "Webhook/API failure",
+        detail: log.target?.path || log.action || "Payment webhook returned an error status.",
+        status: log.diff?.statusCode ? String(log.diff.statusCode) : "failed",
+        severity: Number(log.diff?.statusCode || 0) >= 500 ? "critical" : "medium",
+        at: log.createdAt,
+        owner: "Engineering",
+        path: "/admin/operations",
+        meta: { id: log._id, action: log.action },
+      })),
+      ...failedNotificationDeliveries.map((delivery) => toOperationIssue({
+        type: "notification",
+        title: `Notification failed ${normalizeId(delivery._id).slice(-6)}`,
+        detail: delivery.error || delivery.reason || delivery.channel || "Notification delivery failed.",
+        status: delivery.status,
+        severity: "medium",
+        at: getEventDate(delivery),
+        owner: "Comms",
+        path: "/admin/platform",
+        meta: { id: delivery._id, channel: delivery.channel, userId: delivery.userId },
+      })),
+      ...failedNewsletterRecipients.map((recipient) => toOperationIssue({
+        type: "newsletter",
+        title: `Newsletter recipient failed ${recipient.email || normalizeId(recipient._id).slice(-6)}`,
+        detail: recipient.error || "Newsletter recipient delivery failed.",
+        status: recipient.status,
+        severity: "medium",
+        at: getEventDate(recipient),
+        owner: "Marketing",
+        path: "/admin/newsletter",
+        meta: { id: recipient._id, email: recipient.email },
+      })),
+      ...failedBulkJobs.map((job) => toOperationIssue({
+        type: "bulk_upload",
+        title: `Bulk upload failed ${normalizeId(job._id).slice(-6)}`,
+        detail: job.error || job.errorMessage || job.reportSummary || "Vendor product bulk upload failed.",
+        status: job.status,
+        severity: "critical",
+        at: getEventDate(job),
+        owner: "Catalog",
+        path: "/admin/products",
+        meta: { id: job._id, vendorId: job.vendorId, rows: job.totalRows },
+      })),
+      ...auditServerErrors.map((log) => toOperationIssue({
+        type: "server_error",
+        title: `API ${log.diff?.statusCode || 500} error`,
+        detail: log.target?.path || log.action || "Sensitive operation returned a server error.",
+        status: String(log.diff?.statusCode || 500),
+        severity: "critical",
+        at: log.createdAt,
+        owner: "Engineering",
+        path: "/admin/operations",
+        meta: { id: log._id, actor: log.actor?.email },
+      })),
+      ...openSupportTickets.slice(0, 8).map((ticket) => toOperationIssue({
+        type: "support",
+        title: ticket.subject || ticket.ticketId || "Open support ticket",
+        detail: ticket.customerInfo?.email || ticket.category || "Customer support is waiting.",
+        status: ticket.status,
+        severity: ticket.priority === "urgent" ? "critical" : ticket.priority === "high" ? "medium" : "low",
+        at: ticket.updatedAt || ticket.createdAt,
+        owner: "Support",
+        path: "/admin/support",
+        meta: { id: ticket._id, ticketId: ticket.ticketId, priority: ticket.priority },
+      })),
+      ...returnDisputes.slice(0, 8).map((returnDoc) => toOperationIssue({
+        type: "return_dispute",
+        title: returnDoc.productTitle || `Return ${normalizeId(returnDoc._id).slice(-6)}`,
+        detail: returnDoc.disputeReason || returnDoc.vendorResponseNotes || returnDoc.reason || "Return dispute requires admin arbitration.",
+        status: returnDoc.status || returnDoc.vendorResponse,
+        severity: "medium",
+        at: returnDoc.updatedAt || returnDoc.createdAt,
+        owner: "Trust & Safety",
+        path: "/admin/returns",
+        meta: { id: returnDoc._id, orderId: returnDoc.orderId, refundAmount: returnDoc.refundAmount },
+      })),
+    ]
+      .filter((issue) => issue.at)
+      .sort((a, b) => new Date(b.at) - new Date(a.at))
+      .slice(0, 40);
+
+    const operationsHealth = summarizeOperationsHealth(metrics);
+
+    res.json({
+      success: true,
+      data: {
+        updatedAt: now,
+        windowHours,
+        since,
+        health: operationsHealth,
+        metrics,
+        jobMonitors: buildOperationsJobCards({
+          analyticsSummary: latestAnalyticsSummary[0],
+          scheduledNewsletterCount,
+          sendingNewsletterCount,
+          failedNewsletterCount: failedNewsletterBroadcasts.length,
+          failedNewsletterRecipients: failedNewsletterRecipients.length,
+          failedBulkJobs: failedBulkJobs.length,
+          processingBulkJobs: processingBulkJobs.length,
+          failedNotifications: failedNotificationDeliveries.length,
+          failedPayments: metrics.webhookFailures,
+        }),
+        notificationHealth: {
+          deliveriesInWindow: notificationDeliveries.length,
+          failedDeliveries: failedNotificationDeliveries.length,
+          recentNotifications: recentNotifications.slice(0, 12),
+          broadcasts: {
+            total: notificationBroadcasts.length,
+            queued: notificationBroadcasts.filter((broadcast) => normalizeStatus(broadcast.status) === "queued").length,
+            sent: notificationBroadcasts.filter((broadcast) => normalizeStatus(broadcast.status) === "sent").length,
+            failed: notificationBroadcasts.filter((broadcast) => ["failed", "partial_failed"].includes(normalizeStatus(broadcast.status))).length,
+          },
+          newsletter: {
+            total: newsletterBroadcasts.length,
+            scheduled: scheduledNewsletterCount,
+            sending: sendingNewsletterCount,
+            failedBroadcasts: failedNewsletterBroadcasts.length,
+            failedRecipients: failedNewsletterRecipients.length,
+          },
+        },
+        issueQueues: issues,
+        recentAuditLogs: recentAuditLogs.slice(0, 20),
+      },
+    });
+  } catch (error) {
+    console.error("Error loading admin operations overview:", error);
+    res.status(500).json({ success: false, error: "Failed to load admin operations overview" });
+  }
+};
+
 exports._private = {
   buildFunnel,
+  buildOperationsJobCards,
   buildRevenueSeries,
   buildTopProducts,
   buildTopVendors,
   resolveDateRange,
+  summarizeOperationsHealth,
+  toOperationIssue,
 };

@@ -5,5 +5,6 @@ const adminDashboardController = require("../controllers/adminDashboardControlle
 const router = express.Router();
 
 router.get("/overview", verifyToken, verifyAdmin, adminDashboardController.getAdminDashboardOverview);
+router.get("/operations", verifyToken, verifyAdmin, adminDashboardController.getAdminOperationsOverview);
 
 module.exports = router;
