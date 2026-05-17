@@ -6,11 +6,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  CreditCard,
   Flame,
+  ShieldCheck,
   Sparkles,
   Store,
   Tag,
   TrendingUp,
+  Truck,
 } from "lucide-react";
 import { getHomepageDiscovery } from "../services/api";
 import ProductCard from "../components/ProductCard";
@@ -50,6 +53,20 @@ const formatDuration = (targetDate, now, t) => {
 
 const sectionProducts = (products = [], count = 8) => products.slice(0, count);
 
+const getCountdownSegments = (targetDate, now) => {
+  const end = targetDate ? new Date(targetDate).getTime() : 0;
+  const remaining = Math.max(0, end - now);
+  const hours = Math.floor(remaining / (60 * 60 * 1000));
+  const minutes = Math.floor((remaining / (60 * 1000)) % 60);
+  const seconds = Math.floor((remaining / 1000) % 60);
+
+  return [
+    { label: "H", value: String(hours).padStart(2, "0") },
+    { label: "M", value: String(minutes).padStart(2, "0") },
+    { label: "S", value: String(seconds).padStart(2, "0") },
+  ];
+};
+
 function CouponStrip({ coupons, formatPrice, t }) {
   if (!coupons?.length) return null;
 
@@ -76,12 +93,68 @@ function CouponStrip({ coupons, formatPrice, t }) {
   );
 }
 
+function MarketplacePromiseStrip({ t }) {
+  const promises = [
+    {
+      title: t("home.bestPrices"),
+      text: t("home.bestPricesText"),
+      Icon: BadgePercent,
+    },
+    {
+      title: t("home.authenticProducts"),
+      text: t("home.authenticProductsText"),
+      Icon: ShieldCheck,
+    },
+    {
+      title: t("home.securePayment"),
+      text: t("home.securePaymentText"),
+      Icon: CreditCard,
+    },
+    {
+      title: t("home.fastDelivery"),
+      text: t("home.fastDeliveryText"),
+      Icon: Truck,
+    },
+  ];
+
+  return (
+    <section className="-mt-4 pb-4 md:-mt-5">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid gap-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:grid-cols-2 lg:grid-cols-4">
+          {promises.map((item) => {
+            const PromiseIcon = item.Icon;
+
+            return (
+              <div
+                key={item.title}
+                className="group flex items-center gap-3 rounded-lg px-3 py-3 transition hover:bg-primary-50 dark:hover:bg-gray-800"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 ring-1 ring-primary-100 transition group-hover:scale-105 dark:bg-primary-950/40 dark:text-primary-200 dark:ring-primary-900/60">
+                  <PromiseIcon className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-extrabold text-gray-950 dark:text-white">
+                    {item.title}
+                  </span>
+                  <span className="line-clamp-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {item.text}
+                  </span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function TopCategorySection({ categories, t }) {
   if (!categories?.length) return null;
   const visibleCategories = categories.slice(0, 14);
 
   return (
-    <section className="sticky top-20 z-30 border-b border-gray-200 bg-gray-50/95 py-2 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 lg:top-32">
+    <section className="sticky top-20 z-30 border-b border-gray-200 bg-slate-50/95 py-2 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 lg:top-32">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-2 flex items-center justify-between gap-3">
@@ -113,7 +186,7 @@ function TopCategorySection({ categories, t }) {
                 <Link
                   key={category._id}
                   to={`/category/${category.slug || category._id}`}
-                  className="group flex min-h-[6rem] w-24 shrink-0 snap-start flex-col items-center gap-2 rounded-lg border border-gray-100 bg-white p-2 text-center transition hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-900/70 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900 lg:w-20 xl:w-[5.75rem]"
+                  className="group flex min-h-[6rem] w-24 shrink-0 snap-start flex-col items-center gap-2 rounded-lg border border-gray-100 bg-white p-2 text-center transition duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-900/70 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900 lg:w-20 xl:w-[5.75rem]"
                 >
                   <span className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg ring-1 transition group-hover:scale-105 group-hover:bg-white group-hover:text-orange-700 dark:group-hover:bg-gray-900 dark:group-hover:text-orange-200 ${theme}`}>
                     {imageSource ? (
@@ -158,20 +231,22 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
   const currentSlide = slides[activeHero % slides.length];
 
   return (
-    <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-gray-900 shadow-sm sm:aspect-[16/7] lg:aspect-[16/5]">
+    <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-white/70 bg-gray-900 shadow-medium dark:border-gray-800 sm:aspect-[16/7] lg:aspect-[16/5]">
       {slides.map((slide, index) => (
         <div
           key={slide.id || index}
-          className={`absolute inset-0 transition-opacity duration-700 ${
-            index === activeHero % slides.length ? "opacity-100" : "opacity-0"
+          className={`absolute inset-0 transition-all duration-700 ease-out ${
+            index === activeHero % slides.length ? "scale-100 opacity-100" : "scale-[1.02] opacity-0"
           }`}
         >
           <img
             src={slide.imageUrl || fallbackHeroImage}
             alt=""
-            className="h-full w-full object-cover"
+            className={`h-full w-full object-cover transition-transform duration-[7000ms] ${
+              index === activeHero % slides.length ? "scale-105" : "scale-100"
+            }`}
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-gray-950/80 via-gray-950/35 to-gray-950/10" />
+          <div className="absolute inset-0 bg-gradient-to-r from-gray-950/85 via-gray-950/40 to-gray-950/5" />
         </div>
       ))}
 
@@ -191,7 +266,7 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
           ) : null}
           <Link
             to={currentSlide.link || "/products"}
-            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-gray-950 shadow-sm transition hover:bg-orange-50"
+            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-200"
           >
             {currentSlide.ctaText || t("home.shopNow")}
             <ChevronRight className="h-4 w-4" />
@@ -240,6 +315,9 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
               />
             ))}
           </div>
+          <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
+            <div key={activeHero} className="h-full w-full origin-left bg-primary-400 animate-home-hero-progress" />
+          </div>
         </>
       ) : null}
     </div>
@@ -266,7 +344,7 @@ function ProductGridSection({
   };
 
   return (
-    <section className="py-8">
+    <section className="py-8 md:py-10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
@@ -308,27 +386,46 @@ function ProductGridSection({
 function FlashSaleStrip({ flashSales, now, formatPrice, t }) {
   if (!flashSales?.length) return null;
   const headlineDeal = flashSales[0];
+  const countdownSegments = getCountdownSegments(headlineDeal.endTime, now);
 
   return (
     <section className="border-y border-red-200 bg-red-50 py-8 dark:border-red-900/60 dark:bg-red-950/20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-4 flex flex-col gap-3 rounded-lg bg-gradient-to-r from-red-600 via-orange-500 to-amber-400 p-4 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="inline-flex items-center gap-2 rounded-lg bg-white/20 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
-              <Clock className="h-3.5 w-3.5" />
-              {t("home.liveCountdown")}
-            </p>
-            <h2 className="mt-2 text-2xl font-extrabold text-white">
-              {t("home.flashSale")}
-            </h2>
-          </div>
+        <div className="mb-4 flex flex-col gap-4 rounded-xl border border-red-100 bg-white p-4 shadow-sm dark:border-red-900/60 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-white px-3 py-2 text-sm font-extrabold text-red-600 shadow-sm">
-              {formatDuration(headlineDeal.endTime, now, t)}
+            <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
+              <Flame className="h-6 w-6 animate-pulse" aria-hidden="true" />
+              <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-amber-400 ring-2 ring-white dark:ring-gray-900" />
+            </span>
+            <div>
+              <p className="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-red-700 dark:bg-red-950/50 dark:text-red-200">
+                <Clock className="h-3.5 w-3.5" />
+                {t("home.liveCountdown")}
+              </p>
+              <h2 className="mt-1 text-xl font-extrabold text-gray-950 dark:text-white md:text-2xl">
+                {t("home.flashSale")}
+              </h2>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              {countdownSegments.map((segment, index) => (
+                <span key={segment.label} className="flex items-center gap-1.5">
+                  <span className="flex h-11 min-w-11 flex-col items-center justify-center rounded-lg bg-gray-950 px-2 text-white shadow-sm dark:bg-white dark:text-gray-950">
+                    <span className="text-sm font-extrabold leading-none">{segment.value}</span>
+                    <span className="mt-0.5 text-[10px] font-bold uppercase leading-none text-white/60 dark:text-gray-500">
+                      {segment.label}
+                    </span>
+                  </span>
+                  {index < countdownSegments.length - 1 ? (
+                    <span className="text-base font-extrabold text-red-500">:</span>
+                  ) : null}
+                </span>
+              ))}
             </div>
             <Link
               to="/products?deal=flash"
-              className="inline-flex items-center gap-2 rounded-lg bg-gray-950 px-3 py-2 text-sm font-bold text-white transition hover:bg-gray-800"
+              className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary-500 px-4 text-sm font-bold text-white transition hover:bg-primary-600"
             >
               {t("common.seeAll")}
               <ChevronRight className="h-4 w-4" />
@@ -336,7 +433,7 @@ function FlashSaleStrip({ flashSales, now, formatPrice, t }) {
           </div>
         </div>
 
-        <div className="flex gap-3 overflow-x-auto pb-1">
+        <div className="flex snap-x gap-3 overflow-x-auto pb-1 scrollbar-hide">
           {flashSales.map((deal) => {
             const remainingStock = deal.remainingStock ?? deal.stock ?? 0;
             const totalStock = deal.totalStock ?? deal.stockLimit ?? 0;
@@ -352,7 +449,7 @@ function FlashSaleStrip({ flashSales, now, formatPrice, t }) {
               <Link
                 key={deal._id || deal.productId}
                 to={deal.productId ? `/product/${deal.productId}` : "/products"}
-                className="group w-44 shrink-0 overflow-hidden rounded-lg border border-red-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-red-300 hover:shadow-md dark:border-red-900/60 dark:bg-gray-900 sm:w-52"
+                className="group w-44 shrink-0 snap-start overflow-hidden rounded-lg border border-red-100 bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:border-red-300 hover:shadow-md dark:border-red-900/60 dark:bg-gray-900 sm:w-52"
               >
                 <div className="relative aspect-square bg-gray-50 dark:bg-gray-800">
                   <img
@@ -389,7 +486,7 @@ function FlashSaleStrip({ flashSales, now, formatPrice, t }) {
                     <span>{remainingStock} {t("home.left")}</span>
                   </div>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
-                    <div className="h-full rounded-full bg-red-500" style={{ width: `${stockPercent}%` }} />
+                    <div className="h-full rounded-full bg-red-500 transition-all duration-500" style={{ width: `${stockPercent}%` }} />
                   </div>
                 </div>
               </Link>
@@ -600,7 +697,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
-      <section className="bg-white py-8 dark:bg-gray-900">
+      <section className="bg-slate-100/80 pb-9 pt-4 dark:bg-gray-950 md:pb-10 md:pt-6">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <HeroCarousel
             banners={discovery.heroBanners}
@@ -610,6 +707,7 @@ export default function Home() {
           />
         </div>
       </section>
+      <MarketplacePromiseStrip t={t} />
 
       <FlashSaleStrip flashSales={discovery.flashSales} now={now} formatPrice={formatPrice} t={t} />
       <TopCategorySection categories={discovery.categories} t={t} />

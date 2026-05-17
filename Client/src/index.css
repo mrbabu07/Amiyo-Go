@@ -409,6 +409,19 @@
   animation: loading-bar 2s ease-in-out infinite;
 }
 
+@keyframes home-hero-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.animate-home-hero-progress {
+  animation: home-hero-progress 7s linear both;
+}
+
 @keyframes skeleton-shimmer {
   100% {
     transform: translateX(100%);
