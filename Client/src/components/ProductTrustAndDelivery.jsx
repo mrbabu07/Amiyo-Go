@@ -19,7 +19,7 @@ export default function ProductTrustAndDelivery({ product, stockStatus }) {
       ];
 
   return (
-    <div className="space-y-4 border-t border-gray-200 pt-6 dark:border-gray-700">
+    <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
       {delivery && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
           <div className="flex items-start gap-3">

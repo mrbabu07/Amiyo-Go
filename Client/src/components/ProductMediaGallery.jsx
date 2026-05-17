@@ -124,9 +124,9 @@ export default function ProductMediaGallery({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
       <div
-        className="relative aspect-square overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-800 group"
+        className="group relative aspect-square overflow-hidden rounded-xl bg-gray-50 dark:bg-gray-950"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -150,7 +150,7 @@ export default function ProductMediaGallery({
               src={activeMedia?.url || fallbackImage}
               alt={activeMedia?.title || product?.title || "Product image"}
               style={{ objectPosition: getImageFocus(activeMedia?.url) }}
-              className={`h-full w-full cursor-zoom-in object-cover transition-opacity duration-300 ${
+              className={`h-full w-full cursor-zoom-in object-contain p-2 transition-opacity duration-300 ${
                 imageLoaded ? "opacity-100" : "opacity-0"
               }`}
               onLoad={() => setImageLoaded(true)}
@@ -165,7 +165,7 @@ export default function ProductMediaGallery({
               type="button"
               aria-label="Previous media"
               onClick={() => selectIndex(activeIndex - 1)}
-              className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-800 shadow-sm transition hover:bg-white"
+              className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-gray-800 shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:bg-gray-900/90 dark:text-gray-100"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
@@ -173,7 +173,7 @@ export default function ProductMediaGallery({
               type="button"
               aria-label="Next media"
               onClick={() => selectIndex(activeIndex + 1)}
-              className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-800 shadow-sm transition hover:bg-white"
+              className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-gray-800 shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:bg-gray-900/90 dark:text-gray-100"
             >
               <ChevronRight className="h-5 w-5" />
             </button>
@@ -185,20 +185,20 @@ export default function ProductMediaGallery({
             type="button"
             aria-label="Zoom product image"
             onClick={() => setShowModal(true)}
-            className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100"
+            className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white opacity-100 transition hover:bg-black/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 md:opacity-0 md:group-hover:opacity-100"
           >
             <Maximize2 className="h-5 w-5" />
           </button>
         )}
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
         {media.map((item, index) => (
           <button
             key={`${item.type}-${item.url}-${index}`}
             type="button"
             onClick={() => selectIndex(index)}
-            className={`relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border-2 transition ${
+            className={`relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border-2 bg-gray-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:bg-gray-950 ${
               activeIndex === index
                 ? "border-primary-500 shadow-sm"
                 : "border-gray-200 hover:border-gray-300 dark:border-gray-700"
@@ -216,7 +216,7 @@ export default function ProductMediaGallery({
                 src={item.url}
                 alt={item.title}
                 style={{ objectPosition: getImageFocus(item.url) }}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain p-1"
               />
             )}
           </button>
