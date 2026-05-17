@@ -13,9 +13,9 @@ import {
   Megaphone,
   Menu,
   Package,
-  Settings,
   ShoppingBag,
   Store,
+  Truck,
   Users,
   X,
 } from 'lucide-react';
@@ -58,6 +58,7 @@ const navigation = [
     children: [
       { name: 'All Orders', path: '/admin/orders', exact: true, alertKey: 'orders' },
       { name: 'Returns', path: '/admin/returns', exact: true, alertKey: 'returns' },
+      { name: 'Logistics', path: '/admin/logistics', exact: true },
       { name: 'Support Tickets', path: '/admin/support', exact: true, alertKey: 'support' },
     ],
   },
@@ -93,7 +94,7 @@ const navigation = [
   },
   {
     name: 'Delivery Settings',
-    icon: Settings,
+    icon: Truck,
     path: '/admin/delivery-settings',
     exact: true,
   },

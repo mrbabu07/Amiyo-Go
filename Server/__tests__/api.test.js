@@ -229,6 +229,54 @@ jest.mock("../controllers/adminPromotionController", () => ({
   getPromotionAuditLog: (req, res) => res.json({ route: "admin-promotions:audit-log" }),
 }));
 
+jest.mock("../controllers/adminLogisticsController", () => ({
+  getLogisticsOverview: (req, res) => res.json({ route: "admin-logistics:overview" }),
+  listDeliveryZones: (req, res) => res.json({ route: "admin-logistics:zones" }),
+  upsertDeliveryZone: (req, res) =>
+    res.status(req.params.zoneId ? 200 : 201).json({
+      route: "admin-logistics:save-zone",
+      zoneId: req.params.zoneId || null,
+      name: req.body.name,
+    }),
+  listCourierPartners: (req, res) => res.json({ route: "admin-logistics:couriers" }),
+  upsertCourierPartner: (req, res) =>
+    res.status(req.params.courierId ? 200 : 201).json({
+      route: "admin-logistics:save-courier",
+      courierId: req.params.courierId || null,
+      name: req.body.name,
+    }),
+  getDispatchManifest: (req, res) =>
+    res.json({ route: "admin-logistics:manifest", date: req.query.date || null }),
+  downloadDispatchManifestCsv: (req, res) => {
+    res.set("Content-Type", "text/csv");
+    res.send("Courier,Order ID\nPathao,order-1");
+  },
+  listPickupStaff: (req, res) => res.json({ route: "admin-logistics:pickup-staff" }),
+  upsertPickupStaff: (req, res) =>
+    res.status(req.params.staffId ? 200 : 201).json({
+      route: "admin-logistics:save-pickup-staff",
+      staffId: req.params.staffId || null,
+      name: req.body.name,
+    }),
+  listDeliveryFeeRules: (req, res) => res.json({ route: "admin-logistics:fee-rules" }),
+  upsertDeliveryFeeRule: (req, res) =>
+    res.status(req.params.ruleId ? 200 : 201).json({
+      route: "admin-logistics:save-fee-rule",
+      ruleId: req.params.ruleId || null,
+      ruleType: req.body.ruleType,
+    }),
+  getCodFloatTracker: (req, res) => res.json({ route: "admin-logistics:cod-float" }),
+  recordCodRemittance: (req, res) =>
+    res.status(201).json({ route: "admin-logistics:record-cod-remittance", courierName: req.body.courierName }),
+  listFailedDeliveries: (req, res) =>
+    res.json({ route: "admin-logistics:failed-deliveries", status: req.query.status || "all" }),
+  scheduleFailedDeliveryReattempt: (req, res) =>
+    res.json({ route: "admin-logistics:schedule-reattempt", orderId: req.params.orderId }),
+  returnFailedDeliveryToSeller: (req, res) =>
+    res.json({ route: "admin-logistics:return-to-seller", orderId: req.params.orderId }),
+  getLogisticsAuditLog: (req, res) => res.json({ route: "admin-logistics:audit-log" }),
+}));
+
 jest.mock("../controllers/adminVendorManagementController", () => ({
   getVendorManagementProfile: (req, res) =>
     res.json({ route: "admin-vendors:management", id: req.params.vendorId }),
@@ -322,6 +370,7 @@ const buildApp = () => {
   app.use("/api/admin/payouts", require("../routes/adminPayoutRoutes"));
   app.use("/api/admin/finance", require("../routes/adminFinanceRoutes"));
   app.use("/api/admin/promotions", require("../routes/adminPromotionRoutes"));
+  app.use("/api/admin/logistics", require("../routes/adminLogisticsRoutes"));
   app.use("/api/admin/vendors", require("../routes/adminVendorRoutes"));
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
   return app;
@@ -813,6 +862,155 @@ describe("Black-box API tests", () => {
     test("GET /api/admin/promotions/overview rejects vendor access", async () => {
       const response = await request(app)
         .get("/api/admin/promotions/overview")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "Admin access required" });
+    });
+  });
+
+  describe("admin logistics API behavior", () => {
+    test("GET /api/admin/logistics/overview uses the logistics command route", async () => {
+      const response = await request(app)
+        .get("/api/admin/logistics/overview")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-logistics:overview" });
+    });
+
+    test("POST /api/admin/logistics/delivery-zones creates a delivery zone", async () => {
+      const response = await request(app)
+        .post("/api/admin/logistics/delivery-zones")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ name: "Dhaka", codAvailable: true });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        route: "admin-logistics:save-zone",
+        zoneId: null,
+        name: "Dhaka",
+      });
+    });
+
+    test("POST /api/admin/logistics/courier-partners creates a courier partner", async () => {
+      const response = await request(app)
+        .post("/api/admin/logistics/courier-partners")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ name: "Pathao", baseDeliveryCost: 80 });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        route: "admin-logistics:save-courier",
+        courierId: null,
+        name: "Pathao",
+      });
+    });
+
+    test("GET /api/admin/logistics/dispatch-manifest returns daily manifest route", async () => {
+      const response = await request(app)
+        .get("/api/admin/logistics/dispatch-manifest?date=2026-05-17")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-logistics:manifest", date: "2026-05-17" });
+    });
+
+    test("GET /api/admin/logistics/dispatch-manifest/export downloads manifest CSV", async () => {
+      const response = await request(app)
+        .get("/api/admin/logistics/dispatch-manifest/export?date=2026-05-17")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["content-type"]).toContain("text/csv");
+      expect(response.text).toContain("Courier,Order ID");
+    });
+
+    test("POST /api/admin/logistics/pickup-staff creates pickup staff", async () => {
+      const response = await request(app)
+        .post("/api/admin/logistics/pickup-staff")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ name: "Jamal", phone: "01700000000" });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        route: "admin-logistics:save-pickup-staff",
+        staffId: null,
+        name: "Jamal",
+      });
+    });
+
+    test("POST /api/admin/logistics/fee-rules creates a delivery fee rule", async () => {
+      const response = await request(app)
+        .post("/api/admin/logistics/fee-rules")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ name: "Dhaka zone", ruleType: "zone_rate" });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        route: "admin-logistics:save-fee-rule",
+        ruleId: null,
+        ruleType: "zone_rate",
+      });
+    });
+
+    test("GET /api/admin/logistics/cod-float uses COD float tracker", async () => {
+      const response = await request(app)
+        .get("/api/admin/logistics/cod-float")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-logistics:cod-float" });
+    });
+
+    test("POST /api/admin/logistics/cod-remittances records courier remittance", async () => {
+      const response = await request(app)
+        .post("/api/admin/logistics/cod-remittances")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ courierName: "Paperfly", remittedAmount: 1000 });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        route: "admin-logistics:record-cod-remittance",
+        courierName: "Paperfly",
+      });
+    });
+
+    test("POST /api/admin/logistics/failed-deliveries/:orderId/reattempt schedules re-attempt", async () => {
+      const response = await request(app)
+        .post("/api/admin/logistics/failed-deliveries/order-1/reattempt")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ nextAttemptAt: "2026-05-18T10:00:00.000Z" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-logistics:schedule-reattempt", orderId: "order-1" });
+    });
+
+    test("POST /api/admin/logistics/failed-deliveries/:orderId/return-to-seller starts RTS", async () => {
+      const response = await request(app)
+        .post("/api/admin/logistics/failed-deliveries/order-1/return-to-seller")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ returnReason: "Customer refused" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-logistics:return-to-seller", orderId: "order-1" });
+    });
+
+    test("GET /api/admin/logistics/overview rejects vendor access", async () => {
+      const response = await request(app)
+        .get("/api/admin/logistics/overview")
         .set("Authorization", "Bearer test")
         .set("x-test-role", "vendor");
 

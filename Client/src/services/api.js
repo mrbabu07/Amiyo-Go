@@ -422,6 +422,50 @@ export const updateLoyaltyRules = (data) =>
 export const getPromotionAuditLog = () =>
   api.get("/admin/promotions/audit-log");
 
+// Admin Logistics
+export const getLogisticsOverview = () =>
+  api.get("/admin/logistics/overview");
+export const getDeliveryZones = () =>
+  api.get("/admin/logistics/delivery-zones");
+export const saveDeliveryZone = (data) =>
+  data.zoneId
+    ? api.patch(`/admin/logistics/delivery-zones/${data.zoneId}`, data)
+    : api.post("/admin/logistics/delivery-zones", data);
+export const getCourierPartners = (params = {}) =>
+  api.get("/admin/logistics/courier-partners", { params });
+export const saveCourierPartner = (data) =>
+  data.courierId
+    ? api.patch(`/admin/logistics/courier-partners/${data.courierId}`, data)
+    : api.post("/admin/logistics/courier-partners", data);
+export const getDispatchManifest = (params = {}) =>
+  api.get("/admin/logistics/dispatch-manifest", { params });
+export const downloadDispatchManifestCsv = (params = {}) =>
+  api.get("/admin/logistics/dispatch-manifest/export", { params, responseType: "blob" });
+export const getPickupStaff = (params = {}) =>
+  api.get("/admin/logistics/pickup-staff", { params });
+export const savePickupStaff = (data) =>
+  data.staffId
+    ? api.patch(`/admin/logistics/pickup-staff/${data.staffId}`, data)
+    : api.post("/admin/logistics/pickup-staff", data);
+export const getDeliveryFeeRules = () =>
+  api.get("/admin/logistics/fee-rules");
+export const saveDeliveryFeeRule = (data) =>
+  data.ruleId
+    ? api.patch(`/admin/logistics/fee-rules/${data.ruleId}`, data)
+    : api.post("/admin/logistics/fee-rules", data);
+export const getCodFloatTracker = () =>
+  api.get("/admin/logistics/cod-float");
+export const recordCodRemittance = (data) =>
+  api.post("/admin/logistics/cod-remittances", data);
+export const getFailedDeliveries = (params = {}) =>
+  api.get("/admin/logistics/failed-deliveries", { params });
+export const scheduleFailedDeliveryReattempt = (orderId, data) =>
+  api.post(`/admin/logistics/failed-deliveries/${orderId}/reattempt`, data);
+export const returnFailedDeliveryToSeller = (orderId, data) =>
+  api.post(`/admin/logistics/failed-deliveries/${orderId}/return-to-seller`, data);
+export const getLogisticsAuditLog = () =>
+  api.get("/admin/logistics/audit-log");
+
 export const getDispatchAssignments = (params = {}) =>
   api.get("/admin/dispatch/assignments", { params });
 export const createDispatchAssignment = (data) =>

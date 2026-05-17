@@ -77,6 +77,7 @@ const AdminSupport = lazy(() => import("../pages/admin/AdminSupport"));
 const AdminQA = lazy(() => import("../pages/admin/AdminQA"));
 const AdminFlashSales = lazy(() => import("../pages/admin/AdminFlashSales"));
 const AdminDeliverySettings = lazy(() => import("../pages/admin/AdminDeliverySettings"));
+const AdminLogistics = lazy(() => import("../pages/admin/AdminLogistics"));
 const OfferForm = lazy(() => import("../pages/admin/OfferForm"));
 const AdminVendors = lazy(() => import("../pages/admin/AdminVendorsEnhanced"));
 const AdminVendorDetail = lazy(() => import("../pages/admin/AdminVendorDetail"));
@@ -221,6 +222,7 @@ const router = createBrowserRouter([
       { path: "offers", element: lazyElement(AdminOffers) },
       { path: "offers/add", element: lazyElement(OfferForm) },
       { path: "offers/edit/:id", element: lazyElement(OfferForm) },
+      { path: "logistics", element: lazyElement(AdminLogistics) },
       { path: "delivery-settings", element: lazyElement(AdminDeliverySettings) },
       { path: "users", element: lazyElement(AdminUserManagement) },
       { path: "insights", element: lazyElement(AdminCustomerInsights) },
