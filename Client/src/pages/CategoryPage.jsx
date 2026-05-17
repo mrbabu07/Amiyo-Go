@@ -96,7 +96,10 @@ export default function CategoryPage() {
 
         let categoryId = null;
         if (currentSlug && !isAllProducts) {
-          const matched = allCategories.find((cat) => cat.slug === currentSlug);
+          const matched = allCategories.find((cat) => {
+            const categoryId = cat._id?.toString?.() || String(cat._id || "");
+            return cat.slug === currentSlug || categoryId === currentSlug;
+          });
           setSelectedCategory(matched || null);
           if (!matched) {
             setProducts([]);

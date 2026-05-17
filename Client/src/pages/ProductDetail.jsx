@@ -387,7 +387,7 @@ export default function ProductDetail() {
               <span key={cat._id || cat.name} className="flex shrink-0 items-center gap-2">
                 <ChevronRight className="h-4 w-4" />
                 <Link
-                  to={cat._id ? `/category/${cat._id}` : "#"}
+                  to={cat.slug || cat._id ? `/category/${cat.slug || cat._id}` : "#"}
                   className="hover:text-primary-600 dark:hover:text-primary-300"
                 >
                   {cat.name}

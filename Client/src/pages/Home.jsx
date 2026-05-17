@@ -94,7 +94,7 @@ function TopCategorySection({ categories, t }) {
             </div>
 
             <Link
-              to="/products"
+              to="/categories"
               className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-3 text-xs font-extrabold text-gray-700 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 dark:border-gray-700 dark:text-gray-200 dark:hover:border-orange-900 dark:hover:bg-orange-950/30 dark:hover:text-orange-100 dark:focus:ring-offset-gray-900"
             >
               {t("home.viewAllCategories")}
@@ -106,7 +106,7 @@ function TopCategorySection({ categories, t }) {
             {visibleCategories.map((category) => (
               <Link
                 key={category._id}
-                to={category.slug ? `/products?category=${category.slug}` : `/products?category=${category._id}`}
+                to={`/category/${category.slug || category._id}`}
                 className="group flex min-h-[6rem] w-24 shrink-0 snap-start flex-col items-center gap-2 rounded-lg border border-gray-100 bg-white p-2 text-center transition hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-900/70 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900 lg:w-20 xl:w-[5.75rem]"
               >
                 <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-gray-50 text-sm font-extrabold text-gray-700 ring-1 ring-gray-100 transition group-hover:bg-white group-hover:text-orange-700 dark:bg-gray-950 dark:text-gray-200 dark:ring-gray-800 dark:group-hover:bg-gray-900 dark:group-hover:text-orange-200">
