@@ -9,12 +9,13 @@ const getSpeechRecognition = () => {
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 };
 
-export default function VoiceSearch({ onSearch }) {
+export default function VoiceSearch({ onSearch, onPanelChange }) {
   const { i18n, t } = useTranslation();
   const navigate = useNavigate();
   const recognitionRef = useRef(null);
   const finalTranscriptRef = useRef("");
   const shouldAutoSearchRef = useRef(false);
+  const onPanelChangeRef = useRef(onPanelChange);
   const [isSupported, setIsSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -35,6 +36,14 @@ export default function VoiceSearch({ onSearch }) {
     [t],
   );
 
+  useEffect(() => {
+    onPanelChangeRef.current = onPanelChange;
+  }, [onPanelChange]);
+
+  const notifyPanelChange = (open) => {
+    onPanelChangeRef.current?.(open);
+  };
+
   const runSearch = (searchTerm) => {
     const clean = String(searchTerm || "").trim();
     if (!clean) return;
@@ -42,6 +51,7 @@ export default function VoiceSearch({ onSearch }) {
     if (recognitionRef.current && isListening) recognitionRef.current.abort();
     setIsListening(false);
     setIsPanelOpen(false);
+    notifyPanelChange(false);
     setTranscript("");
     setErrorMessage("");
     if (onSearch) {
@@ -69,6 +79,7 @@ export default function VoiceSearch({ onSearch }) {
       setErrorMessage("");
       setIsListening(true);
       setIsPanelOpen(true);
+      notifyPanelChange(true);
     };
 
     recognition.onresult = (event) => {
@@ -104,6 +115,7 @@ export default function VoiceSearch({ onSearch }) {
       shouldAutoSearchRef.current = false;
       setIsListening(false);
       setIsPanelOpen(true);
+      notifyPanelChange(true);
     };
 
     recognition.onend = () => {
@@ -129,6 +141,7 @@ export default function VoiceSearch({ onSearch }) {
     if (!isSupported) {
       setErrorMessage(t("voiceSearch.unsupported"));
       setIsPanelOpen(true);
+      notifyPanelChange(true);
       return;
     }
 
@@ -136,6 +149,7 @@ export default function VoiceSearch({ onSearch }) {
 
     try {
       setIsPanelOpen(true);
+      notifyPanelChange(true);
       setErrorMessage("");
       recognitionRef.current.start();
     } catch (error) {
@@ -157,6 +171,7 @@ export default function VoiceSearch({ onSearch }) {
     if (recognitionRef.current && isListening) recognitionRef.current.abort();
     setIsListening(false);
     setIsPanelOpen(false);
+    notifyPanelChange(false);
     setTranscript("");
     setErrorMessage("");
   };
@@ -182,55 +197,75 @@ export default function VoiceSearch({ onSearch }) {
 
       <AnimatePresence>
         {isPanelOpen ? (
-          <motion.div
-            className="fixed inset-0 z-[500] flex items-end justify-center bg-gray-950/45 p-0 sm:items-center sm:p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
+          <>
             <motion.div
+              className="fixed inset-0 z-[490] bg-gray-950/10 backdrop-blur-[1px]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closePanel}
+            />
+            <motion.div
+              className="fixed left-1/2 top-20 z-[500] w-[calc(100vw-1.5rem)] max-w-sm overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-2xl dark:border-gray-800 dark:bg-gray-950 sm:top-24 sm:max-w-md"
+              style={{ x: "-50%" }}
               role="dialog"
               aria-modal="true"
               aria-labelledby="voice-search-title"
-              className="w-full rounded-t-xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-800 dark:bg-gray-950 sm:max-w-md sm:rounded-xl"
-              initial={{ y: 28, opacity: 0, scale: 0.98 }}
+              initial={{ y: -10, opacity: 0, scale: 0.98 }}
               animate={{ y: 0, opacity: 1, scale: 1 }}
-              exit={{ y: 28, opacity: 0, scale: 0.98 }}
+              exit={{ y: -10, opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-bold uppercase tracking-wide text-primary-600 dark:text-primary-300">
+                  <p className="text-xs font-extrabold uppercase tracking-wide text-primary-600 dark:text-primary-300">
                     {t("voiceSearch.label")}
                   </p>
-                  <h2 id="voice-search-title" className="mt-1 text-xl font-extrabold text-gray-950 dark:text-white">
+                  <h2 id="voice-search-title" className="mt-1 text-lg font-extrabold text-gray-950 dark:text-white">
                     {isListening ? t("voiceSearch.listeningTitle") : t("voiceSearch.title")}
                   </h2>
                 </div>
                 <button
                   type="button"
                   onClick={closePanel}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white"
                   aria-label={t("common.close")}
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex items-center justify-center">
+              <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div className="flex items-center justify-center gap-3">
                   <div
-                    className={`flex h-20 w-20 items-center justify-center rounded-full ${
+                    className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${
                       isListening
                         ? "bg-red-100 text-red-600 dark:bg-red-950/60 dark:text-red-200"
                         : "bg-primary-100 text-primary-700 dark:bg-primary-950/50 dark:text-primary-200"
                     }`}
                   >
-                    <AudioLines className={`h-9 w-9 ${isListening ? "animate-pulse" : ""}`} />
+                    <AudioLines className={`h-7 w-7 ${isListening ? "animate-pulse" : ""}`} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                      {isListening ? t("voiceSearch.speakNow") : t("voiceSearch.tapToStart")}
+                    </p>
+                    <div className="mt-2 flex h-2 items-center gap-1">
+                      {[0, 1, 2, 3, 4].map((bar) => (
+                        <span
+                          key={bar}
+                          className={`h-full flex-1 rounded-full ${
+                            isListening
+                              ? "animate-pulse bg-primary-500"
+                              : "bg-gray-200 dark:bg-gray-700"
+                          }`}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                <div className="mt-4 min-h-12 rounded-lg bg-white px-3 py-2 text-center text-sm font-semibold text-gray-700 dark:bg-gray-950 dark:text-gray-200">
+                <div className="mt-4 min-h-11 rounded-lg bg-white px-3 py-2 text-center text-sm font-semibold text-gray-700 dark:bg-gray-950 dark:text-gray-200">
                   {transcript ? (
                     <span>{transcript}</span>
                   ) : (
@@ -258,7 +293,7 @@ export default function VoiceSearch({ onSearch }) {
                       type="button"
                       key={example}
                       onClick={() => runSearch(example)}
-                      className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600 transition hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-primary-950/30"
+                      className="min-h-9 rounded-full border border-gray-200 px-3 text-xs font-bold text-gray-600 transition hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-primary-950/30"
                     >
                       {example}
                     </button>
@@ -270,7 +305,7 @@ export default function VoiceSearch({ onSearch }) {
                 <button
                   type="button"
                   onClick={isListening ? stopListening : startListening}
-                  className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition active:scale-95 ${
+                  className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 active:scale-95 ${
                     isListening
                       ? "border border-red-200 bg-white text-red-600 hover:bg-red-50 dark:border-red-900 dark:bg-gray-950 dark:hover:bg-red-950/30"
                       : "bg-primary-500 text-white hover:bg-primary-600"
@@ -283,14 +318,14 @@ export default function VoiceSearch({ onSearch }) {
                   type="button"
                   onClick={() => runSearch(transcript)}
                   disabled={!transcript.trim()}
-                  className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:text-gray-200 dark:hover:bg-gray-900"
+                  className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 text-sm font-bold text-gray-700 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:text-gray-200 dark:hover:bg-gray-900"
                 >
                   <Search className="h-4 w-4" />
                   {t("common.search")}
                 </button>
               </div>
             </motion.div>
-          </motion.div>
+          </>
         ) : null}
       </AnimatePresence>
     </>

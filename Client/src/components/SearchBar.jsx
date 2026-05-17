@@ -161,6 +161,9 @@ export default function SearchBar({
 
         <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1">
           <VoiceSearch
+            onPanelChange={(open) => {
+              if (open) setIsOpen(false);
+            }}
             onSearch={(searchTerm) => {
               setQuery(searchTerm);
               runSearch(searchTerm);
