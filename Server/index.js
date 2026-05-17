@@ -435,10 +435,23 @@ async function run() {
     });
 
     // Start server
-    const server = app.listen(port, () => {
+    const server = app.listen(port);
+    server.once("listening", () => {
       console.log(`🔥 Server running on port ${port}`);
+      realtimeService.attach(server, app);
     });
-    realtimeService.attach(server, app);
+
+    server.on("error", (error) => {
+      if (error.code === "EADDRINUSE") {
+        console.error(
+          `Port ${port} is already in use. Stop the existing backend server or set a different PORT in Server/.env.`,
+        );
+        process.exit(1);
+      }
+
+      console.error("Server startup failed:", error);
+      process.exit(1);
+    });
   } catch (error) {
     console.error("❌ MongoDB connection failed:", error.message);
   }
