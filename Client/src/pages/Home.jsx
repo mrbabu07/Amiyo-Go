@@ -49,29 +49,6 @@ const formatDuration = (targetDate, now, t) => {
 
 const sectionProducts = (products = [], count = 8) => products.slice(0, count);
 
-const categoryTileThemes = [
-  {
-    tile: "hover:border-orange-200 hover:bg-orange-50 dark:hover:border-orange-900/60 dark:hover:bg-orange-950/20",
-    icon: "bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-200",
-  },
-  {
-    tile: "hover:border-emerald-200 hover:bg-emerald-50 dark:hover:border-emerald-900/60 dark:hover:bg-emerald-950/20",
-    icon: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200",
-  },
-  {
-    tile: "hover:border-blue-200 hover:bg-blue-50 dark:hover:border-blue-900/60 dark:hover:bg-blue-950/20",
-    icon: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200",
-  },
-  {
-    tile: "hover:border-rose-200 hover:bg-rose-50 dark:hover:border-rose-900/60 dark:hover:bg-rose-950/20",
-    icon: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-200",
-  },
-  {
-    tile: "hover:border-amber-200 hover:bg-amber-50 dark:hover:border-amber-900/60 dark:hover:bg-amber-950/20",
-    icon: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200",
-  },
-];
-
 function CouponStrip({ coupons, formatPrice, t }) {
   if (!coupons?.length) return null;
 
@@ -103,56 +80,52 @@ function TopCategorySection({ categories, t }) {
   const visibleCategories = categories.slice(0, 14);
 
   return (
-    <section className="sticky top-20 z-30 border-y border-gray-200 bg-white/95 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 lg:top-32">
-      <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/products"
-            className="hidden shrink-0 items-center gap-2 rounded-lg bg-gray-950 px-3 py-2 text-xs font-extrabold uppercase text-white dark:bg-white dark:text-gray-950 sm:inline-flex"
-          >
-            <Store className="h-4 w-4 text-orange-400" />
-            {t("home.topCategories")}
-          </Link>
-
-          <div className="flex flex-1 gap-3 overflow-x-auto pb-1 scrollbar-hide">
-            {visibleCategories.map((category, index) => {
-              const theme = categoryTileThemes[index % categoryTileThemes.length];
-              return (
-                <Link
-                  key={category._id}
-                  to={category.slug ? `/products?category=${category.slug}` : `/products?category=${category._id}`}
-                  className="group flex w-20 shrink-0 flex-col items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-center transition hover:bg-orange-50 dark:hover:bg-gray-800 sm:w-24"
-                >
-                  <span className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg text-sm font-extrabold shadow-sm sm:h-12 sm:w-12 ${theme.icon}`}>
-                    {category.image || category.icon ? (
-                      <img
-                        src={category.image || category.icon}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      category.name?.slice(0, 1) || "C"
-                    )}
-                  </span>
-                  <span className="line-clamp-2 min-h-[2rem] text-xs font-bold leading-4 text-gray-700 group-hover:text-orange-600 dark:text-gray-200">
-                    {category.name}
-                  </span>
-                </Link>
-              );
-            })}
+    <section className="sticky top-20 z-30 border-b border-gray-200 bg-gray-50/95 py-2 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 lg:top-32">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600 ring-1 ring-orange-100 dark:bg-orange-950/40 dark:text-orange-200 dark:ring-orange-900/60">
+                <Store className="h-4 w-4" />
+              </span>
+              <h2 className="truncate text-base font-extrabold text-gray-950 dark:text-white">
+                {t("home.topCategories")}
+              </h2>
+            </div>
 
             <Link
               to="/products"
-              className="group flex w-20 shrink-0 flex-col items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-center transition hover:bg-orange-50 dark:hover:bg-gray-800 sm:w-24"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-3 text-xs font-extrabold text-gray-700 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 dark:border-gray-700 dark:text-gray-200 dark:hover:border-orange-900 dark:hover:bg-orange-950/30 dark:hover:text-orange-100 dark:focus:ring-offset-gray-900"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-orange-100 text-orange-700 shadow-sm dark:bg-orange-950/50 dark:text-orange-200 sm:h-12 sm:w-12">
-                <ChevronRight className="h-5 w-5" />
-              </span>
-              <span className="line-clamp-2 min-h-[2rem] text-xs font-extrabold leading-4 text-orange-700 dark:text-orange-200">
-                {t("home.viewAllCategories")}
-              </span>
+              {t("home.viewAllCategories")}
+              <ChevronRight className="h-4 w-4" />
             </Link>
+          </div>
+
+          <div className="flex snap-x gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {visibleCategories.map((category) => (
+              <Link
+                key={category._id}
+                to={category.slug ? `/products?category=${category.slug}` : `/products?category=${category._id}`}
+                className="group flex min-h-[6rem] w-24 shrink-0 snap-start flex-col items-center gap-2 rounded-lg border border-gray-100 bg-white p-2 text-center transition hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-900/70 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900 lg:w-20 xl:w-[5.75rem]"
+              >
+                <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-gray-50 text-sm font-extrabold text-gray-700 ring-1 ring-gray-100 transition group-hover:bg-white group-hover:text-orange-700 dark:bg-gray-950 dark:text-gray-200 dark:ring-gray-800 dark:group-hover:bg-gray-900 dark:group-hover:text-orange-200">
+                  {category.image || category.icon ? (
+                    <img
+                      src={category.image || category.icon}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    category.name?.slice(0, 1) || "C"
+                  )}
+                </span>
+                <span className="line-clamp-2 min-h-[2rem] text-xs font-bold leading-4 text-gray-700 transition group-hover:text-orange-700 dark:text-gray-200 dark:group-hover:text-orange-200">
+                  {category.name}
+                </span>
+              </Link>
+            ))}
           </div>
         </div>
       </div>
