@@ -13,6 +13,7 @@ import {
 import { getSearchAutocomplete } from "../services/api";
 import { useDebounce } from "../hooks/useDebounce";
 import VoiceSearch from "./VoiceSearch";
+import { getCategoryIcon, getCategoryImageSource, getCategoryTheme } from "../utils/categoryVisuals";
 
 const HISTORY_KEY = "amiyoSearchHistory";
 const defaultAutocomplete = {
@@ -244,30 +245,36 @@ export default function SearchBar({
                       {t("search.matchingCategories")}
                     </p>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {autocomplete.matchingCategories.slice(0, 6).map((category) => (
-                        <Link
-                          key={category._id}
-                          to={`/products?category=${category._id}`}
-                          onClick={handleProductClick}
-                          className="flex items-center gap-3 rounded-lg border border-gray-100 p-2 transition hover:border-[#1e7098]/40 hover:bg-[#1e7098]/5 dark:border-gray-800 dark:hover:border-[#1e7098]/50"
-                        >
-                          <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-md bg-gray-100 text-xs font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                            {category.image || category.icon ? (
-                              <img src={category.image || category.icon} alt="" className="h-full w-full object-cover" loading="lazy" />
-                            ) : (
-                              category.name?.slice(0, 1)
-                            )}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm font-semibold text-gray-900 dark:text-white">
-                              {category.name}
+                      {autocomplete.matchingCategories.slice(0, 6).map((category, index) => {
+                        const Icon = getCategoryIcon(category);
+                        const imageSource = getCategoryImageSource(category);
+                        const theme = getCategoryTheme(category, index);
+
+                        return (
+                          <Link
+                            key={category._id}
+                            to={`/products?category=${category._id}`}
+                            onClick={handleProductClick}
+                            className="flex items-center gap-3 rounded-lg border border-gray-100 p-2 transition hover:border-[#1e7098]/40 hover:bg-[#1e7098]/5 dark:border-gray-800 dark:hover:border-[#1e7098]/50"
+                          >
+                            <span className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-md ring-1 ${theme}`}>
+                              {imageSource ? (
+                                <img src={imageSource} alt="" className="h-full w-full object-cover" loading="lazy" />
+                              ) : (
+                                <Icon className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
+                              )}
                             </span>
-                            <span className="block text-xs text-gray-500 dark:text-gray-400">
-                              {category.productCount || 0} products
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-semibold text-gray-900 dark:text-white">
+                                {category.name}
+                              </span>
+                              <span className="block text-xs text-gray-500 dark:text-gray-400">
+                                {category.productCount || 0} products
+                              </span>
                             </span>
-                          </span>
-                        </Link>
-                      ))}
+                          </Link>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : null}

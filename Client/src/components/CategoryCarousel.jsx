@@ -1,99 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  Baby,
-  BookOpen,
-  Car,
-  Dumbbell,
-  Fish,
-  Gamepad2,
-  Gem,
-  HandHeart,
-  HeartPulse,
-  Home,
-  Laptop,
-  Leaf,
-  Monitor,
-  Package,
-  PawPrint,
-  PencilRuler,
-  Pill,
-  RotateCcw,
-  Shirt,
-  ShoppingBag,
-  Smartphone,
-  Sparkles,
-  UtensilsCrossed,
-  Watch,
-} from "lucide-react";
 import { getCategories } from "../services/api";
-
-const iconMap = {
-  baby: Baby,
-  beauty: Sparkles,
-  book: BookOpen,
-  car: Car,
-  electronics: Smartphone,
-  fashion: Shirt,
-  fish: Fish,
-  gaming: Gamepad2,
-  grocery: ShoppingBag,
-  health: HeartPulse,
-  homemade: HandHeart,
-  home: Home,
-  jewelry: Gem,
-  laptop: Laptop,
-  monitor: Monitor,
-  pet: PawPrint,
-  pharmacy: Pill,
-  resell: RotateCcw,
-  restaurant: UtensilsCrossed,
-  sports: Dumbbell,
-  stationery: PencilRuler,
-  vegetable: Leaf,
-  watch: Watch,
-};
-
-const fallbackThemes = [
-  "bg-sky-50 text-sky-700 ring-sky-100",
-  "bg-rose-50 text-rose-700 ring-rose-100",
-  "bg-emerald-50 text-emerald-700 ring-emerald-100",
-  "bg-amber-50 text-amber-700 ring-amber-100",
-  "bg-violet-50 text-violet-700 ring-violet-100",
-  "bg-cyan-50 text-cyan-700 ring-cyan-100",
-  "bg-lime-50 text-lime-700 ring-lime-100",
-  "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-100",
-];
-
-function getCategoryIcon(category) {
-  const configured = category.icon?.toLowerCase?.().trim();
-  if (configured && iconMap[configured]) return iconMap[configured];
-
-  const name = category.name.toLowerCase();
-  if (name.includes("men") || name.includes("fashion")) return Shirt;
-  if (name.includes("women")) return ShoppingBag;
-  if (name.includes("computer") || name.includes("laptop")) return Laptop;
-  if (name.includes("phone")) return Smartphone;
-  if (name.includes("tv") || name.includes("appliance")) return Monitor;
-  if (name.includes("home") || name.includes("living")) return Home;
-  if (name.includes("grocery") || name.includes("pet")) return ShoppingBag;
-  if (name.includes("restaurant") || name.includes("food ordering") || name.includes("meal")) return UtensilsCrossed;
-  if (name.includes("homemade") || name.includes("handmade")) return HandHeart;
-  if (name.includes("resell") || name.includes("used") || name.includes("pre-owned")) return RotateCcw;
-  if (name.includes("fish") || name.includes("seafood")) return Fish;
-  if (name.includes("vegetable") || name.includes("fruit") || name.includes("farm")) return Leaf;
-  if (name.includes("beauty")) return Sparkles;
-  if (name.includes("pharmacy") || name.includes("medicine")) return Pill;
-  if (name.includes("health")) return HeartPulse;
-  if (name.includes("watch") || name.includes("bag")) return Watch;
-  if (name.includes("sport")) return Dumbbell;
-  if (name.includes("baby") || name.includes("mother")) return Baby;
-  if (name.includes("auto") || name.includes("bike")) return Car;
-  if (name.includes("stationery") || name.includes("office") || name.includes("school")) return PencilRuler;
-  if (name.includes("book")) return BookOpen;
-  if (name.includes("game")) return Gamepad2;
-  return Package;
-}
+import { getCategoryIcon, getCategoryImageSource, getCategoryTheme } from "../utils/categoryVisuals";
 
 export default function CategoryCarousel() {
   const [categories, setCategories] = useState([]);
@@ -163,7 +71,8 @@ export default function CategoryCarousel() {
         <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-200 shadow-sm sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 dark:border-gray-700 dark:bg-gray-700">
           {sortedCategories.slice(0, 14).map((category, index) => {
             const Icon = getCategoryIcon(category);
-            const theme = fallbackThemes[index % fallbackThemes.length];
+            const imageSource = getCategoryImageSource(category);
+            const theme = getCategoryTheme(category, index);
 
             return (
               <Link
@@ -174,9 +83,9 @@ export default function CategoryCarousel() {
                 <div
                   className={`mb-3 flex h-16 w-16 items-center justify-center rounded-2xl ring-1 transition group-hover:scale-105 ${theme}`}
                 >
-                  {category.image ? (
+                  {imageSource ? (
                     <img
-                      src={category.image}
+                      src={imageSource}
                       alt=""
                       className="h-12 w-12 rounded-xl object-cover"
                       loading="lazy"

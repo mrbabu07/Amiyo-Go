@@ -17,6 +17,7 @@ import ProductCard from "../components/ProductCard";
 import { ProductCardSkeleton } from "../components/Skeleton";
 import { useRecentlyViewed } from "../hooks/useRecentlyViewed";
 import { useCurrency } from "../hooks/useCurrency";
+import { getCategoryIcon, getCategoryImageSource, getCategoryTheme } from "../utils/categoryVisuals";
 
 const fallbackHeroImage =
   "https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=1400&h=700&fit=crop";
@@ -103,29 +104,35 @@ function TopCategorySection({ categories, t }) {
           </div>
 
           <div className="flex snap-x gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {visibleCategories.map((category) => (
-              <Link
-                key={category._id}
-                to={`/category/${category.slug || category._id}`}
-                className="group flex min-h-[6rem] w-24 shrink-0 snap-start flex-col items-center gap-2 rounded-lg border border-gray-100 bg-white p-2 text-center transition hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-900/70 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900 lg:w-20 xl:w-[5.75rem]"
-              >
-                <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-gray-50 text-sm font-extrabold text-gray-700 ring-1 ring-gray-100 transition group-hover:bg-white group-hover:text-orange-700 dark:bg-gray-950 dark:text-gray-200 dark:ring-gray-800 dark:group-hover:bg-gray-900 dark:group-hover:text-orange-200">
-                  {category.image || category.icon ? (
-                    <img
-                      src={category.image || category.icon}
-                      alt=""
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    category.name?.slice(0, 1) || "C"
-                  )}
-                </span>
-                <span className="line-clamp-2 min-h-[2rem] text-xs font-bold leading-4 text-gray-700 transition group-hover:text-orange-700 dark:text-gray-200 dark:group-hover:text-orange-200">
-                  {category.name}
-                </span>
-              </Link>
-            ))}
+            {visibleCategories.map((category, index) => {
+              const Icon = getCategoryIcon(category);
+              const imageSource = getCategoryImageSource(category);
+              const theme = getCategoryTheme(category, index);
+
+              return (
+                <Link
+                  key={category._id}
+                  to={`/category/${category.slug || category._id}`}
+                  className="group flex min-h-[6rem] w-24 shrink-0 snap-start flex-col items-center gap-2 rounded-lg border border-gray-100 bg-white p-2 text-center transition hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-900/70 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900 lg:w-20 xl:w-[5.75rem]"
+                >
+                  <span className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg ring-1 transition group-hover:scale-105 group-hover:bg-white group-hover:text-orange-700 dark:group-hover:bg-gray-900 dark:group-hover:text-orange-200 ${theme}`}>
+                    {imageSource ? (
+                      <img
+                        src={imageSource}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <Icon className="h-6 w-6" strokeWidth={1.9} aria-hidden="true" />
+                    )}
+                  </span>
+                  <span className="line-clamp-2 min-h-[2rem] text-xs font-bold leading-4 text-gray-700 transition group-hover:text-orange-700 dark:text-gray-200 dark:group-hover:text-orange-200">
+                    {category.name}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>
