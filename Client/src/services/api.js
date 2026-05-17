@@ -51,6 +51,20 @@ export const recordDiscoveryRecentlyViewed = (productId) =>
 export const getDailyCheckInStatus = () => api.get("/discovery/check-in/status");
 export const claimDailyCheckInReward = () => api.post("/discovery/check-in");
 
+// Loyalty and rewards
+export const getMyLoyalty = () => api.get("/loyalty/my-points");
+export const getLoyaltyHistory = () => api.get("/loyalty/history");
+export const getLoyaltyTierBenefits = () => api.get("/loyalty/tier-benefits");
+export const getLoyaltyMultiplierEvents = () => api.get("/loyalty/multiplier-events");
+export const redeemLoyaltyPoints = (data) => api.post("/loyalty/redeem", data);
+export const applyReferralCode = (referralCode) =>
+  api.post("/loyalty/apply-referral", { referralCode });
+
+// Support and help
+export const getSupportFaqs = (params = {}) => api.get("/support/faqs", { params });
+export const askSupportBot = (message) => api.post("/support/bot", { message });
+export const getSupportContactOptions = () => api.get("/support/contact-options");
+
 // Categories
 export const getCategories = () => api.get("/categories");
 export const createCategory = (data) => api.post("/categories", data);

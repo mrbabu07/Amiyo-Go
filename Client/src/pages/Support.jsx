@@ -4,6 +4,11 @@ import { useToast } from "../context/ToastContext";
 import Modal from "../components/Modal";
 import Loading from "../components/Loading";
 import BackButton from "../components/BackButton";
+import {
+  askSupportBot,
+  getSupportContactOptions,
+  getSupportFaqs,
+} from "../services/api";
 
 const Support = () => {
   const { user } = useAuth();
@@ -14,11 +19,24 @@ const Support = () => {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [newMessage, setNewMessage] = useState("");
+  const [faqQuery, setFaqQuery] = useState("");
+  const [selectedTopic, setSelectedTopic] = useState("");
+  const [faqArticles, setFaqArticles] = useState([]);
+  const [faqTopics, setFaqTopics] = useState([]);
+  const [botQuestion, setBotQuestion] = useState("");
+  const [botAnswer, setBotAnswer] = useState(null);
+  const [contactOptions, setContactOptions] = useState([]);
   const [createForm, setCreateForm] = useState({
     subject: "",
     description: "",
     priority: "medium",
     category: "general",
+    orderId: "",
+    issueType: "general",
+    returnId: "",
+    escalationReason: "",
+    contactPreference: "in_app",
+    evidenceUrls: "",
   });
 
   const categories = [
@@ -85,10 +103,47 @@ const Support = () => {
   ];
 
   useEffect(() => {
+    fetchHelpResources();
     if (user) {
       fetchTickets();
+    } else {
+      setLoading(false);
     }
   }, [user]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchFaqArticles();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [faqQuery, selectedTopic]);
+
+  const fetchHelpResources = async () => {
+    try {
+      const [faqResponse, contactResponse] = await Promise.all([
+        getSupportFaqs(),
+        getSupportContactOptions(),
+      ]);
+      setFaqArticles(faqResponse.data?.data || []);
+      setFaqTopics(faqResponse.data?.topics || []);
+      setContactOptions(contactResponse.data?.data || []);
+    } catch (err) {
+      console.error("Error fetching support resources:", err);
+    }
+  };
+
+  const fetchFaqArticles = async () => {
+    try {
+      const response = await getSupportFaqs({
+        q: faqQuery,
+        topic: selectedTopic,
+      });
+      setFaqArticles(response.data?.data || []);
+      setFaqTopics(response.data?.topics || []);
+    } catch (err) {
+      console.error("Error fetching FAQ articles:", err);
+    }
+  };
 
   const fetchTickets = async () => {
     try {
@@ -123,6 +178,11 @@ const Support = () => {
 
     try {
       const token = await user.getIdToken();
+      const evidenceUrls = createForm.evidenceUrls
+        .split("\n")
+        .map((url) => url.trim())
+        .filter(Boolean)
+        .map((url) => ({ url, type: "evidence_link" }));
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/support/tickets`,
         {
@@ -131,7 +191,10 @@ const Support = () => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(createForm),
+          body: JSON.stringify({
+            ...createForm,
+            attachments: evidenceUrls,
+          }),
         },
       );
 
@@ -143,6 +206,12 @@ const Support = () => {
           description: "",
           priority: "medium",
           category: "general",
+          orderId: "",
+          issueType: "general",
+          returnId: "",
+          escalationReason: "",
+          contactPreference: "in_app",
+          evidenceUrls: "",
         });
         fetchTickets();
       } else {
@@ -151,6 +220,18 @@ const Support = () => {
     } catch (err) {
       console.error("Error creating ticket:", err);
       error("Failed to create support ticket");
+    }
+  };
+
+  const askBot = async () => {
+    if (!botQuestion.trim()) return;
+
+    try {
+      const response = await askSupportBot(botQuestion);
+      setBotAnswer(response.data?.data || null);
+    } catch (err) {
+      console.error("Error asking support bot:", err);
+      error("Support helper could not answer right now");
     }
   };
 
@@ -213,10 +294,120 @@ const Support = () => {
     });
   };
 
+  const renderHelpCenter = () => (
+    <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-md dark:border-gray-700 dark:bg-gray-800 lg:col-span-2">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+          <input
+            type="search"
+            value={faqQuery}
+            onChange={(event) => setFaqQuery(event.target.value)}
+            placeholder="Search orders, returns, payments, account"
+            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          />
+          <select
+            value={selectedTopic}
+            onChange={(event) => setSelectedTopic(event.target.value)}
+            className="rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          >
+            <option value="">All topics</option>
+            {faqTopics.map((topic) => (
+              <option key={topic} value={topic}>
+                {topic}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {faqArticles.slice(0, 6).map((article) => (
+            <div key={article.id} className="rounded-xl bg-gray-50 p-4 dark:bg-gray-700/60">
+              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary-600">
+                {article.topic}
+              </div>
+              <h3 className="mb-2 font-bold text-gray-900 dark:text-white">{article.title}</h3>
+              <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">{article.answer}</p>
+            </div>
+          ))}
+          {faqArticles.length === 0 && (
+            <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+              No article found. Try another search or create a support ticket.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-md dark:border-gray-700 dark:bg-gray-800">
+          <h3 className="mb-3 text-lg font-bold text-gray-900 dark:text-white">Quick Help Bot</h3>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={botQuestion}
+              onChange={(event) => setBotQuestion(event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && askBot()}
+              placeholder="Where is my order?"
+              className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            />
+            <button
+              onClick={askBot}
+              className="rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-600"
+            >
+              Ask
+            </button>
+          </div>
+          {botAnswer && (
+            <div className="mt-4 rounded-lg bg-primary-50 p-3 text-sm text-primary-900 dark:bg-primary-900/20 dark:text-primary-200">
+              <p>{botAnswer.answer}</p>
+              {botAnswer.escalate && user && (
+                <button
+                  onClick={() => {
+                    setCreateForm((current) => ({
+                      ...current,
+                      category: botAnswer.suggestedCategory || "general",
+                      subject: current.subject || botQuestion,
+                      description: current.description || botAnswer.answer,
+                    }));
+                    setShowCreateModal(true);
+                  }}
+                  className="mt-3 rounded-lg bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700"
+                >
+                  Create Ticket
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-md dark:border-gray-700 dark:bg-gray-800">
+          <h3 className="mb-3 text-lg font-bold text-gray-900 dark:text-white">Contact Options</h3>
+          <div className="space-y-3">
+            {contactOptions.map((option) => (
+              <div key={option.channel} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-700/60">
+                <div className="font-semibold text-gray-900 dark:text-white">{option.label}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300">{option.value}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{option.availability}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center px-4">
-        <div className="text-center bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-12 max-w-md">
+      <div className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-900">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-6">
+            <BackButton />
+          </div>
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Support Center</h1>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">Search help articles or sign in to manage tickets.</p>
+          </div>
+          {renderHelpCenter()}
+          <div className="mx-auto max-w-md rounded-2xl bg-white p-10 text-center shadow-lg dark:bg-gray-800">
           <svg
             className="w-16 h-16 text-primary-500 mx-auto mb-4"
             fill="none"
@@ -242,6 +433,7 @@ const Support = () => {
           >
             Sign In
           </a>
+          </div>
         </div>
       </div>
     );
@@ -291,6 +483,8 @@ const Support = () => {
             </button>
           </div>
         </div>
+
+        {renderHelpCenter()}
 
         {/* Tickets List */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md overflow-hidden border border-gray-100 dark:border-gray-700">
@@ -448,6 +642,41 @@ const Support = () => {
               </select>
             </div>
 
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Order ID
+                </label>
+                <input
+                  type="text"
+                  placeholder="Optional order ID"
+                  value={createForm.orderId}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, orderId: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Issue Type
+                </label>
+                <select
+                  value={createForm.issueType}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, issueType: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="general">General issue</option>
+                  <option value="return_dispute">Return dispute escalation</option>
+                  <option value="payment_failed">Payment failed</option>
+                  <option value="delivery_issue">Delivery issue</option>
+                </select>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Priority
@@ -467,6 +696,42 @@ const Support = () => {
               </select>
             </div>
 
+            {(createForm.category === "return" || createForm.issueType === "return_dispute") && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Return ID
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Optional return request ID"
+                    value={createForm.returnId}
+                    onChange={(e) =>
+                      setCreateForm({ ...createForm, returnId: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Contact Preference
+                  </label>
+                  <select
+                    value={createForm.contactPreference}
+                    onChange={(e) =>
+                      setCreateForm({ ...createForm, contactPreference: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="in_app">In-app ticket</option>
+                    <option value="email">Email</option>
+                    <option value="phone">Phone</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Description *
@@ -481,6 +746,42 @@ const Support = () => {
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white resize-none"
               />
             </div>
+
+            {(createForm.category === "return" || createForm.issueType === "return_dispute") && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Escalation Reason
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Why should platform support review this return?"
+                    value={createForm.escalationReason}
+                    onChange={(e) =>
+                      setCreateForm({
+                        ...createForm,
+                        escalationReason: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Evidence Links
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Paste one image or document URL per line"
+                    value={createForm.evidenceUrls}
+                    onChange={(e) =>
+                      setCreateForm({ ...createForm, evidenceUrls: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white resize-none"
+                  />
+                </div>
+              </>
+            )}
 
             <div className="flex justify-end gap-3 pt-4">
               <button
@@ -530,7 +831,39 @@ const Support = () => {
                     Created {formatDate(selectedTicket.createdAt)}
                   </span>
                 </div>
+                {(selectedTicket.orderId || selectedTicket.returnId || selectedTicket.escalation) && (
+                  <div className="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                    {selectedTicket.orderId && <div>Order: {selectedTicket.orderId}</div>}
+                    {selectedTicket.returnId && <div>Return: {selectedTicket.returnId}</div>}
+                    {selectedTicket.escalation?.status && (
+                      <div>Escalation: {selectedTicket.escalation.status}</div>
+                    )}
+                  </div>
+                )}
               </div>
+
+              {selectedTicket.statusTimeline?.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                    Status Tracker
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedTicket.statusTimeline.map((item, index) => (
+                      <div key={`${item.status}-${index}`} className="flex items-start gap-3">
+                        <div className="mt-1 h-3 w-3 rounded-full bg-primary-500" />
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {item.label || item.status}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatDate(item.createdAt)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Messages */}
               <div>

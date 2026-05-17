@@ -4,6 +4,12 @@ import { useCurrency } from "../hooks/useCurrency";
 import { useToast } from "../context/ToastContext";
 import { getCurrentUserToken } from "../utils/auth";
 import Loading from "../components/Loading";
+import {
+  claimDailyCheckInReward,
+  getDailyCheckInStatus,
+  getLoyaltyMultiplierEvents,
+  getLoyaltyTierBenefits,
+} from "../services/api";
 
 const tierThresholds = {
   bronze: { min: 0, next: "silver", nextThreshold: 1000, badge: "BR" },
@@ -39,14 +45,21 @@ export default function LoyaltyDashboard() {
   const [showFullHistory, setShowFullHistory] = useState(false);
   const [showReferralInput, setShowReferralInput] = useState(false);
   const [referralCode, setReferralCode] = useState("");
+  const [dailyCheckIn, setDailyCheckIn] = useState(null);
+  const [tierBenefitRows, setTierBenefitRows] = useState([]);
+  const [multiplierEvents, setMultiplierEvents] = useState([]);
 
-  const pointsToCurrency = (points) => formatPrice((Number(points) || 0) / 100);
+  const pointsToCurrency = (points) =>
+    formatPrice((Number(points) || 0) * Number(loyalty?.redemption?.valuePerPoint || 0.01));
 
   useEffect(() => {
     if (!user) return;
     fetchLoyaltyData();
     fetchLeaderboard();
     fetchPointsHistory();
+    fetchDailyCheckIn();
+    fetchTierBenefits();
+    fetchMultiplierEvents();
   }, [user]);
 
   const fetchLoyaltyData = async () => {
@@ -92,6 +105,46 @@ export default function LoyaltyDashboard() {
       setPointsHistory(data.data || []);
     } catch (err) {
       console.error("Error fetching points history:", err);
+    }
+  };
+
+  const fetchDailyCheckIn = async () => {
+    try {
+      const response = await getDailyCheckInStatus();
+      setDailyCheckIn(response.data?.data || null);
+    } catch (err) {
+      console.error("Error fetching daily check-in:", err);
+    }
+  };
+
+  const fetchTierBenefits = async () => {
+    try {
+      const response = await getLoyaltyTierBenefits();
+      setTierBenefitRows(response.data?.data?.tiers || []);
+    } catch (err) {
+      console.error("Error fetching tier benefits:", err);
+    }
+  };
+
+  const fetchMultiplierEvents = async () => {
+    try {
+      const response = await getLoyaltyMultiplierEvents();
+      setMultiplierEvents(response.data?.data || []);
+    } catch (err) {
+      console.error("Error fetching multiplier events:", err);
+    }
+  };
+
+  const handleDailyCheckIn = async () => {
+    try {
+      const response = await claimDailyCheckInReward();
+      const data = response.data?.data;
+      success(response.data?.message || `You earned ${data?.points || 0} coins.`);
+      setDailyCheckIn(data || null);
+      fetchLoyaltyData();
+      fetchPointsHistory();
+    } catch (err) {
+      error(err.response?.data?.error || "Daily reward is already claimed");
     }
   };
 
@@ -174,10 +227,27 @@ export default function LoyaltyDashboard() {
     }
   };
 
+  const copyReferralLink = async () => {
+    try {
+      const link = `${window.location.origin}${loyalty?.referralLink || `/register?ref=${loyalty?.referralCode || ""}`}`;
+      await navigator.clipboard.writeText(link);
+      success("Referral link copied to clipboard");
+    } catch {
+      error("Unable to copy referral link");
+    }
+  };
+
   const nextTierInfo = useMemo(() => {
     const currentTier = loyalty?.tier || "bronze";
     const totalEarned = loyalty?.totalEarned || 0;
     const currentConfig = tierThresholds[currentTier] || tierThresholds.bronze;
+
+    if (loyalty?.tierProgress) {
+      return {
+        progress: loyalty.tierProgress.progress,
+        message: loyalty.tierProgress.message,
+      };
+    }
 
     if (!currentConfig.next) {
       return { progress: 100, message: "You have reached the highest tier." };
@@ -254,6 +324,58 @@ export default function LoyaltyDashboard() {
             <div className="h-2 rounded-full bg-white transition-all duration-300" style={{ width: `${nextTierInfo.progress}%` }} />
           </div>
         </div>
+
+        {loyalty?.expiringSoon?.warning && (
+          <div className="mt-4 rounded-lg border border-white/30 bg-white/20 p-4 text-sm">
+            {loyalty.expiringSoon.points} coins expire within {loyalty.expiringSoon.withinDays} days. Use them at checkout before they disappear.
+          </div>
+        )}
+      </div>
+
+      <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+          <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-700">Daily check-in</div>
+          <div className="mb-1 text-2xl font-bold text-emerald-950">
+            {dailyCheckIn?.claimedToday ? `Streak ${dailyCheckIn?.streak || 1}` : `Earn ${dailyCheckIn?.points || 5} coins today`}
+          </div>
+          <p className="mb-4 text-sm text-emerald-800">
+            {dailyCheckIn?.claimedToday
+              ? `Come back tomorrow. Next streak bonus: ${dailyCheckIn?.nextBonus || 0} coins.`
+              : `Keep checking in daily. Current streak: ${dailyCheckIn?.streak || 0}.`}
+          </p>
+          <button
+            onClick={handleDailyCheckIn}
+            disabled={!dailyCheckIn?.canClaim}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {dailyCheckIn?.claimedToday ? "Claimed Today" : "Claim Coins"}
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm lg:col-span-2">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-wide text-indigo-700">Coin multiplier events</div>
+              <h3 className="text-xl font-bold text-indigo-950">Limited-time boosts</h3>
+            </div>
+            <span className="rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-800">
+              {multiplierEvents.length || 0} active
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {(multiplierEvents.length ? multiplierEvents : loyalty?.multiplierEvents || []).slice(0, 4).map((event) => (
+              <div key={event.id || event.title} className="rounded-lg bg-white p-3">
+                <div className="font-semibold text-gray-900">{event.title}</div>
+                <div className="text-sm text-gray-600">{event.category || "All categories"} earns {event.multiplier}x coins</div>
+              </div>
+            ))}
+            {multiplierEvents.length === 0 && !loyalty?.multiplierEvents?.length && (
+              <div className="rounded-lg bg-white p-3 text-sm text-gray-600">
+                No active boosts right now. Base tier earning still applies.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -275,6 +397,35 @@ export default function LoyaltyDashboard() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-white p-6 shadow-md">
+            <h3 className="mb-4 text-xl font-bold text-gray-900">Tier Benefits</h3>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {(tierBenefitRows.length ? tierBenefitRows : loyalty?.tierBenefits || []).map((row) => (
+                <div
+                  key={row.tier}
+                  className={`rounded-lg border p-4 ${
+                    row.tier === loyalty?.tier
+                      ? "border-primary-300 bg-primary-50"
+                      : "border-gray-200 bg-gray-50"
+                  }`}
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-lg font-bold capitalize text-gray-900">{row.label || row.tier}</span>
+                    <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-gray-600">
+                      {row.benefits?.pointsMultiplier || 1}x coins
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-sm text-gray-600">
+                    <div>{row.benefits?.returnWindowDays || 7}-day return window</div>
+                    <div>{row.benefits?.prioritySupport ? "Priority support" : "Standard support"}</div>
+                    <div>{row.benefits?.exclusiveDeals ? "Exclusive deals" : "Regular deals"}</div>
+                    <div>{row.benefits?.birthdayBonus || 0} birthday bonus coins</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -303,7 +454,10 @@ export default function LoyaltyDashboard() {
                         </div>
                         <div>
                           <div className="font-medium text-gray-900">{transaction.reason}</div>
-                          <div className="text-sm text-gray-500">{new Date(transaction.date).toLocaleDateString()}</div>
+                          <div className="text-sm text-gray-500">
+                            {new Date(transaction.date).toLocaleDateString()}
+                            {transaction.expiresAt ? ` | Expires ${new Date(transaction.expiresAt).toLocaleDateString()}` : ""}
+                          </div>
                         </div>
                       </div>
                       <div className={`font-bold ${earned ? "text-green-600" : "text-red-600"}`}>
@@ -335,6 +489,12 @@ export default function LoyaltyDashboard() {
                   </svg>
                 </button>
               </div>
+              <button
+                onClick={copyReferralLink}
+                className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
+              >
+                Copy Referral Link
+              </button>
             </div>
 
             {!showReferralInput ? (

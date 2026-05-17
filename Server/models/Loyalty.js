@@ -18,6 +18,15 @@ const loyaltyTransactionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Order",
   },
+  source: {
+    type: String,
+  },
+  expiresAt: {
+    type: Date,
+  },
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+  },
   date: {
     type: Date,
     default: Date.now,
@@ -117,6 +126,8 @@ loyaltySchema.methods.getTierBenefits = function () {
         pointsMultiplier: 3,
         freeShipping: true,
         expressShipping: true,
+        returnWindowDays: 21,
+        prioritySupport: true,
         birthdayBonus: 5000,
         exclusiveDeals: true,
         personalShopper: true,
@@ -127,6 +138,8 @@ loyaltySchema.methods.getTierBenefits = function () {
         pointsMultiplier: 2,
         freeShipping: true,
         expressShipping: false,
+        returnWindowDays: 14,
+        prioritySupport: true,
         birthdayBonus: 2000,
         exclusiveDeals: true,
         personalShopper: false,
@@ -137,6 +150,8 @@ loyaltySchema.methods.getTierBenefits = function () {
         pointsMultiplier: 1.5,
         freeShipping: true,
         expressShipping: false,
+        returnWindowDays: 10,
+        prioritySupport: false,
         birthdayBonus: 1000,
         exclusiveDeals: false,
         personalShopper: false,
@@ -148,6 +163,8 @@ loyaltySchema.methods.getTierBenefits = function () {
         pointsMultiplier: 1,
         freeShipping: false,
         expressShipping: false,
+        returnWindowDays: 7,
+        prioritySupport: false,
         birthdayBonus: 500,
         exclusiveDeals: false,
         personalShopper: false,
@@ -157,7 +174,13 @@ loyaltySchema.methods.getTierBenefits = function () {
 };
 
 // Add points
-loyaltySchema.methods.addPoints = function (points, reason, orderId = null, multiplierOverride = null) {
+loyaltySchema.methods.addPoints = function (
+  points,
+  reason,
+  orderId = null,
+  multiplierOverride = null,
+  options = {},
+) {
   const multiplier = multiplierOverride === null ? this.getTierMultiplier() : Number(multiplierOverride || 1);
   const earnedPoints = Math.floor(points * multiplier);
 
@@ -169,6 +192,9 @@ loyaltySchema.methods.addPoints = function (points, reason, orderId = null, mult
     points: earnedPoints,
     reason,
     orderId,
+    source: options.source,
+    expiresAt: options.expiresAt,
+    metadata: options.metadata,
   });
 
   this.updateTier();

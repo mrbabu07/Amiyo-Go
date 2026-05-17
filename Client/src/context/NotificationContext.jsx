@@ -131,6 +131,15 @@ export const NotificationProvider = ({ children }) => {
     setNotifications(updated);
     setUnreadCount(updated.filter((n) => !n.read).length);
     saveNotifications(updated);
+    const user = auth.currentUser;
+    if (user && typeof id === "string" && id.length === 24) {
+      user.getIdToken().then((token) => {
+        fetch(`${import.meta.env.VITE_API_URL}/notifications/${id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+      });
+    }
   };
 
   const clearAllNotifications = () => {

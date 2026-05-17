@@ -11,11 +11,13 @@ export default function PointsRedemption({
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [error, setError] = useState("");
 
-  const pointsToTaka = (points) => (Number(points) || 0) / 100;
-  const maxRedeemablePoints = Math.min(
+  const pointsToTaka = (points) =>
+    (Number(points) || 0) * Number(userLoyalty?.redemption?.valuePerPoint || 0.01);
+  const rawMaxRedeemablePoints = Math.min(
     userLoyalty?.points || 0,
     Math.floor((Number(orderTotal) || 0) * 100),
   );
+  const maxRedeemablePoints = Math.floor(rawMaxRedeemablePoints / 100) * 100;
   const quickRedeemPoints =
     maxRedeemablePoints >= 100
       ? Math.min(200, Math.floor(maxRedeemablePoints / 100) * 100)
@@ -67,7 +69,12 @@ export default function PointsRedemption({
     }
   };
 
-  if (!userLoyalty || userLoyalty.points < 100) {
+  const handleSliderChange = (event) => {
+    const value = Math.floor(Number(event.target.value || 0) / 100) * 100;
+    setPointsToRedeem(String(Math.min(Math.max(value, 100), maxRedeemablePoints)));
+  };
+
+  if (!userLoyalty || userLoyalty.points < 100 || maxRedeemablePoints < 100) {
     return (
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
@@ -86,7 +93,7 @@ export default function PointsRedemption({
           </svg>
           <span className="text-sm">
             {userLoyalty
-              ? `You need at least 100 points to redeem. You have ${userLoyalty.points} points.`
+              ? `You need at least 100 redeemable points. You have ${userLoyalty.points} points.`
               : "Loading loyalty points..."}
           </span>
         </div>
@@ -206,6 +213,24 @@ export default function PointsRedemption({
             "Redeem"
           )}
         </button>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
+        <div className="mb-2 flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+          <span>Use coins</span>
+          <span>
+            {pointsToRedeem || 0} pts = BDT {pointsToTaka(pointsToRedeem || 0).toFixed(2)}
+          </span>
+        </div>
+        <input
+          type="range"
+          min="100"
+          max={maxRedeemablePoints}
+          step="100"
+          value={pointsToRedeem || 100}
+          onChange={handleSliderChange}
+          className="w-full accent-primary-500"
+        />
       </div>
 
       <div className="flex gap-2">

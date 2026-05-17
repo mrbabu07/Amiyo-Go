@@ -13,6 +13,7 @@ describe("product detail white-box utilities", () => {
     buildBuyerProtection,
     buildPriceHistory,
     buildSellerStrip,
+    getProductSocialProof,
     normalizeForJson,
     publicProductCard,
     stringifyId,
@@ -121,6 +122,48 @@ describe("product detail white-box utilities", () => {
       verified: true,
     });
     expect(card).toMatchObject({ title: "Rice", image: "rice.jpg", price: 100, reason: "similar" });
+  });
+
+  test("builds social proof from recent real order quantities", async () => {
+    const productId = new ObjectId();
+    const orders = [
+      {
+        status: "delivered",
+        createdAt: new Date("2026-05-17T03:00:00.000Z"),
+        products: [{ productId, quantity: 2 }],
+      },
+      {
+        status: "processing",
+        createdAt: new Date("2026-05-16T18:00:00.000Z"),
+        items: [{ product: productId.toString(), quantity: 1 }],
+      },
+      {
+        status: "cancelled",
+        createdAt: new Date("2026-05-17T04:00:00.000Z"),
+        products: [{ productId, quantity: 9 }],
+      },
+    ];
+    const db = {
+      collection: () => ({
+        find: () => ({
+          limit: () => ({
+            toArray: () => Promise.resolve(orders),
+          }),
+        }),
+      }),
+    };
+
+    const proof = await getProductSocialProof(
+      db,
+      { _id: productId, views: 100, reviewCount: 12, sales: 20 },
+      new Date("2026-05-17T06:00:00.000Z"),
+    );
+
+    expect(proof).toEqual(expect.objectContaining({
+      soldLast24h: 3,
+      ordersLast24h: 2,
+    }));
+    expect(proof.platformGuarantee.promises).toContain("Secure checkout");
   });
 
   test("normalizes product detail payloads for safe JSON responses", () => {

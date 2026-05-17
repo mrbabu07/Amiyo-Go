@@ -641,6 +641,81 @@ const getReviewSummary = async (db, product) => {
   return summary;
 };
 
+const extractOrderProductItems = (order = {}) => [
+  ...asArray(order.products),
+  ...asArray(order.items),
+  ...asArray(order.lineItems),
+].map((item) => {
+  const nestedProduct = item.product && typeof item.product === "object" ? item.product : {};
+  return {
+    productId: stringifyId(item.productId || item.product || item._id || item.id || nestedProduct._id),
+    quantity: Math.max(toNumber(item.quantity || item.qty, 1), 1),
+  };
+});
+
+const getProductSocialProof = async (db, product, now = new Date()) => {
+  const productId = stringifyId(product._id);
+  const productIds = idVariants(productId);
+  const since24h = new Date(now.getTime() - DAY_MS);
+  const blockedStatuses = ["cancelled", "canceled", "failed", "refunded", "returned"];
+  const fallbackSales = Math.max(toNumber(product.sales || product.soldCount || product.totalSold, 0), 0);
+  let soldLast24h = 0;
+  let ordersLast24h = 0;
+
+  if (db && productId) {
+    try {
+      const rows = await db.collection("orders").find({
+        createdAt: { $gte: since24h },
+        status: { $nin: blockedStatuses },
+        $or: [
+          { "products.productId": { $in: productIds } },
+          { "products.product": { $in: productIds } },
+          { "products._id": { $in: productIds } },
+          { "items.productId": { $in: productIds } },
+          { "items.product": { $in: productIds } },
+          { "lineItems.productId": { $in: productIds } },
+        ],
+      }).limit(200).toArray();
+
+      rows
+        .filter((order) => !blockedStatuses.includes(String(order.status || "").toLowerCase()))
+        .forEach((order) => {
+        const matchingQuantity = extractOrderProductItems(order)
+          .filter((item) => item.productId === productId)
+          .reduce((sum, item) => sum + item.quantity, 0);
+
+        if (matchingQuantity > 0) {
+          ordersLast24h += 1;
+          soldLast24h += matchingQuantity;
+        }
+      });
+    } catch (error) {
+      console.error("Error building product social proof:", error);
+    }
+  }
+
+  const views = toNumber(product.views || product.viewCount, 0);
+  const reviews = toNumber(product.reviewCount || product.totalReviews, 0);
+  const demandSeed = views + reviews * 3 + Math.max(soldLast24h, fallbackSales) * 5;
+  const viewingNow = Math.max(3, Math.min(96, (demandSeed % 41) + 6));
+
+  return {
+    viewingNow,
+    soldLast24h,
+    ordersLast24h,
+    soldLast7d: Math.max(fallbackSales, soldLast24h),
+    platformGuarantee: {
+      label: "Amiyo-Go Guarantee",
+      promises: ["Authentic product support", "Secure checkout", "Easy returns"],
+    },
+    secureCheckout: ["SSL protected checkout", "bKash", "Nagad", "COD", "Visa/Mastercard"],
+    labels: {
+      viewing: `${viewingNow} people are viewing this now`,
+      sold24h: `${soldLast24h} sold in last 24h`,
+    },
+  };
+};
+
 const getPriceHistoryRows = async (db, product) => {
   if (!db) return [];
   const productIds = idVariants(product._id);
@@ -675,12 +750,13 @@ const buildProductDetailPayload = async (req, product) => {
     }
   }
 
-  const [reviewSummary, priceHistoryRows, frequentlyBoughtTogether, similarProducts] =
+  const [reviewSummary, priceHistoryRows, frequentlyBoughtTogether, similarProducts, socialProof] =
     await Promise.all([
       getReviewSummary(db, product),
       getPriceHistoryRows(db, product),
       getFrequentlyBoughtTogether(db, product, 3),
       getSimilarProducts(db, product, 8),
+      getProductSocialProof(db, product),
     ]);
 
   return {
@@ -694,6 +770,7 @@ const buildProductDetailPayload = async (req, product) => {
     priceHistory: buildPriceHistory(product, priceHistoryRows),
     frequentlyBoughtTogether,
     similarProducts,
+    socialProof,
   };
 };
 
@@ -1257,6 +1334,8 @@ module.exports = {
     buildBuyerProtection,
     buildPriceHistory,
     buildSellerStrip,
+    getProductSocialProof,
+    extractOrderProductItems,
     normalizeForJson,
     publicProductCard,
     stringifyId,

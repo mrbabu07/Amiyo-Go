@@ -18,6 +18,7 @@ import SellerInfoStrip from "../components/SellerInfoStrip";
 import PriceHistorySparkline from "../components/PriceHistorySparkline";
 import ProductShareReportActions from "../components/ProductShareReportActions";
 import FrequentlyBoughtTogether from "../components/FrequentlyBoughtTogether";
+import SocialProofIndicators from "../components/SocialProofIndicators";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -397,6 +398,7 @@ export default function ProductDetail() {
             )}
 
             <ProductShareReportActions product={product} />
+            <SocialProofIndicators product={product} className="mt-4" />
           </div>
 
           <SellerInfoStrip

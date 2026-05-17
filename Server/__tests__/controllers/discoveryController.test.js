@@ -171,4 +171,19 @@ describe("discoveryController homepage builders", () => {
     expect(prompt).toEqual(expect.objectContaining({ canClaim: true, points: 5, totalPoints: 25 }));
     expect(getTodayKey(now)).toMatch(/2026-05-17/);
   });
+
+  test("daily check-in prompt includes streak bonus context", () => {
+    const prompt = buildDailyCheckInPrompt({
+      checkIn: null,
+      loyalty: { points: 75, dailyCheckInStreak: 2 },
+      now,
+    });
+
+    expect(prompt).toEqual(expect.objectContaining({
+      canClaim: true,
+      points: 10,
+      nextBonus: 5,
+      streak: 2,
+    }));
+  });
 });

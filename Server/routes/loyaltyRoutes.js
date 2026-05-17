@@ -6,6 +6,8 @@ const {
   getPointsHistory,
   redeemPoints,
   applyReferralCode,
+  getTierBenefits,
+  getMultiplierEvents,
   getLeaderboard,
   getStatistics,
   awardBirthdayBonus,
@@ -16,6 +18,8 @@ router.get("/my-points", verifyToken, getMyPoints);
 router.get("/history", verifyToken, getPointsHistory);
 router.post("/redeem", verifyToken, redeemPoints);
 router.post("/apply-referral", verifyToken, applyReferralCode);
+router.get("/tier-benefits", getTierBenefits);
+router.get("/multiplier-events", getMultiplierEvents);
 router.get("/leaderboard", getLeaderboard); // Public
 
 // Admin routes

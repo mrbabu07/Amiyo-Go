@@ -11,6 +11,7 @@ const {
   getMyNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  deleteNotification,
 } = require("../controllers/notificationController");
 const { verifyToken, verifyOptionalToken } = require("../middleware/auth");
 
@@ -28,6 +29,7 @@ router.post("/preferences", updatePreferences);
 router.get("/", getMyNotifications);
 router.patch("/read-all", markAllNotificationsRead);
 router.patch("/:id/read", markNotificationRead);
+router.delete("/:id", deleteNotification);
 router.post("/test-auth", sendTestNotification); // Authenticated test endpoint
 
 module.exports = router;

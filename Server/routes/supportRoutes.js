@@ -9,12 +9,20 @@ const {
   assignTicket,
   addTicketMessage,
   getTicketStats,
+  getFaqArticles,
+  answerSupportBot,
+  getContactOptions,
   createChatSession,
   getChatSessions,
   assignChatAgent,
   addChatMessage,
   closeChatSession,
 } = require("../controllers/supportController");
+
+// Self-serve help and rule-based bot
+router.get("/faqs", getFaqArticles);
+router.post("/bot", answerSupportBot);
+router.get("/contact-options", getContactOptions);
 
 // Support Tickets Routes
 router.post("/tickets", verifyToken, createTicket);

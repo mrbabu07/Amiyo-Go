@@ -5,31 +5,92 @@ const loyaltyService = require("../services/loyaltyService");
 exports.getMyPoints = async (req, res) => {
   try {
     const userId = req.user?.uid;
-    const email = req.user?.email;
+    const email = req.user?.email || req.dbUser?.email || "customer@example.com";
 
-    if (!userId || !email) {
+    if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
     const loyalty = await loyaltyService.getOrCreateAccount(userId, email);
+    const rules = await loyaltyService.getRules();
     const benefits = loyalty.getTierBenefits();
+    const tierProgress = loyaltyService.getTierProgress(loyalty);
+    const expiringSoon = loyaltyService.getExpiringPoints(loyalty, 7);
+    const multiplierEvents = await loyaltyService.getActiveMultiplierEvents();
+    const referralPath = `/register?ref=${encodeURIComponent(loyalty.referralCode || "")}`;
 
     res.json({
       success: true,
       data: {
         points: loyalty.points,
+        balance: loyalty.points,
+        pointsValue: loyalty.points * Number(rules.redemptionValue || 0.01),
         tier: loyalty.tier,
         totalEarned: loyalty.totalEarned,
         totalRedeemed: loyalty.totalRedeemed,
         referralCode: loyalty.referralCode,
+        referralLink: referralPath,
         benefits,
-        transactions: loyalty.transactions.slice(-10), // Last 10 transactions
+        tierProgress,
+        tierBenefits: loyaltyService.getTierTable(),
+        redemption: {
+          minPoints: Number(rules.minRedeemPoints || 100),
+          valuePerPoint: Number(rules.redemptionValue || 0.01),
+          pointsPerTaka: Math.round(1 / Number(rules.redemptionValue || 0.01)),
+        },
+        expiringSoon,
+        multiplierEvents,
+        transactions: loyalty.transactions
+          .slice()
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+          .slice(0, 10),
       },
     });
   } catch (error) {
     console.error("Error getting loyalty points:", error);
     res.status(500).json({
       message: "Error fetching loyalty points",
+      error: error.message,
+    });
+  }
+};
+
+// Get tier benefits page data
+exports.getTierBenefits = async (req, res) => {
+  try {
+    const rules = await loyaltyService.getRules();
+    res.json({
+      success: true,
+      data: {
+        tiers: loyaltyService.getTierTable(),
+        redemption: {
+          minPoints: Number(rules.minRedeemPoints || 100),
+          valuePerPoint: Number(rules.redemptionValue || 0.01),
+          pointsPerTaka: Math.round(1 / Number(rules.redemptionValue || 0.01)),
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error getting tier benefits:", error);
+    res.status(500).json({
+      message: "Error fetching tier benefits",
+      error: error.message,
+    });
+  }
+};
+
+// Get active limited-time coin multiplier events
+exports.getMultiplierEvents = async (req, res) => {
+  try {
+    const events = await loyaltyService.getActiveMultiplierEvents();
+    res.json({
+      success: true,
+      data: events,
+    });
+  } catch (error) {
+    console.error("Error getting multiplier events:", error);
+    res.status(500).json({
+      message: "Error fetching multiplier events",
       error: error.message,
     });
   }

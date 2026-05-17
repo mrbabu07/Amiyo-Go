@@ -104,6 +104,15 @@ class SupportTicket {
     return await this.collection.updateOne(
       { _id: new ObjectId(id) },
       {
+        $push: {
+          statusTimeline: {
+            status,
+            label: `Status changed to ${status}`,
+            actorId: updatedBy,
+            actorType: "agent",
+            createdAt: new Date(),
+          },
+        },
         $set: {
           status,
           updatedAt: new Date(),

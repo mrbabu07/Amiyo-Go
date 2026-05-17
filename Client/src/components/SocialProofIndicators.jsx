@@ -1,130 +1,89 @@
-import { useState, useEffect } from "react";
+import { Eye, ShieldCheck, ShoppingBag, Star, Zap } from "lucide-react";
+
+const badgeBase =
+  "inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium";
 
 export default function SocialProofIndicators({ product, className = "" }) {
-  const [viewCount, setViewCount] = useState(0);
-  const [purchaseCount, setPurchaseCount] = useState(0);
-
-  useEffect(() => {
-    // Generate realistic view counts based on product data
-    const baseViews = Math.floor(Math.random() * 50) + 10; // 10-60 views
-    const ratingBonus = (product.averageRating || 0) * 5; // Higher rated = more views
-    const reviewBonus = (product.totalReviews || 0) * 2; // More reviews = more views
-
-    setViewCount(Math.floor(baseViews + ratingBonus + reviewBonus));
-
-    // Generate purchase counts (lower than views)
-    const basePurchases = Math.floor(Math.random() * 15) + 3; // 3-18 purchases
-    setPurchaseCount(Math.floor(basePurchases + reviewBonus * 0.5));
-  }, [product]);
+  const socialProof = product?.detail?.socialProof || {};
+  const stock = Number(product?.detail?.stock?.stock ?? product?.stock ?? 0);
+  const reviewCount = Number(
+    product?.detail?.reviewSummary?.totalReviews ??
+      product?.reviewCount ??
+      product?.totalReviews ??
+      0,
+  );
+  const rating = Number(
+    product?.detail?.reviewSummary?.averageRating ??
+      product?.averageRating ??
+      product?.rating ??
+      0,
+  );
 
   const indicators = [];
 
-  // View count indicator
-  if (viewCount > 0) {
+  if (socialProof.viewingNow > 0) {
     indicators.push({
-      id: "views",
-      icon: "👀",
-      text: `${viewCount} people viewed this today`,
+      id: "viewing",
+      icon: Eye,
+      text: socialProof.labels?.viewing || `${socialProof.viewingNow} people are viewing this now`,
       color:
-        "text-blue-600 bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800",
+        "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300",
     });
   }
 
-  // Purchase count indicator
-  if (purchaseCount > 0) {
+  if (socialProof.soldLast24h > 0) {
     indicators.push({
-      id: "purchases",
-      icon: "🛒",
-      text: `${purchaseCount} people bought this in last 24h`,
+      id: "sold",
+      icon: ShoppingBag,
+      text: socialProof.labels?.sold24h || `${socialProof.soldLast24h} sold in last 24h`,
       color:
-        "text-green-600 bg-green-50 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800",
+        "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300",
     });
   }
 
-  // Low stock urgency
-  if (product.stock > 0 && product.stock <= 5) {
+  if (stock > 0 && stock <= 5) {
     indicators.push({
       id: "stock",
-      icon: "⚡",
-      text: `Only ${product.stock} left in stock!`,
+      icon: Zap,
+      text: `Only ${stock} left in stock`,
       color:
-        "text-orange-600 bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800",
+        "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-900/20 dark:text-orange-300",
     });
   }
 
-  // High rating indicator
-  if (
-    (product.averageRating || 0) >= 4.5 &&
-    (product.totalReviews || 0) >= 10
-  ) {
+  if (rating >= 4.5 && reviewCount >= 10) {
     indicators.push({
       id: "rating",
-      icon: "⭐",
-      text: `Highly rated by ${product.totalReviews} customers`,
+      icon: Star,
+      text: `Highly rated by ${reviewCount} customers`,
       color:
-        "text-yellow-600 bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800",
+        "border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300",
     });
   }
 
-  // Recently added indicator
-  const createdDate = new Date(product.createdAt);
-  const daysSinceCreated = Math.floor(
-    (new Date() - createdDate) / (1000 * 60 * 60 * 24),
-  );
-  if (daysSinceCreated <= 7) {
+  if (socialProof.platformGuarantee?.label) {
     indicators.push({
-      id: "new",
-      icon: "✨",
-      text: "New arrival this week",
+      id: "guarantee",
+      icon: ShieldCheck,
+      text: socialProof.platformGuarantee.label,
       color:
-        "text-purple-600 bg-purple-50 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800",
-    });
-  }
-
-  // Trending indicator (high views + recent purchases)
-  if (viewCount > 30 && purchaseCount > 10) {
-    indicators.push({
-      id: "trending",
-      icon: "🔥",
-      text: "Trending now",
-      color:
-        "text-red-600 bg-red-50 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800",
+        "border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-900/20 dark:text-teal-300",
     });
   }
 
   if (indicators.length === 0) return null;
 
   return (
-    <div className={`space-y-2 ${className}`}>
-      {indicators.slice(0, 2).map(
-        (
-          indicator, // Show max 2 indicators to avoid clutter
-        ) => (
-          <div
-            key={indicator.id}
-            className={`
-            inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border
-            ${indicator.color}
-            animate-pulse-subtle
-          `}
-          >
-            <span className="text-base">{indicator.icon}</span>
+    <div className={`flex flex-wrap gap-2 ${className}`}>
+      {indicators.slice(0, 4).map((indicator) => {
+        const Icon = indicator.icon;
+        return (
+          <div key={indicator.id} className={`${badgeBase} ${indicator.color}`}>
+            <Icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
             <span>{indicator.text}</span>
           </div>
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }
-
-// Subtle pulse animation for social proof
-export const SocialProofStyles = `
-  @keyframes pulse-subtle {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.8; }
-  }
-  
-  .animate-pulse-subtle {
-    animation: pulse-subtle 3s ease-in-out infinite;
-  }
-`;

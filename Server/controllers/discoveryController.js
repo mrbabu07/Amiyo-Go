@@ -610,13 +610,21 @@ const buildRecentlyViewedProducts = ({ products = [], recentProductIds = [], rec
 
 const buildDailyCheckInPrompt = ({ checkIn = null, loyalty = null, now = new Date(), points = DEFAULT_CHECK_IN_POINTS }) => {
   const claimedToday = Boolean(checkIn);
+  const streak = Number(checkIn?.streak || loyalty?.dailyCheckInStreak || 0);
+  const nextStreak = claimedToday ? streak + 1 : Math.max(streak + 1, 1);
+  const nextBonus = nextStreak > 0 && nextStreak % 7 === 0 ? 20 : nextStreak >= 3 ? 5 : 0;
+  const rewardPoints = claimedToday ? Number(checkIn?.points || points) : Number(points || DEFAULT_CHECK_IN_POINTS) + nextBonus;
   return {
     enabled: true,
     dateKey: getTodayKey(now),
     canClaim: !claimedToday,
     claimedToday,
-    points,
-    label: claimedToday ? "Daily reward collected" : `Check in today for ${points} coins`,
+    points: rewardPoints,
+    basePoints: Number(checkIn?.basePoints || DEFAULT_CHECK_IN_POINTS),
+    bonusPoints: Number(checkIn?.bonusPoints || 0),
+    streak,
+    nextBonus,
+    label: claimedToday ? "Daily reward collected" : `Check in today for ${rewardPoints} coins`,
     totalPoints: Number(loyalty?.points || 0),
     lastClaim: checkIn || null,
   };
@@ -827,7 +835,7 @@ const claimDailyCheckInReward = async (req, res) => {
     const userId = normalizeId(req.user?.uid);
     const userObjectId = req.user?._id || req.dbUser?._id || null;
     const dateKey = getTodayKey(now);
-    const points = DEFAULT_CHECK_IN_POINTS;
+    const yesterdayKey = getTodayKey(new Date(now.getTime() - 24 * 60 * 60 * 1000));
     const checkins = db.collection("dailyCheckins");
 
     await checkins.createIndex({ userId: 1, dateKey: 1 }, { unique: true });
@@ -841,11 +849,20 @@ const claimDailyCheckInReward = async (req, res) => {
       });
     }
 
+    const previous = await checkins.findOne({ userId, dateKey: yesterdayKey });
+    const streak = previous ? Number(previous.streak || 1) + 1 : 1;
+    const bonusPoints = streak > 0 && streak % 7 === 0 ? 20 : streak >= 3 ? 5 : 0;
+    const points = DEFAULT_CHECK_IN_POINTS + bonusPoints;
+    const expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+
     const checkIn = {
       userId,
       userObjectId,
       dateKey,
       points,
+      basePoints: DEFAULT_CHECK_IN_POINTS,
+      bonusPoints,
+      streak,
       source: "homepage_daily_checkin",
       createdAt: now,
       updatedAt: now,
@@ -869,10 +886,16 @@ const claimDailyCheckInReward = async (req, res) => {
             type: "earned",
             points,
             reason: "Daily homepage check-in",
+            source: "daily_check_in",
+            expiresAt,
+            metadata: {
+              streak,
+              bonusPoints,
+            },
             date: now,
           },
         },
-        $set: { updatedAt: now },
+        $set: { updatedAt: now, dailyCheckInStreak: streak, lastDailyCheckInDate: dateKey },
       },
       { upsert: true },
     );

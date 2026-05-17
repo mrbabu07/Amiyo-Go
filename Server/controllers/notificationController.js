@@ -492,6 +492,18 @@ const markAllNotificationsRead = async (req, res) => {
   }
 };
 
+const deleteNotification = async (req, res) => {
+  try {
+    const Notification = req.app.locals.models.Notification;
+    await Notification.delete(req.params.id, req.user.uid);
+    const unreadCount = await Notification.getUnreadCount(req.user.uid);
+    res.json({ success: true, unreadCount });
+  } catch (error) {
+    console.error("Failed to delete notification:", error);
+    res.status(500).json({ success: false, error: "Failed to delete notification" });
+  }
+};
+
 module.exports = {
   subscribe,
   unsubscribe,
@@ -505,4 +517,5 @@ module.exports = {
   getMyNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  deleteNotification,
 };

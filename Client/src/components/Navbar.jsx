@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Coins } from "lucide-react";
 import useAuth from "../hooks/useAuth";
 import useCart from "../hooks/useCart";
 import useWishlist from "../hooks/useWishlist";
 import { useComparison } from "../context/ComparisonContext";
-import { getCategories, getSearchNavigation } from "../services/api";
+import { getCategories, getMyLoyalty, getSearchNavigation } from "../services/api";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
 import TopBarLanguageSwitcher from "./SimpleLanguageSwitcher";
@@ -24,6 +25,7 @@ export default function Navbar() {
   const [categories, setCategories] = useState([]);
   const [activeCategoryId, setActiveCategoryId] = useState("");
   const [scrolled, setScrolled] = useState(false);
+  const [loyaltyPoints, setLoyaltyPoints] = useState(null);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -50,6 +52,26 @@ export default function Navbar() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setLoyaltyPoints(null);
+      return;
+    }
+
+    let cancelled = false;
+    getMyLoyalty()
+      .then((response) => {
+        if (!cancelled) setLoyaltyPoints(response.data?.data?.points ?? 0);
+      })
+      .catch(() => {
+        if (!cancelled) setLoyaltyPoints(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleSearch = (query) => {
     if (query.trim()) {
@@ -202,6 +224,17 @@ export default function Navbar() {
               <div className="hidden lg:flex items-center space-x-2">
                 {/* Theme Toggle */}
                 <ThemeToggle />
+
+                {user && loyaltyPoints !== null && (
+                  <Link
+                    to="/loyalty"
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 text-sm font-semibold text-yellow-800 transition-colors hover:bg-yellow-100 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
+                    title="Coins balance"
+                  >
+                    <Coins className="h-4 w-4" aria-hidden="true" />
+                    <span>{loyaltyPoints}</span>
+                  </Link>
+                )}
 
                 {/* Notifications */}
                 {user && <NotificationBell />}
@@ -957,6 +990,17 @@ export default function Navbar() {
                         {wishlistCount}
                       </span>
                     )}
+                  </Link>
+                )}
+
+                {user && loyaltyPoints !== null && (
+                  <Link
+                    to="/loyalty"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm font-semibold text-yellow-800 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
+                  >
+                    <Coins className="h-4 w-4" aria-hidden="true" />
+                    <span>{loyaltyPoints}</span>
                   </Link>
                 )}
 
