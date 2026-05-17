@@ -15,8 +15,17 @@ const toNumber = (value, fallback = 0) => {
 
 const stringifyId = (value) => {
   if (!value) return "";
-  if (typeof value === "object" && value._id) return stringifyId(value._id);
-  if (typeof value === "object" && value.$oid) return value.$oid;
+  if (typeof value === "object") {
+    if (
+      value instanceof ObjectId ||
+      value._bsontype === "ObjectId" ||
+      value.constructor?.name === "ObjectId"
+    ) {
+      return value.toString();
+    }
+    if (value.$oid) return value.$oid;
+    if (value._id && value._id !== value) return stringifyId(value._id);
+  }
   return value.toString();
 };
 
@@ -37,6 +46,36 @@ const idVariants = (value) => {
 const asArray = (value) => {
   if (!value) return [];
   return Array.isArray(value) ? value.filter(Boolean) : [value];
+};
+
+const normalizeForJson = (value, seen = new WeakSet(), depth = 0) => {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== "object") return value;
+  if (value instanceof Date) return value.toISOString();
+  if (
+    value instanceof ObjectId ||
+    value._bsontype === "ObjectId" ||
+    value.constructor?.name === "ObjectId"
+  ) {
+    return value.toString();
+  }
+  if (Buffer.isBuffer(value)) return value.toString("base64");
+  if (depth > 12) return undefined;
+
+  if (seen.has(value)) return undefined;
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeForJson(item, seen, depth + 1));
+  }
+
+  const normalized = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === "function") continue;
+    const cleanEntry = normalizeForJson(entry, seen, depth + 1);
+    if (cleanEntry !== undefined) normalized[key] = cleanEntry;
+  }
+  return normalized;
 };
 
 const uniqueStrings = (items) => [
@@ -112,12 +151,13 @@ const getVariantImages = (variant) =>
   ]);
 
 const buildProductMedia = (product = {}) => {
+  const variants = asArray(product.variants);
   const imageSet = new Set();
   const addImage = (image) => {
     if (typeof image === "string" && image.trim()) imageSet.add(image.trim());
   };
 
-  (product.variants || []).forEach((variant) => getVariantImages(variant).forEach(addImage));
+  variants.forEach((variant) => getVariantImages(variant).forEach(addImage));
   asArray(product.images).forEach(addImage);
   addImage(product.image);
   addImage(product.coverImage);
@@ -146,7 +186,7 @@ const buildProductMedia = (product = {}) => {
   return {
     images: [...imageSet],
     videos,
-    variantImages: (product.variants || []).map((variant) => ({
+    variantImages: variants.map((variant) => ({
       variantId: stringifyId(variant._id || variant.id || variant.sku),
       sku: variant.sku || "",
       size: getVariantSize(variant) || "",
@@ -852,7 +892,7 @@ const getProductById = async (req, res) => {
 
     console.log(`✅ Product found: ${product.title}`);
     const detail = await buildProductDetailPayload(req, product);
-    res.json({ success: true, data: { ...product, detail } });
+    res.json({ success: true, data: normalizeForJson({ ...product, detail }) });
   } catch (error) {
     console.error("Error fetching product:", error);
     res.status(500).json({ success: false, error: error.message });
@@ -1217,6 +1257,8 @@ module.exports = {
     buildBuyerProtection,
     buildPriceHistory,
     buildSellerStrip,
+    normalizeForJson,
     publicProductCard,
+    stringifyId,
   },
 };

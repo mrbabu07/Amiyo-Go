@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const mongoose = require("mongoose");
 const {
   _productDetailTestUtils,
 } = require("../../controllers/productController");
@@ -12,7 +13,9 @@ describe("product detail white-box utilities", () => {
     buildBuyerProtection,
     buildPriceHistory,
     buildSellerStrip,
+    normalizeForJson,
     publicProductCard,
+    stringifyId,
   } = _productDetailTestUtils;
 
   test("builds a variant matrix with crossed-out unavailable combinations", () => {
@@ -49,6 +52,18 @@ describe("product detail white-box utilities", () => {
     expect(media.images).toEqual(["variant-2.jpg", "variant.jpg", "front.jpg", "side.jpg", "cover.jpg"]);
     expect(media.videos).toEqual([{ url: "demo.mp4", title: "Product demo" }]);
     expect(media.variantImages[0]).toMatchObject({ sku: "A", images: ["variant-2.jpg", "variant.jpg"] });
+  });
+
+  test("builds media safely when legacy variants are missing or object-shaped", () => {
+    const withoutVariants = buildProductMedia({ image: "cover.jpg" });
+    const objectVariant = buildProductMedia({
+      variants: { sku: "LEGACY", image: "legacy.jpg" },
+      images: ["gallery.jpg"],
+    });
+
+    expect(withoutVariants.images).toEqual(["cover.jpg"]);
+    expect(objectVariant.images).toEqual(["legacy.jpg", "gallery.jpg"]);
+    expect(objectVariant.variantImages[0]).toMatchObject({ sku: "LEGACY" });
   });
 
   test("summarizes real-time stock and out-of-stock notification state", () => {
@@ -106,5 +121,28 @@ describe("product detail white-box utilities", () => {
       verified: true,
     });
     expect(card).toMatchObject({ title: "Rice", image: "rice.jpg", price: 100, reason: "similar" });
+  });
+
+  test("normalizes product detail payloads for safe JSON responses", () => {
+    const productId = new ObjectId();
+    const payload = { _id: productId, createdAt: new Date("2026-05-17T00:00:00.000Z") };
+    payload.self = payload;
+
+    const normalized = normalizeForJson(payload);
+
+    expect(normalized).toEqual({
+      _id: productId.toString(),
+      createdAt: "2026-05-17T00:00:00.000Z",
+    });
+    expect(() => JSON.stringify(normalized)).not.toThrow();
+  });
+
+  test("stringifies MongoDB and Mongoose ObjectIds without recursing through _id getters", () => {
+    const nativeId = new ObjectId();
+    const mongooseId = new mongoose.Types.ObjectId();
+
+    expect(stringifyId(nativeId)).toBe(nativeId.toString());
+    expect(stringifyId(mongooseId)).toBe(mongooseId.toString());
+    expect(stringifyId({ _id: nativeId })).toBe(nativeId.toString());
   });
 });
