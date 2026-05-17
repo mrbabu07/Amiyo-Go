@@ -154,7 +154,7 @@ function TopCategorySection({ categories, t }) {
   const visibleCategories = categories.slice(0, 14);
 
   return (
-    <section className="sticky top-20 z-30 border-b border-gray-200 bg-slate-50/95 py-2 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 lg:top-32">
+    <section className="border-b border-gray-200 bg-slate-50 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-950">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-2 flex items-center justify-between gap-3">
@@ -709,8 +709,8 @@ export default function Home() {
       </section>
       <MarketplacePromiseStrip t={t} />
 
-      <FlashSaleStrip flashSales={discovery.flashSales} now={now} formatPrice={formatPrice} t={t} />
       <TopCategorySection categories={discovery.categories} t={t} />
+      <FlashSaleStrip flashSales={discovery.flashSales} now={now} formatPrice={formatPrice} t={t} />
       <CouponStrip coupons={discovery.promotionStrip} formatPrice={formatPrice} t={t} />
 
       <ProductGridSection
