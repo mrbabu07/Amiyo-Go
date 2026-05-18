@@ -82,6 +82,7 @@ const AnalyticsSummary = require("./models/AnalyticsSummary");
 const OrderEvent = require("./models/OrderEvent");
 const DispatchAssignment = require("./models/DispatchAssignment");
 const VendorStaff = require("./models/VendorStaff");
+const Shipment = require("./models/Shipment");
 const { DEFAULT_ROLE_PERMISSIONS } = require("./config/permissions");
 const analyticsService = require("./services/analyticsService");
 const { initBulkUploadQueue } = require("./services/bulkUploadQueue");
@@ -127,6 +128,8 @@ const vendorRoutes = require("./routes/vendorRoutes");
 const vendorProductRoutes = require("./routes/vendorProductRoutes");
 const vendorFinanceRoutes = require("./routes/vendorFinanceRoutes");
 const vendorOrderManagementRoutes = require("./routes/vendorOrderManagementRoutes");
+const vendorLogisticsRoutes = require("./routes/vendorLogisticsRoutes");
+const shipmentRoutes = require("./routes/shipmentRoutes");
 const adminUserRoutes = require("./routes/adminUserRoutes");
 const adminProductRoutes = require("./routes/adminProductRoutes");
 const adminFinanceRoutes = require("./routes/adminFinanceRoutes");
@@ -277,6 +280,7 @@ async function run() {
       OrderEvent: new OrderEvent(db),
       DispatchAssignment: new DispatchAssignment(db),
       VendorStaff: new VendorStaff(db),
+      Shipment: new Shipment(db),
     };
 
     await app.locals.models.Permission.syncDefaults(DEFAULT_ROLE_PERMISSIONS);
@@ -317,6 +321,7 @@ async function run() {
     console.log("✅ Categories routes registered");
 
     app.use("/api/orders", orderRoutes);
+    app.use("/api/shipments", shipmentRoutes);
     console.log("✅ Orders routes registered");
 
     app.use("/api/user", userRoutes);
@@ -382,6 +387,8 @@ async function run() {
 
     app.use("/api/vendors", vendorOrderManagementRoutes);
     console.log("✅ Vendor Order Management routes registered");
+    app.use("/api/vendor/logistics", vendorLogisticsRoutes);
+    console.log("Vendor Logistics routes registered");
 
     app.use("/api/admin/users",    adminUserRoutes);
     console.log("✅ Admin User Management routes registered");
