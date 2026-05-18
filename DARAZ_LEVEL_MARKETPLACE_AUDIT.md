@@ -101,7 +101,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Product moderation | Partial | Admin product queue, approve/reject/disable, duplicate/IP/brand tools exist. Needs one reusable moderation queue layout. |
 | Category manager | Partial | Dynamic categories, category fields, attributes, commission concepts exist. Needs drag/drop tree and inheritance preview polish. |
 | Review moderation | Partial | Admin reviews/trust-safety moderation exists. Needs unified queue/detail drawer and vendor reply visibility. |
-| Orders overview/detail | Partial | Admin order management, detail, export, COD reconciliation, SLA/fraud queues exist. Needs drawer/detail standardization. |
+| Orders overview/detail | Partial | Admin order management, URL/short-code search, auto-open detail, vendor split context, update forms, export, COD reconciliation, and SLA/fraud queues exist. Needs drawer/detail standardization. |
 | Returns queue/decision | Partial | Admin returns and trust-safety disputes exist. Needs side-by-side evidence and decision panel consistency. |
 | Payout queue/detail | Partial | Admin payouts, payout requests, finance queue exist. Needs linked-orders detail and risk indicators polish. |
 | Commission settings | Partial | Finance/platform commission rules exist. Needs category inheritance preview and safer explanations. |
@@ -302,7 +302,7 @@ Current Phase 5 status by step:
 | 5.6 Support operations | Complete baseline | Support queue has stats, SLA, assignment UI, linked resources, and thread drawer. Future hardening: deeper internal-note automation verification. |
 | 5.7 Returns decision | Complete baseline | Return queue/dispute workflows feed operations workload, and returns now use shared decision metrics plus a side-by-side customer/vendor evidence drawer. |
 | 5.8 Payout operations | Hardened baseline | Payout queue, payout requests, approvals/rejections/paid states, finance overview, payout exposure signals, linked eligible orders, return deductions, prior payout history, and payout request detail drawer exist. |
-| 5.9 Order operations | Complete baseline | Admin orders, status/payment/delivery views, SLA/fraud queues, export, and override endpoints exist. Future hardening: override action audit UI polish. |
+| 5.9 Order operations | Hardened baseline | Admin orders, hash-style short-code search, auto-open detail on single search result, vendor split context, status/payment/delivery views, SLA/fraud queues, export, and override endpoints exist. Future hardening: override action audit UI polish. |
 | 5.10 Categories/commission | Complete baseline | Dynamic categories, attributes, category requests, platform commission rules, and finance rules exist. Future hardening: drag/drop tree and inheritance preview polish. |
 | 5.11 Delivery/logistics | Complete baseline | Logistics overview, zones, couriers, fee rules, dispatch manifest, failed delivery, COD float, and audit log exist. Future hardening: canonical shipment state-machine enforcement. |
 | 5.12 Promotions manager | Complete baseline | Promotions, coupons, flash sales, offers, campaigns, and vendor marketing review exist. Future hardening: stronger conflict detection and order discount snapshots. |
@@ -334,3 +334,11 @@ Phase 5 hardening pass:
 - Wired admin search query parameters into product, vendor, payout, return, and support queues so searched resources land in an already-filtered workspace.
 - Hardened payout request review with linked eligible-balance context, delivered-order rows, return deductions, and prior payout history inside the finance drawer.
 - Added `adminResourceSearch` black-box and white-box tests, and expanded payout queue risk tests for large/held payout requests.
+
+Order search hardening pass:
+
+- Added `#DD3556FE`-style admin order search support from the topbar into `/admin/orders?search=...`.
+- The admin orders page now hydrates URL search/vendor filters, filters on first load, and auto-opens the detail/update forms when one matching order is found.
+- Admin order detail now shows buyer/payment/delivery summary plus vendor order split, vendor-order status, commission, vendor earnings, item statuses, and vendor profile/order shortcuts.
+- Backend order search now normalizes `#` and `order` prefixes, escapes regex input, searches order/invoice/tracking fields, and matches short ObjectId fragments through `$toString`.
+- Added `Order.adminSearch` model tests alongside admin order management coverage.

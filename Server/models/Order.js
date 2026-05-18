@@ -12,6 +12,16 @@ const {
   loadPromotionRules,
 } = require("../utils/promotionRulesEngine");
 
+const escapeRegExp = (value = "") =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const normalizeAdminOrderSearch = (search = "") =>
+  String(search || "")
+    .trim()
+    .replace(/^(?:order|ord)[\s:#-]+/i, "")
+    .replace(/^#+/, "")
+    .trim();
+
 class Order {
   constructor(db) {
     this.collection = db.collection("orders");
@@ -85,17 +95,40 @@ class Order {
     }
 
     if (search) {
-      const searchRegex = new RegExp(search, "i");
-      const searchBranches = [
-        { "shippingInfo.name": searchRegex },
-        { "shippingInfo.email": searchRegex },
-        { "shippingInfo.phone": searchRegex },
-        { "products.title": searchRegex },
-        { "products.name": searchRegex },
-        { "products.sku": searchRegex },
-      ];
-      if (ObjectId.isValid(search)) searchBranches.push({ _id: new ObjectId(search) });
-      andBranches.push({ $or: searchBranches });
+      const rawSearch = String(search || "").trim();
+      if (rawSearch) {
+        const normalizedSearch = normalizeAdminOrderSearch(rawSearch);
+        const searchRegex = new RegExp(escapeRegExp(rawSearch), "i");
+        const normalizedRegex = normalizedSearch && normalizedSearch !== rawSearch
+          ? new RegExp(escapeRegExp(normalizedSearch), "i")
+          : searchRegex;
+        const searchBranches = [
+          { "shippingInfo.name": searchRegex },
+          { "shippingInfo.email": searchRegex },
+          { "shippingInfo.phone": searchRegex },
+          { orderNumber: normalizedRegex },
+          { invoiceNumber: normalizedRegex },
+          { trackingNumber: normalizedRegex },
+          { "courierAssignment.trackingNumber": normalizedRegex },
+          { "products.title": searchRegex },
+          { "products.name": searchRegex },
+          { "products.sku": normalizedRegex },
+          { "products.trackingNumber": normalizedRegex },
+        ];
+        if (ObjectId.isValid(normalizedSearch)) searchBranches.push({ _id: new ObjectId(normalizedSearch) });
+        if (/^[a-f0-9]{6,24}$/i.test(normalizedSearch)) {
+          searchBranches.push({
+            $expr: {
+              $regexMatch: {
+                input: { $toString: "$_id" },
+                regex: escapeRegExp(normalizedSearch),
+                options: "i",
+              },
+            },
+          });
+        }
+        andBranches.push({ $or: searchBranches });
+      }
     }
 
     if (deliveryZone && deliveryZone !== "all") {

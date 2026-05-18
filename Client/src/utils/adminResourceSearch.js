@@ -6,6 +6,8 @@ const encode = (value = "") => encodeURIComponent(String(value || "").trim());
 
 const isObjectId = (value = "") => /^[a-f0-9]{24}$/i.test(String(value).trim());
 
+const isHashOrderCode = (value = "") => /^#[a-z0-9]{6,}$/i.test(String(value).trim());
+
 const getRouteMatches = (query, routeTargets = []) => {
   const search = lower(query);
   if (!search) return [];
@@ -30,7 +32,10 @@ export const getAdminResourceSuggestions = (query = "") => {
   if (!value) return [];
 
   const suggestions = [];
-  const orderValue = prefixedValue(value, ["order", "ord"]) || (/^(?:ORD|AMG)[-_]?\d/i.test(value) ? value : "");
+  const orderValue =
+    prefixedValue(value, ["order", "ord"]) ||
+    (/^(?:ORD|AMG)[-_]?\d/i.test(value) ? value : "") ||
+    (isHashOrderCode(value) ? value : "");
   const vendorValue = prefixedValue(value, ["vendor", "seller", "shop"]);
   const productValue = prefixedValue(value, ["product", "sku", "item"]);
   const payoutValue = prefixedValue(value, ["payout", "payment"]);

@@ -1272,11 +1272,36 @@ const fetchVendorMap = async (db, orders = []) => {
   return new Map(vendors.map((vendor) => [normalizeId(vendor._id), vendor]));
 };
 
+const fetchVendorOrdersByParentId = async (db, orders = []) => {
+  if (!db) return new Map();
+
+  const parentOrderIds = orders.map((order) => normalizeId(order._id)).filter(Boolean);
+  if (parentOrderIds.length === 0) return new Map();
+
+  const vendorOrders = await db
+    .collection("vendorOrders")
+    .find({ parentOrderId: { $in: parentOrderIds } })
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  return vendorOrders.reduce((map, vendorOrder) => {
+    const parentId = normalizeId(vendorOrder.parentOrderId);
+    if (!parentId) return map;
+    if (!map.has(parentId)) map.set(parentId, []);
+    map.get(parentId).push(vendorOrder);
+    return map;
+  }, new Map());
+};
+
 const enrichAdminOrdersWithVendors = async (db, orders = []) => {
-  const vendorMap = await fetchVendorMap(db, orders);
+  const [vendorMap, vendorOrdersByParentId] = await Promise.all([
+    fetchVendorMap(db, orders),
+    fetchVendorOrdersByParentId(db, orders),
+  ]);
 
   return orders.map((order) => {
     const vendorBreakdown = {};
+    const vendorOrders = vendorOrdersByParentId.get(normalizeId(order._id)) || [];
 
     const products = (order.products || []).map((product) => {
       const vendorId = normalizeId(product.vendorId);
@@ -1310,12 +1335,19 @@ const enrichAdminOrdersWithVendors = async (db, orders = []) => {
       };
     });
 
-    const perVendorBreakdown = Object.values(vendorBreakdown).map((vendor) => ({
-      ...vendor,
-      grossSales: Math.round(vendor.grossSales * 100) / 100,
-      totalCommission: Math.round(vendor.totalCommission * 100) / 100,
-      netEarnings: Math.round(vendor.netEarnings * 100) / 100,
-    }));
+    const perVendorBreakdown = Object.values(vendorBreakdown).map((vendor) => {
+      const vendorOrder = vendorOrders.find((item) => normalizeId(item.vendorId) === normalizeId(vendor.vendorId));
+      return {
+        ...vendor,
+        vendorOrderId: normalizeId(vendorOrder?._id),
+        vendorOrderStatus: vendorOrder?.status || null,
+        vendorOrderTotal: vendorOrder?.totalAmount ?? vendorOrder?.total ?? null,
+        vendorOrderUpdatedAt: vendorOrder?.updatedAt || null,
+        grossSales: Math.round(vendor.grossSales * 100) / 100,
+        totalCommission: Math.round(vendor.totalCommission * 100) / 100,
+        netEarnings: Math.round(vendor.netEarnings * 100) / 100,
+      };
+    });
 
     const vendorNames = perVendorBreakdown.map((vendor) => vendor.vendorName).filter(Boolean);
     const deliveryZone = getDeliveryZone(order);
@@ -1326,6 +1358,7 @@ const enrichAdminOrdersWithVendors = async (db, orders = []) => {
       deliveryZone,
       vendorNames,
       primaryVendorName: vendorNames[0] || "HnilaBazar",
+      vendorOrders,
       perVendorBreakdown: perVendorBreakdown.length > 0 ? perVendorBreakdown : order.perVendorBreakdown || [],
       itemCount: products.reduce((sum, product) => sum + Number(product.quantity || 1), 0),
     };

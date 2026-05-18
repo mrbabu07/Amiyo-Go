@@ -271,10 +271,10 @@ const buildFixture = () => {
   return { orders, vendors, vendorA, vendorB };
 };
 
-const createReq = ({ orders, vendors, query = {}, params = {}, body = {} }) => {
+const createReq = ({ orders, vendors, vendorOrders = [], query = {}, params = {}, body = {} }) => {
   const collections = {
     vendors: new FakeCollection(vendors),
-    vendorOrders: new FakeCollection([]),
+    vendorOrders: new FakeCollection(vendorOrders),
   };
   const db = {
     collection: (name) => collections[name] || new FakeCollection([]),
@@ -332,6 +332,7 @@ describe("admin order management controller", () => {
 
   test("builds an admin detail timeline from persisted events and order snapshots", async () => {
     const fixture = buildFixture();
+    const vendorOrderId = new ObjectId();
     getTimelineForOrder.mockResolvedValueOnce([
       {
         status: "courier_update",
@@ -342,6 +343,16 @@ describe("admin order management controller", () => {
     ]);
     const req = createReq({
       ...fixture,
+      vendorOrders: [
+        {
+          _id: vendorOrderId,
+          parentOrderId: fixture.orders[0]._id.toString(),
+          vendorId: fixture.vendorA.toString(),
+          status: "ready_to_ship",
+          totalAmount: 4200,
+          updatedAt: new Date("2025-01-01T20:30:00Z"),
+        },
+      ],
       params: { id: fixture.orders[0]._id.toString() },
     });
     const res = createRes();
@@ -350,6 +361,16 @@ describe("admin order management controller", () => {
 
     const body = res.json.mock.calls[0][0];
     expect(body.data.primaryVendorName).toBe("Alpha Shop");
+    expect(body.data.vendorOrders).toEqual([
+      expect.objectContaining({ _id: vendorOrderId, status: "ready_to_ship" }),
+    ]);
+    expect(body.data.perVendorBreakdown[0]).toEqual(
+      expect.objectContaining({
+        vendorOrderId: vendorOrderId.toString(),
+        vendorOrderStatus: "ready_to_ship",
+        vendorOrderTotal: 4200,
+      }),
+    );
     expect(body.data.timeline.map((event) => event.label)).toEqual(
       expect.arrayContaining(["Order placed", "Courier pickup scanned", "Admin note added", "COD cash collected"]),
     );

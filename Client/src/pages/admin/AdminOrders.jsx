@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Activity,
   AlertTriangle,
@@ -69,6 +69,16 @@ const DEFAULT_FILTERS = {
   to: "",
   search: "",
 };
+
+const filtersFromSearchParams = (searchParams) => ({
+  search: searchParams.get("search") || "",
+  status: searchParams.get("status") || "all",
+  vendorId: searchParams.get("vendorId") || "",
+  paymentMethod: searchParams.get("paymentMethod") || "all",
+  deliveryZone: searchParams.get("deliveryZone") || "",
+  from: searchParams.get("from") || "",
+  to: searchParams.get("to") || "",
+});
 
 const DEFAULT_FORMS = {
   status: "processing",
@@ -174,7 +184,11 @@ function EmptyPanel({ title }) {
 
 export default function AdminOrders() {
   const { formatPrice } = useCurrency();
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [searchParams] = useSearchParams();
+  const [filters, setFilters] = useState(() => ({
+    ...DEFAULT_FILTERS,
+    ...filtersFromSearchParams(searchParams),
+  }));
   const [orders, setOrders] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -228,8 +242,15 @@ export default function AdminOrders() {
         limit: 50,
       });
       const payload = response.data || {};
-      setOrders(payload.data || payload.orders || []);
-      setTotal(payload.total || (payload.data || payload.orders || []).length);
+      const nextOrders = payload.data || payload.orders || [];
+      setOrders(nextOrders);
+      setTotal(payload.total || nextOrders.length);
+      if (nextFilters.search && nextOrders.length === 1) {
+        loadDetail(nextOrders[0]._id);
+      } else if (nextFilters.search && nextOrders.length !== 1) {
+        setSelectedOrderId(null);
+        setOrderDetail(null);
+      }
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to load orders");
     } finally {
@@ -291,6 +312,16 @@ export default function AdminOrders() {
     loadOrders();
     loadSidePanels();
   }, []);
+
+  useEffect(() => {
+    const urlFilters = filtersFromSearchParams(searchParams);
+    const hasChanged = Object.entries(urlFilters).some(([key, value]) => filters[key] !== value);
+    if (!hasChanged) return;
+
+    const next = { ...filters, ...urlFilters };
+    setFilters(next);
+    loadOrders(next);
+  }, [searchParams]);
 
   const updateFilter = (key, value) => {
     const next = { ...filters, [key]: value };
@@ -476,6 +507,18 @@ export default function AdminOrders() {
           </div>
         </form>
 
+        {filters.search && (
+          <div className="mt-4 flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold">Searching order operations for {filters.search}</p>
+              <p className="text-blue-700">Short order codes like #{String(filters.search).replace(/^#+/, "")} open the matching order automatically when only one result is found.</p>
+            </div>
+            <Link to="/admin/orders" className="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-white px-3 py-2 font-semibold text-blue-700 hover:bg-blue-100">
+              Clear search
+            </Link>
+          </div>
+        )}
+
         <div className="mt-6 flex flex-wrap gap-2">
           {STATUS_TABS.map((tab) => (
             <button
@@ -588,6 +631,88 @@ export default function AdminOrders() {
                 ) : (
                   <div className="grid gap-6 p-4 xl:grid-cols-2">
                     <div className="space-y-5">
+                      <section>
+                        <h3 className="mb-3 font-semibold text-gray-900">Buyer, Payment And Delivery</h3>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-lg border border-gray-200 p-3">
+                            <p className="text-xs font-semibold uppercase text-gray-500">Buyer</p>
+                            <p className="mt-1 font-semibold text-gray-900">{selectedOrder.shippingInfo?.name || "Customer"}</p>
+                            <p className="text-sm text-gray-600">{selectedOrder.shippingInfo?.phone || "No phone"}</p>
+                            <p className="text-sm text-gray-600">{selectedOrder.shippingInfo?.email || "No email"}</p>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 p-3">
+                            <p className="text-xs font-semibold uppercase text-gray-500">Payment</p>
+                            <p className="mt-1 font-semibold uppercase text-gray-900">{selectedOrder.paymentMethod || "N/A"}</p>
+                            <p className="text-sm text-gray-600">{formatStatus(selectedOrder.paymentStatus || "pending")}</p>
+                            <p className="text-sm text-gray-600">Delivery: {formatPrice(selectedOrder.deliveryCharge || 0)}</p>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section>
+                        <h3 className="mb-3 font-semibold text-gray-900">Vendor Order Info</h3>
+                        {(selectedOrder.perVendorBreakdown || []).length === 0 ? (
+                          <EmptyPanel title="No vendor split found for this order." />
+                        ) : (
+                          <div className="space-y-3">
+                            {(selectedOrder.perVendorBreakdown || []).map((vendor) => {
+                              const vendorProducts = (selectedOrder.products || []).filter(
+                                (product) => String(product.vendorId || "") === String(vendor.vendorId || ""),
+                              );
+                              return (
+                                <div key={vendor.vendorId || vendor.vendorName} className="rounded-lg border border-gray-200 p-3">
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                      <p className="font-semibold text-gray-900">{vendor.vendorName || vendor.shopName || "Platform"}</p>
+                                      <p className="font-mono text-xs text-gray-500">{vendor.vendorId || "platform"}</p>
+                                      {vendor.vendorOrderId && (
+                                        <p className="mt-1 font-mono text-xs text-gray-500">Vendor order #{shortId(vendor.vendorOrderId)}</p>
+                                      )}
+                                    </div>
+                                    <div className="text-left sm:text-right">
+                                      <StatusBadge status={vendor.vendorOrderStatus || selectedOrder.status} />
+                                      <p className="mt-1 text-xs text-gray-500">Updated {formatDate(vendor.vendorOrderUpdatedAt || selectedOrder.updatedAt)}</p>
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+                                    <div className="rounded-lg bg-gray-50 p-2">
+                                      <p className="text-xs text-gray-500">Gross</p>
+                                      <p className="font-semibold text-gray-900">{formatPrice(vendor.grossSales || 0)}</p>
+                                    </div>
+                                    <div className="rounded-lg bg-gray-50 p-2">
+                                      <p className="text-xs text-gray-500">Commission</p>
+                                      <p className="font-semibold text-gray-900">{formatPrice(vendor.totalCommission || 0)}</p>
+                                    </div>
+                                    <div className="rounded-lg bg-gray-50 p-2">
+                                      <p className="text-xs text-gray-500">Vendor earning</p>
+                                      <p className="font-semibold text-gray-900">{formatPrice(vendor.netEarnings || 0)}</p>
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 space-y-2">
+                                    {vendorProducts.map((product) => (
+                                      <div key={`${vendor.vendorId}-${product.productId || product.sku || product.title}`} className="flex items-center justify-between gap-3 text-xs text-gray-600">
+                                        <span className="line-clamp-1">{product.title || product.name || "Product"}</span>
+                                        <span className="shrink-0">{formatStatus(product.itemStatus || selectedOrder.status)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  {vendor.vendorId && (
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                      <Link to={`/admin/vendors/${vendor.vendorId}`} className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                        Vendor profile
+                                      </Link>
+                                      <Link to={`/admin/orders?vendorId=${vendor.vendorId}`} className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                        Vendor orders
+                                      </Link>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </section>
+
                       <section>
                         <h3 className="mb-3 font-semibold text-gray-900">Order Items</h3>
                         <div className="overflow-hidden rounded-lg border border-gray-200">

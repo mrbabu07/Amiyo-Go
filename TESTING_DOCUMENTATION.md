@@ -54,6 +54,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/returnController.
 npm test -- --runInBand --runTestsByPath __tests__/utils/vendorStaffAudit.test.js __tests__/services/bulkUploadQueue.test.js __tests__/controllers/vendorSettingsController.test.js
 npm test -- --runInBand --runTestsByPath __tests__/controllers/adminDashboardController.operations.test.js
 npm test -- --runInBand --runTestsByPath __tests__/controllers/adminAuditController.test.js
+npm test -- --runInBand --runTestsByPath __tests__/models/Order.adminSearch.test.js __tests__/controllers/orderController.adminManagement.test.js
 ```
 
 ## Current Coverage Map
@@ -101,6 +102,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/adminAuditControl
   - `Server/__tests__/controllers/returnController.vendorDetail.test.js`
   - `Server/__tests__/controllers/supportController.blackbox.test.js`
   - `Server/__tests__/controllers/adminAuditController.test.js`
+  - `Server/__tests__/models/Order.adminSearch.test.js`
   - `Server/__tests__/routes.health.test.js`
   - `Server/__tests__/services/bulkUploadQueue.test.js`
   - Existing route, controller, model, service, and utility Jest tests under `Server/__tests__`.
@@ -187,11 +189,13 @@ The latest completed full-project verification:
 
 - `Client`: `npm test` passed, 30 suites / 114 tests.
 - `Client`: latest focused Phase 5 hardening helper tests passed, 4 suites / 16 tests.
+- `Client`: focused admin resource search tests passed, 2 suites / 7 tests.
 - `Client`: Phase 5 admin audit-log helper tests remain covered, 2 suites / 5 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
-- `Server`: `npm test -- --runInBand` passed, 65 suites / 408 tests.
+- `Server`: `npm test -- --runInBand` passed, 66 suites / 410 tests.
 - `Server`: latest focused Phase 5 admin audit-log controller tests passed, 1 suite / 4 tests.
+- `Server`: focused admin order search/management tests passed, 2 suites / 6 tests.
 - `Server`: Phase 5 admin operations helper tests remain covered, 1 suite / 6 tests.
 - Focused backend rate limiter analytics/defaults test passed, 1 suite / 7 tests.
 - Focused backend Phase 1 reliability/security tests passed, 5 suites / 13 tests.

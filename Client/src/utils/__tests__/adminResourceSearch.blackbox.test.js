@@ -11,6 +11,11 @@ describe("adminResourceSearch black-box behavior", () => {
       path: "/admin/orders?search=ORD-102",
       kind: "resource",
     });
+    expect(getAdminResourceSuggestions("#DD3556FE")[0]).toMatchObject({
+      name: "Find order #DD3556FE",
+      path: "/admin/orders?search=%23DD3556FE",
+      kind: "resource",
+    });
     expect(getAdminResourceSuggestions("support SUP-9")[0]).toMatchObject({
       path: "/admin/support?search=SUP-9",
     });
