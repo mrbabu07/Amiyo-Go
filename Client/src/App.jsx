@@ -7,7 +7,6 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { ToastProvider } from "./context/ToastContext";
 import { ComparisonProvider } from "./context/ComparisonContext";
-import TawkToChat from "./components/TawkToChat";
 import OfferPopup from "./components/OfferPopup";
 import ToastContainer from "./components/Toast";
 import GlobalLoading from "./components/GlobalLoading";
@@ -27,7 +26,6 @@ function App() {
                 <CartProvider>
                   <WishlistProvider>
                     <RouterProvider router={router} />
-                    <TawkToChat />
                     <OfferPopup />
                     <ToastContainer />
                     <GlobalLoading />

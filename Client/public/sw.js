@@ -102,7 +102,6 @@ self.addEventListener("fetch", (event) => {
       url.hostname.includes("google-analytics") ||
       url.hostname.includes("googletagmanager") ||
       url.hostname.includes("facebook") ||
-      url.hostname.includes("tawk.to") ||
       url.hostname.includes("hotjar") ||
       url.hostname.includes("mixpanel")
     ) {

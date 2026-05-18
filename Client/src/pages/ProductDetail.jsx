@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   AlertTriangle,
@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { getProductById } from "../services/api";
 import useCart from "../hooks/useCart";
-import { useRecentlyViewed } from "../hooks/useRecentlyViewed";
 import { useCurrency } from "../hooks/useCurrency";
 import { ProductDetailSkeleton } from "../components/Skeleton";
 import ReviewsSection from "../components/reviews/ReviewsSection";
@@ -61,7 +60,6 @@ export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
-  const { addToRecentlyViewed } = useRecentlyViewed();
   const { formatPrice } = useCurrency();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -76,11 +74,6 @@ export default function ProductDetail() {
   const [categoryPath, setCategoryPath] = useState([]);
   const [selectionError, setSelectionError] = useState("");
   const [activeTab, setActiveTab] = useState("description");
-  const addToRecentlyViewedRef = useRef(addToRecentlyViewed);
-
-  useEffect(() => {
-    addToRecentlyViewedRef.current = addToRecentlyViewed;
-  }, [addToRecentlyViewed]);
 
   const fetchCategoryPath = useCallback(async (categoryId) => {
     try {
@@ -112,9 +105,6 @@ export default function ProductDetail() {
       if (data.categoryId) {
         fetchCategoryPath(data.categoryId);
       }
-
-      // Add to recently viewed
-      addToRecentlyViewedRef.current(data);
 
       // Set initial selected image
       const initialImage =

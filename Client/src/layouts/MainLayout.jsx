@@ -3,7 +3,6 @@ import { Outlet, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import ScrollToTop from "../components/ScrollToTop";
-import RecentlyViewedIndicator from "../components/RecentlyViewedIndicator";
 import ComparisonFloatingButton from "../components/ComparisonFloatingButton";
 import SpinWheelFAB from "../components/SpinWheelFAB";
 import BottomNavigation from "../components/BottomNavigation";
@@ -26,7 +25,6 @@ export default function MainLayout() {
       <Footer />
       <BottomNavigation />
       <ScrollToTop />
-      <RecentlyViewedIndicator />
       <ComparisonFloatingButton />
       <SpinWheelFAB />
     </div>

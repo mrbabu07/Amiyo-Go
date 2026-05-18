@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -18,7 +18,6 @@ import {
 import { getHomepageDiscovery } from "../services/api";
 import ProductCard from "../components/ProductCard";
 import { ProductCardSkeleton } from "../components/Skeleton";
-import { useRecentlyViewed } from "../hooks/useRecentlyViewed";
 import { useCurrency } from "../hooks/useCurrency";
 import { getCategoryIcon, getCategoryImageSource, getCategoryTheme } from "../utils/categoryVisuals";
 
@@ -35,7 +34,6 @@ const emptyDiscovery = {
   newArrivals: [],
   curatedCollections: [],
   followedVendorUpdates: { requiresLogin: true, vendors: [], updates: [] },
-  recentlyViewed: [],
   dailyCheckIn: { enabled: true, requiresLogin: true, canClaim: false, points: 5 },
 };
 
@@ -644,13 +642,7 @@ export default function Home() {
   const [activeHero, setActiveHero] = useState(0);
   const [newArrivalCategory, setNewArrivalCategory] = useState("all");
   const [now, setNow] = useState(Date.now());
-  const { recentlyViewed } = useRecentlyViewed();
   const { formatPrice } = useCurrency();
-
-  const recentIdsParam = useMemo(
-    () => recentlyViewed.map((product) => product._id).filter(Boolean).join(","),
-    [recentlyViewed],
-  );
 
   useEffect(() => {
     let ignore = false;
@@ -659,7 +651,6 @@ export default function Home() {
       try {
         setLoading(true);
         const response = await getHomepageDiscovery({
-          recentProductIds: recentIdsParam,
           categoryId: newArrivalCategory === "all" ? undefined : newArrivalCategory,
         });
 
@@ -678,7 +669,7 @@ export default function Home() {
     return () => {
       ignore = true;
     };
-  }, [newArrivalCategory, recentIdsParam]);
+  }, [newArrivalCategory]);
 
   useEffect(() => {
     if (discovery.heroBanners.length <= 1) return undefined;
@@ -692,8 +683,6 @@ export default function Home() {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  const recentProducts = discovery.recentlyViewed.length ? discovery.recentlyViewed : recentlyViewed;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
@@ -790,17 +779,6 @@ export default function Home() {
 
       <CuratedCollections collections={discovery.curatedCollections} t={t} />
       <FollowedVendorUpdates feed={discovery.followedVendorUpdates} t={t} />
-
-      <ProductGridSection
-        title={t("home.recentlyViewed")}
-        subtitle={t("home.recentlyViewedSubtitle")}
-        icon={Clock}
-        products={recentProducts}
-        loading={false}
-        actionTo="/products"
-        actionLabel={t("common.keepBrowsing")}
-        tone="emerald"
-      />
     </div>
   );
 }

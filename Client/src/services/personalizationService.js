@@ -357,7 +357,6 @@ class PersonalizationService {
       featuredCategories: this.getTopCategories(),
       recommendedProducts: [], // Will be populated by API
       personalizedBanners: this.getPersonalizedBanners(),
-      recentlyViewed: behavior.viewHistory?.slice(0, 8) || [],
       suggestedSearches: this.getSuggestedSearches(),
       preferredSortOrder: preferences.sortPreference || "relevance",
     };
