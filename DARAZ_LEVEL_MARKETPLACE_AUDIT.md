@@ -66,7 +66,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Orders/history/detail | Partial | `Orders`, order timeline, invoice download APIs, `/orders/:orderId`, and `/orders/:orderId/track` now exist. Needs deeper item-level tracking and post-delivery action polish. |
 | Wishlist | Partial | Wishlist, collections, sharing, alerts exist. Needs final grid, move-to-cart, and price-drop states. |
 | Loyalty/coins | Partial | Loyalty dashboard/API exists. Needs checkout integration consistency. |
-| Notifications center | Partial | `/notifications`, `MyAlerts`, notification context, preferences, and push services exist. Notifications now group by Today/Yesterday/Earlier with read/unread and type filters. Needs event-driven backend consolidation. |
+| Notifications center | Partial | `/notifications`, `MyAlerts`, notification context, preferences, push services, and stock-alert delivery exist. Notifications now group by Today/Yesterday/Earlier with read/unread and type filters. Needs event-driven backend consolidation. |
 | Support center | Partial | Ticket list/detail concepts and admin queue exist. Needs order-detail entry points and attachment UX finish. |
 | Returns flow | Partial | `Returns`, return model/controller, vendor/admin flows exist. Needs full self-serve wizard and case detail polish. |
 | Reviews | Partial | Review APIs, review components, admin moderation, vendor reply, and `/my-reviews` now exist. Needs final moderation status consistency and richer media management. |
@@ -361,3 +361,11 @@ Cross-role workflow pass:
 - Vendor workflow now highlights onboarding, shipment SLA, listing quality, moderation wait, and marketing activation from the seller dashboard.
 - Admin workflow now highlights queue SLA breaches, critical queues, support backlog, notification delivery failures, and background job failures from operations.
 - Added black-box and white-box Jest tests for the cross-role workflow helper.
+
+Whole-project health pass:
+
+- Re-ran the project verification gates and confirmed client lint, client tests, server tests, and client production build are passing.
+- Hardened stock alert delivery so low-stock customer alerts now send through the shared email service instead of a placeholder path.
+- Price-drop stock alerts now keep their `price_drop` subtype when creating push notifications and receive the same notification model context as other stock alerts.
+- Stock alert checkers now mark an alert as notified only after the related delivery call succeeds, preventing silent loss of failed alerts.
+- Added backend Jest coverage for low-stock email delivery, price-drop push subtype handling, and failed-alert retry behavior.

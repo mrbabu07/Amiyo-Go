@@ -7,6 +7,18 @@ const productSchema = new mongoose.Schema({}, { strict: false });
 const Product =
   mongoose.models.Product || mongoose.model("Product", productSchema);
 
+const getProductTitle = (product = {}) =>
+  product.title || product.name || product.productName || "Product";
+
+const getProductUrl = (product = {}) =>
+  `${process.env.FRONTEND_URL || ""}/products/${product._id}`;
+
+const markAlertNotified = async (alert) => {
+  alert.notified = true;
+  alert.notifiedAt = new Date();
+  await alert.save();
+};
+
 class StockAlertService {
   // Check and send back-in-stock alerts
   async checkBackInStockAlerts(models = null) {
@@ -25,14 +37,16 @@ class StockAlertService {
 
       console.log(`Found ${alerts.length} back-in-stock alerts to send`);
 
+      let sentCount = 0;
       for (const alert of alerts) {
-        await this.sendBackInStockEmail(alert, models);
-        alert.notified = true;
-        alert.notifiedAt = new Date();
-        await alert.save();
+        const sent = await this.sendBackInStockEmail(alert, models);
+        if (sent) {
+          await markAlertNotified(alert);
+          sentCount++;
+        }
       }
 
-      return alerts.length;
+      return sentCount;
     } catch (error) {
       console.error("Error checking back-in-stock alerts:", error);
       return 0;
@@ -40,7 +54,7 @@ class StockAlertService {
   }
 
   // Check and send price drop alerts
-  async checkPriceDropAlerts() {
+  async checkPriceDropAlerts(models = null) {
     try {
       const alerts = await StockAlert.find({
         alertType: "price_drop",
@@ -52,11 +66,11 @@ class StockAlertService {
 
       for (const alert of alerts) {
         if (alert.productId && alert.productId.price <= alert.priceThreshold) {
-          await this.sendPriceDropEmail(alert);
-          alert.notified = true;
-          alert.notifiedAt = new Date();
-          await alert.save();
-          sentCount++;
+          const sent = await this.sendPriceDropEmail(alert, models);
+          if (sent) {
+            await markAlertNotified(alert);
+            sentCount++;
+          }
         }
       }
 
@@ -87,14 +101,16 @@ class StockAlertService {
 
       console.log(`Found ${alerts.length} low stock alerts to send`);
 
+      let sentCount = 0;
       for (const alert of alerts) {
-        await this.sendLowStockEmail(alert, models);
-        alert.notified = true;
-        alert.notifiedAt = new Date();
-        await alert.save();
+        const sent = await this.sendLowStockEmail(alert, models);
+        if (sent) {
+          await markAlertNotified(alert);
+          sentCount++;
+        }
       }
 
-      return alerts.length;
+      return sentCount;
     } catch (error) {
       console.error("Error checking low stock alerts:", error);
       return 0;
@@ -125,13 +141,13 @@ class StockAlertService {
         `,
       };
 
-      const productTitle = product.title || product.name || "Product";
+      const productTitle = getProductTitle(product);
       await emailService.sendStockAlert({
         userEmail: alert.email,
         userName: "there",
         productTitle,
         productImage: product.images?.[0] || product.image || "",
-        productUrl: `${process.env.FRONTEND_URL || ""}/products/${product._id}`,
+        productUrl: getProductUrl(product),
       });
 
       if (alert.userId) {
@@ -151,9 +167,10 @@ class StockAlertService {
   }
 
   // Send price drop email
-  async sendPriceDropEmail(alert) {
+  async sendPriceDropEmail(alert, models = null) {
     try {
       const product = alert.productId;
+      const productTitle = getProductTitle(product);
       const discount = (
         ((alert.priceThreshold - product.price) / alert.priceThreshold) *
         100
@@ -165,33 +182,37 @@ class StockAlertService {
 
       const emailContent = {
         to: alert.email,
-        subject: `Price drop alert: ${product.name}`,
+        subject: `Price drop alert: ${productTitle}`,
         html: `
           <h2>Price Drop Alert!</h2>
-          <p>${product.name} is now available at a lower price.</p>
+          <p>${productTitle} is now available at a lower price.</p>
           <p><strong>New Price:</strong> $${product.price}</p>
           <p><strong>Your Target:</strong> $${alert.priceThreshold}</p>
           <p><strong>You Save:</strong> ${discount}%</p>
-          <a href="${process.env.FRONTEND_URL}/products/${product._id}" 
+          <a href="${getProductUrl(product)}"
              style="background: #1e7098; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
             Buy Now
           </a>
         `,
       };
 
-      await emailService.sendEmail(emailContent.to, emailContent.subject, emailContent.html);
+      const emailResult = await emailService.sendEmail(
+        emailContent.to,
+        emailContent.subject,
+        emailContent.html,
+      );
 
       if (alert.userId) {
         const productData = product.toObject?.() || product;
         await NotificationService.sendStockAlertNotification(
-          "low_stock",
-          { ...productData, title: product.title || product.name || "Product" },
+          "price_drop",
+          { ...productData, title: productTitle },
           [alert.userId],
           models,
-        ).catch((error) => console.error("Low-stock push failed:", error.message));
+        ).catch((error) => console.error("Price-drop push failed:", error.message));
       }
 
-      return true;
+      return emailResult?.success !== false;
     } catch (error) {
       console.error("Error sending price drop email:", error);
       return false;
@@ -202,29 +223,43 @@ class StockAlertService {
   async sendLowStockEmail(alert, models = null) {
     try {
       const product = alert.productId;
+      const productTitle = getProductTitle(product);
       console.log(
         `📧 Sending low stock alert for ${product.name} to ${alert.email}`,
       );
 
       const emailContent = {
         to: alert.email,
-        subject: `Hurry! Only ${product.stock} left: ${product.name}`,
+        subject: `Hurry! Only ${product.stock} left: ${productTitle}`,
         html: `
           <h2>Low Stock Alert!</h2>
-          <p>${product.name} is running low on stock.</p>
+          <p>${productTitle} is running low on stock.</p>
           <p><strong>Only ${product.stock} left in stock!</strong></p>
           <p>Order now before it's gone.</p>
-          <a href="${process.env.FRONTEND_URL}/products/${product._id}" 
+          <a href="${getProductUrl(product)}"
              style="background: #1e7098; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
             Order Now
           </a>
         `,
       };
 
-      // TODO: Integrate with actual email service
-      // await emailService.send(emailContent);
+      const emailResult = await emailService.sendEmail(
+        emailContent.to,
+        emailContent.subject,
+        emailContent.html,
+      );
 
-      return true;
+      if (alert.userId) {
+        const productData = product.toObject?.() || product;
+        await NotificationService.sendStockAlertNotification(
+          "low_stock",
+          { ...productData, title: productTitle },
+          [alert.userId],
+          models,
+        ).catch((error) => console.error("Low-stock push failed:", error.message));
+      }
+
+      return emailResult?.success !== false;
     } catch (error) {
       console.error("Error sending low stock email:", error);
       return false;
@@ -236,7 +271,7 @@ class StockAlertService {
     console.log("🔔 Checking all stock alerts...");
 
     const backInStock = await this.checkBackInStockAlerts(models);
-    const priceDrops = await this.checkPriceDropAlerts();
+    const priceDrops = await this.checkPriceDropAlerts(models);
     const lowStock = await this.checkLowStockAlerts(models);
 
     console.log(

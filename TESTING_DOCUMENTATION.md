@@ -194,7 +194,8 @@ The latest completed full-project verification:
 - `Client`: Phase 5 admin audit-log helper tests remain covered, 2 suites / 5 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
-- `Server`: `npm test -- --runInBand --silent` passed, 67 suites / 412 tests.
+- `Server`: `npm test -- --runInBand --silent` passed, 68 suites / 415 tests.
+- `Server`: latest focused stock-alert workflow tests passed, 1 suite / 3 tests.
 - `Server`: latest focused Phase 5 admin audit-log controller tests passed, 1 suite / 4 tests.
 - `Server`: focused admin order search/management tests passed, 2 suites / 6 tests.
 - `Server`: focused admin dashboard workflow tests passed, 2 suites / 7 tests.
