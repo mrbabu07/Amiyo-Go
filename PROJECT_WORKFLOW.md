@@ -2,6 +2,8 @@
 
 This document describes how the main workflows move through the Amiyo-Go system today.
 
+For architecture and workflow diagrams, see `MARKETPLACE_WORKFLOW_DIAGRAMS.md`.
+
 ## 1. System Roles
 
 ### Customer
