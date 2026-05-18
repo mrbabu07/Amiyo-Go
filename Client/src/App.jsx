@@ -12,6 +12,7 @@ import ToastContainer from "./components/Toast";
 import GlobalLoading from "./components/GlobalLoading";
 import MobileOptimized from "./components/MobileOptimized";
 import LanguagePreferenceSync from "./components/LanguagePreferenceSync";
+import { ErrorBoundary } from "./components/ui/feedback";
 import router from "./routes/Routes";
 
 function App() {
@@ -25,7 +26,9 @@ function App() {
               <ComparisonProvider>
                 <CartProvider>
                   <WishlistProvider>
-                    <RouterProvider router={router} />
+                    <ErrorBoundary>
+                      <RouterProvider router={router} />
+                    </ErrorBoundary>
                     <OfferPopup />
                     <ToastContainer />
                     <GlobalLoading />
