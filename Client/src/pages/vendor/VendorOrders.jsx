@@ -35,6 +35,7 @@ import {
   getVendorOrders,
   getVendorOrderTimeline,
   getVendorReturns,
+  markOrderPickupReady,
   markVendorCodCollected,
   rejectVendorOrder,
   scheduleVendorPickup,
@@ -42,6 +43,7 @@ import {
   updateVendorOrderStatus,
   vendorRespondToReturn,
 } from "../../services/api";
+import { getVendorOrderBulkWorkflow } from "../../utils/vendorOrderBulkActions";
 
 const STATUS_META = {
   pending: {
@@ -426,8 +428,8 @@ export default function VendorOrders() {
     [enrichedOrders, selectedIds],
   );
 
-  const packableSelectedOrders = useMemo(
-    () => selectedOrders.filter((order) => !terminalStatuses.includes(order.status) && order.status !== "packed"),
+  const bulkWorkflow = useMemo(
+    () => getVendorOrderBulkWorkflow(selectedOrders),
     [selectedOrders],
   );
 
@@ -515,27 +517,48 @@ export default function VendorOrders() {
     }
   };
 
-  const handleBatchPack = async () => {
+  const handleBatchStatusUpdate = async ({ orders: targetOrders, label, request }) => {
     if (!canManageOrders) {
       toast.error("Your staff access can view orders, but cannot update them.");
       return;
     }
 
-    if (packableSelectedOrders.length === 0) {
-      toast.error("Select pending orders first");
+    if (targetOrders.length === 0) {
+      toast.error(`Select orders that can be marked ${label.toLowerCase()}`);
       return;
     }
 
-    const loadingToast = toast.loading("Packing selected orders...");
+    const loadingToast = toast.loading(`Marking selected orders ${label.toLowerCase()}...`);
     try {
-      await Promise.all(packableSelectedOrders.map((order) => updateVendorOrderStatus(getOrderId(order), "packed")));
-      toast.success(`${packableSelectedOrders.length} orders marked packed`, { id: loadingToast });
+      await Promise.all(targetOrders.map((order) => request(getOrderId(order))));
+      toast.success(`${targetOrders.length} orders marked ${label.toLowerCase()}`, { id: loadingToast });
       clearSelection();
       await loadData();
     } catch (error) {
-      toast.error(error.response?.data?.error || "Batch pack failed", { id: loadingToast });
+      toast.error(error.response?.data?.error || `Batch ${label.toLowerCase()} failed`, { id: loadingToast });
     }
   };
+
+  const handleBatchPack = () =>
+    handleBatchStatusUpdate({
+      orders: bulkWorkflow.packableOrders,
+      label: "Packed",
+      request: (orderId) => updateVendorOrderStatus(orderId, "packed"),
+    });
+
+  const handleBatchReadyToShip = () =>
+    handleBatchStatusUpdate({
+      orders: bulkWorkflow.readyToShipOrders,
+      label: "Ready to Ship",
+      request: (orderId) => updateVendorOrderStatus(orderId, "ready_to_ship"),
+    });
+
+  const handleBatchPickupReady = () =>
+    handleBatchStatusUpdate({
+      orders: bulkWorkflow.pickupReadyOrders,
+      label: "Pickup Ready",
+      request: (orderId) => markOrderPickupReady(orderId),
+    });
 
   const openPdfBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob);
@@ -918,10 +941,15 @@ export default function VendorOrders() {
               </div>
 
               <div className="flex flex-wrap gap-2">
+                {bulkWorkflow.selectedCount > 0 && (
+                  <span className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600">
+                    {bulkWorkflow.selectedCount} selected
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={printBatchPackingSlips}
-                  disabled={selectedOrders.length === 0}
+                  disabled={bulkWorkflow.printableOrders.length === 0}
                   className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Printer className="h-4 w-4" />
@@ -930,11 +958,29 @@ export default function VendorOrders() {
                 <button
                   type="button"
                   onClick={handleBatchPack}
-                  disabled={!canManageOrders || packableSelectedOrders.length === 0}
+                  disabled={!canManageOrders || bulkWorkflow.packableOrders.length === 0}
                   className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <PackageCheck className="h-4 w-4" />
-                  Mark Packed
+                  Pack {bulkWorkflow.counts.pack ? `(${bulkWorkflow.counts.pack})` : ""}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBatchReadyToShip}
+                  disabled={!canManageOrders || bulkWorkflow.readyToShipOrders.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-700 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Truck className="h-4 w-4" />
+                  Ready {bulkWorkflow.counts.ready_to_ship ? `(${bulkWorkflow.counts.ready_to_ship})` : ""}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBatchPickupReady}
+                  disabled={!canManageOrders || bulkWorkflow.pickupReadyOrders.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-700 transition hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Truck className="h-4 w-4" />
+                  Pickup Ready {bulkWorkflow.counts.pickup_ready ? `(${bulkWorkflow.counts.pickup_ready})` : ""}
                 </button>
               </div>
             </div>

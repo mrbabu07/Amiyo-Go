@@ -47,6 +47,16 @@ describe("vendor product detail white-box behavior", () => {
       createdAt: "2026-05-10T08:00:00.000Z",
       lastSubmittedAt: "2026-05-11T08:00:00.000Z",
       updatedAt: "2026-05-12T08:00:00.000Z",
+      editHistory: [
+        {
+          action: "vendor_edit",
+          summary: "Updated title, price",
+          changedFields: ["title", "price"],
+          requiresReapproval: true,
+          staffEmail: "catalog@example.com",
+          at: "2026-05-14T08:00:00.000Z",
+        },
+      ],
       moderationHistory: [
         {
           action: "request_changes",
@@ -57,10 +67,13 @@ describe("vendor product detail white-box behavior", () => {
     });
 
     expect(timeline.map((event) => event.label)).toEqual([
+      "Updated title, price",
       "request changes",
       "Last updated",
       "Submitted for moderation",
       "Listing created",
     ]);
+    expect(timeline[0].note).toContain("Reapproval required");
+    expect(timeline[0].note).toContain("catalog@example.com");
   });
 });

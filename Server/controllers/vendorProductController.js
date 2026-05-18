@@ -3,6 +3,8 @@ const { ObjectId } = require("mongodb");
 // Critical fields — editing any of these on an approved product requires re-approval
 const CRITICAL_FIELDS = ["title", "price", "categoryId", "images"];
 
+const EDIT_HISTORY_LIMIT = 50;
+
 const vendorCanUseCategory = async (categoryId, allowedCategoryIds, Category) => {
   const allowedSet = new Set((allowedCategoryIds || []).map((id) => id.toString()));
   let currentId = categoryId ? categoryId.toString() : null;
@@ -96,6 +98,60 @@ const sanitizeVariants = (variants = []) => {
     image: String(variant.image || "").trim(),
     status: variant.status === "inactive" ? "inactive" : "active",
   }));
+};
+
+const normalizeComparableValue = (value) => {
+  if (value === undefined) return "__undefined__";
+  if (value === null) return null;
+  if (value?.toString && value.constructor?.name === "ObjectId") return value.toString();
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(normalizeComparableValue);
+  if (typeof value === "object") {
+    return Object.keys(value)
+      .sort()
+      .reduce((result, key) => {
+        result[key] = normalizeComparableValue(value[key]);
+        return result;
+      }, {});
+  }
+  if (typeof value === "number") return Number.isFinite(value) ? Number(value) : 0;
+  return value;
+};
+
+const valuesDiffer = (previous, next) =>
+  JSON.stringify(normalizeComparableValue(previous)) !== JSON.stringify(normalizeComparableValue(next));
+
+const buildVendorEditHistoryEntry = (product = {}, updateData = {}, req, { requiresReapproval = false } = {}) => {
+  const ignoredFields = new Set([
+    "updatedAt",
+    "approvalStatus",
+    "approvedAt",
+    "approvedBy",
+    "lastSubmittedAt",
+    "lastModeratedAt",
+    "rejectionReason",
+    "editHistory",
+  ]);
+  const changedFields = Object.keys(updateData).filter((field) => {
+    if (ignoredFields.has(field)) return false;
+    return valuesDiffer(product[field], updateData[field]);
+  });
+
+  if (changedFields.length === 0 && !requiresReapproval) return null;
+
+  const fieldSummary = changedFields.length ? changedFields.join(", ") : "listing status";
+  return {
+    action: "vendor_edit",
+    actorRole: req.vendorStaff ? "vendor_staff" : "vendor",
+    actorId: req.user?.uid || req.dbUser?._id || null,
+    staffId: req.vendorStaff?._id || null,
+    staffEmail: req.vendorStaff?.email || null,
+    changedFields,
+    criticalFields: changedFields.filter((field) => CRITICAL_FIELDS.includes(field)),
+    requiresReapproval: Boolean(requiresReapproval),
+    summary: `Updated ${fieldSummary}`,
+    at: new Date(),
+  };
 };
 
 const getListingState = (status) => {
@@ -404,9 +460,11 @@ exports.updateProduct = async (req, res) => {
       Object.assign(updateData, getDeliveryMetaForCategory(category));
     }
 
+    let criticalChanged = false;
+
     // Re-approval logic: if product is approved and a critical field changed, reset to pending
     if (product.approvalStatus === "approved" && updateData.approvalStatus !== "draft") {
-      const criticalChanged = CRITICAL_FIELDS.some((field) => updateData[field] !== undefined);
+      criticalChanged = CRITICAL_FIELDS.some((field) => updateData[field] !== undefined && valuesDiffer(product[field], updateData[field]));
       if (criticalChanged) {
         updateData.approvalStatus = "pending";
         updateData.approvedAt = null;
@@ -416,6 +474,16 @@ exports.updateProduct = async (req, res) => {
         updateData.rejectionReason = null;
         console.log(`🔄 Product ${id} reset to pending after critical field edit by vendor`);
       }
+    }
+
+    const editHistoryEntry = buildVendorEditHistoryEntry(product, updateData, req, {
+      requiresReapproval: criticalChanged,
+    });
+    if (editHistoryEntry) {
+      updateData.editHistory = [
+        editHistoryEntry,
+        ...(Array.isArray(product.editHistory) ? product.editHistory : []),
+      ].slice(0, EDIT_HISTORY_LIMIT);
     }
 
     await Product.update(id, updateData);

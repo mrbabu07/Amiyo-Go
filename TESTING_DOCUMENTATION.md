@@ -187,13 +187,13 @@ Before pushing frontend or backend changes:
 
 The latest completed full-project verification:
 
-- `Client`: `npm test` passed, 30 suites / 114 tests.
+- `Client`: `npm test` passed, 32 suites / 118 tests.
 - `Client`: latest focused Phase 5 hardening helper tests passed, 4 suites / 16 tests.
 - `Client`: focused admin resource search tests passed, 2 suites / 7 tests.
 - `Client`: Phase 5 admin audit-log helper tests remain covered, 2 suites / 5 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
-- `Server`: `npm test -- --runInBand` passed, 66 suites / 410 tests.
+- `Server`: `npm test -- --runInBand --silent` passed, 67 suites / 412 tests.
 - `Server`: latest focused Phase 5 admin audit-log controller tests passed, 1 suite / 4 tests.
 - `Server`: focused admin order search/management tests passed, 2 suites / 6 tests.
 - `Server`: focused admin dashboard workflow tests passed, 2 suites / 7 tests.
@@ -204,6 +204,7 @@ The latest completed full-project verification:
 - Focused frontend customer order journey tests passed, 2 suites / 7 tests.
 - Focused frontend customer notification center tests passed, 2 suites / 8 tests.
 - Focused frontend vendor seller-center tests passed, 2 suites / 7 tests.
+- Focused frontend vendor bulk order workflow tests passed, 2 suites / 4 tests.
 - Focused frontend vendor product detail tests passed, 2 suites / 7 tests.
 - Focused frontend vendor return dispute tests passed, 2 suites / 9 tests.
 - Focused frontend vendor order detail tests passed, 2 suites / 8 tests.
@@ -211,4 +212,5 @@ The latest completed full-project verification:
 - Focused frontend vendor staff permission matrix tests passed, 2 suites / 8 tests.
 - Focused backend vendor staff audit, bulk upload report snapshot, and vendor settings delivery tests passed, 3 suites / 7 tests.
 - Focused backend vendor return detail test passed, 1 suite / 3 tests.
+- Focused backend vendor product edit-history tests passed, 1 suite / 2 tests.
 - Focused backend API routing hardening tests passed, 3 suites / 124 tests.

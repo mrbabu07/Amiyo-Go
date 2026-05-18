@@ -185,5 +185,24 @@ export const buildVendorProductTimeline = (product = {}) => {
     );
   });
 
+  (product.editHistory || []).forEach((item) => {
+    const fields = Array.isArray(item.changedFields) ? item.changedFields : [];
+    const note = [
+      fields.length ? `Fields: ${fields.join(", ")}` : "",
+      item.requiresReapproval ? "Reapproval required" : "",
+      item.staffEmail ? `Staff: ${item.staffEmail}` : "",
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    pushEvent(
+      events,
+      item.action || "vendor_edit",
+      item.summary || "Vendor edited listing",
+      item.at || item.createdAt || item.date,
+      item.note || note,
+    );
+  });
+
   return events.sort((a, b) => b.at.getTime() - a.at.getTime());
 };
