@@ -147,7 +147,7 @@ The latest completed full-project verification:
 - `Client`: `npm test` passed, 7 suites / 30 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
-- `Server`: `npm test -- --runInBand` passed, 60 suites / 388 tests.
-- Focused backend rate limiter analytics test passed, 1 suite / 3 tests.
+- `Server`: `npm test -- --runInBand` passed, 60 suites / 392 tests.
+- Focused backend rate limiter analytics/defaults test passed, 1 suite / 7 tests.
 - Focused backend Phase 1 reliability/security tests passed, 5 suites / 13 tests.
 - Focused backend black-box and white-box support tests remain covered by the full backend run.

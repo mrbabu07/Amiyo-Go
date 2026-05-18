@@ -53,6 +53,15 @@ const analyticsViewPatterns = [
   /^\/campaigns\/[^/]+\/view$/i,
 ];
 
+function getPositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getDefaultApiLimitMax(nodeEnv = process.env.NODE_ENV) {
+  return nodeEnv === "production" ? 600 : 2000;
+}
+
 function isAnalyticsViewRequest(req = {}) {
   if (req.method !== "POST") return false;
 
@@ -63,19 +72,27 @@ function isAnalyticsViewRequest(req = {}) {
   return paths.some((path) => analyticsViewPatterns.some((pattern) => pattern.test(path)));
 }
 
+function shouldSkipApiLimiter(req = {}) {
+  if (req.method === "OPTIONS") return true;
+  return isAnalyticsViewRequest(req);
+}
+
+const apiWindowMs = getPositiveInteger(process.env.API_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000);
+const apiMax = getPositiveInteger(process.env.API_RATE_LIMIT_MAX, getDefaultApiLimitMax());
+
 // General API rate limiter
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: apiWindowMs,
+  max: apiMax,
   message: {
     success: false,
     error: "Too many requests from this IP, please try again later.",
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: isAnalyticsViewRequest,
+  skip: shouldSkipApiLimiter,
   // Use Redis store if available
-  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:api:", windowMs: 15 * 60 * 1000 }) : undefined,
+  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:api:", windowMs: apiWindowMs }) : undefined,
 });
 
 // Strict limiter for authentication endpoints
@@ -139,9 +156,12 @@ const productViewLimiter = rateLimit({
 module.exports = {
   apiLimiter,
   authLimiter,
+  getDefaultApiLimitMax,
+  getPositiveInteger,
   isAnalyticsViewRequest,
   paymentLimiter,
   productViewLimiter,
+  shouldSkipApiLimiter,
   uploadLimiter,
   searchLimiter,
 };

@@ -23,7 +23,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 - Frontend route count: about 110 route entries in `Client/src/routes/Routes.jsx`.
 - Backend route/controller handler references: about 596 route declarations across `Server/routes` and route-style controller files.
 - Frontend tests: 7 suites / 30 tests at last verification.
-- Backend tests: 60 suites / 388 tests at last verification.
+- Backend tests: 60 suites / 392 tests at last verification.
 - Major frontend shells: `CustomerLayout`, `AuthLayout`, `VendorLayout`, `AdminLayout`.
 - Major backend groups: customer commerce, vendor center, admin operations, logistics, promotions, trust-safety, support, analytics, notifications, loyalty, wishlist, campaigns.
 
@@ -38,7 +38,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Security/RBAC | Complete | Backend permission resolution is role/resource/action based; admin frontend navigation and route elements are RBAC-aware. | Continue adding action-level button disables as pages are polished. |
 | Idempotency | Complete | Critical checkout, guest order, payment, refund, return, vendor payout, and admin payout writes use `Idempotency-Key`. Client API adds keys automatically. | Add dashboard visibility for idempotency conflicts if ops needs it. |
 | Audit logs | Complete | Sensitive admin/vendor/order/payment/return/support/upload actions are audited with redaction and clearer target types. | Add a dedicated admin audit viewer UI when the admin queue pass happens. |
-| Rate limits | Complete | Global API, search, payment, product-view analytics, upload, KYC, and bulk-upload limiters are wired in `Server/index.js`. Product/campaign view analytics no longer consume the general API budget. | Tune thresholds from production traffic. |
+| Rate limits | Complete | Configurable global API, search, payment, product-view analytics, upload, KYC, and bulk-upload limiters are wired in `Server/index.js`. Product/campaign view analytics no longer consume the general API budget. | Tune `API_RATE_LIMIT_MAX` and `API_RATE_LIMIT_WINDOW_MS` from production traffic. |
 | Sanitization | Complete | `sanitizeMiddleware` is wired before API routes. | Add route-specific validation schemas during page cleanup. |
 | Helmet/security headers | Complete | `helmet` and strict CORS allowlist config are wired during startup. | Maintain `CORS_ORIGINS` per environment. |
 | Upload hardening | Partial | Multer filters exist for uploads and vendor product routes. | Add file scanning policy, stricter MIME/extension checks, image processing limits, and audit events. |
