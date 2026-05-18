@@ -725,6 +725,9 @@ export const getAdminVendorOrders = (vendorId, params = {}) =>
 export const getVendorOrders = (params = {}) =>
   api.get("/vendors/orders", { params });
 
+export const getVendorOrderDetail = (orderId) =>
+  api.get(`/vendors/orders/${orderId}`);
+
 export const updateVendorOrderStatus = (orderId, status, data = {}) =>
   api.patch(`/vendors/orders/${orderId}/status`, { ...data, status });
 

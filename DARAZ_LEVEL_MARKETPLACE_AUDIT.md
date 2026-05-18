@@ -22,7 +22,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 - Frontend route count: about 110 route entries in `Client/src/routes/Routes.jsx`.
 - Backend route/controller handler references: about 596 route declarations across `Server/routes` and route-style controller files.
-- Frontend tests: 18 suites / 71 tests at last verification.
+- Frontend tests: 20 suites / 79 tests at last verification.
 - Backend tests: 62 suites / 398 tests at last verification.
 - Major frontend shells: `CustomerLayout`, `AuthLayout`, `VendorLayout`, `AdminLayout`.
 - Major backend groups: customer commerce, vendor center, admin operations, logistics, promotions, trust-safety, support, analytics, notifications, loyalty, wishlist, campaigns.
@@ -81,7 +81,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Vendor products list | Partial | Status tabs, search, bulk selection, submit/delist actions exist. Needs final table standardization and mobile fallback. |
 | Add/edit product | Partial | Vendor product form/wizard-like pages exist. Needs true step wizard and moderation feedback consistency. |
 | Bulk upload | Partial | CSV upload job, report download, validation report route/UI exist. Needs partial success and validation table polish. |
-| Vendor orders | Partial | Orders list, status actions, pickup-ready, packing slip, barcode label APIs exist. Needs detail drawer/page consistency and label workflow hardening. |
+| Vendor orders | Partial | Orders list, status actions, pickup-ready, packing slip, barcode label APIs, and `/vendor/orders/:orderId` detail workspace exist. Needs final mobile table fallback and deeper courier exception handling. |
 | Vendor returns/disputes | Partial | Vendor returns, response APIs, vendor-owned detail API, and `/vendor/returns/:returnId` evidence/timeline page exist. Needs admin decision panel alignment and final mobile table adoption. |
 | Vendor finance | Partial | Finance summary, transactions, payouts, statements, commission rates exist. Needs unified ledger and payout request UX completion. |
 | Shop management | Partial | Vendor shop, decoration, profile, vacation mode, categories exist. Needs final preview/policy/social workflow. |
@@ -254,7 +254,7 @@ Current Phase 4 status by step:
 | 4.2 Dashboard home | Partial | `VendorHome` has KPIs, action widgets, health scoring, announcements, top products, sales chart, SLA/stock signals. Needs final real pending-task prioritization from backend events. |
 | 4.3 Products workflow | Partial | Product list, add/edit, product detail/performance view, moderation status, bulk edit, media center, CSV upload route, category requests, variants/SKU concepts exist. Needs final step-wizard consistency and deeper edit-history persistence. |
 | 4.4 Bulk upload/media | Partial | Bulk upload and media-center views exist. Needs stronger partial-success/error-row download UX. |
-| 4.5 Orders operations | Partial | Vendor orders queue, filters, status actions, packing slips, labels, pickup scheduling, notes, and timeline concepts exist. Needs final drawer/page standardization. |
+| 4.5 Orders operations | Partial | Vendor orders queue, filters, status actions, packing slips, labels, pickup scheduling, buyer messages, return links, timeline, and `/vendor/orders/:orderId` detail workspace exist. Needs final mobile card fallback and courier exception hardening. |
 | 4.6 Returns/disputes | Partial | Vendor returns list, response flow, vendor-owned detail API, financial exposure summary, customer/seller evidence panels, timeline, and counter-evidence response UX exist. Needs admin decision panel alignment and final SLA/escalation polish. |
 | 4.7 Finance center | Partial | Finance overview, transactions, statements, commissions, payouts, and payout request components exist. Needs final ledger export/status consistency. |
 | 4.8 Reports/analytics | Partial | Vendor reports routes for sales, products, traffic, and inventory exist. Needs deeper product-level conversion/return analytics. |
@@ -274,3 +274,5 @@ Latest Phase 4 implementation slice:
 - Added `/vendor/products/:id` product detail view with media, moderation state, listing quality, SKU inventory, sales signals, timeline, submit/delist/delete actions, and black-box/white-box helper tests.
 - Added `/vendor/returns/:returnId` return dispute detail view with customer evidence, seller evidence, financial exposure, order context, timeline, and approve/dispute/reject response submission.
 - Added vendor return detail API coverage and black-box/white-box frontend tests for return status, evidence, financial exposure, and timeline logic.
+- Added `/vendor/orders/:orderId` order detail workspace with fulfillment actions, pickup scheduling, buyer messaging, packing slip/waybill downloads, customer address copy, product list, financial summary, timeline, and linked returns.
+- Added black-box and white-box frontend tests for vendor order status derivation, action availability, financial totals, address formatting, and timeline logic.

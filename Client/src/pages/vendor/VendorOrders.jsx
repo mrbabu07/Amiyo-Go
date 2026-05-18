@@ -882,7 +882,12 @@ export default function VendorOrders() {
                             />
                           </td>
                           <td className="px-4 py-4">
-                            <div className="font-mono text-sm font-semibold text-slate-950">#{shortId(orderId)}</div>
+                            <Link
+                              to={`/vendor/orders/${orderId}`}
+                              className="font-mono text-sm font-semibold text-orange-600 hover:text-orange-700 hover:underline"
+                            >
+                              #{shortId(orderId)}
+                            </Link>
                             <div className="mt-1 text-xs text-slate-500">{formatDateTime(order.createdAt)}</div>
                             {order.isPartialOrder && (
                               <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
@@ -948,6 +953,12 @@ export default function VendorOrders() {
                           </td>
                           <td className="px-4 py-4">
                             <div className="flex justify-end gap-2">
+                              <Link
+                                to={`/vendor/orders/${orderId}`}
+                                className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+                              >
+                                Details
+                              </Link>
                               <IconButton title="View details" onClick={() => toggleExpandedOrder(orderId)}>
                                 <Eye className="h-4 w-4" />
                               </IconButton>

@@ -54,6 +54,7 @@ const VendorProductDetail = lazy(() => import("../pages/vendor/VendorProductDeta
 const VendorProducts = lazy(() => import("../pages/vendor/VendorProducts"));
 const VendorCategoryRequests = lazy(() => import("../pages/vendor/VendorCategoryRequests"));
 const VendorOrders = lazy(() => import("../pages/vendor/VendorOrders"));
+const VendorOrderDetail = lazy(() => import("../pages/vendor/VendorOrderDetail"));
 const VendorSettings = lazy(() => import("../pages/vendor/VendorSettings"));
 const VendorFinance = lazy(() => import("../pages/vendor/VendorFinance"));
 const VendorBankSettings = lazy(() => import("../pages/vendor/VendorBankSettings"));
@@ -199,6 +200,7 @@ const router = createBrowserRouter([
       { path: "products/bulk", element: lazyElement(VendorBulkUpload) },
       { path: "products/:id", element: lazyElement(VendorProductDetail) },
       { path: "orders", element: lazyElement(VendorOrders) },
+      { path: "orders/:orderId", element: lazyElement(VendorOrderDetail) },
       { path: "finance", element: lazyElement(VendorFinance) },
       { path: "finance/payouts", element: lazyElement(VendorFinance) },
       { path: "finance/transactions", element: lazyElement(VendorFinance) },
