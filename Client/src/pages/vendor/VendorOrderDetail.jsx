@@ -41,6 +41,8 @@ import {
   isVendorCodOrder,
   shortVendorOrderId,
 } from "../../utils/vendorOrderDetail";
+import useAuth from "../../hooks/useAuth";
+import { hasVendorPermission } from "../../utils/vendorStaffPermissions";
 
 const pickupSlots = [
   "09:00 AM - 12:00 PM",
@@ -211,6 +213,8 @@ function ProductList({ products, formatPrice }) {
 export default function VendorOrderDetail() {
   const { orderId } = useParams();
   const { formatPrice } = useCurrency();
+  const { dbUser, role, permissions, isAdmin } = useAuth();
+  const canManageOrders = hasVendorPermission({ dbUser, role, permissions, isAdmin }, "orders:manage");
   const [order, setOrder] = useState(null);
   const [timelineEvents, setTimelineEvents] = useState([]);
   const [returns, setReturns] = useState([]);
@@ -278,6 +282,11 @@ export default function VendorOrderDetail() {
   const address = buildVendorOrderAddress(order?.shippingInfo || {});
 
   const runStatusAction = async (statusKey) => {
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot update them.");
+      return;
+    }
+
     setBusy(statusKey);
     const loadingToast = toast.loading("Updating order...");
     try {
@@ -293,6 +302,11 @@ export default function VendorOrderDetail() {
 
   const schedulePickup = async (event) => {
     event.preventDefault();
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot schedule pickups.");
+      return;
+    }
+
     setBusy("pickup");
     const loadingToast = toast.loading("Scheduling pickup...");
     try {
@@ -309,6 +323,11 @@ export default function VendorOrderDetail() {
   const submitMessage = async (event) => {
     event.preventDefault();
     if (!message.trim()) return;
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot message buyers.");
+      return;
+    }
+
     setBusy("message");
     const loadingToast = toast.loading("Sending buyer message...");
     try {
@@ -325,6 +344,11 @@ export default function VendorOrderDetail() {
 
   const cancelOrder = async (event) => {
     event.preventDefault();
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot cancel items.");
+      return;
+    }
+
     if (!cancelReason.trim()) {
       toast.error("Add a cancellation reason");
       return;
@@ -346,6 +370,11 @@ export default function VendorOrderDetail() {
   };
 
   const collectCod = async () => {
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot record COD.");
+      return;
+    }
+
     setBusy("cod");
     const loadingToast = toast.loading("Recording COD collection...");
     try {
@@ -497,23 +526,28 @@ export default function VendorOrderDetail() {
           <aside className="space-y-6">
             <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-base font-semibold text-slate-950">Fulfillment actions</h2>
+              {!canManageOrders && (
+                <p className="mt-2 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-500">
+                  View-only order access
+                </p>
+              )}
               <div className="mt-4 grid grid-cols-2 gap-2">
-                <ActionButton icon={PackageCheck} disabled={!actionPlan.canPack || Boolean(busy)} onClick={() => runStatusAction("packed")}>
+                <ActionButton icon={PackageCheck} disabled={!canManageOrders || !actionPlan.canPack || Boolean(busy)} onClick={() => runStatusAction("packed")}>
                   Pack
                 </ActionButton>
-                <ActionButton icon={Truck} disabled={!actionPlan.canReady || Boolean(busy)} onClick={() => runStatusAction("ready_to_ship")}>
+                <ActionButton icon={Truck} disabled={!canManageOrders || !actionPlan.canReady || Boolean(busy)} onClick={() => runStatusAction("ready_to_ship")}>
                   Ready
                 </ActionButton>
-                <ActionButton icon={Truck} disabled={!actionPlan.canShip || Boolean(busy)} onClick={() => runStatusAction("shipped")}>
+                <ActionButton icon={Truck} disabled={!canManageOrders || !actionPlan.canShip || Boolean(busy)} onClick={() => runStatusAction("shipped")}>
                   Ship
                 </ActionButton>
-                <ActionButton icon={CheckCircle2} disabled={!actionPlan.canDeliver || Boolean(busy)} onClick={() => runStatusAction("delivered")}>
+                <ActionButton icon={CheckCircle2} disabled={!canManageOrders || !actionPlan.canDeliver || Boolean(busy)} onClick={() => runStatusAction("delivered")}>
                   Deliver
                 </ActionButton>
-                <ActionButton icon={Banknote} disabled={!actionPlan.canCollectCod || Boolean(busy)} onClick={collectCod}>
+                <ActionButton icon={Banknote} disabled={!canManageOrders || !actionPlan.canCollectCod || Boolean(busy)} onClick={collectCod}>
                   COD
                 </ActionButton>
-                <ActionButton icon={XCircle} variant="danger" disabled={!actionPlan.canCancel || Boolean(busy)} onClick={() => document.getElementById("vendor-cancel-reason")?.focus()}>
+                <ActionButton icon={XCircle} variant="danger" disabled={!canManageOrders || !actionPlan.canCancel || Boolean(busy)} onClick={() => document.getElementById("vendor-cancel-reason")?.focus()}>
                   Cancel
                 </ActionButton>
               </div>
@@ -557,7 +591,7 @@ export default function VendorOrderDetail() {
                 </label>
                 <button
                   type="submit"
-                  disabled={!actionPlan.canSchedulePickup || busy === "pickup"}
+                  disabled={!canManageOrders || !actionPlan.canSchedulePickup || busy === "pickup"}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <CalendarClock className="h-4 w-4" aria-hidden="true" />
@@ -596,7 +630,7 @@ export default function VendorOrderDetail() {
                 />
                 <button
                   type="submit"
-                  disabled={!message.trim() || busy === "message"}
+                  disabled={!canManageOrders || !message.trim() || busy === "message"}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Send className="h-4 w-4" aria-hidden="true" />
@@ -629,7 +663,7 @@ export default function VendorOrderDetail() {
                 />
                 <button
                   type="submit"
-                  disabled={!actionPlan.canCancel || !cancelReason || busy === "cancel"}
+                  disabled={!canManageOrders || !actionPlan.canCancel || !cancelReason || busy === "cancel"}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <XCircle className="h-4 w-4" aria-hidden="true" />

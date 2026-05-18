@@ -30,6 +30,7 @@ import {
 } from "../../services/api";
 import PayoutRequestButton from "../../components/vendor/PayoutRequestButton";
 import PayoutRequestsList from "../../components/vendor/PayoutRequestsList";
+import { hasVendorPermission } from "../../utils/vendorStaffPermissions";
 
 const tabs = [
   { id: "overview", label: "Overview", path: "/vendor/finance", icon: WalletCards },
@@ -105,10 +106,15 @@ const downloadBlob = (response, fallbackName) => {
 };
 
 export default function VendorFinance() {
-  const { user } = useAuth();
+  const { user, dbUser, role, permissions, isAdmin } = useAuth();
   const { formatPrice } = useCurrency();
   const location = useLocation();
   const activeTab = tabs.find((tab) => location.pathname === tab.path)?.id || "overview";
+  const vendorAccess = useMemo(
+    () => ({ dbUser, role, permissions, isAdmin }),
+    [dbUser, role, permissions, isAdmin],
+  );
+  const canManageFinance = hasVendorPermission(vendorAccess, "finance:manage");
 
   const [loading, setLoading] = useState(true);
   const [statementLoading, setStatementLoading] = useState(false);
@@ -321,6 +327,12 @@ export default function VendorFinance() {
           </div>
         </nav>
 
+        {!canManageFinance && (
+          <div className="mt-5 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+            Finance view-only access is enabled for your staff role. Payout requests and cancellations stay locked to finance managers or owners.
+          </div>
+        )}
+
         <section className="mt-5">
           {activeTab === "overview" && (
             <OverviewTab
@@ -359,6 +371,7 @@ export default function VendorFinance() {
               refreshTrigger={refreshTrigger}
               onRequestSuccess={handleRefresh}
               formatPrice={formatPrice}
+              canManage={canManageFinance}
             />
           )}
         </section>
@@ -545,7 +558,7 @@ function CommissionTab({ commissionRates }) {
   );
 }
 
-function PayoutsTab({ payouts, stats, refreshTrigger, onRequestSuccess, formatPrice }) {
+function PayoutsTab({ payouts, stats, refreshTrigger, onRequestSuccess, formatPrice, canManage }) {
   return (
     <div className="space-y-4">
       <Panel>
@@ -556,11 +569,15 @@ function PayoutsTab({ payouts, stats, refreshTrigger, onRequestSuccess, formatPr
               Available balance {formatPrice(stats?.pendingBalance || 0)}. Minimum payout {formatPrice(stats?.minimumPayout || 1000)}.
             </p>
           </div>
-          <PayoutRequestButton onRequestSuccess={onRequestSuccess} />
+          <PayoutRequestButton
+            onRequestSuccess={onRequestSuccess}
+            disabled={!canManage}
+            disabledReason="Your staff access can view finance, but cannot request payouts."
+          />
         </div>
       </Panel>
 
-      <PayoutRequestsList refreshTrigger={refreshTrigger} />
+      <PayoutRequestsList refreshTrigger={refreshTrigger} canManage={canManage} />
 
       <Panel>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -606,49 +623,85 @@ function TransactionTable({ rows, formatPrice, compact = false }) {
   }
 
   return (
-    <table className="w-full min-w-[980px] text-sm">
-      <thead>
-        <tr className="border-b border-slate-200 text-left text-xs font-bold uppercase text-slate-500">
-          <th className="px-3 py-3">Order</th>
-          <th className="px-3 py-3">Products</th>
-          <th className="px-3 py-3 text-right">Sale</th>
-          <th className="px-3 py-3 text-right">Commission</th>
-          <th className="px-3 py-3 text-right">Ship credit</th>
-          <th className="px-3 py-3 text-right">Ship debit</th>
-          <th className="px-3 py-3 text-right">Refund</th>
-          <th className="px-3 py-3 text-right">Net payout</th>
-          {!compact && <th className="px-3 py-3 text-right">Status</th>}
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-slate-100">
+    <>
+      <div className="space-y-3 md:hidden">
         {rows.map((row) => (
-          <tr key={row.orderId || row.orderNumber} className="hover:bg-slate-50">
-            <td className="px-3 py-3">
-              <p className="font-mono text-xs font-semibold text-slate-900">#{row.orderNumber}</p>
-              <p className="mt-1 text-xs text-slate-500">{formatDate(row.orderDate)}</p>
-            </td>
-            <td className="max-w-xs px-3 py-3">
-              <p className="truncate font-semibold text-slate-900">{row.productsSummary || "Order items"}</p>
-              <p className="mt-1 text-xs text-slate-500">{row.itemCount || 0} item(s)</p>
-            </td>
-            <td className="px-3 py-3 text-right text-slate-700">{formatPrice(row.saleAmount || 0)}</td>
-            <td className="px-3 py-3 text-right text-rose-700">
-              -{formatPrice(row.platformCommissionAmount || 0)}
-              <span className="ml-1 text-xs text-slate-400">({row.platformCommissionRate || 0}%)</span>
-            </td>
-            <td className="px-3 py-3 text-right text-emerald-700">{formatPrice(row.shippingFeeCredited || 0)}</td>
-            <td className="px-3 py-3 text-right text-amber-700">-{formatPrice(row.shippingFeeDebited || 0)}</td>
-            <td className="px-3 py-3 text-right text-rose-700">-{formatPrice(row.refundDeducted || 0)}</td>
-            <td className="px-3 py-3 text-right font-bold text-slate-950">{formatPrice(row.netPayout || 0)}</td>
-            {!compact && (
-              <td className="px-3 py-3 text-right">
-                <StatusBadge status={row.itemStatus} />
-              </td>
-            )}
-          </tr>
+          <article key={row.orderId || row.orderNumber} className="rounded-lg border border-slate-200 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-mono text-xs font-semibold text-slate-900">#{row.orderNumber}</p>
+                <p className="mt-1 truncate text-sm font-bold text-slate-950">{row.productsSummary || "Order items"}</p>
+                <p className="mt-1 text-xs text-slate-500">{formatDate(row.orderDate)} - {row.itemCount || 0} item(s)</p>
+              </div>
+              {!compact && <StatusBadge status={row.itemStatus} />}
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-sm">
+              <MiniLedger label="Sale" value={formatPrice(row.saleAmount || 0)} />
+              <MiniLedger label="Commission" value={`-${formatPrice(row.platformCommissionAmount || 0)}`} danger />
+              <MiniLedger label="Ship credit" value={formatPrice(row.shippingFeeCredited || 0)} success />
+              <MiniLedger label="Ship debit" value={`-${formatPrice(row.shippingFeeDebited || 0)}`} warning />
+              <MiniLedger label="Refund" value={`-${formatPrice(row.refundDeducted || 0)}`} danger />
+              <MiniLedger label="Net payout" value={formatPrice(row.netPayout || 0)} strong />
+            </div>
+          </article>
         ))}
-      </tbody>
-    </table>
+      </div>
+
+      <table className="hidden w-full min-w-[980px] text-sm md:table">
+        <thead>
+          <tr className="border-b border-slate-200 text-left text-xs font-bold uppercase text-slate-500">
+            <th className="px-3 py-3">Order</th>
+            <th className="px-3 py-3">Products</th>
+            <th className="px-3 py-3 text-right">Sale</th>
+            <th className="px-3 py-3 text-right">Commission</th>
+            <th className="px-3 py-3 text-right">Ship credit</th>
+            <th className="px-3 py-3 text-right">Ship debit</th>
+            <th className="px-3 py-3 text-right">Refund</th>
+            <th className="px-3 py-3 text-right">Net payout</th>
+            {!compact && <th className="px-3 py-3 text-right">Status</th>}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((row) => (
+            <tr key={row.orderId || row.orderNumber} className="hover:bg-slate-50">
+              <td className="px-3 py-3">
+                <p className="font-mono text-xs font-semibold text-slate-900">#{row.orderNumber}</p>
+                <p className="mt-1 text-xs text-slate-500">{formatDate(row.orderDate)}</p>
+              </td>
+              <td className="max-w-xs px-3 py-3">
+                <p className="truncate font-semibold text-slate-900">{row.productsSummary || "Order items"}</p>
+                <p className="mt-1 text-xs text-slate-500">{row.itemCount || 0} item(s)</p>
+              </td>
+              <td className="px-3 py-3 text-right text-slate-700">{formatPrice(row.saleAmount || 0)}</td>
+              <td className="px-3 py-3 text-right text-rose-700">
+                -{formatPrice(row.platformCommissionAmount || 0)}
+                <span className="ml-1 text-xs text-slate-400">({row.platformCommissionRate || 0}%)</span>
+              </td>
+              <td className="px-3 py-3 text-right text-emerald-700">{formatPrice(row.shippingFeeCredited || 0)}</td>
+              <td className="px-3 py-3 text-right text-amber-700">-{formatPrice(row.shippingFeeDebited || 0)}</td>
+              <td className="px-3 py-3 text-right text-rose-700">-{formatPrice(row.refundDeducted || 0)}</td>
+              <td className="px-3 py-3 text-right font-bold text-slate-950">{formatPrice(row.netPayout || 0)}</td>
+              {!compact && (
+                <td className="px-3 py-3 text-right">
+                  <StatusBadge status={row.itemStatus} />
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+function MiniLedger({ label, value, danger = false, success = false, warning = false, strong = false }) {
+  const color = danger ? "text-rose-700" : success ? "text-emerald-700" : warning ? "text-amber-700" : strong ? "text-slate-950" : "text-slate-700";
+
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
+      <p className={`mt-1 font-bold ${color}`}>{value}</p>
+    </div>
   );
 }
 

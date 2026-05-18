@@ -5,6 +5,121 @@ const ACTION_ALIASES = {
   delete: "manage",
 };
 
+export const VENDOR_PERMISSION_GROUPS = [
+  {
+    id: "products",
+    label: "Products and inventory",
+    description: "View listings, edit catalog data, and manage SKU stock.",
+    permissions: [
+      { value: "products:view", label: "View products" },
+      { value: "products:manage", label: "Create and edit products" },
+      { value: "inventory:manage", label: "Manage inventory" },
+    ],
+  },
+  {
+    id: "orders",
+    label: "Orders",
+    description: "Process customer orders, update fulfillment, and ship packages.",
+    permissions: [
+      { value: "orders:view", label: "View orders" },
+      { value: "orders:manage", label: "Update orders" },
+      { value: "orders:ship", label: "Ship and print labels" },
+    ],
+  },
+  {
+    id: "returns",
+    label: "Returns",
+    description: "Review return cases, respond to buyers, and upload evidence.",
+    permissions: [
+      { value: "returns:view", label: "View returns" },
+      { value: "returns:manage", label: "Respond to returns" },
+    ],
+  },
+  {
+    id: "finance",
+    label: "Finance and reports",
+    description: "See payouts, download statements, and review seller performance.",
+    permissions: [
+      { value: "finance:view", label: "View finance" },
+      { value: "finance:manage", label: "Request payouts" },
+      { value: "reports:view", label: "View reports" },
+    ],
+  },
+  {
+    id: "shop",
+    label: "Shop and marketing",
+    description: "Manage storefront content, vouchers, campaigns, and seller picks.",
+    permissions: [
+      { value: "shop:manage", label: "Manage shop" },
+      { value: "marketing:manage", label: "Manage marketing" },
+    ],
+  },
+  {
+    id: "support",
+    label: "Support and reviews",
+    description: "Handle customer messages, support tickets, and review replies.",
+    permissions: [
+      { value: "support:view", label: "View support" },
+      { value: "support:manage", label: "Reply to support" },
+      { value: "reviews:view", label: "View reviews" },
+    ],
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    description: "Control sensitive seller settings and staff access.",
+    permissions: [
+      { value: "settings:manage", label: "Manage settings" },
+      { value: "staff:manage", label: "Manage staff" },
+    ],
+  },
+];
+
+export const VENDOR_ROLE_PRESETS = [
+  {
+    id: "order-manager",
+    label: "Order manager",
+    description: "Can run daily fulfillment and return responses.",
+    permissions: ["orders:view", "orders:manage", "orders:ship", "returns:view", "returns:manage"],
+  },
+  {
+    id: "product-editor",
+    label: "Product editor",
+    description: "Can maintain listings, stock, variants, and media.",
+    permissions: ["products:view", "products:manage", "inventory:manage"],
+  },
+  {
+    id: "finance-viewer",
+    label: "Finance viewer",
+    description: "Can read finance pages and seller reports without requesting payouts.",
+    permissions: ["finance:view", "reports:view"],
+  },
+  {
+    id: "finance-manager",
+    label: "Finance manager",
+    description: "Can review statements and submit payout requests.",
+    permissions: ["finance:view", "finance:manage", "reports:view"],
+  },
+  {
+    id: "support-operator",
+    label: "Support operator",
+    description: "Can handle customer issues, reviews, and return visibility.",
+    permissions: ["support:view", "support:manage", "reviews:view", "returns:view"],
+  },
+  {
+    id: "marketing-manager",
+    label: "Marketing manager",
+    description: "Can manage vouchers, campaigns, and performance reports.",
+    permissions: ["marketing:manage", "reports:view"],
+  },
+  {
+    id: "store-manager",
+    label: "Store manager",
+    description: "Can update storefront presentation and seller settings.",
+    permissions: ["shop:manage", "settings:manage"],
+  },
+];
+
 export const VENDOR_ROUTE_PERMISSIONS = [
   { prefix: "/vendor/products/add", permission: "products:manage" },
   { prefix: "/vendor/products/edit", permission: "products:manage" },
@@ -32,12 +147,24 @@ export const VENDOR_ROUTE_PERMISSIONS = [
 
 const normalizeAction = (action) => ACTION_ALIASES[action] || action;
 
-const normalizePermission = (permission) =>
-  String(permission || "")
+const normalizePermission = (permission) => {
+  const value = String(permission || "")
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "")
     .replace(/-/g, "_");
+
+  if (!value.includes(":")) {
+    const actionMatch = value.match(/^(.+)_(view|read|manage|create|update|delete|ship|\*)$/);
+    if (actionMatch) {
+      return `${actionMatch[1]}:${normalizeAction(actionMatch[2])}`;
+    }
+  }
+
+  const [resource, action] = value.split(":");
+  if (!resource || !action) return value;
+  return `${resource}:${normalizeAction(action)}`;
+};
 
 const flattenObjectPermissions = (permissions = {}) =>
   Object.entries(permissions).flatMap(([resource, actions]) => {
@@ -99,6 +226,50 @@ export const hasVendorPermission = (source = {}, requiredPermission) => {
   if (action === "view" && permissions.includes(`${resource}:ship`)) return true;
 
   return false;
+};
+
+export const getVendorRolePreset = (roleId) =>
+  VENDOR_ROLE_PRESETS.find((role) => role.id === roleId) || VENDOR_ROLE_PRESETS[0];
+
+export const describeVendorPermission = (permission) => {
+  const normalized = normalizePermission(permission);
+  for (const group of VENDOR_PERMISSION_GROUPS) {
+    const match = group.permissions.find((item) => normalizePermission(item.value) === normalized);
+    if (match) {
+      return {
+        ...match,
+        value: normalized,
+        groupId: group.id,
+        groupLabel: group.label,
+      };
+    }
+  }
+
+  return {
+    value: normalized,
+    label: normalized
+      .replace(/:/g, " ")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+    groupId: "custom",
+    groupLabel: "Custom",
+  };
+};
+
+export const buildVendorPermissionMatrix = (permissions = []) => {
+  const granted = new Set(normalizeVendorPermissions({ permissions }));
+
+  return VENDOR_PERMISSION_GROUPS.map((group) => ({
+    ...group,
+    permissions: group.permissions.map((permission) => {
+      const normalized = normalizePermission(permission.value);
+      return {
+        ...permission,
+        value: normalized,
+        granted: granted.has(normalized),
+      };
+    }),
+  }));
 };
 
 export const getVendorPathPermission = (pathname = "") => {

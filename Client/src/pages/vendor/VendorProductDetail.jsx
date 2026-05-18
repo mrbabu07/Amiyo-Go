@@ -26,6 +26,7 @@ import {
   getVendorProductStatusMeta,
   summarizeVendorInventory,
 } from "../../utils/vendorProductDetail";
+import { hasVendorPermission } from "../../utils/vendorStaffPermissions";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -132,9 +133,10 @@ function QualityRow({ check }) {
 
 export default function VendorProductDetail() {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, dbUser, role, permissions, isAdmin } = useAuth();
   const { formatPrice } = useCurrency();
   const navigate = useNavigate();
+  const canManageProducts = hasVendorPermission({ dbUser, role, permissions, isAdmin }, "products:manage");
   const [product, setProduct] = useState(null);
   const [categories, setCategories] = useState({});
   const [loading, setLoading] = useState(true);
@@ -184,6 +186,11 @@ export default function VendorProductDetail() {
 
   const runProductAction = async (action, request) => {
     if (!user || !product?._id) return;
+    if (!canManageProducts) {
+      toast.error("Your staff access can view products, but cannot change them.");
+      return;
+    }
+
     setActionLoading(action);
 
     try {
@@ -220,6 +227,11 @@ export default function VendorProductDetail() {
 
   const deleteProduct = async () => {
     if (!product?._id) return;
+    if (!canManageProducts) {
+      toast.error("Your staff access can view products, but cannot delete them.");
+      return;
+    }
+
     if (!window.confirm("Delete this product permanently?")) return;
 
     setActionLoading("delete");
@@ -308,40 +320,46 @@ export default function VendorProductDetail() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <HeaderAction to={`/vendor/products/edit/${product._id}`} icon={Pencil} tone="primary">
-              Edit
-            </HeaderAction>
-            <HeaderAction to={`/vendor/products/add?clone=${product._id}`} icon={Copy}>
-              Clone
-            </HeaderAction>
-            {canSubmit ? (
-              <HeaderAction
-                onClick={submitForApproval}
-                icon={Send}
-                disabled={actionLoading === "submit"}
-              >
-                Submit
+          {canManageProducts ? (
+            <div className="flex flex-wrap gap-2">
+              <HeaderAction to={`/vendor/products/edit/${product._id}`} icon={Pencil} tone="primary">
+                Edit
               </HeaderAction>
-            ) : null}
-            {product.isActive !== false ? (
-              <HeaderAction
-                onClick={delistProduct}
-                icon={Package}
-                disabled={actionLoading === "delist"}
-              >
-                Delist
+              <HeaderAction to={`/vendor/products/add?clone=${product._id}`} icon={Copy}>
+                Clone
               </HeaderAction>
-            ) : null}
-            <HeaderAction
-              onClick={deleteProduct}
-              icon={Trash2}
-              tone="danger"
-              disabled={actionLoading === "delete"}
-            >
-              Delete
-            </HeaderAction>
-          </div>
+              {canSubmit ? (
+                <HeaderAction
+                  onClick={submitForApproval}
+                  icon={Send}
+                  disabled={actionLoading === "submit"}
+                >
+                  Submit
+                </HeaderAction>
+              ) : null}
+              {product.isActive !== false ? (
+                <HeaderAction
+                  onClick={delistProduct}
+                  icon={Package}
+                  disabled={actionLoading === "delist"}
+                >
+                  Delist
+                </HeaderAction>
+              ) : null}
+              <HeaderAction
+                onClick={deleteProduct}
+                icon={Trash2}
+                tone="danger"
+                disabled={actionLoading === "delete"}
+              >
+                Delete
+              </HeaderAction>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
+              Product view-only access
+            </div>
+          )}
         </div>
       </header>
 

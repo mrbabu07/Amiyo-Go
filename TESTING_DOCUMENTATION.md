@@ -168,7 +168,7 @@ Before pushing frontend or backend changes:
 
 The latest completed full-project verification:
 
-- `Client`: `npm test` passed, 22 suites / 88 tests.
+- `Client`: `npm test` passed, 22 suites / 89 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
 - `Server`: `npm test -- --runInBand` passed, 62 suites / 398 tests.
@@ -182,5 +182,6 @@ The latest completed full-project verification:
 - Focused frontend vendor return dispute tests passed, 2 suites / 9 tests.
 - Focused frontend vendor order detail tests passed, 2 suites / 8 tests.
 - Focused frontend vendor staff permission tests and route guard tests passed, 5 suites / 20 tests.
+- Focused frontend vendor staff permission matrix tests passed, 2 suites / 8 tests.
 - Focused backend vendor return detail test passed, 1 suite / 3 tests.
 - Focused backend API routing hardening tests passed, 3 suites / 124 tests.

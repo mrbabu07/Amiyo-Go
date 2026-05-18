@@ -27,6 +27,7 @@ import Loading from "../../components/Loading";
 import useAuth from "../../hooks/useAuth";
 import { useCurrency } from "../../hooks/useCurrency";
 import { generateVendorPackingSlip } from "../../utils/vendorPackingSlip";
+import { hasVendorPermission } from "../../utils/vendorStaffPermissions";
 import {
   downloadVendorBarcodeLabel,
   downloadVendorPackingSlip,
@@ -285,8 +286,13 @@ const buildBatchPackingSlipHtml = (orders, vendorProfile, moneyFormatter) => {
 };
 
 export default function VendorOrders() {
-  const { user } = useAuth();
+  const { user, dbUser, role, permissions, isAdmin } = useAuth();
   const { formatPrice } = useCurrency();
+  const vendorAccess = useMemo(
+    () => ({ dbUser, role, permissions, isAdmin }),
+    [dbUser, role, permissions, isAdmin],
+  );
+  const canManageOrders = hasVendorPermission(vendorAccess, "orders:manage");
 
   const [orders, setOrders] = useState([]);
   const [returns, setReturns] = useState([]);
@@ -489,6 +495,11 @@ export default function VendorOrders() {
   };
 
   const handleStatusUpdate = async (order, status) => {
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot update them.");
+      return;
+    }
+
     const orderId = getOrderId(order);
     setBusyOrderId(orderId);
     const loadingToast = toast.loading("Updating order...");
@@ -505,6 +516,11 @@ export default function VendorOrders() {
   };
 
   const handleBatchPack = async () => {
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot update them.");
+      return;
+    }
+
     if (packableSelectedOrders.length === 0) {
       toast.error("Select pending orders first");
       return;
@@ -605,6 +621,11 @@ export default function VendorOrders() {
   };
 
   const openPickupSchedule = (order) => {
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot schedule pickups.");
+      return;
+    }
+
     setPickupModal({
       order,
       pickupDate: todayInputValue(),
@@ -616,6 +637,11 @@ export default function VendorOrders() {
 
   const submitPickupSchedule = async (event) => {
     event.preventDefault();
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot schedule pickups.");
+      return;
+    }
+
     const orderId = getOrderId(pickupModal.order);
     const loadingToast = toast.loading("Scheduling pickup...");
     try {
@@ -634,6 +660,11 @@ export default function VendorOrders() {
   };
 
   const openBuyerMessage = (order) => {
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot message buyers.");
+      return;
+    }
+
     setMessageModal({
       order,
       message: "",
@@ -642,6 +673,11 @@ export default function VendorOrders() {
 
   const submitBuyerMessage = async (event) => {
     event.preventDefault();
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot message buyers.");
+      return;
+    }
+
     const orderId = getOrderId(messageModal.order);
     const loadingToast = toast.loading("Sending message...");
     try {
@@ -655,6 +691,11 @@ export default function VendorOrders() {
   };
 
   const openCancelOrder = (order) => {
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot cancel items.");
+      return;
+    }
+
     setCancelModal({
       order,
       reason: "",
@@ -664,6 +705,11 @@ export default function VendorOrders() {
 
   const submitCancellation = async (event) => {
     event.preventDefault();
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot cancel items.");
+      return;
+    }
+
     const orderId = getOrderId(cancelModal.order);
     const loadingToast = toast.loading("Cancelling order items...");
     try {
@@ -680,6 +726,11 @@ export default function VendorOrders() {
   };
 
   const markCodCollected = async (order) => {
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot record COD.");
+      return;
+    }
+
     const orderId = getOrderId(order);
     const loadingToast = toast.loading("Recording COD collection...");
     try {
@@ -756,40 +807,45 @@ export default function VendorOrders() {
         </div>
         <div className={`mt-2 flex flex-wrap gap-2 ${alignClass}`}>
           {canMove && !["packed", "ready_to_ship", "pickup_ready", "shipped"].includes(order.status) && (
-            <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "packed")}>
+            <SmallActionButton disabled={isBusy || !canManageOrders} onClick={() => handleStatusUpdate(order, "packed")}>
               Pack
             </SmallActionButton>
           )}
           {canMove && ["packed", "processing", "pending"].includes(order.status) && (
-            <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "ready_to_ship")}>
+            <SmallActionButton disabled={isBusy || !canManageOrders} onClick={() => handleStatusUpdate(order, "ready_to_ship")}>
               Ready
             </SmallActionButton>
           )}
           {canMove && ["packed", "ready_to_ship", "pickup_ready"].includes(order.status) && (
-            <SmallActionButton disabled={isBusy} onClick={() => openPickupSchedule(order)}>
+            <SmallActionButton disabled={isBusy || !canManageOrders} onClick={() => openPickupSchedule(order)}>
               Schedule
             </SmallActionButton>
           )}
           {canMove && ["ready_to_ship", "pickup_ready"].includes(order.status) && (
-            <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "shipped")}>
+            <SmallActionButton disabled={isBusy || !canManageOrders} onClick={() => handleStatusUpdate(order, "shipped")}>
               Ship
             </SmallActionButton>
           )}
           {order.status === "shipped" && (
-            <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "delivered")}>
+            <SmallActionButton disabled={isBusy || !canManageOrders} onClick={() => handleStatusUpdate(order, "delivered")}>
               Deliver
             </SmallActionButton>
           )}
           {isCodOrder(order) && !order.codCollected && order.status !== "cancelled" && (
-            <SmallActionButton disabled={isBusy} onClick={() => markCodCollected(order)}>
+            <SmallActionButton disabled={isBusy || !canManageOrders} onClick={() => markCodCollected(order)}>
               COD
             </SmallActionButton>
           )}
-          <SmallActionButton onClick={() => openBuyerMessage(order)}>Message</SmallActionButton>
+          <SmallActionButton disabled={!canManageOrders} onClick={() => openBuyerMessage(order)}>Message</SmallActionButton>
           {canMove && (
-            <SmallDangerButton disabled={isBusy} onClick={() => openCancelOrder(order)}>
+            <SmallDangerButton disabled={isBusy || !canManageOrders} onClick={() => openCancelOrder(order)}>
               Cancel
             </SmallDangerButton>
+          )}
+          {!canManageOrders && (
+            <span className="inline-flex h-8 items-center rounded-lg bg-slate-100 px-3 text-xs font-semibold text-slate-500">
+              View-only
+            </span>
           )}
         </div>
       </>
@@ -833,6 +889,12 @@ export default function VendorOrders() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {!canManageOrders && (
+          <div className="mb-5 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+            Your staff role can review orders, print slips, and inspect details. Fulfillment updates, buyer messages, COD collection, and cancellations require order management access.
+          </div>
+        )}
+
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard label="Pending" value={stats.pending} tone="amber" icon={Clock} />
           <MetricCard label="Packed" value={stats.packed} tone="indigo" icon={PackageCheck} />
@@ -868,7 +930,7 @@ export default function VendorOrders() {
                 <button
                   type="button"
                   onClick={handleBatchPack}
-                  disabled={packableSelectedOrders.length === 0}
+                  disabled={!canManageOrders || packableSelectedOrders.length === 0}
                   className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <PackageCheck className="h-4 w-4" />

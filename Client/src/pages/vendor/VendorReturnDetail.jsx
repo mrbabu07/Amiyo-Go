@@ -24,6 +24,7 @@ import {
   vendorRespondToReturn,
 } from "../../services/api";
 import { useCurrency } from "../../hooks/useCurrency";
+import useAuth from "../../hooks/useAuth";
 import {
   buildVendorReturnTimeline,
   canVendorRespond,
@@ -32,6 +33,7 @@ import {
   getVendorReturnFinancials,
   getVendorReturnStatusMeta,
 } from "../../utils/vendorReturnDispute";
+import { hasVendorPermission } from "../../utils/vendorStaffPermissions";
 
 const actionOptions = [
   {
@@ -164,6 +166,8 @@ function TimelineList({ events }) {
 export default function VendorReturnDetail() {
   const { returnId } = useParams();
   const { formatPrice } = useCurrency();
+  const { dbUser, role, permissions, isAdmin } = useAuth();
+  const canManageReturns = hasVendorPermission({ dbUser, role, permissions, isAdmin }, "returns:manage");
   const [returnItem, setReturnItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -198,7 +202,7 @@ export default function VendorReturnDetail() {
   const financials = useMemo(() => getVendorReturnFinancials(returnItem || {}), [returnItem]);
   const evidence = useMemo(() => getVendorReturnEvidence(returnItem || {}), [returnItem]);
   const timeline = useMemo(() => buildVendorReturnTimeline(returnItem || {}), [returnItem]);
-  const canRespond = canVendorRespond(returnItem || {});
+  const canRespond = canManageReturns && canVendorRespond(returnItem || {});
   const selectedAction = actionOptions.find((item) => item.value === action) || actionOptions[0];
   const SelectedActionIcon = selectedAction.icon;
   const needsReason = ["disputed", "rejected"].includes(action);
@@ -233,6 +237,11 @@ export default function VendorReturnDetail() {
 
   const submitResponse = async () => {
     if (!returnItem) return;
+    if (!canManageReturns) {
+      toast.error("Your staff access can view returns, but cannot respond.");
+      return;
+    }
+
     if (needsReason && !reason.trim()) {
       toast.error("Please add a reason before submitting this response");
       return;
@@ -445,7 +454,11 @@ export default function VendorReturnDetail() {
                 <div>
                   <h2 className="text-base font-semibold text-slate-950">Seller response</h2>
                   <p className="text-sm text-slate-500">
-                    {canRespond ? "Submit one clear decision for this case." : "This case already has a response or is closed."}
+                    {canRespond
+                      ? "Submit one clear decision for this case."
+                      : canManageReturns
+                        ? "This case already has a response or is closed."
+                        : "Your staff role can review this case, but cannot respond."}
                   </p>
                 </div>
                 <MessageSquare className="h-5 w-5 text-slate-400" aria-hidden="true" />

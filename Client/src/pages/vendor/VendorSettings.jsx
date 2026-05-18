@@ -36,10 +36,18 @@ import {
   removeVendorStaff,
   setVacationMode,
   setupVendorTwoFactor,
+  updateVendorStaff,
   updateMyVendorProfile,
   updateNotificationPreferences,
   verifyVendorTwoFactor,
 } from "../../services/api";
+import {
+  buildVendorPermissionMatrix,
+  describeVendorPermission,
+  getVendorRolePreset,
+  normalizeVendorPermissions,
+  VENDOR_ROLE_PRESETS,
+} from "../../utils/vendorStaffPermissions";
 
 const payoutTypes = [
   { value: "bkash", label: "bKash", icon: Smartphone },
@@ -47,33 +55,7 @@ const payoutTypes = [
   { value: "bank", label: "Bank account", icon: Landmark },
 ];
 
-const staffRoles = [
-  {
-    id: "order-manager",
-    label: "Order manager",
-    permissions: ["orders:view", "orders:manage", "orders:ship", "returns:view", "returns:manage"],
-  },
-  {
-    id: "product-editor",
-    label: "Product editor",
-    permissions: ["products:view", "products:manage", "inventory:manage"],
-  },
-  {
-    id: "finance-viewer",
-    label: "Finance viewer",
-    permissions: ["finance:view", "reports:view"],
-  },
-  {
-    id: "support-operator",
-    label: "Support operator",
-    permissions: ["support:view", "support:manage", "reviews:view", "returns:view"],
-  },
-  {
-    id: "marketing-manager",
-    label: "Marketing manager",
-    permissions: ["marketing:manage", "reports:view"],
-  },
-];
+const staffRoles = VENDOR_ROLE_PRESETS;
 
 const notificationEvents = [
   { key: "new_order", label: "New order", description: "Order created or payment confirmed" },
@@ -224,6 +206,17 @@ const formatDateValue = (date) => {
   return offsetDate.toISOString().slice(0, 16);
 };
 
+const defaultStaffRole = getVendorRolePreset("order-manager");
+
+const emptyStaffForm = () => ({
+  id: "",
+  name: "",
+  email: "",
+  role: defaultStaffRole.id,
+  status: "active",
+  permissions: defaultStaffRole.permissions,
+});
+
 const VendorSettings = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("payouts");
@@ -250,11 +243,8 @@ const VendorSettings = () => {
     buyerMessage: "",
   });
 
-  const [staffForm, setStaffForm] = useState({
-    name: "",
-    email: "",
-    role: "order-manager",
-  });
+  const [staffForm, setStaffForm] = useState(emptyStaffForm);
+  const [editingStaffId, setEditingStaffId] = useState("");
 
   const [notificationPreferences, setNotificationPreferences] = useState(defaultNotifications);
   const [twoFactorSetup, setTwoFactorSetup] = useState(null);
@@ -491,28 +481,96 @@ const VendorSettings = () => {
     }
   };
 
+  const resetStaffForm = () => {
+    setStaffForm(emptyStaffForm());
+    setEditingStaffId("");
+  };
+
+  const changeStaffRole = (roleId) => {
+    if (roleId === "custom") {
+      setStaffForm((form) => ({ ...form, role: "custom" }));
+      return;
+    }
+
+    const role = getVendorRolePreset(roleId);
+    setStaffForm((form) => ({
+      ...form,
+      role: role.id,
+      permissions: role.permissions,
+    }));
+  };
+
+  const toggleStaffPermission = (permission) => {
+    setStaffForm((form) => {
+      const current = new Set(normalizeVendorPermissions({ permissions: form.permissions }));
+      if (current.has(permission)) {
+        current.delete(permission);
+      } else {
+        current.add(permission);
+      }
+
+      return {
+        ...form,
+        role: "custom",
+        permissions: [...current],
+      };
+    });
+  };
+
+  const editStaff = (member) => {
+    const permissions = normalizeVendorPermissions({ permissions: member.permissions || [] });
+    const matchingRole = staffRoles.find((role) => {
+      const rolePermissions = normalizeVendorPermissions({ permissions: role.permissions });
+      return rolePermissions.length === permissions.length && rolePermissions.every((permission) => permissions.includes(permission));
+    });
+
+    setEditingStaffId(member._id || member.id);
+    setStaffForm({
+      id: member._id || member.id || "",
+      name: member.name || "",
+      email: member.email || "",
+      role: matchingRole?.id || "custom",
+      status: member.status || "active",
+      permissions,
+    });
+  };
+
   const submitStaffInvite = async (event) => {
     event.preventDefault();
-    const role = staffRoles.find((item) => item.id === staffForm.role) || staffRoles[0];
+    const selectedPermissions = normalizeVendorPermissions({ permissions: staffForm.permissions });
 
-    if (!staffForm.email.trim()) {
+    if (!editingStaffId && !staffForm.email.trim()) {
       showNotice("error", "Staff email is required");
+      return;
+    }
+
+    if (selectedPermissions.length === 0) {
+      showNotice("error", "Select at least one staff permission");
       return;
     }
 
     setSaving("staff");
     try {
-      await inviteVendorStaff({
-        name: staffForm.name,
-        email: staffForm.email,
-        role: staffForm.role,
-        permissions: role.permissions,
-      });
-      setStaffForm({ name: "", email: "", role: "order-manager" });
-      showNotice("success", "Staff invite created");
+      if (editingStaffId) {
+        await updateVendorStaff(editingStaffId, {
+          name: staffForm.name,
+          status: staffForm.status,
+          permissions: selectedPermissions,
+        });
+        showNotice("success", "Staff permissions updated");
+      } else {
+        await inviteVendorStaff({
+          name: staffForm.name,
+          email: staffForm.email,
+          role: staffForm.role,
+          permissions: selectedPermissions,
+        });
+        showNotice("success", "Staff invite created");
+      }
+      resetStaffForm();
       await loadSettings();
     } catch (error) {
-      showNotice("error", getApiError(error, "Failed to invite staff"));
+      showNotice("error", getApiError(error, editingStaffId ? "Failed to update staff" : "Failed to invite staff"));
     } finally {
       setSaving("");
     }
@@ -622,6 +680,10 @@ const VendorSettings = () => {
   );
   const twoFactorEnabled = Boolean(vendor?.security?.twoFactor?.enabled);
   const vacationEnabled = Boolean(shopStatus?.vacationMode?.enabled || vendor?.vacationMode?.enabled);
+  const staffPermissionMatrix = useMemo(
+    () => buildVendorPermissionMatrix(staffForm.permissions),
+    [staffForm.permissions],
+  );
 
   if (loading) {
     return (
@@ -1145,9 +1207,17 @@ const VendorSettings = () => {
         )}
 
         {activeTab === "staff" && (
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-950">Staff accounts</h2>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-950">Staff accounts</h2>
+                  <p className="text-sm text-slate-600">Review each team member's actual seller-center access before they operate the shop.</p>
+                </div>
+                <span className="w-max rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {staff.length} member{staff.length === 1 ? "" : "s"}
+                </span>
+              </div>
               <div className="mt-5 grid gap-3">
                 {staff.length === 0 && (
                   <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
@@ -1158,27 +1228,35 @@ const VendorSettings = () => {
                   <div key={member._id || member.id || member.email} className="rounded-lg border border-slate-200 p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <h3 className="font-semibold text-slate-950">{member.name || member.email}</h3>
-                        <p className="text-sm text-slate-600">{member.email}</p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {(member.permissions || []).map((permission) => (
-                            <span
-                              key={permission}
-                              className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
-                            >
-                              {permission}
-                            </span>
-                          ))}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-semibold text-slate-950">{member.name || member.email}</h3>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            member.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
+                          }`}>
+                            {member.status || "active"}
+                          </span>
                         </div>
+                        <p className="mt-1 text-sm text-slate-600">{member.email}</p>
+                        <PermissionSummary permissions={member.permissions || []} />
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => deleteStaff(member._id || member.id)}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Remove
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => editStaff(member)}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                          Edit access
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteStaff(member._id || member.id)}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1186,7 +1264,23 @@ const VendorSettings = () => {
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-950">Invite team member</h2>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-950">
+                    {editingStaffId ? "Edit staff access" : "Invite team member"}
+                  </h2>
+                  <p className="text-sm text-slate-600">Choose a preset, then adjust the exact permissions if needed.</p>
+                </div>
+                {editingStaffId && (
+                  <button
+                    type="button"
+                    onClick={resetStaffForm}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    New invite
+                  </button>
+                )}
+              </div>
               <form onSubmit={submitStaffInvite} className="mt-4 space-y-4">
                 <Field
                   label="Name"
@@ -1200,12 +1294,13 @@ const VendorSettings = () => {
                   value={staffForm.email}
                   onChange={(value) => setStaffForm((form) => ({ ...form, email: value }))}
                   placeholder="name@example.com"
+                  disabled={Boolean(editingStaffId)}
                 />
                 <div>
                   <label className="text-sm font-semibold text-slate-700">Role</label>
                   <select
                     value={staffForm.role}
-                    onChange={(event) => setStaffForm((form) => ({ ...form, role: event.target.value }))}
+                    onChange={(event) => changeStaffRole(event.target.value)}
                     className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                   >
                     {staffRoles.map((role) => (
@@ -1213,15 +1308,34 @@ const VendorSettings = () => {
                         {role.label}
                       </option>
                     ))}
+                    <option value="custom">Custom permissions</option>
                   </select>
+                  <p className="mt-2 text-xs text-slate-500">
+                    {(staffRoles.find((role) => role.id === staffForm.role) || {}).description || "Custom permission set"}
+                  </p>
                 </div>
+                {editingStaffId && (
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Status</label>
+                    <select
+                      value={staffForm.status}
+                      onChange={(event) => setStaffForm((form) => ({ ...form, status: event.target.value }))}
+                      className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                    >
+                      <option value="active">Active</option>
+                      <option value="paused">Paused</option>
+                      <option value="removed">Removed</option>
+                    </select>
+                  </div>
+                )}
+                <PermissionMatrix matrix={staffPermissionMatrix} onToggle={toggleStaffPermission} />
                 <button
                   type="submit"
                   disabled={saving === "staff"}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
                 >
                   {saving === "staff" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-                  Invite staff
+                  {editingStaffId ? "Save staff access" : "Invite staff"}
                 </button>
               </form>
             </section>
@@ -1420,6 +1534,7 @@ const Field = ({
   type = "text",
   className = "",
   inputMode,
+  disabled = false,
 }) => (
   <div className={className}>
     <label className="text-sm font-semibold text-slate-700">{label}</label>
@@ -1429,8 +1544,88 @@ const Field = ({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+      disabled={disabled}
+      className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
     />
+  </div>
+);
+
+const PermissionSummary = ({ permissions = [] }) => {
+  const grouped = buildVendorPermissionMatrix(permissions)
+    .map((group) => ({
+      ...group,
+      permissions: group.permissions.filter((permission) => permission.granted),
+    }))
+    .filter((group) => group.permissions.length > 0);
+
+  if (grouped.length === 0) {
+    return (
+      <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+        No permissions assigned
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      {grouped.map((group) => (
+        <div key={group.id}>
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{group.label}</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {group.permissions.map((permission) => (
+              <span
+                key={permission.value}
+                className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
+              >
+                {permission.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const PermissionMatrix = ({ matrix = [], onToggle }) => (
+  <div className="rounded-lg border border-slate-200">
+    <div className="border-b border-slate-200 bg-slate-50 px-3 py-2">
+      <p className="text-sm font-bold text-slate-950">Permission matrix</p>
+      <p className="text-xs text-slate-500">Checked items are the exact capabilities this staff member receives.</p>
+    </div>
+    <div className="divide-y divide-slate-100">
+      {matrix.map((group) => (
+        <div key={group.id} className="p-3">
+          <div>
+            <p className="text-sm font-bold text-slate-900">{group.label}</p>
+            <p className="text-xs text-slate-500">{group.description}</p>
+          </div>
+          <div className="mt-3 grid gap-2">
+            {group.permissions.map((permission) => {
+              const described = describeVendorPermission(permission.value);
+              return (
+                <label
+                  key={permission.value}
+                  className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${
+                    permission.granted
+                      ? "border-orange-200 bg-orange-50 text-orange-800"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="font-semibold">{described.label}</span>
+                  <input
+                    type="checkbox"
+                    checked={permission.granted}
+                    onChange={() => onToggle(permission.value)}
+                    className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                  />
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
   </div>
 );
 

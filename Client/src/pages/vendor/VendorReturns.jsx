@@ -4,9 +4,13 @@ import toast from 'react-hot-toast';
 import { getVendorReturns, getVendorReturnStats, uploadImages, vendorRespondToReturn } from '../../services/api';
 import { useCurrency } from '../../hooks/useCurrency';
 import Modal from '../../components/Modal';
+import useAuth from '../../hooks/useAuth';
+import { hasVendorPermission } from '../../utils/vendorStaffPermissions';
 
 export default function VendorReturns() {
+  const { dbUser, role, permissions, isAdmin } = useAuth();
   const { formatPrice } = useCurrency();
+  const canManageReturns = hasVendorPermission({ dbUser, role, permissions, isAdmin }, 'returns:manage');
   const [returns, setReturns] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -77,6 +81,11 @@ export default function VendorReturns() {
   };
 
   const openResponseModal = (returnItem) => {
+    if (!canManageReturns) {
+      toast.error('Your staff access can view returns, but cannot respond.');
+      return;
+    }
+
     setSelectedReturn(returnItem);
     setResponseAction('approved');
     setResponseNotes('');
@@ -109,6 +118,11 @@ export default function VendorReturns() {
   };
 
   const handleSubmitResponse = async () => {
+    if (!canManageReturns) {
+      toast.error('Your staff access can view returns, but cannot respond.');
+      return;
+    }
+
     if (responseAction === 'disputed' && !disputeReason) {
       toast.error('Please provide a reason for disputing this return');
       return;
@@ -167,6 +181,12 @@ export default function VendorReturns() {
           </h1>
           <p className="text-gray-600 mt-2">Manage customer return requests and track deductions</p>
         </div>
+
+        {!canManageReturns && (
+          <div className="mb-6 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+            Your staff role can review returns and evidence, but return approvals, disputes, and counter-evidence uploads require return management access.
+          </div>
+        )}
 
         {/* Stats Cards */}
         {stats && (
@@ -332,7 +352,8 @@ export default function VendorReturns() {
                         <button
                           type="button"
                           onClick={() => openResponseModal(returnItem)}
-                          className="inline-flex min-h-10 items-center rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600"
+                          disabled={!canManageReturns}
+                          className="inline-flex min-h-10 items-center rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
                         >
                           Respond
                         </button>
@@ -455,7 +476,8 @@ export default function VendorReturns() {
                           {returnItem.status === 'pending' && !returnItem.vendorResponse ? (
                           <button
                             onClick={() => openResponseModal(returnItem)}
-                            className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition font-medium"
+                            disabled={!canManageReturns}
+                            className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition font-medium disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
                           >
                             Respond
                           </button>
@@ -682,7 +704,7 @@ export default function VendorReturns() {
                 </button>
                 <button
                   onClick={handleSubmitResponse}
-                  disabled={submitting || (responseAction === 'disputed' && !disputeReason)}
+                  disabled={!canManageReturns || submitting || (responseAction === 'disputed' && !disputeReason)}
                   className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? 'Submitting...' : 'Submit Response'}
