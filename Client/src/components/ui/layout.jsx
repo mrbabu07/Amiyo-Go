@@ -1,6 +1,7 @@
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { AlertCircle, Ban, Clock3, Store } from "lucide-react";
 import useAuth from "../../hooks/useAuth";
+import { getVendorGateStatus } from "../../utils/vendorSellerCenter";
 import { Badge, Spinner } from "./foundation";
 import { cn } from "./utils";
 
@@ -120,6 +121,14 @@ export function AuthGuard({ children, roles, fallback = "/login" }) {
 }
 
 const vendorStatusCopy = {
+  missing: {
+    icon: Store,
+    title: "Vendor profile required",
+    message: "Create or complete your vendor profile before opening the seller center.",
+    tone: "border-slate-200 bg-slate-50 text-slate-700",
+    primaryLabel: "Register as vendor",
+    primaryPath: "/vendor/register",
+  },
   pending: {
     icon: Clock3,
     title: "Vendor application pending",
@@ -132,11 +141,33 @@ const vendorStatusCopy = {
     message: "Review the rejection reason and contact support before submitting updated documents.",
     tone: "border-red-200 bg-red-50 text-red-700",
   },
+  role_pending: {
+    icon: Clock3,
+    title: "Vendor role is syncing",
+    message: "Your shop is approved, but your user role has not finished syncing yet. Try refreshing or contact support.",
+    tone: "border-sky-200 bg-sky-50 text-sky-700",
+  },
   suspended: {
     icon: Ban,
     title: "Vendor account suspended",
     message: "Your vendor tools are paused. Contact support to resolve the account status.",
     tone: "border-red-200 bg-red-50 text-red-700",
+  },
+  missing_kyc: {
+    icon: AlertCircle,
+    title: "KYC documents required",
+    message: "Upload or resubmit your NID, trade license, and payout ownership documents to unlock seller operations.",
+    tone: "border-amber-200 bg-amber-50 text-amber-700",
+    primaryLabel: "Open KYC page",
+    primaryPath: "/vendor/kyc",
+  },
+  kyc_pending: {
+    icon: Clock3,
+    title: "KYC review pending",
+    message: "Your documents are under review. You can track status or add updated documents from the KYC page.",
+    tone: "border-sky-200 bg-sky-50 text-sky-700",
+    primaryLabel: "Track KYC",
+    primaryPath: "/vendor/kyc",
   },
 };
 
@@ -146,8 +177,12 @@ export function VendorStatusScreen({ status = "pending" }) {
     title: "Vendor profile required",
     message: "Create or complete your vendor profile to continue.",
     tone: "border-slate-200 bg-slate-50 text-slate-700",
+    primaryLabel: "Go to Store",
+    primaryPath: "/",
   };
   const Icon = config.icon;
+  const primaryLabel = config.primaryLabel || "Go to Store";
+  const primaryPath = config.primaryPath || "/";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10 dark:bg-slate-950">
@@ -159,10 +194,10 @@ export function VendorStatusScreen({ status = "pending" }) {
         <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">{config.message}</p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
-            to="/"
+            to={primaryPath}
             className="inline-flex min-h-11 items-center justify-center rounded-lg border border-primary-600 bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
           >
-            Go to Store
+            {primaryLabel}
           </Link>
           <Link
             to="/support"
@@ -177,15 +212,25 @@ export function VendorStatusScreen({ status = "pending" }) {
 }
 
 export function VendorStatusGuard({ children }) {
+  const location = useLocation();
   const { user, loading, role, isAdmin, vendorProfile, vendorStatus } = useAuth();
 
   if (loading) return <FullscreenLoader />;
   if (!user) return <Navigate to="/login" replace />;
-  if (isAdmin) return children;
-  if (!vendorProfile) return <VendorStatusScreen status="missing" />;
-  if (vendorStatus !== "approved" || role !== "vendor") return <VendorStatusScreen status={vendorStatus} />;
+  const gateStatus = getVendorGateStatus({
+    vendorProfile,
+    role,
+    isAdmin,
+    vendorStatus,
+  });
+  const selfServiceAllowed = ["/vendor/kyc", "/vendor/settings", "/vendor/support-chat"].some((path) =>
+    location.pathname === path || location.pathname.startsWith(`${path}/`),
+  );
 
-  return children;
+  if (gateStatus === "active") return children;
+  if (["missing_kyc", "kyc_pending"].includes(gateStatus) && selfServiceAllowed) return children;
+
+  return <VendorStatusScreen status={gateStatus} />;
 }
 
 function hasPermission(permissions = {}, resource, action) {

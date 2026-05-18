@@ -1,5 +1,5 @@
 import { createElement, lazy, Suspense } from "react";
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import AuthLayout from "../layouts/AuthLayout";
 import AdminLayout from "../layouts/AdminLayout";
@@ -189,6 +189,7 @@ const router = createBrowserRouter([
       </VendorRoute>
     ),
     children: [
+      { index: true, element: <Navigate to="dashboard" replace /> },
       { path: "dashboard", element: lazyElement(VendorHome) },
       { path: "products", element: lazyElement(VendorProducts) },
       { path: "products/add", element: lazyElement(VendorAddProduct) },

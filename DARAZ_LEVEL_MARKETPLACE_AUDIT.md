@@ -22,7 +22,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 - Frontend route count: about 110 route entries in `Client/src/routes/Routes.jsx`.
 - Backend route/controller handler references: about 596 route declarations across `Server/routes` and route-style controller files.
-- Frontend tests: 12 suites / 48 tests at last verification.
+- Frontend tests: 14 suites / 55 tests at last verification.
 - Backend tests: 61 suites / 394 tests at last verification.
 - Major frontend shells: `CustomerLayout`, `AuthLayout`, `VendorLayout`, `AdminLayout`.
 - Major backend groups: customer commerce, vendor center, admin operations, logistics, promotions, trust-safety, support, analytics, notifications, loyalty, wishlist, campaigns.
@@ -75,7 +75,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 | Feature | Status | Notes |
 |---|---|---|
-| Vendor route/status guard | Partial | Vendor access now uses the shared guard/status screen path. KYC-specific state and reupload instructions still need polish. |
+| Vendor route/status guard | Partial | Vendor access now uses the shared guard/status screen path with pending, rejected, suspended, role-sync, missing-profile, and KYC-required variants. KYC self-service routes stay reachable. Needs final backend policy alignment for which sellers are blocked by KYC. |
 | Vendor category requests | Partial | Vendor category access now supports main/group selection, visible subcategory paths, ID-based request metadata, and admin path visibility. Needs final queue/drawer adoption when admin moderation pages are unified. |
 | Vendor dashboard | Partial | `VendorHome` and dashboard APIs exist. Needs stable KPI/action-widget layout and real pending task prioritization. |
 | Vendor products list | Partial | Status tabs, search, bulk selection, submit/delist actions exist. Needs final table standardization and mobile fallback. |
@@ -85,7 +85,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Vendor returns/disputes | Partial | Vendor returns and response APIs exist. Needs dispute detail UI and evidence workflow finish. |
 | Vendor finance | Partial | Finance summary, transactions, payouts, statements, commission rates exist. Needs unified ledger and payout request UX completion. |
 | Shop management | Partial | Vendor shop, decoration, profile, vacation mode, categories exist. Needs final preview/policy/social workflow. |
-| KYC/verification | Partial | Vendor KYC route and admin review exist. Needs rejection reason/reupload polish. |
+| KYC/verification | Partial | Vendor KYC route, admin review, seller gate state, and seller action-center KYC prompts exist. Needs richer document-card UX, rejection reason guidance, and reupload polish. |
 | Shipping settings | Partial | Shop/vendor settings have delivery concepts; admin delivery settings exist. Needs vendor-controlled shipping page clarity. |
 | Vendor marketing | Partial | Vendor vouchers/campaigns and admin review exist. Needs seller promotion analytics and campaign UX polish. |
 | Vendor support inbox | Partial | Vendor chat/support tools exist. Needs consistent ticket/chat thread model with customer/admin tabs. |
@@ -155,7 +155,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | 5. Rebuild cart and checkout | Partial | Idempotent order placement is complete. Remaining work belongs to the Phase 3 buyer-flow rebuild. |
 | 6. Add support ticket system | Partial | Add internal notes, order/product quick-open entry points, attachment preview, SLA automation. |
 | 7. Add returns case workflow | Partial | Finish customer wizard, vendor dispute page, admin decision panel, refund tracking. |
-| 8. Add vendor status + KYC pages | Partial | Merge duplicate status screens and finish missing-KYC/rejection/reupload UX. |
+| 8. Add vendor status + KYC pages | Partial | Shared vendor gate now has missing-profile, role-sync, missing-KYC, KYC-pending, rejected, suspended, and pending states. Finish richer KYC document cards and backend policy alignment. |
 | 9. Add admin moderation queues | Partial | Convert vendor/product/review/return/support/payout pages to one queue + drawer pattern. |
 | 10. Add logistics state machine | Partial | Define canonical shipment/COD/reverse-logistics state machine and enforce transitions. |
 
@@ -197,6 +197,7 @@ Current Phase 2 foundation work completed:
 - Shared route guards added in `Client/src/routes/guards.jsx`: `PublicRoute`, `CustomerRoute`, `VendorRoute`, `VendorStatusGuard`, `AdminRoute`, `RBACGuard`, and `GuestCheckoutRoute`.
 - `CustomerLayout` and `AuthLayout` are now explicit shells; `MainLayout` remains a compatibility export.
 - `VendorLayout` was rebuilt with lucide icons, stable seller-center navigation order, desktop sidebar, mobile drawer, dark mode support, and consistent content width.
+- `VendorLayout` now includes a seller action center instead of a decorative notification bell, with KYC, order, product, return, payout, campaign, and support shortcuts.
 - Route-level error boundaries now wrap lazy route elements.
 
 Remaining Phase 2 adoption work:
@@ -240,3 +241,33 @@ Latest Phase 3 implementation slice:
 - Added `customerOrders` helper coverage with black-box and white-box Jest tests.
 - Fixed search autocomplete product suggestions to navigate to `/product/:id`.
 - Added `/notifications` customer notification center with grouped timeline sections, unread/type filters, summary stats, refresh, mark-all-read, clear actions, product-alert handoff, and black-box/white-box helper tests.
+
+## Phase 4 Vendor Seller Center Snapshot
+
+Phase 4 is not fully complete yet. The vendor area has broad route coverage, but the remaining work is making every seller workflow consistently operational, mobile-friendly, and tied to real business states.
+
+Current Phase 4 status by step:
+
+| Step | Status | Evidence / Gap |
+|---|---|---|
+| 4.1 Vendor shell/status gate | Partial | `VendorLayout` has grouped seller navigation, responsive sidebar, seller action center, `/vendor` dashboard redirect, and shared status gate states. Needs live notification counts and final staff permission filtering. |
+| 4.2 Dashboard home | Partial | `VendorHome` has KPIs, action widgets, health scoring, announcements, top products, sales chart, SLA/stock signals. Needs final real pending-task prioritization from backend events. |
+| 4.3 Products workflow | Partial | Product list, add/edit, moderation status, bulk edit, media center, CSV upload route, category requests, variants/SKU concepts exist. Needs product detail route and final step-wizard consistency. |
+| 4.4 Bulk upload/media | Partial | Bulk upload and media-center views exist. Needs stronger partial-success/error-row download UX. |
+| 4.5 Orders operations | Partial | Vendor orders queue, filters, status actions, packing slips, labels, pickup scheduling, notes, and timeline concepts exist. Needs final drawer/page standardization. |
+| 4.6 Returns/disputes | Partial | Vendor returns and response flow exist. Needs dedicated dispute detail polish and counter-evidence UX. |
+| 4.7 Finance center | Partial | Finance overview, transactions, statements, commissions, payouts, and payout request components exist. Needs final ledger export/status consistency. |
+| 4.8 Reports/analytics | Partial | Vendor reports routes for sales, products, traffic, and inventory exist. Needs deeper product-level conversion/return analytics. |
+| 4.9 Store customization | Partial | Vendor shop profile, decoration, categories, banner/logo, policies, and preview concepts exist. Needs final campaign-theme workflow. |
+| 4.10 KYC/verification | Partial | KYC upload/review exists and seller gate now exposes missing-KYC/KYC-pending states. Needs richer document cards and reupload guidance. |
+| 4.11 Marketing tools | Partial | Vendor vouchers, campaigns, promotions, and marketing analytics exist. Needs seller-picks/free-shipping promo polish. |
+| 4.12 Support/reviews | Partial | Vendor messages, support chat, reviews, and Q&A exist. Needs response-rate metrics and one inbox model. |
+| 4.13 Settings/staff | Partial | Payout, address, vacation, staff, notifications, and security settings exist. Needs permission enforcement pass across vendor routes/actions. |
+
+Latest Phase 4 implementation slice:
+
+- Added `vendorSellerCenter` helper utilities for KYC state mapping, vendor gate decisions, action-center items, action counts, and readiness scoring.
+- Replaced the static vendor header bell with a real seller action center linking KYC, orders, products, returns, payouts, campaigns, and customer communication.
+- Added `/vendor` index redirect to `/vendor/dashboard`.
+- Expanded the shared vendor status gate with role-sync, missing-KYC, and KYC-pending states while keeping KYC/settings/support self-service routes reachable.
+- Added black-box and white-box Jest tests for seller-center gate and action logic.

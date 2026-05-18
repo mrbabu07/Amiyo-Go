@@ -35,6 +35,7 @@ Run focused frontend black-box and white-box tests:
 cd Client
 npm test -- --runTestsByPath src/utils/__tests__/supportQueue.blackbox.test.js src/utils/__tests__/supportQueue.whitebox.test.js
 npm test -- --runTestsByPath src/utils/__tests__/customerNotifications.blackbox.test.js src/utils/__tests__/customerNotifications.whitebox.test.js
+npm test -- --runTestsByPath src/utils/__tests__/vendorSellerCenter.blackbox.test.js src/utils/__tests__/vendorSellerCenter.whitebox.test.js
 ```
 
 Run focused backend black-box and white-box tests:
@@ -54,6 +55,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController
   - `Client/src/utils/__tests__/customerOrders.blackbox.test.js`
   - `Client/src/utils/__tests__/customerNotifications.blackbox.test.js`
   - `Client/src/utils/__tests__/supportQueue.blackbox.test.js`
+  - `Client/src/utils/__tests__/vendorSellerCenter.blackbox.test.js`
 - White-box helper behavior:
   - `Client/src/components/ui/__tests__/designSystem.whitebox.test.js`
   - `Client/src/utils/__tests__/cartCheckout.whitebox.test.js`
@@ -61,6 +63,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController
   - `Client/src/utils/__tests__/customerNotifications.whitebox.test.js`
   - `Client/src/utils/__tests__/supportQueue.whitebox.test.js`
   - `Client/src/utils/__tests__/vendorCategoryRequests.whitebox.test.js`
+  - `Client/src/utils/__tests__/vendorSellerCenter.whitebox.test.js`
 - Route guard behavior:
   - `Client/src/routes/__tests__/guards.blackbox.test.jsx`
 
@@ -151,7 +154,7 @@ Before pushing frontend or backend changes:
 
 The latest completed full-project verification:
 
-- `Client`: `npm test` passed, 12 suites / 48 tests.
+- `Client`: `npm test` passed, 14 suites / 55 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
 - `Server`: `npm test -- --runInBand` passed, 61 suites / 394 tests.
@@ -160,3 +163,4 @@ The latest completed full-project verification:
 - Focused backend black-box and white-box support tests remain covered by the full backend run.
 - Focused frontend customer order journey tests passed, 2 suites / 7 tests.
 - Focused frontend customer notification center tests passed, 2 suites / 8 tests.
+- Focused frontend vendor seller-center tests passed, 2 suites / 7 tests.

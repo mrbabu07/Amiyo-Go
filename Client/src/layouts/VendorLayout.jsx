@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
@@ -24,6 +24,11 @@ import {
   X,
 } from "lucide-react";
 import useAuth from "../hooks/useAuth";
+import { useClickOutside } from "../hooks/useClickOutside";
+import {
+  buildVendorActionItems,
+  getVendorActionCount,
+} from "../utils/vendorSellerCenter";
 
 const navGroups = [
   {
@@ -100,6 +105,16 @@ const singleLinks = [
   { name: "Settings", path: "/vendor/settings", icon: Settings },
 ];
 
+const actionIconMap = {
+  kyc: ShieldCheck,
+  orders: ShoppingBag,
+  products: Package,
+  returns: RefreshCcw,
+  finance: CreditCard,
+  marketing: Megaphone,
+  support: Headphones,
+};
+
 function isDesktop() {
   return typeof window !== "undefined" && window.innerWidth >= 1024;
 }
@@ -133,8 +148,10 @@ export default function VendorLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, vendorProfile } = useAuth();
+  const actionCenterRef = useRef(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => isDesktop());
   const [expandedSections, setExpandedSections] = useState({});
+  const [actionCenterOpen, setActionCenterOpen] = useState(false);
 
   const shopName =
     vendorProfile?.shopName || vendorProfile?.businessName || user?.displayName || "Seller Center";
@@ -148,6 +165,10 @@ export default function VendorLayout() {
       })),
     [location.pathname],
   );
+  const actionItems = useMemo(() => buildVendorActionItems(vendorProfile || {}), [vendorProfile]);
+  const actionCount = getVendorActionCount(actionItems);
+
+  useClickOutside(actionCenterRef, () => setActionCenterOpen(false));
 
   useEffect(() => {
     setExpandedSections((current) => {
@@ -206,14 +227,83 @@ export default function VendorLayout() {
               <Home className="h-4 w-4" />
               Storefront
             </Link>
-            <button
-              type="button"
-              className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-              aria-label="Seller notifications"
-            >
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" />
-            </button>
+            <div className="relative" ref={actionCenterRef}>
+              <button
+                type="button"
+                onClick={() => setActionCenterOpen((open) => !open)}
+                className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:text-slate-300 dark:hover:bg-slate-800"
+                aria-label="Seller action center"
+                aria-expanded={actionCenterOpen}
+              >
+                <Bell className="h-5 w-5" />
+                {actionCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-extrabold text-white">
+                    {actionCount > 9 ? "9+" : actionCount}
+                  </span>
+                ) : (
+                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-emerald-500" />
+                )}
+              </button>
+
+              {actionCenterOpen ? (
+                <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] max-w-md rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:w-96">
+                  <div className="border-b border-slate-200 p-4 dark:border-slate-800">
+                    <p className="text-sm font-extrabold text-slate-950 dark:text-white">
+                      Seller action center
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Operational shortcuts for products, orders, KYC, finance, and support.
+                    </p>
+                  </div>
+
+                  <div className="max-h-[28rem] overflow-y-auto p-3">
+                    <div className="space-y-2">
+                      {actionItems.map((item) => {
+                        const Icon = actionIconMap[item.icon] || Bell;
+
+                        return (
+                          <Link
+                            key={item.id}
+                            to={item.path}
+                            onClick={() => setActionCenterOpen(false)}
+                            className="flex items-start gap-3 rounded-lg border border-slate-100 p-3 transition hover:border-primary-200 hover:bg-primary-50/50 dark:border-slate-800 dark:hover:border-primary-900 dark:hover:bg-primary-950/30"
+                          >
+                            <span className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${item.tone}`}>
+                              <Icon className="h-4 w-4" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-extrabold text-slate-950 dark:text-white">
+                                  {item.label}
+                                </span>
+                                {["danger", "warning"].includes(item.severity) ? (
+                                  <span className={`rounded-full border px-2 py-0.5 text-[10px] font-extrabold uppercase ${item.tone}`}>
+                                    Action
+                                  </span>
+                                ) : null}
+                              </span>
+                              <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                {item.description}
+                              </span>
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-200 p-3 dark:border-slate-800">
+                    <Link
+                      to="/vendor/dashboard"
+                      onClick={() => setActionCenterOpen(false)}
+                      className="block rounded-lg bg-slate-950 px-3 py-2 text-center text-sm font-extrabold text-white transition hover:bg-primary-700 dark:bg-primary-600 dark:hover:bg-primary-500"
+                    >
+                      Open dashboard
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
+            </div>
             <div className="hidden items-center gap-3 border-l border-slate-200 pl-4 dark:border-slate-800 sm:flex">
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-sm font-extrabold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                 {userInitial}
