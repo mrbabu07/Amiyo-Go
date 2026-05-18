@@ -1,286 +1,309 @@
-import { useState } from 'react';
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import useAuth from '../hooks/useAuth';
+import { useEffect, useMemo, useState } from "react";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  BarChart3,
+  Bell,
+  ChevronDown,
+  CreditCard,
+  FileCheck2,
+  Headphones,
+  Home,
+  LayoutDashboard,
+  LogOut,
+  Megaphone,
+  Menu,
+  MessageSquare,
+  Package,
+  PackagePlus,
+  RefreshCcw,
+  Settings,
+  ShieldCheck,
+  ShoppingBag,
+  Store,
+  UploadCloud,
+  X,
+} from "lucide-react";
+import useAuth from "../hooks/useAuth";
 
-const VendorLayout = () => {
+const navGroups = [
+  {
+    name: "Products",
+    icon: Package,
+    children: [
+      { name: "All products", path: "/vendor/products", icon: Package },
+      { name: "Add product", path: "/vendor/products/add", icon: PackagePlus },
+      { name: "Bulk upload", path: "/vendor/products/bulk", icon: UploadCloud },
+      { name: "Category requests", path: "/vendor/category-requests", icon: FileCheck2 },
+    ],
+  },
+  {
+    name: "Orders",
+    icon: ShoppingBag,
+    children: [
+      { name: "All orders", path: "/vendor/orders", icon: ShoppingBag },
+      { name: "Returns", path: "/vendor/returns", icon: RefreshCcw },
+    ],
+  },
+  {
+    name: "Finance",
+    icon: CreditCard,
+    children: [
+      { name: "Overview", path: "/vendor/finance", icon: CreditCard },
+      { name: "Payouts", path: "/vendor/finance/payouts", icon: CreditCard },
+      { name: "Transactions", path: "/vendor/finance/transactions", icon: BarChart3 },
+      { name: "Statements", path: "/vendor/finance/statements", icon: FileCheck2 },
+    ],
+  },
+  {
+    name: "Reports",
+    icon: BarChart3,
+    children: [
+      { name: "Sales report", path: "/vendor/reports/sales", icon: BarChart3 },
+      { name: "Product report", path: "/vendor/reports/products", icon: Package },
+      { name: "Traffic report", path: "/vendor/reports/traffic", icon: Store },
+      { name: "Inventory forecast", path: "/vendor/reports/inventory", icon: Package },
+    ],
+  },
+  {
+    name: "Shop",
+    icon: Store,
+    children: [
+      { name: "Shop profile", path: "/vendor/shop/profile", icon: Store },
+      { name: "Decoration", path: "/vendor/shop/decoration", icon: Store },
+      { name: "Categories", path: "/vendor/shop/categories", icon: FileCheck2 },
+      { name: "KYC verification", path: "/vendor/kyc", icon: ShieldCheck },
+    ],
+  },
+  {
+    name: "Marketing",
+    icon: Megaphone,
+    children: [
+      { name: "Promotions", path: "/vendor/marketing/promotions", icon: Megaphone },
+      { name: "Vouchers", path: "/vendor/marketing/vouchers", icon: Megaphone },
+      { name: "Campaigns", path: "/vendor/marketing/campaigns", icon: Megaphone },
+    ],
+  },
+  {
+    name: "Support",
+    icon: Headphones,
+    children: [
+      { name: "Messages", path: "/vendor/messages", icon: MessageSquare },
+      { name: "Support chat", path: "/vendor/support-chat", icon: Headphones },
+      { name: "Reviews", path: "/vendor/reviews", icon: FileCheck2 },
+      { name: "Q&A", path: "/vendor/qa", icon: MessageSquare },
+    ],
+  },
+];
+
+const singleLinks = [
+  { name: "Dashboard", path: "/vendor/dashboard", icon: LayoutDashboard },
+  { name: "Settings", path: "/vendor/settings", icon: Settings },
+];
+
+function isDesktop() {
+  return typeof window !== "undefined" && window.innerWidth >= 1024;
+}
+
+function isPathActive(pathname, path) {
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
+function SellerNavLink({ item, onClick }) {
+  const Icon = item.icon;
+
+  return (
+    <NavLink
+      to={item.path}
+      onClick={onClick}
+      className={({ isActive }) =>
+        `flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-primary-500/25 ${
+          isActive
+            ? "bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-200"
+            : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+        }`
+      }
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{item.name}</span>
+    </NavLink>
+  );
+}
+
+export default function VendorLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { user, logout, vendorProfile } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(() => isDesktop());
+  const [expandedSections, setExpandedSections] = useState({});
 
-  const menuItems = [
-    {
-      title: 'Home',
-      icon: '🏠',
-      path: '/',
-      description: 'Visit main site',
-    },
-    {
-      title: 'Dashboard',
-      icon: '📊',
-      path: '/vendor/dashboard',
-      description: 'Overview & stats',
-    },
-    {
-      title: 'Products',
-      icon: '📦',
-      children: [
-        { title: 'All Products', path: '/vendor/products', icon: '📋' },
-        { title: 'Add Product', path: '/vendor/products/add', icon: '➕' },
-        { title: 'Bulk Upload', path: '/vendor/products/bulk', icon: '📤' },
-      ],
-    },
-    {
-      title: 'Orders',
-      icon: '🛍️',
-      badge: 'new',
-      children: [
-        { title: 'All Orders', path: '/vendor/orders', icon: '📋' },
-        { title: 'Pending', path: '/vendor/orders?status=pending', icon: '⏳' },
-        { title: 'Processing', path: '/vendor/orders?status=processing', icon: '🔄' },
-        { title: 'Shipped', path: '/vendor/orders?status=shipped', icon: '📦' },
-        { title: 'Delivered', path: '/vendor/orders?status=delivered', icon: '✅' },
-      ],
-    },
-    {
-      title: 'Finance',
-      icon: '💰',
-      children: [
-        { title: 'Overview', path: '/vendor/finance', icon: '💵' },
-        { title: 'Payouts', path: '/vendor/finance/payouts', icon: '📋' },
-        { title: 'Transactions', path: '/vendor/finance/transactions', icon: '📊' },
-        { title: 'Statements', path: '/vendor/finance/statements', icon: 'CSV' },
-        { title: 'Commissions', path: '/vendor/finance/commissions', icon: '%' },
-      ],
-    },
-    {
-      title: 'Marketing',
-      icon: '📢',
-      children: [
-        { title: 'Promotions', path: '/vendor/marketing/promotions', icon: '🎯' },
-        { title: 'Vouchers', path: '/vendor/marketing/vouchers', icon: '🎟️' },
-        { title: 'Campaigns', path: '/vendor/marketing/campaigns', icon: '📣' },
-      ],
-    },
-    {
-      title: 'Reports',
-      icon: '📈',
-      children: [
-        { title: 'Sales Report', path: '/vendor/reports/sales', icon: '💹' },
-        { title: 'Product Report', path: '/vendor/reports/products', icon: '📊' },
-        { title: 'Traffic Report', path: '/vendor/reports/traffic', icon: '👥' },
-        { title: 'Inventory Forecast', path: '/vendor/reports/inventory', icon: 'Stock' },
-      ],
-    },
-    {
-      title: 'Shop',
-      icon: '🏪',
-      children: [
-        { title: 'Shop Profile', path: '/vendor/shop/profile', icon: '🏷️' },
-        { title: 'Shop Decoration', path: '/vendor/shop/decoration', icon: '🎨' },
-        { title: 'Categories', path: '/vendor/shop/categories', icon: '📂' },
-        { title: 'Request Category', path: '/vendor/category-requests', icon: '➕' },
-      ],
-    },
-    {
-      title: 'Customer Service',
-      icon: '💬',
-      children: [
-        { title: 'Messages', path: '/vendor/messages', icon: '✉️' },
-        { title: 'Reviews', path: '/vendor/reviews', icon: '⭐' },
-        { title: 'Returns', path: '/vendor/returns', icon: '↩️' },
-        { title: 'Q&A', path: '/vendor/qa', icon: '❓' },
-      ],
-    },
-    {
-      title: 'Support Chat',
-      icon: '💬',
-      path: '/vendor/support-chat',
-      description: 'Chat with Admin',
-      highlight: true,
-    },
-    {
-      title: 'Settings',
-      icon: '⚙️',
-      path: '/vendor/settings',
-      description: 'Account settings',
-    },
-    {
-      title: 'KYC Documents',
-      icon: 'ID',
-      path: '/vendor/kyc',
-      description: 'Verification documents',
-    },
-  ];
+  const shopName =
+    vendorProfile?.shopName || vendorProfile?.businessName || user?.displayName || "Seller Center";
+  const userInitial = (shopName || user?.email || "A").charAt(0).toUpperCase();
 
-  const [expandedMenus, setExpandedMenus] = useState({});
+  const hydratedGroups = useMemo(
+    () =>
+      navGroups.map((group) => ({
+        ...group,
+        active: group.children.some((child) => isPathActive(location.pathname, child.path)),
+      })),
+    [location.pathname],
+  );
 
-  const toggleMenu = (title) => {
-    setExpandedMenus(prev => ({
-      ...prev,
-      [title]: !prev[title]
-    }));
-  };
+  useEffect(() => {
+    setExpandedSections((current) => {
+      const next = { ...current };
+      hydratedGroups.forEach((group) => {
+        if (group.active) next[group.name] = true;
+      });
+      return next;
+    });
+  }, [hydratedGroups]);
 
-  const isActive = (path) => {
-    return location.pathname === path;
+  const closeSidebarOnMobile = () => {
+    if (!isDesktop()) setSidebarOpen(false);
   };
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate("/login");
+  };
+
+  const toggleSection = (name) => {
+    setExpandedSections((current) => ({
+      ...current,
+      [name]: !current[name],
+    }));
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top Header */}
-      <div className="bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-30">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
+      <header className="fixed inset-x-0 top-0 z-30 h-16 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+        <div className="flex h-full items-center justify-between px-4 lg:px-6">
+          <div className="flex min-w-0 items-center gap-3">
             <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 hover:bg-gray-100 rounded-lg"
+              type="button"
+              onClick={() => setSidebarOpen((open) => !open)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:text-slate-200 dark:hover:bg-slate-800 lg:hidden"
+              aria-label={sidebarOpen ? "Close seller menu" : "Open seller menu"}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
-            <Link to="/vendor/dashboard" className="text-xl font-bold text-orange-600">
-              BazarBD Seller Center
+            <Link to="/vendor/dashboard" className="flex min-w-0 items-center gap-3" onClick={closeSidebarOnMobile}>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-sm font-extrabold text-white shadow-sm">
+                AG
+              </span>
+              <span className="truncate text-lg font-extrabold text-slate-950 dark:text-white sm:text-xl">
+                Seller Center
+              </span>
             </Link>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Home Button */}
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               to="/"
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition"
-              title="Visit Main Site"
+              className="hidden h-10 items-center gap-2 rounded-lg px-3 text-sm font-bold text-slate-600 transition hover:bg-primary-50 hover:text-primary-700 dark:text-slate-300 dark:hover:bg-primary-950/30 dark:hover:text-primary-200 sm:inline-flex"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              <span className="hidden md:inline">Home</span>
+              <Home className="h-4 w-4" />
+              Storefront
             </Link>
-
-            {/* Notifications */}
-            <button className="relative p-2 hover:bg-gray-100 rounded-lg">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            <button
+              type="button"
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              aria-label="Seller notifications"
+            >
+              <Bell className="h-5 w-5" />
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" />
             </button>
-
-            {/* Help */}
-            <button className="p-2 hover:bg-gray-100 rounded-lg" title="Help Center">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </button>
-
-            {/* User Menu */}
-            <div className="flex items-center gap-2 pl-4 border-l">
-              <div className="w-8 h-8 bg-orange-600 rounded-full flex items-center justify-center text-white font-semibold">
-                {user?.email?.[0]?.toUpperCase()}
+            <div className="hidden items-center gap-3 border-l border-slate-200 pl-4 dark:border-slate-800 sm:flex">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-sm font-extrabold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                {userInitial}
+              </span>
+              <div className="max-w-44 text-right">
+                <p className="truncate text-sm font-extrabold text-slate-950 dark:text-white">{shopName}</p>
+                <p className="truncate text-xs text-slate-500 dark:text-slate-400">Vendor workspace</p>
               </div>
-              <button
-                onClick={handleLogout}
-                className="text-sm text-gray-700 hover:text-gray-900"
-              >
-                Logout
-              </button>
             </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500/30 dark:text-red-400 dark:hover:bg-red-950/30"
+              title="Logout"
+              aria-label="Logout"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="flex pt-16">
-        {/* Sidebar */}
-        <aside
-          className={`fixed left-0 top-16 bottom-0 bg-white border-r border-gray-200 transition-all duration-300 z-20 overflow-y-auto ${
-            sidebarOpen ? 'w-64' : 'w-0'
-          }`}
-        >
-          <nav className="p-4 space-y-1">
-            {menuItems.map((item) => (
-              <div key={item.title}>
-                {item.children ? (
-                  <div>
-                    <button
-                      onClick={() => toggleMenu(item.title)}
-                      className="w-full flex items-center justify-between px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{item.icon}</span>
-                        <span className="font-medium">{item.title}</span>
-                      </div>
-                      <svg
-                        className={`w-4 h-4 transition-transform ${expandedMenus[item.title] ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {expandedMenus[item.title] && (
-                      <div className="ml-9 mt-1 space-y-1">
-                        {item.children.map((child) => (
-                          <Link
-                            key={child.path}
-                            to={child.path}
-                            className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition ${
-                              isActive(child.path)
-                                ? 'bg-orange-50 text-orange-600 font-medium'
-                                : 'text-gray-600 hover:bg-gray-100'
-                            }`}
-                          >
-                            {child.icon && <span>{child.icon}</span>}
-                            <span>{child.title}</span>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
+      {sidebarOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-10 bg-slate-950/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Close seller menu"
+        />
+      ) : null}
+
+      <aside
+        className={`fixed bottom-0 left-0 top-16 z-20 flex w-72 flex-col border-r border-slate-200 bg-white transition-transform duration-300 dark:border-slate-800 dark:bg-slate-950 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } lg:translate-x-0`}
+        aria-label="Vendor navigation"
+      >
+        <div className="border-b border-slate-100 px-4 py-4 dark:border-slate-800">
+          <div className="rounded-lg bg-slate-50 px-3 py-3 dark:bg-slate-900">
+            <p className="truncate text-sm font-extrabold text-slate-950 dark:text-white">{shopName}</p>
+            <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+              Products, orders, finance, and support
+            </p>
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+          {singleLinks.map((item) => (
+            <SellerNavLink key={item.path} item={item} onClick={closeSidebarOnMobile} />
+          ))}
+
+          {hydratedGroups.map((group) => {
+            const Icon = group.icon;
+            const expanded = expandedSections[group.name] || group.active;
+
+            return (
+              <div key={group.name}>
+                <button
+                  type="button"
+                  onClick={() => toggleSection(group.name)}
+                  className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-extrabold transition focus:outline-none focus:ring-2 focus:ring-primary-500/25 ${
+                    group.active
+                      ? "bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-200"
+                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                  }`}
+                  aria-expanded={expanded}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate text-left">{group.name}</span>
+                  <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                </button>
+
+                {expanded ? (
+                  <div className="mt-1 space-y-1 border-l border-slate-200 py-1 pl-4 dark:border-slate-800">
+                    {group.children.map((child) => (
+                      <SellerNavLink key={child.path} item={child} onClick={closeSidebarOnMobile} />
+                    ))}
                   </div>
-                ) : (
-                  <Link
-                    to={item.path}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition ${
-                      item.highlight
-                        ? isActive(item.path)
-                          ? 'bg-green-600 text-white font-medium shadow-lg'
-                          : 'bg-green-500 text-white hover:bg-green-600 font-medium shadow-md'
-                        : isActive(item.path)
-                        ? 'bg-orange-50 text-orange-600 font-medium'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                    title={item.description}
-                  >
-                    <span className="text-xl">{item.icon}</span>
-                    <span className="font-medium">{item.title}</span>
-                    {item.badge && (
-                      <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
-                        {item.badge}
-                      </span>
-                    )}
-                  </Link>
-                )}
+                ) : null}
               </div>
-            ))}
-          </nav>
-        </aside>
+            );
+          })}
+        </nav>
+      </aside>
 
-        {/* Main Content */}
-        <main
-          className={`flex-1 transition-all duration-300 ${
-            sidebarOpen ? 'ml-64' : 'ml-0'
-          }`}
-        >
+      <main className="min-h-screen pt-16 transition-all duration-300 lg:ml-72">
+        <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8">
           <Outlet />
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
-};
-
-export default VendorLayout;
+}

@@ -55,6 +55,8 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController
   - `Client/src/components/ui/__tests__/designSystem.whitebox.test.js`
   - `Client/src/utils/__tests__/cartCheckout.whitebox.test.js`
   - `Client/src/utils/__tests__/supportQueue.whitebox.test.js`
+- Route guard behavior:
+  - `Client/src/routes/__tests__/guards.blackbox.test.jsx`
 
 ### Backend
 
@@ -141,7 +143,7 @@ Before pushing frontend or backend changes:
 
 The latest completed full-project verification:
 
-- `Client`: `npm test` passed, 6 suites / 25 tests.
+- `Client`: `npm test` passed, 7 suites / 30 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
 - `Server`: `npm test -- --runInBand` passed, 59 suites / 385 tests.

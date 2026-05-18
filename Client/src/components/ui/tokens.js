@@ -1,4 +1,11 @@
 export const uiTokens = {
+  cssVar: {
+    primary: "var(--ag-color-primary-600)",
+    success: "var(--ag-color-success-600)",
+    warning: "var(--ag-color-warning-600)",
+    danger: "var(--ag-color-danger-600)",
+    neutral: "var(--ag-color-neutral-700)",
+  },
   color: {
     brand: "primary",
     success: "emerald",
@@ -31,9 +38,9 @@ export const uiTokens = {
   },
   breakpoint: {
     mobile: "0px",
-    tablet: "640px",
-    desktop: "1024px",
-    wide: "1280px",
+    tablet: "var(--ag-breakpoint-sm)",
+    desktop: "var(--ag-breakpoint-lg)",
+    wide: "var(--ag-breakpoint-xl)",
   },
   iconSize: {
     xs: "h-3.5 w-3.5",

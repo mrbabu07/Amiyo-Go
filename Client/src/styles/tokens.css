@@ -1,0 +1,81 @@
+:root {
+  --ag-color-primary-50: #eff6ff;
+  --ag-color-primary-100: #dbeafe;
+  --ag-color-primary-500: #1e7098;
+  --ag-color-primary-600: #1a6387;
+  --ag-color-primary-700: #15506e;
+
+  --ag-color-success-50: #ecfdf5;
+  --ag-color-success-600: #059669;
+  --ag-color-warning-50: #fffbeb;
+  --ag-color-warning-600: #d97706;
+  --ag-color-danger-50: #fef2f2;
+  --ag-color-danger-600: #dc2626;
+  --ag-color-info-50: #eff6ff;
+  --ag-color-info-600: #2563eb;
+  --ag-color-neutral-50: #f8fafc;
+  --ag-color-neutral-100: #f1f5f9;
+  --ag-color-neutral-200: #e2e8f0;
+  --ag-color-neutral-500: #64748b;
+  --ag-color-neutral-700: #334155;
+  --ag-color-neutral-900: #0f172a;
+
+  --ag-space-1: 0.25rem;
+  --ag-space-2: 0.5rem;
+  --ag-space-3: 0.75rem;
+  --ag-space-4: 1rem;
+  --ag-space-5: 1.25rem;
+  --ag-space-6: 1.5rem;
+  --ag-space-8: 2rem;
+  --ag-space-10: 2.5rem;
+
+  --ag-font-xs: 0.75rem;
+  --ag-font-sm: 0.875rem;
+  --ag-font-md: 1rem;
+  --ag-font-lg: 1.125rem;
+  --ag-font-xl: 1.25rem;
+  --ag-font-2xl: 1.5rem;
+  --ag-font-3xl: 1.875rem;
+
+  --ag-radius-sm: 0.375rem;
+  --ag-radius-md: 0.5rem;
+  --ag-radius-lg: 0.75rem;
+  --ag-radius-xl: 1rem;
+  --ag-radius-pill: 999px;
+
+  --ag-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --ag-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --ag-shadow-lg: 0 18px 48px rgba(15, 23, 42, 0.14);
+
+  --ag-z-dropdown: 40;
+  --ag-z-sticky: 45;
+  --ag-z-overlay: 50;
+  --ag-z-toast: 60;
+  --ag-z-mobile-nav: 210;
+
+  --ag-breakpoint-sm: 640px;
+  --ag-breakpoint-md: 768px;
+  --ag-breakpoint-lg: 1024px;
+  --ag-breakpoint-xl: 1280px;
+
+  --ag-status-pending-bg: #fffbeb;
+  --ag-status-pending-text: #92400e;
+  --ag-status-approved-bg: #ecfdf5;
+  --ag-status-approved-text: #047857;
+  --ag-status-rejected-bg: #fef2f2;
+  --ag-status-rejected-text: #b91c1c;
+  --ag-status-active-bg: #eff6ff;
+  --ag-status-active-text: #1d4ed8;
+  --ag-status-suspended-bg: #f1f5f9;
+  --ag-status-suspended-text: #475569;
+  --ag-status-paid-bg: #ecfdf5;
+  --ag-status-paid-text: #047857;
+  --ag-status-failed-bg: #fef2f2;
+  --ag-status-failed-text: #b91c1c;
+  --ag-status-refunded-bg: #f5f3ff;
+  --ag-status-refunded-text: #6d28d9;
+  --ag-status-delivered-bg: #ecfdf5;
+  --ag-status-delivered-text: #047857;
+  --ag-status-cancelled-bg: #f8fafc;
+  --ag-status-cancelled-text: #475569;
+}

@@ -7,7 +7,7 @@ export default function Login() {
   const { login, googleLogin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || "/";
+  const from = location.state?.intendedUrl || location.state?.from?.pathname || "/";
 
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");

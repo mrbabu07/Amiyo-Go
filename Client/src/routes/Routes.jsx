@@ -1,13 +1,19 @@
 import { createElement, lazy, Suspense } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
+import AuthLayout from "../layouts/AuthLayout";
 import AdminLayout from "../layouts/AdminLayout";
 import VendorLayout from "../layouts/VendorLayout";
-import PrivateRoute from "../components/PrivateRoute";
-import AdminRoute from "../components/AdminRoute";
-import VendorRoute from "../components/VendorRoute";
 import Loading from "../components/Loading";
-import { RBACGuard } from "../components/ui/layout";
+import { ErrorBoundary } from "../components/ui/feedback";
+import {
+  AdminRoute,
+  CustomerRoute,
+  GuestCheckoutRoute,
+  PublicRoute,
+  RBACGuard,
+  VendorRoute,
+} from "./guards";
 
 const Home = lazy(() => import("../pages/Home"));
 const About = lazy(() => import("../pages/About"));
@@ -97,15 +103,23 @@ const AdminNewsletter = lazy(() => import("../pages/admin/AdminNewsletter"));
 const AdminPlatformControls = lazy(() => import("../pages/admin/AdminPlatformControls"));
 
 const lazyElement = (Component) => (
-  <Suspense fallback={<Loading />}>
-    {createElement(Component)}
-  </Suspense>
+  <ErrorBoundary>
+    <Suspense fallback={<Loading />}>
+      {createElement(Component)}
+    </Suspense>
+  </ErrorBoundary>
 );
 
 const privateElement = (Component) => (
-  <PrivateRoute>
+  <CustomerRoute>
     {lazyElement(Component)}
-  </PrivateRoute>
+  </CustomerRoute>
+);
+
+const publicElement = (Component, options) => (
+  <PublicRoute {...options}>
+    {lazyElement(Component)}
+  </PublicRoute>
 );
 
 const adminElement = (Component, resource = "system", action = "read") => (
@@ -122,8 +136,6 @@ const router = createBrowserRouter([
       { path: "/", element: lazyElement(Home) },
       { path: "/about", element: lazyElement(About) },
       { path: "/contact", element: lazyElement(Contact) },
-      { path: "/login", element: lazyElement(Login) },
-      { path: "/register", element: lazyElement(Register) },
       { path: "/auth-debug", element: lazyElement(AuthDebug) },
       { path: "/category/:category", element: lazyElement(CategoryPage) },
       { path: "/categories", element: lazyElement(CategoryPage) },
@@ -142,7 +154,7 @@ const router = createBrowserRouter([
       { path: "/wishlist", element: privateElement(Wishlist) },
       { path: "/wishlist/shared/:shareId", element: lazyElement(SharedWishlist) },
       { path: "/checkout", element: privateElement(Checkout) },
-      { path: "/checkout/guest", element: lazyElement(GuestCheckout) },
+      { path: "/checkout/guest", element: <GuestCheckoutRoute>{lazyElement(GuestCheckout)}</GuestCheckoutRoute> },
       { path: "/order-confirmation", element: lazyElement(OrderConfirmation) },
       { path: "/orders", element: privateElement(Orders) },
       { path: "/profile", element: privateElement(Profile) },
@@ -153,6 +165,13 @@ const router = createBrowserRouter([
       { path: "/my-alerts", element: privateElement(MyAlerts) },
       { path: "/loyalty", element: privateElement(LoyaltyDashboard) },
       { path: "/vendor/register", element: privateElement(VendorRegister) },
+    ],
+  },
+  {
+    element: <AuthLayout />,
+    children: [
+      { path: "/login", element: publicElement(Login, { redirectAuthenticated: true }) },
+      { path: "/register", element: publicElement(Register, { redirectAuthenticated: true }) },
     ],
   },
   {

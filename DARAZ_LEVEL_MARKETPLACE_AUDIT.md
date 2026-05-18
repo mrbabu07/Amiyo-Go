@@ -22,9 +22,9 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 - Frontend route count: about 110 route entries in `Client/src/routes/Routes.jsx`.
 - Backend route/controller handler references: about 596 route declarations across `Server/routes` and route-style controller files.
-- Frontend tests: 6 suites / 25 tests at last verification.
+- Frontend tests: 7 suites / 30 tests at last verification.
 - Backend tests: 54 suites / 372 tests at last verification.
-- Major frontend shells: `MainLayout`, `VendorLayout`, `AdminLayout`.
+- Major frontend shells: `CustomerLayout`, `AuthLayout`, `VendorLayout`, `AdminLayout`.
 - Major backend groups: customer commerce, vendor center, admin operations, logistics, promotions, trust-safety, support, analytics, notifications, loyalty, wishlist, campaigns.
 
 ## Phase 1 Audit Summary
@@ -55,7 +55,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Vendor storefront | Partial | `VendorStore`, public vendor APIs, follow status, marketing items exist. Needs final trust metrics, policy accordion, and storefront consistency. |
 | Flash sale page | Partial | `FlashSales`, flash sale API/admin exist. Needs expired-state handling and stock-left UX consistency. |
 | Deals/vouchers | Partial | Coupons, offers, promotions, vendor marketing exist. Needs a unified customer deals page. |
-| Login/register | Partial | Pages and auth context exist. Needs full validation polish, intended URL consistency, and password/reset flows. |
+| Login/register | Partial | Pages and auth context exist. Intended URL redirects now work through shared guards. Needs full validation polish and password/reset flows. |
 | Forgot/reset password | Missing | No dedicated frontend routes found. |
 | Address onboarding | Partial | Address pages and Bangladesh location components exist. Needs onboarding-specific flow and validation polish. |
 | Cart | Partial | Cart exists with vendor grouping and checkout CTA work. Needs final sticky summary and full voucher/coin/shipping breakdown consistency. |
@@ -75,7 +75,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 | Feature | Status | Notes |
 |---|---|---|
-| Vendor route/status guard | Partial | Guard and status screens exist for pending/rejected/suspended/missing profile. Needs reuse of shared `VendorStatusGuard` and KYC-specific state. |
+| Vendor route/status guard | Partial | Vendor access now uses the shared guard/status screen path. KYC-specific state and reupload instructions still need polish. |
 | Vendor dashboard | Partial | `VendorHome` and dashboard APIs exist. Needs stable KPI/action-widget layout and real pending task prioritization. |
 | Vendor products list | Partial | Status tabs, search, bulk selection, submit/delist actions exist. Needs final table standardization and mobile fallback. |
 | Add/edit product | Partial | Vendor product form/wizard-like pages exist. Needs true step wizard and moderation feedback consistency. |
@@ -94,7 +94,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 | Feature | Status | Notes |
 |---|---|---|
-| Admin shell | Partial | `AdminLayout`, `AdminRoute`, many admin pages exist. Needs RBAC-aware navigation hiding/disabling per role. |
+| Admin shell | Partial | `AdminLayout`, shared `AdminRoute`, RBAC-aware navigation, and route-level permission wrappers exist. Needs page action-level disables during queue polish. |
 | Admin dashboard | Partial | Dashboard and operations analytics exist. Needs final real-time ops alert quality and date compare UX. |
 | Vendor list/detail/approval | Partial | Enhanced vendor page, detail, KYC, status actions, warnings exist. Needs consistent queue/detail drawer pattern. |
 | Product moderation | Partial | Admin product queue, approve/reject/disable, duplicate/IP/brand tools exist. Needs one reusable moderation queue layout. |
@@ -116,16 +116,16 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 | Feature | Status | Notes |
 |---|---|---|
-| Design tokens | Partial | `components/ui/designTokens.js`, `tokens.js`, `premium-theme.css`, Tailwind classes exist. Needs one token source of truth. |
+| Design tokens | Complete | `styles/tokens.css` and `components/ui/tokens.js` define shared colors, spacing, type, radii, shadows, z-index, breakpoints, and status colors. |
 | Core components | Partial | New `foundation`, `forms`, `data`, `feedback`, `overlays`, `layout`, `shopping` modules exist. Legacy `Button`, `Badge`, `Modal`, `EmptyState`, `Skeleton` also remain. |
-| Layout wrappers | Partial | `PageShell`, `PageHeader`, `SectionCard`, `SplitLayout`, shells exist. Needs adoption pass across pages. |
-| Status badges | Partial | Multiple badge/status systems exist. Needs one status dictionary across customer/vendor/admin. |
+| Layout wrappers | Partial | `CustomerLayout`, `AuthLayout`, `VendorLayout`, `AdminLayout`, `PageShell`, `PageHeader`, `SectionCard`, and `SplitLayout` exist. Needs adoption pass across older pages. |
+| Status badges | Complete | `components/ui/status.js` is now the canonical status dictionary with aliases for customer, vendor, and admin labels. |
 | Form system | Partial | New form components exist, but older input/form patterns remain across pages. |
 | Table system | Partial | `Table`, `DataTable`, admin/vendor custom tables coexist. Needs one mobile-friendly table standard. |
 | Drawer/modal system | Partial | Overlay components exist. Needs consistent use in admin/vendor queues. |
 | Toast/alert system | Partial | `react-hot-toast`, custom toast context, and `Toast` coexist. Needs one placement/style system. |
-| Mobile nav | Partial | Customer bottom nav exists. Needs full mobile regression pass after page cleanup. |
-| Dark mode | Partial | Theme context exists; vendor/admin dark mode is inconsistent. |
+| Mobile nav | Partial | Customer bottom nav exists and vendor shell now has a responsive drawer/sidebar. Needs product/cart/checkout mobile regression pass. |
+| Dark mode | Partial | Theme context exists; vendor shell now follows dark-mode tokens; older vendor/admin pages still need cleanup. |
 | Accessibility | Partial | Some aria/focus patterns exist. Needs route-by-route audit. |
 
 ## Backend Operations Audit
@@ -185,3 +185,22 @@ Phase 1 reliability/security implementation is done when:
 - Admin RBAC is enforced on backend routes and frontend page/action visibility. Done for backend checks, admin navigation, and admin route elements.
 
 Structural cleanup remains an ongoing safety task: remove duplicate UI components and dead pages only when their replacement route has tests or a verified owner. Mass deletion is intentionally not part of the Phase 1 reliability gate because this project still has many active legacy routes.
+
+## Phase 2 Implementation Snapshot
+
+Current Phase 2 foundation work completed:
+
+- Shared CSS/JS token foundation added in `Client/src/styles/tokens.css` and `Client/src/components/ui/tokens.js`.
+- Canonical status registry added in `Client/src/components/ui/status.js`.
+- Legacy and new status badges now read from the same status language.
+- Shared route guards added in `Client/src/routes/guards.jsx`: `PublicRoute`, `CustomerRoute`, `VendorRoute`, `VendorStatusGuard`, `AdminRoute`, `RBACGuard`, and `GuestCheckoutRoute`.
+- `CustomerLayout` and `AuthLayout` are now explicit shells; `MainLayout` remains a compatibility export.
+- `VendorLayout` was rebuilt with lucide icons, stable seller-center navigation order, desktop sidebar, mobile drawer, dark mode support, and consistent content width.
+- Route-level error boundaries now wrap lazy route elements.
+
+Remaining Phase 2 adoption work:
+
+- Replace legacy root-level buttons/forms/tables page by page.
+- Convert vendor/admin tables to the shared table plus mobile card fallback.
+- Remove page-local `Toaster` instances after each page moves to the global feedback pattern.
+- Run a visual mobile pass on product, cart, checkout, vendor products, vendor orders, and admin queues.

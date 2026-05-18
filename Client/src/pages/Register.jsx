@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
 import SocialLogin from "../components/SocialLogin";
 import AddressLocationFields from "../components/AddressLocationFields";
@@ -8,6 +8,8 @@ import { createAddress } from "../services/api";
 export default function Register() {
   const { register, googleLogin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.intendedUrl || "/";
 
   const [formData, setFormData] = useState({
     name: "",
@@ -89,7 +91,7 @@ export default function Register() {
         isDefault: true,
       });
       
-      navigate("/");
+      navigate(from, { replace: true });
     } catch (error) {
       if (error.code === "auth/email-already-in-use") {
         setError("This email is already registered. Please login instead.");
@@ -123,7 +125,7 @@ export default function Register() {
         // Continue anyway - the user will be created on first login
       }
       
-      navigate("/");
+      navigate(from, { replace: true });
     } catch (error) {
       setError(error.message || "Failed to sign up with Google");
     } finally {
