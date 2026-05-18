@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   getAllReviews,
@@ -9,6 +9,18 @@ import {
 import Loading from "../../components/Loading";
 import StarRating from "../../components/StarRating";
 import Modal from "../../components/Modal";
+import {
+  AdminQueueBadge,
+  AdminQueueDetailSection,
+  AdminQueueDrawer,
+  AdminQueueKeyValue,
+  AdminQueueMetric,
+} from "../../components/admin/AdminQueuePrimitives";
+import {
+  buildQueueSummary,
+  formatQueueDate,
+  normalizeReviewQueueItem,
+} from "../../utils/adminQueuePattern";
 
 export default function AdminReviews() {
   const [reviews, setReviews] = useState([]);
@@ -16,6 +28,7 @@ export default function AdminReviews() {
   const [filter, setFilter] = useState("all"); // all, unreplied, replied
   const [showReplyModal, setShowReplyModal] = useState(false);
   const [selectedReview, setSelectedReview] = useState(null);
+  const [selectedQueueReview, setSelectedQueueReview] = useState(null);
   const [replyText, setReplyText] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -48,6 +61,7 @@ export default function AdminReviews() {
   };
 
   const handleReplyClick = (review) => {
+    setSelectedQueueReview(null);
     setSelectedReview(review);
     setReplyText(review.adminReply || "");
     setShowReplyModal(true);
@@ -95,6 +109,16 @@ export default function AdminReviews() {
     setReplyText("");
   };
 
+  const queueItems = useMemo(
+    () => reviews.map(normalizeReviewQueueItem),
+    [reviews],
+  );
+  const queueSummary = useMemo(() => buildQueueSummary(queueItems), [queueItems]);
+  const selectedQueueItem = useMemo(
+    () => (selectedQueueReview ? normalizeReviewQueueItem(selectedQueueReview) : null),
+    [selectedQueueReview],
+  );
+
   if (loading) return <Loading />;
 
   return (
@@ -109,6 +133,27 @@ export default function AdminReviews() {
             Manage customer reviews and respond to feedback
           </p>
         </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <AdminQueueMetric
+          label="Visible Reviews"
+          value={queueSummary.total}
+          helper={`${queueSummary.byStatus.pending || 0} need review`}
+          tone={queueSummary.byStatus.pending ? "warning" : "success"}
+        />
+        <AdminQueueMetric
+          label="Risk Signals"
+          value={queueSummary.risk}
+          helper="Low rating, unverified, reported, or unreplied"
+          tone={queueSummary.risk ? "warning" : "success"}
+        />
+        <AdminQueueMetric
+          label="Replied"
+          value={queueSummary.byStatus.replied || 0}
+          helper="Admin response visible to customers"
+          tone="info"
+        />
       </div>
 
       {/* Filter Tabs */}
@@ -288,6 +333,12 @@ export default function AdminReviews() {
               {/* Action Buttons */}
               <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <button
+                  onClick={() => setSelectedQueueReview(review)}
+                  className="px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  Details
+                </button>
+                <button
                   onClick={() => handleReplyClick(review)}
                   className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors flex items-center gap-2"
                 >
@@ -330,6 +381,76 @@ export default function AdminReviews() {
           ))}
         </div>
       )}
+
+      <AdminQueueDrawer
+        open={Boolean(selectedQueueReview && selectedQueueItem)}
+        title={selectedQueueItem?.title || "Review detail"}
+        subtitle={selectedQueueItem?.subtitle}
+        onClose={() => setSelectedQueueReview(null)}
+        badges={selectedQueueItem ? [
+          { label: selectedQueueItem.status, tone: selectedQueueItem.tone },
+          { label: selectedQueueItem.riskLabel, tone: selectedQueueItem.riskCount ? "warning" : "success" },
+        ] : []}
+        footer={selectedQueueReview ? (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => handleReplyClick(selectedQueueReview)}
+              className="flex-1 rounded-lg bg-primary-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-primary-600"
+            >
+              {selectedQueueReview.adminReply ? "Edit Reply" : "Reply"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const id = selectedQueueReview._id;
+                setSelectedQueueReview(null);
+                handleDeleteReview(id);
+              }}
+              className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700 transition hover:bg-rose-100"
+            >
+              Delete
+            </button>
+          </div>
+        ) : null}
+      >
+        {selectedQueueReview && selectedQueueItem ? (
+          <div className="space-y-4">
+            <AdminQueueDetailSection title="Review Snapshot">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-bold text-slate-950 dark:text-white">{selectedQueueReview.userName || "Anonymous"}</p>
+                  <p className="text-xs text-slate-500">{formatQueueDate(selectedQueueReview.createdAt)}</p>
+                </div>
+                <StarRating rating={selectedQueueReview.rating} size="sm" />
+              </div>
+              <p className="rounded-lg bg-slate-50 p-3 leading-6 dark:bg-slate-800">
+                {selectedQueueReview.comment || "No review text was provided."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {selectedQueueReview.verified ? <AdminQueueBadge tone="success">Verified purchase</AdminQueueBadge> : <AdminQueueBadge tone="warning">Unverified</AdminQueueBadge>}
+                {selectedQueueReview.adminReply ? <AdminQueueBadge tone="success">Replied</AdminQueueBadge> : <AdminQueueBadge tone="warning">Needs reply</AdminQueueBadge>}
+              </div>
+            </AdminQueueDetailSection>
+
+            <AdminQueueDetailSection title="Moderation Context">
+              <AdminQueueKeyValue label="Review ID" value={selectedQueueReview._id} />
+              <AdminQueueKeyValue label="Product ID" value={selectedQueueReview.productId} />
+              <AdminQueueKeyValue label="Customer" value={selectedQueueReview.userName || selectedQueueReview.userId} />
+              <AdminQueueKeyValue label="Risk" value={selectedQueueItem.riskLabel} />
+            </AdminQueueDetailSection>
+
+            {selectedQueueReview.adminReply ? (
+              <AdminQueueDetailSection title="Admin Reply">
+                <p className="leading-6">{selectedQueueReview.adminReply}</p>
+                <p className="text-xs font-semibold text-slate-500">
+                  Replied {formatQueueDate(selectedQueueReview.adminRepliedAt)}
+                </p>
+              </AdminQueueDetailSection>
+            ) : null}
+          </div>
+        ) : null}
+      </AdminQueueDrawer>
 
       {/* Reply Modal */}
       <Modal

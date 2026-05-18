@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
 import {
@@ -8,12 +8,25 @@ import {
 } from "../../services/api";
 import Loading from "../../components/Loading";
 import Modal from "../../components/Modal";
+import {
+  AdminQueueBadge,
+  AdminQueueDetailSection,
+  AdminQueueDrawer,
+  AdminQueueKeyValue,
+  AdminQueueMetric,
+} from "../../components/admin/AdminQueuePrimitives";
+import {
+  buildQueueSummary,
+  formatQueueDate,
+  normalizeReturnQueueItem,
+} from "../../utils/adminQueuePattern";
 
 export default function AdminReturns() {
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState(null);
+  const [selectedQueueReturn, setSelectedQueueReturn] = useState(null);
   const [statusUpdate, setStatusUpdate] = useState({
     status: "",
     adminNotes: "",
@@ -93,6 +106,7 @@ export default function AdminReturns() {
   };
 
   const openStatusModal = (returnItem) => {
+    setSelectedQueueReturn(null);
     setSelectedReturn(returnItem);
     setStatusUpdate({
       status: returnItem.status,
@@ -125,6 +139,16 @@ export default function AdminReturns() {
       minute: "2-digit",
     });
   };
+
+  const queueItems = useMemo(
+    () => returns.map(normalizeReturnQueueItem),
+    [returns],
+  );
+  const queueSummary = useMemo(() => buildQueueSummary(queueItems), [queueItems]);
+  const selectedQueueItem = useMemo(
+    () => (selectedQueueReturn ? normalizeReturnQueueItem(selectedQueueReturn) : null),
+    [selectedQueueReturn],
+  );
 
   if (loading) return <Loading />;
 
@@ -211,6 +235,27 @@ export default function AdminReturns() {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="mb-6 grid gap-3 sm:grid-cols-3">
+          <AdminQueueMetric
+            label="Visible Returns"
+            value={queueSummary.total}
+            helper={`${queueSummary.byStatus.pending || 0} waiting for decision`}
+            tone={queueSummary.byStatus.pending ? "warning" : "success"}
+          />
+          <AdminQueueMetric
+            label="Dispute Risk"
+            value={queueSummary.risk}
+            helper="Vendor/customer evidence or missing refund detail"
+            tone={queueSummary.risk ? "danger" : "success"}
+          />
+          <AdminQueueMetric
+            label="Refund Exposure"
+            value={`BDT ${Math.round(queueSummary.amount).toLocaleString()}`}
+            helper="Based on visible return requests"
+            tone="info"
+          />
         </div>
 
         {returns.length === 0 ? (
@@ -464,12 +509,20 @@ export default function AdminReturns() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => openStatusModal(returnItem)}
-                          className="text-primary-600 hover:text-primary-900"
-                        >
-                          Manage
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setSelectedQueueReturn(returnItem)}
+                            className="text-slate-600 hover:text-slate-900"
+                          >
+                            Details
+                          </button>
+                          <button
+                            onClick={() => openStatusModal(returnItem)}
+                            className="text-primary-600 hover:text-primary-900"
+                          >
+                            Manage
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -479,6 +532,96 @@ export default function AdminReturns() {
           </div>
         )}
       </div>
+
+      <AdminQueueDrawer
+        open={Boolean(selectedQueueReturn && selectedQueueItem)}
+        title={selectedQueueItem?.title || "Return detail"}
+        subtitle={selectedQueueItem?.subtitle}
+        onClose={() => setSelectedQueueReturn(null)}
+        badges={selectedQueueItem ? [
+          { label: selectedQueueItem.status, tone: selectedQueueItem.tone },
+          { label: selectedQueueItem.riskLabel, tone: selectedQueueItem.riskCount ? "warning" : "success" },
+        ] : []}
+        footer={selectedQueueReturn ? (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => openStatusModal(selectedQueueReturn)}
+              className="flex-1 rounded-lg bg-primary-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-primary-600"
+            >
+              Manage Decision
+            </button>
+            {selectedQueueReturn.vendorId ? (
+              <Link
+                to={`/admin/vendors/${selectedQueueReturn.vendorId}`}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              >
+                Vendor Profile
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      >
+        {selectedQueueReturn && selectedQueueItem ? (
+          <div className="space-y-4">
+            <AdminQueueDetailSection title="Return Snapshot">
+              <AdminQueueKeyValue label="Return ID" value={selectedQueueReturn._id} />
+              <AdminQueueKeyValue label="Customer" value={selectedQueueReturn.userInfo?.name || selectedQueueReturn.userId} />
+              <AdminQueueKeyValue label="Vendor" value={selectedQueueReturn.vendorShopName || selectedQueueReturn.vendorId} />
+              <AdminQueueKeyValue label="Created" value={formatQueueDate(selectedQueueReturn.createdAt)} />
+              <AdminQueueKeyValue label="Exposure" value={`BDT ${Number(selectedQueueItem.amount || 0).toLocaleString()}`} />
+            </AdminQueueDetailSection>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <AdminQueueDetailSection title="Customer Evidence">
+                <p className="font-semibold text-slate-900 dark:text-slate-100">
+                  {selectedQueueReturn.reason || "No reason provided"}
+                </p>
+                <p className="leading-6">{selectedQueueReturn.description || "No customer description was submitted."}</p>
+                <div className="flex flex-wrap gap-2">
+                  {(selectedQueueReturn.images || []).length ? (
+                    (selectedQueueReturn.images || []).map((imageUrl, index) => (
+                      <button
+                        key={`${imageUrl}-${index}`}
+                        type="button"
+                        onClick={() => window.open(imageUrl, "_blank")}
+                        className="h-16 w-16 overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                      >
+                        <img src={imageUrl} alt={`Customer evidence ${index + 1}`} className="h-full w-full object-cover" />
+                      </button>
+                    ))
+                  ) : (
+                    <span className="text-sm text-slate-500">No images attached.</span>
+                  )}
+                </div>
+              </AdminQueueDetailSection>
+
+              <AdminQueueDetailSection title="Vendor Response">
+                <div className="flex flex-wrap gap-2">
+                  {selectedQueueReturn.vendorResponse ? (
+                    <AdminQueueBadge tone={selectedQueueReturn.vendorResponse === "approved" ? "success" : "danger"}>
+                      {selectedQueueReturn.vendorResponse}
+                    </AdminQueueBadge>
+                  ) : (
+                    <AdminQueueBadge tone="warning">Pending vendor response</AdminQueueBadge>
+                  )}
+                </div>
+                <p className="leading-6">{selectedQueueReturn.vendorResponseNotes || selectedQueueReturn.disputeReason || "No vendor notes yet."}</p>
+                <p className="text-xs font-semibold text-slate-500">
+                  Response date: {formatQueueDate(selectedQueueReturn.vendorResponseDate)}
+                </p>
+              </AdminQueueDetailSection>
+            </div>
+
+            <AdminQueueDetailSection title="Refund Destination">
+              <AdminQueueKeyValue label="Requested method" value={selectedQueueReturn.refundMethod} />
+              <AdminQueueKeyValue label="Account number" value={selectedQueueReturn.refundAccountNumber} />
+              <AdminQueueKeyValue label="Processed amount" value={selectedQueueReturn.refundAmount ? `BDT ${selectedQueueReturn.refundAmount}` : "Not processed"} />
+              <AdminQueueKeyValue label="Admin notes" value={selectedQueueReturn.adminNotes} />
+            </AdminQueueDetailSection>
+          </div>
+        ) : null}
+      </AdminQueueDrawer>
 
       {/* Status Update Modal */}
       <Modal

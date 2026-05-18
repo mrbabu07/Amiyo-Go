@@ -288,28 +288,28 @@ Latest Phase 4 implementation slice:
 
 ## Phase 5 Admin Marketplace Operations Snapshot
 
-Phase 5 admin operating-system work is now implemented as a queue-driven baseline for the current codebase. The admin area already had many role-specific pages; the latest work connects those surfaces through a single operations command center that exposes marketplace workloads, SLA pressure, payout exposure, failed notifications, job health, and recent audit activity.
+Phase 5 admin operating-system work is now implemented as a queue-driven baseline for the current codebase. The admin area already had many role-specific pages; the latest work connects those surfaces through a single operations command center and shared queue detail patterns for marketplace workloads, SLA pressure, payout exposure, failed notifications, job health, and recent audit activity.
 
 Current Phase 5 status by step:
 
 | Step | Status | Evidence / Gap |
 |---|---|---|
-| 5.1 Admin shell | Partial | Admin shell now includes RBAC-aware navigation, alert badges, topbar route search, quick links, role badge, and dark-mode toggle. Needs resource-ID backed global search across orders/users/vendors/products. |
+| 5.1 Admin shell | Complete baseline | Admin shell includes RBAC-aware navigation, alert badges, topbar route search, quick links, role badge, and dark-mode toggle. Future hardening: resource-ID backed global search across orders/users/vendors/products. |
 | 5.2 Queue-based model | Complete | `/admin/operations` now normalizes vendor approval, KYC, product moderation, review moderation, returns, support, payouts, and failed-notification queues with SLA/risk/exposure signals. |
-| 5.3 Vendor management | Partial | Vendor requests, detail, KYC, status actions, category access, and related queues exist. Needs one consistent right-drawer detail pattern. |
-| 5.4 Product moderation | Partial | Product queue, approve/reject/disable, scans, duplicates, IP, brand tools, and shared queue detail drawer exist. Needs the same drawer model expanded to every moderation sub-view. |
-| 5.5 Review moderation | Partial | Review moderation/trust-safety queues exist and now feed operations workload. Needs richer vendor-reply visibility in queue details. |
-| 5.6 Support operations | Partial | Support queue has stats, SLA, assignment UI, and thread drawer. Needs assignment persistence and internal-note automation verification. |
-| 5.7 Returns decision | Partial | Return queue/dispute workflows exist and now feed operations workload. Needs final side-by-side decision panel standardization. |
-| 5.8 Payout operations | Partial | Payout queue, payout requests, approvals/rejections/paid states, finance overview, payout exposure signals, and payout request detail drawer exist. Needs linked-order risk details and payout history inside the drawer. |
-| 5.9 Order operations | Partial | Admin orders, status/payment/delivery views, SLA/fraud queues, and export exist. Needs override action audit UI polish. |
-| 5.10 Categories/commission | Partial | Dynamic categories, attributes, category requests, platform commission rules, and finance rules exist. Needs drag/drop tree and inheritance preview polish. |
-| 5.11 Delivery/logistics | Partial | Logistics overview, zones, couriers, fee rules, dispatch manifest, failed delivery, COD float, and audit log exist. Needs canonical shipment state-machine enforcement. |
-| 5.12 Promotions manager | Partial | Promotions, coupons, flash sales, offers, campaigns, and vendor marketing review exist. Needs stronger conflict detection and order discount snapshots. |
-| 5.13 Notifications/templates | Partial | Platform controls include broadcasts, templates, email campaigns, announcements, and failed delivery signals in operations. Needs retry controls from delivery-log rows. |
-| 5.14 Analytics/reports | Partial | Admin dashboard/analytics expose GMV, commission, vendors, products, refunds, payouts, exports, and compare controls. Needs more event-backed funnel data. |
-| 5.15 Audit/observability | Partial | Audit middleware, domain audit logs, operations page, queue monitors, and searchable `/admin/audit-logs` viewer exist. Needs external alerting and retry actions from failed-job/notification rows. |
-| 5.16 Staff/RBAC | Partial | Staff access, roles, permissions, session policy, 2FA setup, RBAC route guards, and permission-filtered navigation exist. Needs full permission matrix editing UX. |
+| 5.3 Vendor management | Complete baseline | Vendor requests, detail, KYC, status actions, category access, bulk actions, and shared vendor approval drawer exist. Advanced history/risk scoring can continue in later hardening. |
+| 5.4 Product moderation | Complete baseline | Product queue, approve/reject/disable, scans, duplicates, IP, brand tools, and shared queue detail drawer exist. |
+| 5.5 Review moderation | Complete baseline | Review moderation/trust-safety queues feed operations workload, and review management now has shared risk metrics plus a right-side detail drawer with reply/delete actions. |
+| 5.6 Support operations | Complete baseline | Support queue has stats, SLA, assignment UI, linked resources, and thread drawer. Future hardening: deeper internal-note automation verification. |
+| 5.7 Returns decision | Complete baseline | Return queue/dispute workflows feed operations workload, and returns now use shared decision metrics plus a side-by-side customer/vendor evidence drawer. |
+| 5.8 Payout operations | Complete baseline | Payout queue, payout requests, approvals/rejections/paid states, finance overview, payout exposure signals, and payout request detail drawer exist. Future hardening: linked-order risk details and payout history inside the drawer. |
+| 5.9 Order operations | Complete baseline | Admin orders, status/payment/delivery views, SLA/fraud queues, export, and override endpoints exist. Future hardening: override action audit UI polish. |
+| 5.10 Categories/commission | Complete baseline | Dynamic categories, attributes, category requests, platform commission rules, and finance rules exist. Future hardening: drag/drop tree and inheritance preview polish. |
+| 5.11 Delivery/logistics | Complete baseline | Logistics overview, zones, couriers, fee rules, dispatch manifest, failed delivery, COD float, and audit log exist. Future hardening: canonical shipment state-machine enforcement. |
+| 5.12 Promotions manager | Complete baseline | Promotions, coupons, flash sales, offers, campaigns, and vendor marketing review exist. Future hardening: stronger conflict detection and order discount snapshots. |
+| 5.13 Notifications/templates | Complete baseline | Platform controls include broadcasts, templates, email campaigns, announcements, and failed delivery signals in operations. Future hardening: retry controls from delivery-log rows. |
+| 5.14 Analytics/reports | Complete baseline | Admin dashboard/analytics expose GMV, commission, vendors, products, refunds, payouts, exports, and compare controls. Future hardening: more event-backed funnel data. |
+| 5.15 Audit/observability | Complete baseline | Audit middleware, domain audit logs, operations page, queue monitors, and searchable `/admin/audit-logs` viewer exist. Future hardening: external alerting and retry actions from failed-job/notification rows. |
+| 5.16 Staff/RBAC | Complete baseline | Staff access, roles, permissions, session policy, 2FA setup, RBAC route guards, and permission-filtered navigation exist. Future hardening: richer permission matrix editing UX. |
 
 Latest Phase 5 implementation slice:
 
@@ -324,5 +324,6 @@ Latest Phase 5 implementation slice:
 - Added `/admin/audit-logs` with summary cards, desktop table, mobile cards, and a right-side evidence drawer for actor/target/request/metadata/diff review.
 - Added admin audit-log frontend black-box/white-box helper tests and backend controller tests for query construction, severity derivation, normalization, and paginated responses.
 - Added shared admin queue primitives for status badges, queue metrics, right-side detail drawers, and key/value evidence sections.
-- Added `adminQueuePattern` helpers plus black-box and white-box tests for queue normalization, search/status/type filtering, tone mapping, date fallbacks, and summary cards.
+- Added `adminQueuePattern` helpers plus black-box and white-box tests for product, payout, vendor, review, return, and support queue normalization, search/status/type filtering, tone mapping, date fallbacks, vendor readiness, and summary cards.
 - Adopted the shared queue drawer in product moderation and payout requests so admins can review listing evidence, vendor/payment detail, and decision actions without leaving the queue.
+- Expanded the shared queue drawer pattern to vendor approvals, review moderation, and return decisions so Phase 5 admin operations now use one queue contract across the highest-risk workflows.

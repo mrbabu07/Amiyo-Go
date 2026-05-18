@@ -181,8 +181,8 @@ Before pushing frontend or backend changes:
 
 The latest completed full-project verification:
 
-- `Client`: `npm test` passed, 28 suites / 104 tests.
-- `Client`: latest focused Phase 5 admin queue-pattern helper tests passed, 2 suites / 6 tests.
+- `Client`: `npm test` passed, 28 suites / 106 tests.
+- `Client`: latest focused Phase 5 admin queue-pattern helper tests passed, 2 suites / 8 tests.
 - `Client`: Phase 5 admin audit-log helper tests remain covered, 2 suites / 5 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.

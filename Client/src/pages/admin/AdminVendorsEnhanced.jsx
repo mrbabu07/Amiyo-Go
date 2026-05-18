@@ -3,6 +3,18 @@ import { Link, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuth from '../../hooks/useAuth';
 import { bulkAdminVendorAction } from '../../services/api';
+import {
+  AdminQueueBadge,
+  AdminQueueDetailSection,
+  AdminQueueDrawer,
+  AdminQueueKeyValue,
+  AdminQueueMetric,
+} from '../../components/admin/AdminQueuePrimitives';
+import {
+  buildQueueSummary,
+  formatQueueDate,
+  normalizeVendorQueueItem,
+} from '../../utils/adminQueuePattern';
 
 const REQUEST_EMPTY = {
   pendingVendors: [],
@@ -204,6 +216,7 @@ const AdminVendorsEnhanced = () => {
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [activeRequestTab, setActiveRequestTab] = useState('all');
   const [actionModal, setActionModal] = useState(null);
+  const [selectedQueueVendor, setSelectedQueueVendor] = useState(null);
   const [actionData, setActionData] = useState({ reason: '', note: '', transactionId: '' });
   const [submittingAction, setSubmittingAction] = useState(false);
 
@@ -454,6 +467,7 @@ const AdminVendorsEnhanced = () => {
   };
 
   const openActionModal = (action, item) => {
+    setSelectedQueueVendor(null);
     setActionModal({ action, item });
     setActionData({ reason: '', note: '', transactionId: '' });
   };
@@ -514,6 +528,18 @@ const AdminVendorsEnhanced = () => {
           .some((value) => value.toLowerCase().includes(searchQuery.toLowerCase()))
       ),
     [vendors, searchQuery]
+  );
+  const vendorQueueItems = useMemo(
+    () => requests.pendingVendors.map(normalizeVendorQueueItem),
+    [requests.pendingVendors]
+  );
+  const vendorQueueSummary = useMemo(
+    () => buildQueueSummary(vendorQueueItems),
+    [vendorQueueItems]
+  );
+  const selectedQueueItem = useMemo(
+    () => (selectedQueueVendor ? normalizeVendorQueueItem(selectedQueueVendor) : null),
+    [selectedQueueVendor]
   );
 
   const requestSummary = [
@@ -695,6 +721,27 @@ const AdminVendorsEnhanced = () => {
             </div>
           )}
 
+          <div className="grid gap-3 md:grid-cols-3">
+            <AdminQueueMetric
+              label="Vendor Approval Queue"
+              value={vendorQueueSummary.total}
+              helper={`${vendorQueueSummary.risk} need missing-info follow-up`}
+              tone={vendorQueueSummary.risk ? 'warning' : 'success'}
+            />
+            <AdminQueueMetric
+              label="Ready Applicants"
+              value={Math.max(vendorQueueSummary.total - vendorQueueSummary.risk, 0)}
+              helper="Can be approved after KYC/business review"
+              tone="success"
+            />
+            <AdminQueueMetric
+              label="Pending Workload"
+              value={totalPendingRequests}
+              helper="Vendors, category access, marketing, and payouts"
+              tone={totalPendingRequests ? 'info' : 'success'}
+            />
+          </div>
+
           <div className={`grid gap-5 ${isRequestCenterRoute ? 'xl:grid-cols-[1.15fr_0.85fr]' : 'xl:grid-cols-2'}`}>
             <div className="space-y-5">
             {showRequestCard('vendors') && (
@@ -747,6 +794,12 @@ const AdminVendorsEnhanced = () => {
                         <p className="mt-3 text-xs text-gray-500">Missing: {readiness.missing.join(', ')}</p>
                       )}
                       <div className="mt-4 flex gap-2">
+                        <button
+                          onClick={() => setSelectedQueueVendor(vendor)}
+                          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                        >
+                          Details
+                        </button>
                         <button
                           onClick={() => openActionModal('approveVendor', vendor)}
                           className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-green-700"
@@ -1119,6 +1172,12 @@ const AdminVendorsEnhanced = () => {
                     )}
 
                     <div className="mt-5 flex gap-2">
+                      <button
+                        onClick={() => setSelectedQueueVendor(vendor)}
+                        className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                      >
+                        Queue
+                      </button>
                       <Link
                         to={`/admin/vendors/${vendor._id}`}
                         className="flex-1 rounded-lg bg-orange-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-orange-700"
@@ -1217,6 +1276,12 @@ const AdminVendorsEnhanced = () => {
                       <td className="px-6 py-4 text-sm text-gray-600">{new Date(vendor.createdAt).toLocaleDateString()}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => setSelectedQueueVendor(vendor)}
+                            className="rounded-lg bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+                          >
+                            Details
+                          </button>
                           <Link
                             to={`/admin/vendors/${vendor._id}`}
                             className="rounded-lg bg-orange-50 px-3 py-1.5 text-sm font-medium text-orange-700 transition hover:bg-orange-100"
@@ -1249,6 +1314,92 @@ const AdminVendorsEnhanced = () => {
           </div>
         ))}
       </div>
+
+      <AdminQueueDrawer
+        open={Boolean(selectedQueueVendor && selectedQueueItem)}
+        title={selectedQueueItem?.title || 'Vendor detail'}
+        subtitle={selectedQueueItem?.subtitle}
+        onClose={() => setSelectedQueueVendor(null)}
+        badges={selectedQueueItem ? [
+          { label: selectedQueueItem.status, tone: selectedQueueItem.tone },
+          { label: selectedQueueItem.riskLabel, tone: selectedQueueItem.riskCount ? 'warning' : 'success' },
+        ] : []}
+        footer={selectedQueueVendor ? (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {selectedQueueVendor.status === 'pending' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => openActionModal('approveVendor', selectedQueueVendor)}
+                  className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-green-700"
+                >
+                  Approve Vendor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openActionModal('rejectVendor', selectedQueueVendor)}
+                  className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700 transition hover:bg-rose-100"
+                >
+                  Reject
+                </button>
+              </>
+            ) : selectedQueueVendor.status === 'suspended' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedQueueVendor(null);
+                  handleVendorAction(selectedQueueVendor._id, 'reactivate');
+                }}
+                className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
+              >
+                Reactivate
+              </button>
+            ) : null}
+            <Link
+              to={`/admin/vendors/${selectedQueueVendor._id}`}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+            >
+              Full Profile
+            </Link>
+          </div>
+        ) : null}
+      >
+        {selectedQueueVendor && selectedQueueItem ? (
+          <div className="space-y-4">
+            <AdminQueueDetailSection title="Applicant Snapshot">
+              <AdminQueueKeyValue label="Vendor ID" value={selectedQueueVendor._id} />
+              <AdminQueueKeyValue label="Shop" value={selectedQueueVendor.shopName} />
+              <AdminQueueKeyValue label="Email" value={selectedQueueVendor.email} />
+              <AdminQueueKeyValue label="Phone" value={selectedQueueVendor.phone} />
+              <AdminQueueKeyValue label="Joined" value={formatQueueDate(selectedQueueVendor.createdAt)} />
+            </AdminQueueDetailSection>
+
+            <AdminQueueDetailSection title="Approval Readiness">
+              <div className="flex flex-wrap gap-2">
+                {getVendorRequirements(selectedQueueVendor).items.map((item) => (
+                  <AdminQueueBadge key={item.label} tone={item.done ? 'success' : 'danger'}>
+                    {item.label}
+                  </AdminQueueBadge>
+                ))}
+              </div>
+              {getVendorRequirements(selectedQueueVendor).missing.length ? (
+                <p className="leading-6">
+                  Missing: {getVendorRequirements(selectedQueueVendor).missing.join(', ')}
+                </p>
+              ) : (
+                <p className="leading-6">Required onboarding details are present. Admin can continue KYC and business review.</p>
+              )}
+            </AdminQueueDetailSection>
+
+            <AdminQueueDetailSection title="Marketplace Controls">
+              <AdminQueueKeyValue label="Allowed categories" value={(selectedQueueVendor.allowedCategoryIds || []).length} />
+              <AdminQueueKeyValue label="Tier" value={selectedQueueVendor.tier || 'normal'} />
+              <AdminQueueKeyValue label="Warning strikes" value={`${selectedQueueVendor.warningStrikes || 0}/3`} />
+              <AdminQueueKeyValue label="Payout method" value={formatPayoutMethod(selectedQueueVendor)} />
+            </AdminQueueDetailSection>
+          </div>
+        ) : null}
+      </AdminQueueDrawer>
 
       {modalConfig && actionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
