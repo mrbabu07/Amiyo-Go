@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   AdminQueueDetailSection,
@@ -10,21 +10,25 @@ import {
 import {
   getAdminPayoutRequests,
   approvePayoutRequest,
+  calculateEligiblePayout,
+  getAllPayouts,
   rejectPayoutRequest,
   markPayoutRequestPaid,
 } from '../../services/api';
 import Modal from '../../components/Modal';
 import {
   buildQueueSummary,
+  filterQueueItems,
   formatQueueDate,
   getQueueStatusTone,
   normalizePayoutQueueItem,
 } from '../../utils/adminQueuePattern';
 
 export default function AdminPayoutRequests() {
+  const [searchParams] = useSearchParams();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('pending');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'pending');
   const [showModal, setShowModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [modalAction, setModalAction] = useState(null); // 'approve', 'reject', 'mark-paid'
@@ -35,17 +39,86 @@ export default function AdminPayoutRequests() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [selectedQueueRequest, setSelectedQueueRequest] = useState(null);
+  const [drawerFinanceContext, setDrawerFinanceContext] = useState({
+    loading: false,
+    eligible: null,
+    history: [],
+    error: '',
+  });
 
   const queueItems = useMemo(() => requests.map(normalizePayoutQueueItem), [requests]);
-  const queueSummary = useMemo(() => buildQueueSummary(queueItems), [queueItems]);
+  const searchQuery = searchParams.get('search') || '';
+  const visibleQueueItems = useMemo(
+    () => filterQueueItems(queueItems, { search: searchQuery }),
+    [queueItems, searchQuery],
+  );
+  const visibleRequests = useMemo(
+    () => visibleQueueItems.map((item) => item.raw),
+    [visibleQueueItems],
+  );
+  const queueSummary = useMemo(() => buildQueueSummary(visibleQueueItems), [visibleQueueItems]);
   const selectedQueueItem = useMemo(
     () => (selectedQueueRequest ? normalizePayoutQueueItem(selectedQueueRequest) : null),
     [selectedQueueRequest],
+  );
+  const priorPayoutHistory = useMemo(
+    () => drawerFinanceContext.history.filter((payout) => payout._id !== selectedQueueRequest?._id),
+    [drawerFinanceContext.history, selectedQueueRequest?._id],
   );
 
   useEffect(() => {
     loadRequests();
   }, [statusFilter]);
+
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    if (urlStatus && urlStatus !== statusFilter) {
+      setStatusFilter(urlStatus);
+    }
+  }, [searchParams, statusFilter]);
+
+  useEffect(() => {
+    if (!selectedQueueRequest?.vendorId) {
+      setDrawerFinanceContext({ loading: false, eligible: null, history: [], error: '' });
+      return undefined;
+    }
+
+    let cancelled = false;
+    const loadDrawerFinanceContext = async () => {
+      setDrawerFinanceContext({ loading: true, eligible: null, history: [], error: '' });
+      try {
+        const [eligibleRes, historyRes] = await Promise.allSettled([
+          calculateEligiblePayout(selectedQueueRequest.vendorId),
+          getAllPayouts({ vendorId: selectedQueueRequest.vendorId, limit: 6 }),
+        ]);
+
+        if (cancelled) return;
+
+        setDrawerFinanceContext({
+          loading: false,
+          eligible: eligibleRes.status === 'fulfilled' ? eligibleRes.value.data?.data || null : null,
+          history: historyRes.status === 'fulfilled' ? historyRes.value.data?.payouts || [] : [],
+          error: eligibleRes.status === 'rejected' || historyRes.status === 'rejected'
+            ? 'Some payout context could not be loaded.'
+            : '',
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setDrawerFinanceContext({
+            loading: false,
+            eligible: null,
+            history: [],
+            error: error.response?.data?.error || 'Failed to load payout review context.',
+          });
+        }
+      }
+    };
+
+    loadDrawerFinanceContext();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedQueueRequest?.vendorId]);
 
   const loadRequests = async () => {
     try {
@@ -155,7 +228,7 @@ export default function AdminPayoutRequests() {
           <AdminQueueMetric
             label="Visible Requests"
             value={queueSummary.total.toLocaleString('en-US')}
-            helper={`${statusFilter} queue`}
+            helper={searchQuery ? `Search: ${searchQuery}` : `${statusFilter} queue`}
             tone="neutral"
           />
           <AdminQueueMetric
@@ -210,17 +283,27 @@ export default function AdminPayoutRequests() {
                 {status.charAt(0).toUpperCase() + status.slice(1)}
               </button>
             ))}
+            {searchQuery ? (
+              <Link
+                to="/admin/payout-requests"
+                className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 font-medium text-orange-700 transition hover:bg-orange-100"
+              >
+                Clear search: {searchQuery}
+              </Link>
+            ) : null}
           </div>
         </div>
 
         {/* Requests List */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          {requests.length === 0 ? (
+          {visibleRequests.length === 0 ? (
             <div className="p-12 text-center">
               <div className="text-6xl mb-4">📋</div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No Requests Found</h3>
               <p className="text-gray-600">
-                {statusFilter === 'all'
+                {searchQuery
+                  ? `No payout requests match "${searchQuery}"`
+                  : statusFilter === 'all'
                   ? 'No payout requests have been submitted yet'
                   : `No ${statusFilter} requests found`}
               </p>
@@ -254,7 +337,7 @@ export default function AdminPayoutRequests() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {requests.map((request) => (
+                  {visibleRequests.map((request) => (
                     <tr key={request._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
@@ -626,6 +709,100 @@ export default function AdminPayoutRequests() {
               <AdminQueueKeyValue label="Account Number" value={selectedQueueRequest.bankAccountNumber} />
               <AdminQueueKeyValue label="Mobile Provider" value={selectedQueueRequest.mobileBankingProvider} />
               <AdminQueueKeyValue label="Mobile Number" value={selectedQueueRequest.mobileBankingNumber} />
+            </AdminQueueDetailSection>
+
+            <AdminQueueDetailSection title="Linked Earnings and Risk">
+              {drawerFinanceContext.loading ? (
+                <p className="rounded-lg bg-slate-50 p-3 font-semibold text-slate-500">
+                  Loading linked orders, returns, and previous payout history...
+                </p>
+              ) : drawerFinanceContext.eligible ? (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <AdminQueueKeyValue
+                      label="Eligible balance"
+                      value={`BDT ${Number(drawerFinanceContext.eligible.eligibleAmount || 0).toLocaleString('en-US')}`}
+                    />
+                    <AdminQueueKeyValue
+                      label="Delivered earnings"
+                      value={`BDT ${Number(drawerFinanceContext.eligible.totalDeliveredEarnings || 0).toLocaleString('en-US')}`}
+                    />
+                    <AdminQueueKeyValue
+                      label="Pending payouts"
+                      value={`BDT ${Number(drawerFinanceContext.eligible.pendingPayouts || 0).toLocaleString('en-US')}`}
+                    />
+                    <AdminQueueKeyValue
+                      label="Return deductions"
+                      value={`BDT ${Number(drawerFinanceContext.eligible.returnDeductions || 0).toLocaleString('en-US')}`}
+                    />
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Linked delivered orders
+                    </p>
+                    {(drawerFinanceContext.eligible.eligibleOrders || []).length ? (
+                      <div className="mt-2 space-y-2">
+                        {drawerFinanceContext.eligible.eligibleOrders.slice(0, 4).map((order) => (
+                          <div key={order.orderId} className="flex items-center justify-between gap-3 text-xs">
+                            <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+                              #{String(order.orderId || '').slice(-8)}
+                            </span>
+                            <span className="text-slate-500">{order.itemsCount || 0} item(s)</span>
+                            <span className="font-bold text-slate-900 dark:text-white">
+                              BDT {Number(order.earnings || 0).toLocaleString('en-US')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-slate-500">No linked eligible orders returned by the finance service.</p>
+                    )}
+                  </div>
+                  {(drawerFinanceContext.eligible.returns || []).length ? (
+                    <div className="rounded-lg bg-amber-50 p-3 text-amber-800">
+                      {drawerFinanceContext.eligible.returns.length} return deduction record(s) affect this vendor balance.
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
+                  No linked earnings context is available for this request yet.
+                </p>
+              )}
+              {drawerFinanceContext.error ? (
+                <p className="rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-700">
+                  {drawerFinanceContext.error}
+                </p>
+              ) : null}
+            </AdminQueueDetailSection>
+
+            <AdminQueueDetailSection title="Payout History">
+              {drawerFinanceContext.loading ? (
+                <p className="text-sm text-slate-500">Loading prior payouts...</p>
+              ) : priorPayoutHistory.length ? (
+                <div className="space-y-2">
+                  {priorPayoutHistory
+                    .slice(0, 5)
+                    .map((payout) => (
+                      <div key={payout._id} className="rounded-lg border border-slate-100 p-3 dark:border-slate-800">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-mono text-xs font-bold text-slate-500">#{String(payout._id || '').slice(-8)}</p>
+                            <p className="mt-1 text-xs text-slate-500">{formatQueueDate(payout.paidAt || payout.approvedAt || payout.createdAt)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-slate-950 dark:text-white">
+                              BDT {Number(payout.amount || 0).toLocaleString('en-US')}
+                            </p>
+                            <p className="text-xs font-semibold capitalize text-slate-500">{payout.status || 'pending'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">No prior payout history returned for this vendor.</p>
+              )}
             </AdminQueueDetailSection>
 
             {selectedQueueRequest.rejectionReason ? (

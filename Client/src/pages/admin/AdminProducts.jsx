@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
 import Loading from "../../components/Loading";
 import {
@@ -71,6 +71,7 @@ const getFlagTone = (severity) => {
 
 export default function AdminProducts() {
   const { formatPrice } = useCurrency();
+  const [searchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -106,7 +107,7 @@ export default function AdminProducts() {
     [selectedQueueProduct],
   );
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (searchOverride = searchTerm) => {
     setLoading(true);
     try {
       const params = {
@@ -116,7 +117,7 @@ export default function AdminProducts() {
       };
       if (activeStatus === "queue") params.status = "queue";
       else if (activeStatus !== "all") params.approvalStatus = activeStatus;
-      if (searchTerm.trim()) params.search = searchTerm.trim();
+      if (searchOverride.trim()) params.search = searchOverride.trim();
 
       const response = await getAdminProducts(params);
       setProducts(response.data.data || []);
@@ -149,6 +150,13 @@ export default function AdminProducts() {
   useEffect(() => {
     fetchProducts();
   }, [activeStatus]);
+
+  useEffect(() => {
+    const urlSearch = searchParams.get("search") || "";
+    if (!urlSearch) return;
+    setSearchTerm(urlSearch);
+    fetchProducts(urlSearch);
+  }, [searchParams]);
 
   useEffect(() => {
     fetchSidePanels();

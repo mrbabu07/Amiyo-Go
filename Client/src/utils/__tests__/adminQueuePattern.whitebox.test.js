@@ -76,6 +76,19 @@ describe("adminQueuePattern white-box helpers", () => {
     });
   });
 
+  test("marks large or held payout requests as review risk", () => {
+    expect(normalizePayoutQueueItem({
+      _id: "payout-risk",
+      amount: 15000,
+      status: "pending",
+      holds: [{ reason: "Bank mismatch" }],
+    })).toEqual(expect.objectContaining({
+      tone: "warning",
+      riskCount: 2,
+      riskLabel: "Bank mismatch, High payout amount",
+    }));
+  });
+
   test("formats invalid queue timestamps without throwing", () => {
     expect(formatQueueDate()).toBe("No timestamp");
     expect(formatQueueDate("bad-date")).toBe("No timestamp");

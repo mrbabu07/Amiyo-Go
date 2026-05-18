@@ -29,6 +29,10 @@ import {
 import useAuth from '../hooks/useAuth';
 import { getAdminAlertSummary } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
+import {
+  buildAdminSearchSuggestions,
+  getAdminSearchSubmitPath,
+} from '../utils/adminResourceSearch';
 
 const navigation = [
   {
@@ -309,20 +313,18 @@ const AdminLayout = () => {
   const visibleNavigation = filterNavigationByPermissions(navigation, access);
   const visibleQuickLinks = quickLinks.filter((item) => canAccessPath(item.path, access) || item.path === '/');
   const searchTargets = flattenNavigation(visibleNavigation);
-  const searchQuery = adminSearch.trim().toLowerCase();
-  const searchMatches = searchQuery
-    ? searchTargets
-      .filter((item) => [item.name, item.path].join(' ').toLowerCase().includes(searchQuery))
-      .slice(0, 6)
-    : [];
+  const searchMatches = buildAdminSearchSuggestions(adminSearch, searchTargets)
+    .filter((item) => {
+      const basePath = item.path.split('?')[0];
+      return canAccessPath(basePath, access) || item.path === '/';
+    });
 
   const handleAdminSearch = (event) => {
     event.preventDefault();
     const query = adminSearch.trim();
     if (!query) return;
 
-    const target = searchMatches[0];
-    navigate(target?.path || `/admin/orders?search=${encodeURIComponent(query)}`);
+    navigate(getAdminSearchSubmitPath(query, searchMatches));
     setAdminSearch('');
     closeSidebarOnMobile();
   };
@@ -356,7 +358,7 @@ const AdminLayout = () => {
               type="search"
               value={adminSearch}
               onChange={(event) => setAdminSearch(event.target.value)}
-              placeholder="Search admin queues, tools, orders..."
+              placeholder="Search order ORD-1, vendor ID, product ID, ticket, email..."
               className="h-10 w-full rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm font-medium text-gray-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-500/20 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:focus:border-orange-700"
               aria-label="Search admin workspace"
             />
@@ -372,8 +374,13 @@ const AdminLayout = () => {
                     }}
                     className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition hover:bg-orange-50 focus:bg-orange-50 focus:outline-none dark:hover:bg-orange-950/30 dark:focus:bg-orange-950/30"
                   >
-                    <span className="font-semibold text-gray-900 dark:text-white">{item.name}</span>
-                    <span className="truncate text-xs text-gray-500 dark:text-gray-400">{item.path}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-gray-900 dark:text-white">{item.name}</span>
+                      <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{item.description || item.path}</span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-bold capitalize text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+                      {item.kind || 'route'}
+                    </span>
                   </button>
                 ))}
               </div>

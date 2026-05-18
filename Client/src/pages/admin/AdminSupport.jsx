@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast, Toaster } from "react-hot-toast";
 import {
   AlertCircle,
@@ -111,6 +112,7 @@ function SlaBadge({ ticket }) {
 }
 
 export default function AdminSupport() {
+  const [searchParams] = useSearchParams();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({});
@@ -193,6 +195,13 @@ export default function AdminSupport() {
   useEffect(() => {
     fetchTickets();
   }, [fetchTickets]);
+
+  useEffect(() => {
+    const urlSearch = searchParams.get("search") || "";
+    setFilters((current) =>
+      current.search === urlSearch ? current : { ...current, search: urlSearch, page: 1 },
+    );
+  }, [searchParams]);
 
   useEffect(() => {
     fetchStats();

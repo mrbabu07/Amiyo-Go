@@ -84,6 +84,12 @@ export const normalizeProductQueueItem = (product = {}) => {
 export const normalizePayoutQueueItem = (request = {}) => {
   const status = request.status || "pending";
   const method = request.payoutMethod || request.mobileBankingProvider || "bank";
+  const riskNotes = [
+    ...(request.riskFlags || []).map((flag) => flag.message || flag.reason || flag.type || String(flag)),
+    ...(request.holds || []).map((hold) => hold.reason || hold.type || String(hold)),
+    Number(request.amount || 0) >= 10000 ? "High payout amount" : "",
+    request.rejectionReason ? `Rejected: ${request.rejectionReason}` : "",
+  ].filter(Boolean);
 
   return {
     id: String(request._id || request.id || ""),
@@ -93,9 +99,11 @@ export const normalizePayoutQueueItem = (request = {}) => {
     owner: request.vendorEmail || request.vendorPhone || "No vendor contact",
     ownerId: request.vendorId || "",
     status,
-    tone: getQueueStatusTone(status),
-    riskCount: Number(request.riskFlags?.length || request.holds?.length || 0),
-    riskLabel: request.rejectionReason || request.note || "No risk notes",
+    tone: riskNotes.length && ["pending", "approved"].includes(String(status).toLowerCase())
+      ? "warning"
+      : getQueueStatusTone(status),
+    riskCount: riskNotes.length,
+    riskLabel: riskNotes.length ? riskNotes.join(", ") : request.note || "No risk notes",
     amount: Number(request.amount || 0),
     createdAt: request.requestedAt || request.createdAt || null,
     href: request.vendorId ? `/admin/vendors/${request.vendorId}` : "",

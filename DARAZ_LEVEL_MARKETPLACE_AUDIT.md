@@ -294,14 +294,14 @@ Current Phase 5 status by step:
 
 | Step | Status | Evidence / Gap |
 |---|---|---|
-| 5.1 Admin shell | Complete baseline | Admin shell includes RBAC-aware navigation, alert badges, topbar route search, quick links, role badge, and dark-mode toggle. Future hardening: resource-ID backed global search across orders/users/vendors/products. |
+| 5.1 Admin shell | Hardened baseline | Admin shell includes RBAC-aware navigation, alert badges, resource-aware topbar search, quick links, role badge, and dark-mode toggle. |
 | 5.2 Queue-based model | Complete | `/admin/operations` now normalizes vendor approval, KYC, product moderation, review moderation, returns, support, payouts, and failed-notification queues with SLA/risk/exposure signals. |
 | 5.3 Vendor management | Complete baseline | Vendor requests, detail, KYC, status actions, category access, bulk actions, and shared vendor approval drawer exist. Advanced history/risk scoring can continue in later hardening. |
 | 5.4 Product moderation | Complete baseline | Product queue, approve/reject/disable, scans, duplicates, IP, brand tools, and shared queue detail drawer exist. |
 | 5.5 Review moderation | Complete baseline | Review moderation/trust-safety queues feed operations workload, and review management now has shared risk metrics plus a right-side detail drawer with reply/delete actions. |
 | 5.6 Support operations | Complete baseline | Support queue has stats, SLA, assignment UI, linked resources, and thread drawer. Future hardening: deeper internal-note automation verification. |
 | 5.7 Returns decision | Complete baseline | Return queue/dispute workflows feed operations workload, and returns now use shared decision metrics plus a side-by-side customer/vendor evidence drawer. |
-| 5.8 Payout operations | Complete baseline | Payout queue, payout requests, approvals/rejections/paid states, finance overview, payout exposure signals, and payout request detail drawer exist. Future hardening: linked-order risk details and payout history inside the drawer. |
+| 5.8 Payout operations | Hardened baseline | Payout queue, payout requests, approvals/rejections/paid states, finance overview, payout exposure signals, linked eligible orders, return deductions, prior payout history, and payout request detail drawer exist. |
 | 5.9 Order operations | Complete baseline | Admin orders, status/payment/delivery views, SLA/fraud queues, export, and override endpoints exist. Future hardening: override action audit UI polish. |
 | 5.10 Categories/commission | Complete baseline | Dynamic categories, attributes, category requests, platform commission rules, and finance rules exist. Future hardening: drag/drop tree and inheritance preview polish. |
 | 5.11 Delivery/logistics | Complete baseline | Logistics overview, zones, couriers, fee rules, dispatch manifest, failed delivery, COD float, and audit log exist. Future hardening: canonical shipment state-machine enforcement. |
@@ -327,3 +327,10 @@ Latest Phase 5 implementation slice:
 - Added `adminQueuePattern` helpers plus black-box and white-box tests for product, payout, vendor, review, return, and support queue normalization, search/status/type filtering, tone mapping, date fallbacks, vendor readiness, and summary cards.
 - Adopted the shared queue drawer in product moderation and payout requests so admins can review listing evidence, vendor/payment detail, and decision actions without leaving the queue.
 - Expanded the shared queue drawer pattern to vendor approvals, review moderation, and return decisions so Phase 5 admin operations now use one queue contract across the highest-risk workflows.
+
+Phase 5 hardening pass:
+
+- Added resource-aware admin topbar search for order references, vendor IDs, product IDs, payout requests, returns, support tickets, email, and phone lookups while preserving RBAC-filtered route suggestions.
+- Wired admin search query parameters into product, vendor, payout, return, and support queues so searched resources land in an already-filtered workspace.
+- Hardened payout request review with linked eligible-balance context, delivered-order rows, return deductions, and prior payout history inside the finance drawer.
+- Added `adminResourceSearch` black-box and white-box tests, and expanded payout queue risk tests for large/held payout requests.

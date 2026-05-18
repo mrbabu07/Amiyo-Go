@@ -41,6 +41,8 @@ npm test -- --runTestsByPath src/utils/__tests__/vendorReturnDispute.blackbox.te
 npm test -- --runTestsByPath src/utils/__tests__/vendorOrderDetail.blackbox.test.js src/utils/__tests__/vendorOrderDetail.whitebox.test.js
 npm test -- --runTestsByPath src/utils/__tests__/vendorStaffPermissions.blackbox.test.js src/utils/__tests__/vendorStaffPermissions.whitebox.test.js
 npm test -- --runTestsByPath src/utils/__tests__/adminOperationsCenter.blackbox.test.js src/utils/__tests__/adminOperationsCenter.whitebox.test.js
+npm test -- --runTestsByPath src/utils/__tests__/adminResourceSearch.blackbox.test.js src/utils/__tests__/adminResourceSearch.whitebox.test.js
+npm test -- --runTestsByPath src/utils/__tests__/adminQueuePattern.blackbox.test.js src/utils/__tests__/adminQueuePattern.whitebox.test.js
 ```
 
 Run focused backend black-box and white-box tests:
@@ -72,6 +74,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/adminAuditControl
   - `Client/src/utils/__tests__/adminOperationsCenter.blackbox.test.js`
   - `Client/src/utils/__tests__/adminAuditLog.blackbox.test.js`
   - `Client/src/utils/__tests__/adminQueuePattern.blackbox.test.js`
+  - `Client/src/utils/__tests__/adminResourceSearch.blackbox.test.js`
 - White-box helper behavior:
   - `Client/src/components/ui/__tests__/designSystem.whitebox.test.js`
   - `Client/src/utils/__tests__/cartCheckout.whitebox.test.js`
@@ -87,6 +90,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/adminAuditControl
   - `Client/src/utils/__tests__/adminOperationsCenter.whitebox.test.js`
   - `Client/src/utils/__tests__/adminAuditLog.whitebox.test.js`
   - `Client/src/utils/__tests__/adminQueuePattern.whitebox.test.js`
+  - `Client/src/utils/__tests__/adminResourceSearch.whitebox.test.js`
 - Route guard behavior:
   - `Client/src/routes/__tests__/guards.blackbox.test.jsx`
 
@@ -181,8 +185,8 @@ Before pushing frontend or backend changes:
 
 The latest completed full-project verification:
 
-- `Client`: `npm test` passed, 28 suites / 106 tests.
-- `Client`: latest focused Phase 5 admin queue-pattern helper tests passed, 2 suites / 8 tests.
+- `Client`: `npm test` passed, 30 suites / 114 tests.
+- `Client`: latest focused Phase 5 hardening helper tests passed, 4 suites / 16 tests.
 - `Client`: Phase 5 admin audit-log helper tests remain covered, 2 suites / 5 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.

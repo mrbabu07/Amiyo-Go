@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuth from '../../hooks/useAuth';
 import { bulkAdminVendorAction } from '../../services/api';
@@ -204,6 +204,7 @@ const RequestTabButton = ({ active, label, count, onClick }) => (
 const AdminVendorsEnhanced = () => {
   const { user } = useAuth();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [vendors, setVendors] = useState([]);
   const [stats, setStats] = useState(null);
   const [requests, setRequests] = useState(REQUEST_EMPTY);
@@ -230,6 +231,11 @@ const AdminVendorsEnhanced = () => {
     if (!user) return;
     fetchRequestCenter();
   }, [user]);
+
+  useEffect(() => {
+    const urlSearch = searchParams.get('search') || '';
+    setSearchQuery((current) => (current === urlSearch ? current : urlSearch));
+  }, [searchParams]);
 
   const fetchVendors = async () => {
     setLoading(true);

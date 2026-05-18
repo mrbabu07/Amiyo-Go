@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
 import {
   getAllReturns,
@@ -17,11 +17,13 @@ import {
 } from "../../components/admin/AdminQueuePrimitives";
 import {
   buildQueueSummary,
+  filterQueueItems,
   formatQueueDate,
   normalizeReturnQueueItem,
 } from "../../utils/adminQueuePattern";
 
 export default function AdminReturns() {
+  const [searchParams] = useSearchParams();
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -144,7 +146,16 @@ export default function AdminReturns() {
     () => returns.map(normalizeReturnQueueItem),
     [returns],
   );
-  const queueSummary = useMemo(() => buildQueueSummary(queueItems), [queueItems]);
+  const searchQuery = searchParams.get("search") || "";
+  const visibleQueueItems = useMemo(
+    () => filterQueueItems(queueItems, { search: searchQuery }),
+    [queueItems, searchQuery],
+  );
+  const visibleReturns = useMemo(
+    () => visibleQueueItems.map((item) => item.raw),
+    [visibleQueueItems],
+  );
+  const queueSummary = useMemo(() => buildQueueSummary(visibleQueueItems), [visibleQueueItems]);
   const selectedQueueItem = useMemo(
     () => (selectedQueueReturn ? normalizeReturnQueueItem(selectedQueueReturn) : null),
     [selectedQueueReturn],
@@ -258,7 +269,18 @@ export default function AdminReturns() {
           />
         </div>
 
-        {returns.length === 0 ? (
+        {searchQuery ? (
+          <div className="mb-6 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+            <p className="text-sm font-semibold text-orange-800">
+              Filtering returns by: {searchQuery}
+            </p>
+            <Link to="/admin/returns" className="text-sm font-bold text-orange-700 hover:text-orange-900">
+              Clear search
+            </Link>
+          </div>
+        ) : null}
+
+        {visibleReturns.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-xl shadow-sm">
             <div className="w-24 h-24 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
               <svg
@@ -279,7 +301,7 @@ export default function AdminReturns() {
               No Returns Yet
             </h3>
             <p className="text-gray-600">
-              No return requests have been submitted yet.
+              {searchQuery ? `No return requests match "${searchQuery}".` : "No return requests have been submitted yet."}
             </p>
           </div>
         ) : (
@@ -321,7 +343,7 @@ export default function AdminReturns() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {returns.map((returnItem) => (
+                  {visibleReturns.map((returnItem) => (
                     <tr key={returnItem._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="font-mono text-sm text-gray-900">
