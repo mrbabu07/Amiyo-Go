@@ -1,6 +1,6 @@
 # Amiyo-Go Daraz-Level Marketplace Audit
 
-Last audited: May 18, 2026
+Last audited: May 19, 2026
 
 ## Purpose
 
@@ -369,3 +369,38 @@ Whole-project health pass:
 - Price-drop stock alerts now keep their `price_drop` subtype when creating push notifications and receive the same notification model context as other stock alerts.
 - Stock alert checkers now mark an alert as notified only after the related delivery call succeeds, preventing silent loss of failed alerts.
 - Added backend Jest coverage for low-stock email delivery, price-drop push subtype handling, and failed-alert retry behavior.
+
+## Phase 7 Trust And Safety Snapshot
+
+Phase 7 now has a backend trust-safety foundation. It does not replace the existing admin trust pages; it adds the reusable operating layer underneath them so customer reports, risk signals, disputes, enforcement actions, payout holds, and appeals can follow one auditable workflow.
+
+Current Phase 7 status by step:
+
+| Step | Status | Evidence / Gap |
+|---|---|---|
+| 7.1 Trust policy model | Complete baseline | `TrustPolicyService` defines policy types, severity, automatic actions, manual-review rules, escalation queues, and appeal rules. |
+| 7.2 Identity and verification | Complete baseline | `TrustSafety` stores subject verification records for customers/vendors with email, phone, document, risk, and manual-review state. |
+| 7.3 Risk scoring engine | Complete baseline | `RiskScoringService` records risk events, rebuilds subject profiles, and scores review, return, promo, account, chat, payout, and product-content risk. |
+| 7.4 Account abuse protection | Complete baseline | Account risk scoring covers failed-login bursts, suspicious sessions, repeated devices, and step-up verification recommendations. |
+| 7.5 Product/content moderation | Complete baseline | Product-content scoring flags prohibited keywords, duplicate listings, misleading pricing, and policy actions. |
+| 7.6 Fake review prevention | Complete baseline | Review risk scoring flags unverified purchases, fast reviews, bursts, and repetitive text. |
+| 7.7 Returns abuse detection | Complete baseline | Return risk scoring flags high return rate, high value, repeated claim patterns, and COD refusal history. |
+| 7.8 Promo abuse protection | Complete baseline | Promo risk scoring flags voucher testing, duplicate-device accounts, first-order discount abuse, and cancelled discounted orders. |
+| 7.9 Reporting tools | Complete baseline | Public `/api/trust-safety/reports` and admin report-action routes create report cases with reason routing, evidence, actions, and queue metadata. |
+| 7.10 Dispute workflow | Complete baseline | `TrustCaseService` adds a trust dispute state machine with evidence, timeline, valid transitions, and admin transition routes. |
+| 7.11 Evidence/case management | Complete baseline | Case and report evidence are stored as structured records with actor, type, URL/text, metadata, and timestamps. |
+| 7.12 Admin trust queues | Complete baseline | `/api/admin/trust-safety/queues` summarizes open reports, disputes, and high-risk profiles into queue workloads. |
+| 7.13 Enforcement actions | Complete baseline | `EnforcementService` creates warn/hold/unpublish/remove/suspend/ban actions, writes audit events, and applies payout holds. |
+| 7.14 Appeals workflow | Complete baseline | Authenticated appeal submission and admin appeal review support uphold, modify, and reverse outcomes. |
+| 7.15 Trust dashboards | Complete baseline | `/api/admin/trust-safety/dashboard-v2` exposes reports, disputes, enforcements, appeals, high-risk profiles, payout holds, queues, and recent risk events. |
+| 7.16 Chat/support safety | Complete baseline | Chat safety scoring flags abusive language and risky attachments for moderation or mute workflows. |
+| 7.17 Payout risk controls | Complete baseline | Payout risk scoring and enforcement payout holds protect vendors with disputes, recent payout changes, or high-risk profiles. |
+| 7.18 Auditability | Complete baseline | Enforcement and appeal decisions write both global audit logs and trust-specific audit events. |
+
+Latest Phase 7 implementation slice:
+
+- Added `TrustSafety` model collections and indexes for policies, verifications, risk events/profiles, reports, evidence, disputes, enforcements, appeals, payout holds, queues, and trust audit events.
+- Added `TrustPolicyService`, `RiskScoringService`, `TrustCaseService`, and `EnforcementService`.
+- Added public trust routes for policies, buyer/seller reports, appeals, and authenticated risk profile lookup.
+- Extended admin trust-safety routes with policy management, verification updates, risk events, risk profiles, queue summary, report actions, dispute cases, evidence, enforcement, appeals, scoring endpoints, and dashboard v2.
+- Added focused Jest coverage for policy evaluation, risk profile rebuilding, return/review/promo/payout scoring, report routing, dispute transitions, payout holds, enforcement audit logs, and appeals.

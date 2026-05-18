@@ -84,6 +84,7 @@ const DispatchAssignment = require("./models/DispatchAssignment");
 const VendorStaff = require("./models/VendorStaff");
 const Shipment = require("./models/Shipment");
 const Promotion = require("./models/Promotion");
+const TrustSafety = require("./models/TrustSafety");
 const { DEFAULT_ROLE_PERMISSIONS } = require("./config/permissions");
 const analyticsService = require("./services/analyticsService");
 const { initBulkUploadQueue } = require("./services/bulkUploadQueue");
@@ -158,6 +159,7 @@ const dispatchRoutes = require("./routes/dispatchRoutes");
 const vendorStaffRoutes = require("./routes/vendorStaffRoutes");
 const accountRoutes = require("./routes/accountRoutes");
 const growthRoutes = require("./routes/growthRoutes");
+const trustSafetyRoutes = require("./routes/trustSafetyRoutes");
 const adminGrowthRoutes = require("./routes/adminGrowthRoutes");
 const vendorGrowthRoutes = require("./routes/vendorGrowthRoutes");
 
@@ -286,6 +288,7 @@ async function run() {
       VendorStaff: new VendorStaff(db),
       Shipment: new Shipment(db),
       Promotion: new Promotion(db),
+      TrustSafety: new TrustSafety(db),
     };
 
     await app.locals.models.Permission.syncDefaults(DEFAULT_ROLE_PERMISSIONS);
@@ -364,6 +367,7 @@ async function run() {
     app.use("/api/recommendations", recommendationRoutes);
     app.use("/api/discovery", discoveryRoutes);
     app.use("/api/growth", growthRoutes);
+    app.use("/api/trust-safety", trustSafetyRoutes);
     console.log("✅ Recommendations routes registered");
 
     app.use("/api/stock-alerts", stockAlertRoutes);
