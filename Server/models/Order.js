@@ -425,7 +425,7 @@ class Order {
     const paymentStatus =
       orderData.paymentMethod === "cod" ? "pending" : "pending_verification";
 
-    const result = await this.collection.insertOne({
+    const orderDocument = {
       ...orderData,
       subtotal: Math.round(subtotal * 100) / 100,
       couponDiscount: round2(couponDiscountAmount),
@@ -444,7 +444,26 @@ class Order {
       status: "pending",
       createdAt: new Date(),
       canCancelUntil: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes from now
-    });
+    };
+    const result = await this.collection.insertOne(orderDocument);
+    try {
+      await this.collection.db.collection("promotion_snapshots").insertOne({
+        orderId: result.insertedId.toString(),
+        userId: orderData.userId || null,
+        source: "order.create",
+        version: orderData.growthPromotionResult?.version || discountBreakdown.version || 1,
+        appliedPromotions: orderData.growthPromotionResult?.appliedPromotions || discountBreakdown.lines || [],
+        rejectedPromotions: orderData.growthPromotionResult?.rejectedPromotions || [],
+        totals: orderData.growthPromotionResult?.totals || discountBreakdown.totals || {},
+        rules: orderData.growthPromotionResult?.rules || promotionRules,
+        legacyDiscountBreakdown: discountBreakdown,
+        createdAt: new Date(),
+      });
+    } catch (snapshotError) {
+      if (process.env.NODE_ENV !== "test") {
+        console.error("Failed to save promotion snapshot:", snapshotError.message);
+      }
+    }
     return result.insertedId;
   }
 

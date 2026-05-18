@@ -83,6 +83,7 @@ const OrderEvent = require("./models/OrderEvent");
 const DispatchAssignment = require("./models/DispatchAssignment");
 const VendorStaff = require("./models/VendorStaff");
 const Shipment = require("./models/Shipment");
+const Promotion = require("./models/Promotion");
 const { DEFAULT_ROLE_PERMISSIONS } = require("./config/permissions");
 const analyticsService = require("./services/analyticsService");
 const { initBulkUploadQueue } = require("./services/bulkUploadQueue");
@@ -156,6 +157,9 @@ const analyticsRoutes = require("./routes/analyticsRoutes");
 const dispatchRoutes = require("./routes/dispatchRoutes");
 const vendorStaffRoutes = require("./routes/vendorStaffRoutes");
 const accountRoutes = require("./routes/accountRoutes");
+const growthRoutes = require("./routes/growthRoutes");
+const adminGrowthRoutes = require("./routes/adminGrowthRoutes");
+const vendorGrowthRoutes = require("./routes/vendorGrowthRoutes");
 
 // Campaign Manager routes
 const campaignRoutes = require("./routes/campaignRoutes");
@@ -281,6 +285,7 @@ async function run() {
       DispatchAssignment: new DispatchAssignment(db),
       VendorStaff: new VendorStaff(db),
       Shipment: new Shipment(db),
+      Promotion: new Promotion(db),
     };
 
     await app.locals.models.Permission.syncDefaults(DEFAULT_ROLE_PERMISSIONS);
@@ -358,6 +363,7 @@ async function run() {
 
     app.use("/api/recommendations", recommendationRoutes);
     app.use("/api/discovery", discoveryRoutes);
+    app.use("/api/growth", growthRoutes);
     console.log("✅ Recommendations routes registered");
 
     app.use("/api/stock-alerts", stockAlertRoutes);
@@ -389,6 +395,8 @@ async function run() {
     console.log("✅ Vendor Order Management routes registered");
     app.use("/api/vendor/logistics", vendorLogisticsRoutes);
     console.log("Vendor Logistics routes registered");
+    app.use("/api/vendor/growth", vendorGrowthRoutes);
+    console.log("Vendor Growth routes registered");
 
     app.use("/api/admin/users",    adminUserRoutes);
     console.log("✅ Admin User Management routes registered");
@@ -416,6 +424,8 @@ async function run() {
 
     app.use("/api/admin/promotions", adminPromotionRoutes);
     console.log("Admin Promotions routes registered");
+    app.use("/api/admin/growth", adminGrowthRoutes);
+    console.log("Admin Growth routes registered");
 
     app.use("/api/admin/logistics", adminLogisticsRoutes);
     console.log("Admin Logistics routes registered");
