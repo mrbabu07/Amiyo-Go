@@ -111,6 +111,30 @@ const validateRow = (row, rowNumber, categoryMap) => {
 
 const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
+const buildReportSnapshot = (reportRows = []) => {
+  const rows = reportRows.slice(1).map(([rowNumber, title, status, error, productId]) => ({
+    rowNumber,
+    title,
+    status,
+    error,
+    productId,
+  }));
+
+  const failedRows = rows.filter((row) => row.status === "failed");
+  const successRows = rows.filter((row) => row.status === "success");
+
+  return {
+    reportRows: rows.slice(0, 100),
+    reportSummary: {
+      totalRows: rows.length,
+      imported: successRows.length,
+      failed: failedRows.length,
+      failedRows: failedRows.slice(0, 25),
+      hasMoreRows: rows.length > 100,
+    },
+  };
+};
+
 const processJob = async (jobId) => {
   const app = appRef;
   const db = app.locals.db;
@@ -189,6 +213,7 @@ const processJob = async (jobId) => {
   }
 
   const reportCsv = report.map((line) => line.map(csvEscape).join(",")).join("\n");
+  const reportSnapshot = buildReportSnapshot(report);
   await db.collection("bulk_upload_jobs").updateOne(
     { _id: jobDoc._id },
     {
@@ -198,6 +223,7 @@ const processJob = async (jobId) => {
         imported,
         failed,
         reportCsv,
+        ...reportSnapshot,
         completedAt: new Date(),
         updatedAt: new Date(),
       },
@@ -260,4 +286,8 @@ const enqueueBulkUpload = async ({ app, vendor, user, file }) => {
 module.exports = {
   initBulkUploadQueue,
   enqueueBulkUpload,
+  __test__: {
+    buildReportSnapshot,
+    validateRow,
+  },
 };

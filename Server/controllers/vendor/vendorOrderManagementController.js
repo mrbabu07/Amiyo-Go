@@ -707,6 +707,90 @@ exports.schedulePickup = async (req, res) => {
   }
 };
 
+exports.recordDeliveryException = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const {
+      reason = "",
+      resolution = "reattempt",
+      notes = "",
+      retryDate = "",
+    } = req.body;
+    const cleanedReason = String(reason || "").trim();
+    const cleanedResolution = String(resolution || "reattempt").trim();
+
+    if (!cleanedReason) {
+      return res.status(400).json({ error: "Delivery exception reason is required" });
+    }
+
+    const db = req.app.locals.db;
+    const { order, vendor, vendorId, vendorItems } = await getVendorOrderContext(req, orderId);
+    const invalidItems = vendorItems.some((item) =>
+      ["cancelled", "delivered", "returned"].includes(item.itemStatus),
+    );
+
+    if (invalidItems) {
+      return res.status(400).json({ error: "Exceptions cannot be recorded for cancelled, returned, or delivered items" });
+    }
+
+    const now = new Date();
+    const exception = {
+      reason: cleanedReason,
+      resolution: cleanedResolution,
+      notes: String(notes || "").trim(),
+      retryDate: retryDate ? new Date(retryDate) : null,
+      status: "open",
+      recordedAt: now,
+      recordedBy: req.user?.uid || null,
+    };
+
+    await db.collection("orders").updateOne(
+      { _id: new ObjectId(orderId) },
+      {
+        $set: {
+          "products.$[elem].courierPickupStatus": "exception",
+          "products.$[elem].deliveryException": exception,
+          updatedAt: now,
+        },
+      },
+      { arrayFilters: [getVendorArrayFilter(vendorId)] },
+    );
+
+    await updateVendorOrderSnapshot(db, orderId, vendorId, {
+      courierPickupStatus: "exception",
+      deliveryException: exception,
+      exceptionOpenAt: now,
+    });
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId,
+      vendorId,
+      status: "delivery_exception",
+      label: "Delivery exception recorded",
+      actorId: req.user?.uid,
+      actorRole: "vendor",
+      note: `${cleanedReason}${notes ? ` - ${notes}` : ""}`,
+      metadata: { deliveryException: exception },
+    });
+
+    await notifyCustomer(req, order, {
+      type: "delivery_exception",
+      title: "Delivery needs attention",
+      message: `${vendor.shopName || "Vendor"} reported a delivery issue: ${cleanedReason}.`,
+    });
+
+    res.json({
+      success: true,
+      message: "Delivery exception recorded",
+      data: { orderId, deliveryException: exception },
+    });
+  } catch (error) {
+    console.error("Error recording delivery exception:", error);
+    res.status(error.statusCode || 500).json({ error: error.message || "Failed to record delivery exception" });
+  }
+};
+
 exports.markCodCollected = async (req, res) => {
   try {
     const { orderId } = req.params;

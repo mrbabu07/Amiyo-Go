@@ -112,6 +112,13 @@ describe("vendor settings controller", () => {
           city: "Dhaka",
           district: "Dhaka",
         },
+        deliverySettings: {
+          sameDistrictFee: "90",
+          outsideDistrictFee: "140",
+          pickupEnabled: false,
+          preparationTime: "24 hours",
+          defaultCourier: "Pathao",
+        },
         notificationPreferences: {
           new_order: { email: true, sms: true, push: true },
         },
@@ -167,6 +174,13 @@ describe("vendor settings controller", () => {
           contactName: "Returns",
           phone: "01900000000",
           country: "Bangladesh",
+        }),
+        deliverySettings: expect.objectContaining({
+          sameDistrictFee: 90,
+          outsideDistrictFee: 140,
+          pickupEnabled: false,
+          preparationTime: "24 hours",
+          defaultCourier: "Pathao",
         }),
         notificationPreferences: {
           new_order: { email: true, sms: true, push: true },

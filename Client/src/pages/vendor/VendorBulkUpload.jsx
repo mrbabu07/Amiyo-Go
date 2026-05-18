@@ -237,14 +237,19 @@ export default function VendorBulkUpload() {
       } else if (latest.status === "failed") {
         toast.error(latest.error || "Bulk upload failed");
       } else {
-        setResults([
-          {
-            rowNumber: "-",
-            title: `${latest.imported || 0} imported, ${latest.failed || 0} failed`,
-            status: latest.failed ? "failed" : "success",
-            error: latest.failed ? "Download the validation report for row details." : "",
-          },
-        ]);
+        const reportRows = Array.isArray(latest.reportRows) ? latest.reportRows : [];
+        setResults(
+          reportRows.length
+            ? reportRows
+            : [
+                {
+                  rowNumber: "-",
+                  title: `${latest.imported || 0} imported, ${latest.failed || 0} failed`,
+                  status: latest.failed ? "failed" : "success",
+                  error: latest.failed ? "Download the validation report for row details." : "",
+                },
+              ],
+        );
         toast.success(`${latest.imported || 0} products imported for approval`);
       }
     } catch (error) {
@@ -277,6 +282,12 @@ export default function VendorBulkUpload() {
 
   const successCount = results.filter((result) => result.status === "success").length;
   const failedCount = results.filter((result) => result.status === "failed").length;
+  const resultSummary = job?.reportSummary || {
+    totalRows: results.length,
+    imported: successCount,
+    failed: failedCount,
+    failedRows: results.filter((result) => result.status === "failed").slice(0, 25),
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -421,14 +432,24 @@ export default function VendorBulkUpload() {
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold text-gray-900">Upload Result</h3>
-                    <p className="text-sm text-gray-500">{successCount} success, {failedCount} failed</p>
+                    <p className="text-sm text-gray-500">
+                      {resultSummary.imported || successCount} imported, {resultSummary.failed || failedCount} failed from {resultSummary.totalRows || results.length} rows
+                    </p>
                   </div>
-                  {failedCount > 0 && (
+                  {(resultSummary.failed || failedCount) > 0 && (
                     <button onClick={downloadErrorReport} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
                       Download Errors
                     </button>
                   )}
                 </div>
+                {resultSummary.failed > 0 && (
+                  <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-sm font-semibold text-amber-900">Partial success needs review</p>
+                    <p className="mt-1 text-sm text-amber-800">
+                      Valid products were imported for approval. Fix the failed rows below, then upload a corrected CSV for those rows only.
+                    </p>
+                  </div>
+                )}
                 <div className="max-h-80 overflow-auto rounded-lg border border-gray-100">
                   {results.map((result) => (
                     <div key={`${result.rowNumber}-${result.title}`} className="flex items-center justify-between border-b border-gray-100 px-4 py-3 last:border-b-0">

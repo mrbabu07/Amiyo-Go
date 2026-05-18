@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   Copy,
   Edit3,
+  History,
+  Info,
   KeyRound,
   Landmark,
   Loader2,
@@ -20,6 +22,7 @@ import {
   Smartphone,
   Star,
   Trash2,
+  Truck,
   UserPlus,
   Users,
   XCircle,
@@ -32,6 +35,7 @@ import {
   getNotificationPreferences,
   getShopStatus,
   getVendorStaff,
+  getVendorStaffAudit,
   inviteVendorStaff,
   removeVendorStaff,
   setVacationMode,
@@ -113,6 +117,21 @@ const emptyAddress = () => ({
 const emptyReturnAddress = () => ({
   ...emptyAddress(),
   label: "Return address",
+});
+
+const defaultDeliverySettings = () => ({
+  selfDeliveryEnabled: true,
+  pickupEnabled: true,
+  sameUnionFee: 30,
+  sameUpazilaFee: 50,
+  sameDistrictFee: 80,
+  outsideDistrictFee: 120,
+  freeDeliveryThreshold: 0,
+  perishableFee: 20,
+  handlingFee: 0,
+  orderCutoffHour: 14,
+  preparationTime: "1-2 days",
+  defaultCourier: "Platform courier",
 });
 
 const defaultNotifications = () =>
@@ -198,6 +217,11 @@ const normalizeNotifications = (vendorPreferences = {}, pushPreferences = {}) =>
   }, {});
 };
 
+const normalizeDeliverySettings = (vendor) => ({
+  ...defaultDeliverySettings(),
+  ...(vendor?.deliverySettings || {}),
+});
+
 const formatDateValue = (date) => {
   if (!date) return "";
   const value = new Date(date);
@@ -226,6 +250,7 @@ const VendorSettings = () => {
   const [vendor, setVendor] = useState(null);
   const [shopStatus, setShopStatus] = useState(null);
   const [staff, setStaff] = useState([]);
+  const [staffAudit, setStaffAudit] = useState([]);
 
   const [payoutAccounts, setPayoutAccounts] = useState([]);
   const [accountForm, setAccountForm] = useState(emptyPayoutAccount);
@@ -235,6 +260,10 @@ const VendorSettings = () => {
   const [pickupForm, setPickupForm] = useState(emptyAddress);
   const [editingPickupId, setEditingPickupId] = useState("");
   const [returnAddress, setReturnAddress] = useState(emptyReturnAddress);
+  const [deliverySettings, setDeliverySettings] = useState(defaultDeliverySettings);
+  const [shippingNotes, setShippingNotes] = useState("");
+  const [processingTime, setProcessingTime] = useState("");
+  const [returnPolicy, setReturnPolicy] = useState("");
 
   const [vacationForm, setVacationForm] = useState({
     vacationStart: "",
@@ -262,10 +291,11 @@ const VendorSettings = () => {
 
     setLoading(true);
     try {
-      const [profileResponse, statusResponse, staffResponse, preferenceResponse] = await Promise.allSettled([
+      const [profileResponse, statusResponse, staffResponse, auditResponse, preferenceResponse] = await Promise.allSettled([
         getMyVendorProfile(),
         getShopStatus(),
         getVendorStaff(),
+        getVendorStaffAudit({ limit: 30 }),
         getNotificationPreferences(),
       ]);
 
@@ -278,6 +308,10 @@ const VendorSettings = () => {
       setVendor(nextVendor);
       setPayoutAccounts(normalizeAccounts(nextVendor));
       setPickupAddresses(normalizeAddresses(nextVendor));
+      setDeliverySettings(normalizeDeliverySettings(nextVendor));
+      setShippingNotes(nextVendor?.shippingNotes || "");
+      setProcessingTime(nextVendor?.processingTime || nextVendor?.deliverySettings?.preparationTime || "");
+      setReturnPolicy(nextVendor?.returnPolicy || "");
       setReturnAddress({
         ...emptyReturnAddress(),
         ...(nextVendor?.returnAddress || {}),
@@ -296,6 +330,9 @@ const VendorSettings = () => {
 
       const staffData = staffResponse.status === "fulfilled" ? readData(staffResponse.value) : [];
       setStaff(Array.isArray(staffData) ? staffData : staffData?.data || []);
+
+      const auditData = auditResponse.status === "fulfilled" ? readData(auditResponse.value) : [];
+      setStaffAudit(Array.isArray(auditData) ? auditData : auditData?.data || []);
 
       const pushPreferences = preferenceResponse.status === "fulfilled" ? readData(preferenceResponse.value) : {};
       setNotificationPreferences(normalizeNotifications(nextVendor?.notificationPreferences, pushPreferences));
@@ -450,7 +487,17 @@ const VendorSettings = () => {
   };
 
   const saveAddresses = () => {
-    saveVendorProfile({ pickupAddresses, returnAddress }, "Address settings saved");
+    saveVendorProfile(
+      {
+        pickupAddresses,
+        returnAddress,
+        deliverySettings,
+        shippingNotes,
+        processingTime,
+        returnPolicy,
+      },
+      "Fulfillment settings saved",
+    );
   };
 
   const saveVacation = async (event) => {
@@ -1139,6 +1186,110 @@ const VendorSettings = () => {
                   />
                 </div>
               </section>
+
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 text-orange-700">
+                    <Truck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-950">Shipping rules</h2>
+                    <p className="text-sm text-slate-600">These values power seller promises, delivery notes, and pickup defaults.</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Preparation time"
+                    value={deliverySettings.preparationTime}
+                    onChange={(value) => {
+                      setDeliverySettings((settings) => ({ ...settings, preparationTime: value }));
+                      setProcessingTime(value);
+                    }}
+                    placeholder="1-2 days"
+                  />
+                  <Field
+                    label="Default courier"
+                    value={deliverySettings.defaultCourier}
+                    onChange={(value) => setDeliverySettings((settings) => ({ ...settings, defaultCourier: value }))}
+                    placeholder="Platform courier"
+                  />
+                  <Field
+                    type="number"
+                    label="Cutoff hour"
+                    value={deliverySettings.orderCutoffHour}
+                    onChange={(value) => setDeliverySettings((settings) => ({ ...settings, orderCutoffHour: value }))}
+                    placeholder="14"
+                  />
+                  <Field
+                    type="number"
+                    label="Free delivery above"
+                    value={deliverySettings.freeDeliveryThreshold}
+                    onChange={(value) => setDeliverySettings((settings) => ({ ...settings, freeDeliveryThreshold: value }))}
+                    placeholder="0"
+                  />
+                  <Field
+                    type="number"
+                    label="Same district fee"
+                    value={deliverySettings.sameDistrictFee}
+                    onChange={(value) => setDeliverySettings((settings) => ({ ...settings, sameDistrictFee: value }))}
+                    placeholder="80"
+                  />
+                  <Field
+                    type="number"
+                    label="Outside district fee"
+                    value={deliverySettings.outsideDistrictFee}
+                    onChange={(value) => setDeliverySettings((settings) => ({ ...settings, outsideDistrictFee: value }))}
+                    placeholder="120"
+                  />
+                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(deliverySettings.pickupEnabled)}
+                      onChange={(event) => setDeliverySettings((settings) => ({ ...settings, pickupEnabled: event.target.checked }))}
+                      className="h-4 w-4 rounded border-slate-300 text-orange-600"
+                    />
+                    Buyer pickup allowed
+                  </label>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(deliverySettings.selfDeliveryEnabled)}
+                      onChange={(event) => setDeliverySettings((settings) => ({ ...settings, selfDeliveryEnabled: event.target.checked }))}
+                      className="h-4 w-4 rounded border-slate-300 text-orange-600"
+                    />
+                    Seller delivery supported
+                  </label>
+                  <label className="sm:col-span-2">
+                    <span className="text-sm font-semibold text-slate-700">Shipping note</span>
+                    <textarea
+                      value={shippingNotes}
+                      onChange={(event) => setShippingNotes(event.target.value)}
+                      rows={3}
+                      placeholder="Courier across Bangladesh. Fresh items ship inside the cutoff window."
+                      className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                    />
+                  </label>
+                  <label className="sm:col-span-2">
+                    <span className="text-sm font-semibold text-slate-700">Return policy summary</span>
+                    <textarea
+                      value={returnPolicy}
+                      onChange={(event) => setReturnPolicy(event.target.value)}
+                      rows={3}
+                      placeholder="Example: Returns accepted within 3 days for damaged or wrong items."
+                      className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 flex gap-3 rounded-lg border border-sky-100 bg-sky-50 p-3 text-xs text-sky-800">
+                  <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <p>
+                    Admin delivery-zone rules still control final checkout fees. Vendor values here explain readiness,
+                    pickup preference, and seller-funded delivery promises.
+                  </p>
+                </div>
+              </section>
             </div>
           </div>
         )}
@@ -1261,6 +1412,17 @@ const VendorSettings = () => {
                   </div>
                 ))}
               </div>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-950">Staff audit trail</h2>
+                  <p className="text-sm text-slate-600">Owner-only history for invites, permission edits, pauses, and removals.</p>
+                </div>
+                <History className="h-5 w-5 text-slate-400" />
+              </div>
+              <StaffAuditTrail logs={staffAudit} />
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -1550,6 +1712,18 @@ const Field = ({
   </div>
 );
 
+const formatAuditTime = (value) => {
+  if (!value) return "Not recorded";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not recorded";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
 const PermissionSummary = ({ permissions = [] }) => {
   const grouped = buildVendorPermissionMatrix(permissions)
     .map((group) => ({
@@ -1583,6 +1757,58 @@ const PermissionSummary = ({ permissions = [] }) => {
           </div>
         </div>
       ))}
+    </div>
+  );
+};
+
+const StaffAuditTrail = ({ logs = [] }) => {
+  if (!logs.length) {
+    return (
+      <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+        Staff changes will appear here after the next invite or permission update.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5 space-y-3">
+      {logs.slice(0, 8).map((log) => {
+        const changes = log.changes || {};
+        const added = changes.permissions?.added || [];
+        const removed = changes.permissions?.removed || [];
+
+        return (
+          <div key={log._id || `${log.action}-${log.createdAt}`} className="rounded-lg border border-slate-200 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">
+                  {(log.action || "staff.updated").replace("staff.", "").replace(/_/g, " ")}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {log.staffName || log.staffEmail || "Staff member"} - {log.summary || "Access changed"}
+                </p>
+              </div>
+              <span className="whitespace-nowrap text-xs font-medium text-slate-500">
+                {formatAuditTime(log.createdAt)}
+              </span>
+            </div>
+            {(added.length > 0 || removed.length > 0) && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {added.map((permission) => (
+                  <span key={`add-${permission}`} className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                    + {permission}
+                  </span>
+                ))}
+                {removed.map((permission) => (
+                  <span key={`remove-${permission}`} className="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700">
+                    - {permission}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };

@@ -6,6 +6,7 @@ const {
   markReadyToShip,
   markPickupReady,
   schedulePickup,
+  recordDeliveryException,
   shipOrder,
   markDelivered,
   markCodCollected,
@@ -27,6 +28,7 @@ router.post("/orders/:orderId/reject", rejectOrder);
 router.post("/orders/:orderId/ready-to-ship", markReadyToShip);
 router.post("/orders/:orderId/pickup-ready", markPickupReady);
 router.post("/orders/:orderId/schedule-pickup", schedulePickup);
+router.post("/orders/:orderId/delivery-exception", recordDeliveryException);
 router.post("/orders/:orderId/ship", shipOrder);
 router.post("/orders/:orderId/deliver", markDelivered);
 router.post("/orders/:orderId/cod-collected", markCodCollected);

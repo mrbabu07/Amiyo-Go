@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  AlertTriangle,
   ArrowLeft,
   Banknote,
   Barcode,
@@ -25,6 +26,7 @@ import {
   getVendorOrderTimeline,
   getVendorReturns,
   markVendorCodCollected,
+  recordVendorDeliveryException,
   rejectVendorOrder,
   scheduleVendorPickup,
   sendVendorBuyerMessage,
@@ -49,6 +51,15 @@ const pickupSlots = [
   "12:00 PM - 03:00 PM",
   "03:00 PM - 06:00 PM",
   "06:00 PM - 09:00 PM",
+];
+
+const deliveryExceptionReasons = [
+  "Courier missed pickup",
+  "Customer unavailable",
+  "Address issue",
+  "Parcel damaged",
+  "COD collection dispute",
+  "Weather or road issue",
 ];
 
 const todayInputValue = () => new Date().toISOString().slice(0, 10);
@@ -227,6 +238,12 @@ export default function VendorOrderDetail() {
     courierName: "Platform courier",
     notes: "",
   });
+  const [exceptionForm, setExceptionForm] = useState({
+    reason: "",
+    resolution: "reattempt",
+    retryDate: "",
+    notes: "",
+  });
   const [message, setMessage] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [cancelNotes, setCancelNotes] = useState("");
@@ -280,6 +297,7 @@ export default function VendorOrderDetail() {
     return returns.filter((returnItem) => String(returnItem.orderId || "") === id);
   }, [order, returns]);
   const address = buildVendorOrderAddress(order?.shippingInfo || {});
+  const currentException = products.find((item) => item.deliveryException)?.deliveryException || order?.deliveryException;
 
   const runStatusAction = async (statusKey) => {
     if (!canManageOrders) {
@@ -383,6 +401,31 @@ export default function VendorOrderDetail() {
       await loadOrder();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to record COD collection", { id: loadingToast });
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const recordException = async (event) => {
+    event.preventDefault();
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot record delivery issues.");
+      return;
+    }
+    if (!exceptionForm.reason.trim()) {
+      toast.error("Select or enter a delivery exception reason");
+      return;
+    }
+
+    setBusy("exception");
+    const loadingToast = toast.loading("Recording delivery issue...");
+    try {
+      await recordVendorDeliveryException(orderId, exceptionForm);
+      toast.success("Delivery exception recorded", { id: loadingToast });
+      setExceptionForm({ reason: "", resolution: "reattempt", retryDate: "", notes: "" });
+      await loadOrder();
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to record delivery issue", { id: loadingToast });
     } finally {
       setBusy("");
     }
@@ -596,6 +639,78 @@ export default function VendorOrderDetail() {
                 >
                   <CalendarClock className="h-4 w-4" aria-hidden="true" />
                   Schedule pickup
+                </button>
+              </form>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-950">Delivery exception</h2>
+                  <p className="text-sm text-slate-500">Record missed pickup, address, damage, or COD issues.</p>
+                </div>
+                <AlertTriangle className="h-5 w-5 text-amber-500" aria-hidden="true" />
+              </div>
+              {currentException && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <p className="font-semibold">{currentException.reason || "Open delivery issue"}</p>
+                  {currentException.notes ? <p className="mt-1">{currentException.notes}</p> : null}
+                  <p className="mt-1 text-xs text-amber-700">
+                    Resolution: {currentException.resolution || "reattempt"}
+                    {currentException.retryDate ? `, retry ${formatDateTime(currentException.retryDate)}` : ""}
+                  </p>
+                </div>
+              )}
+              <form onSubmit={recordException} className="space-y-3">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Reason
+                  <select
+                    value={exceptionForm.reason}
+                    onChange={(event) => setExceptionForm((current) => ({ ...current, reason: event.target.value }))}
+                    className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  >
+                    <option value="">Select reason</option>
+                    {deliveryExceptionReasons.map((reason) => (
+                      <option key={reason} value={reason}>{reason}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm font-semibold text-slate-700">
+                  Resolution
+                  <select
+                    value={exceptionForm.resolution}
+                    onChange={(event) => setExceptionForm((current) => ({ ...current, resolution: event.target.value }))}
+                    className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  >
+                    <option value="reattempt">Reattempt pickup/delivery</option>
+                    <option value="customer_contact">Contact customer</option>
+                    <option value="return_to_seller">Return to seller</option>
+                    <option value="admin_help">Need admin help</option>
+                  </select>
+                </label>
+                <label className="block text-sm font-semibold text-slate-700">
+                  Retry date
+                  <input
+                    type="date"
+                    value={exceptionForm.retryDate}
+                    onChange={(event) => setExceptionForm((current) => ({ ...current, retryDate: event.target.value }))}
+                    className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  />
+                </label>
+                <textarea
+                  value={exceptionForm.notes}
+                  onChange={(event) => setExceptionForm((current) => ({ ...current, notes: event.target.value }))}
+                  rows={3}
+                  placeholder="Add courier, rider, address, or customer contact notes."
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                />
+                <button
+                  type="submit"
+                  disabled={!canManageOrders || !actionPlan.canRecordException || !exceptionForm.reason || busy === "exception"}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                  Record issue
                 </button>
               </form>
             </section>

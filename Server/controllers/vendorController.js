@@ -102,6 +102,39 @@ const normalizePickupAddresses = (addresses = []) => {
   }));
 };
 
+const normalizeDeliverySettings = (settings = {}, current = {}) => {
+  const numericFields = [
+    "sameUnionFee",
+    "sameUpazilaFee",
+    "sameDistrictFee",
+    "outsideDistrictFee",
+    "freeDeliveryThreshold",
+    "perishableFee",
+    "handlingFee",
+    "orderCutoffHour",
+  ];
+  const normalized = { ...(current || {}) };
+
+  numericFields.forEach((field) => {
+    if (settings[field] === undefined || settings[field] === "") return;
+    const value = Number(settings[field]);
+    if (Number.isFinite(value)) normalized[field] = value;
+  });
+
+  ["selfDeliveryEnabled", "pickupEnabled"].forEach((field) => {
+    if (settings[field] !== undefined) normalized[field] = Boolean(settings[field]);
+  });
+
+  if (settings.preparationTime !== undefined) {
+    normalized.preparationTime = toTrimmedString(settings.preparationTime);
+  }
+  if (settings.defaultCourier !== undefined) {
+    normalized.defaultCourier = toTrimmedString(settings.defaultCourier);
+  }
+
+  return normalized;
+};
+
 const base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 const base32Encode = (buffer) => {
@@ -740,6 +773,7 @@ exports.updateVendorProfile = async (req, res) => {
       payoutAccounts,
       pickupAddresses,
       returnAddress,
+      deliverySettings,
       notificationPreferences,
     } = req.body;
     const Vendor = req.app.locals.models.Vendor;
@@ -823,6 +857,10 @@ exports.updateVendorProfile = async (req, res) => {
 
     if (returnAddress !== undefined) {
       updateData.returnAddress = normalizeVendorAddress(returnAddress, "return");
+    }
+
+    if (deliverySettings !== undefined && typeof deliverySettings === "object") {
+      updateData.deliverySettings = normalizeDeliverySettings(deliverySettings, vendor.deliverySettings);
     }
 
     if (notificationPreferences !== undefined && typeof notificationPreferences === "object") {

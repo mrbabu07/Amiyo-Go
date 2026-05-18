@@ -714,6 +714,7 @@ export const createDispatchAssignment = (data) =>
 export const updateDispatchStatus = (id, data) =>
   api.patch(`/admin/dispatch/assignments/${id}/status`, data);
 export const getVendorStaff = () => api.get("/vendors/staff");
+export const getVendorStaffAudit = (params = {}) => api.get("/vendors/staff/audit", { params });
 export const inviteVendorStaff = (data) => api.post("/vendors/staff", data);
 export const updateVendorStaff = (id, data) => api.patch(`/vendors/staff/${id}`, data);
 export const removeVendorStaff = (id) => api.delete(`/vendors/staff/${id}`);
@@ -920,6 +921,8 @@ export const scheduleVendorPickup = (orderId, data) =>
   api.post(`/vendors/orders/${orderId}/schedule-pickup`, data);
 export const markVendorCodCollected = (orderId, data = {}) =>
   api.post(`/vendors/orders/${orderId}/cod-collected`, data);
+export const recordVendorDeliveryException = (orderId, data) =>
+  api.post(`/vendors/orders/${orderId}/delivery-exception`, data);
 export const sendVendorBuyerMessage = (orderId, data) =>
   api.post(`/vendors/orders/${orderId}/message-buyer`, data);
 export const downloadVendorPackingSlip = (orderId) =>

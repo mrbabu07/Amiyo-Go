@@ -48,6 +48,7 @@ Run focused backend black-box and white-box tests:
 cd Server
 npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController.blackbox.test.js __tests__/controllers/supportController.whitebox.test.js
 npm test -- --runInBand --runTestsByPath __tests__/controllers/returnController.vendorDetail.test.js
+npm test -- --runInBand --runTestsByPath __tests__/utils/vendorStaffAudit.test.js __tests__/services/bulkUploadQueue.test.js __tests__/controllers/vendorSettingsController.test.js
 ```
 
 ## Current Coverage Map
@@ -87,6 +88,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/returnController.
   - `Server/__tests__/controllers/returnController.vendorDetail.test.js`
   - `Server/__tests__/controllers/supportController.blackbox.test.js`
   - `Server/__tests__/routes.health.test.js`
+  - `Server/__tests__/services/bulkUploadQueue.test.js`
   - Existing route, controller, model, service, and utility Jest tests under `Server/__tests__`.
 - White-box helper behavior:
   - `Server/__tests__/controllers/supportController.whitebox.test.js`
@@ -95,6 +97,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/returnController.
   - `Server/__tests__/middleware/rateLimiter.test.js`
   - `Server/__tests__/utils/envValidation.test.js`
   - `Server/__tests__/utils/permissions.rbac.test.js`
+  - `Server/__tests__/utils/vendorStaffAudit.test.js`
   - Existing service and utility tests for delivery, checkout notes, promotions, loyalty, invoices, campaigns, and marketplace policies.
 
 ## Black-Box Testing Rules
@@ -171,7 +174,7 @@ The latest completed full-project verification:
 - `Client`: `npm test` passed, 22 suites / 89 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
-- `Server`: `npm test -- --runInBand` passed, 62 suites / 398 tests.
+- `Server`: `npm test -- --runInBand` passed, 64 suites / 402 tests.
 - Focused backend rate limiter analytics/defaults test passed, 1 suite / 7 tests.
 - Focused backend Phase 1 reliability/security tests passed, 5 suites / 13 tests.
 - Focused backend black-box and white-box support tests remain covered by the full backend run.
@@ -183,5 +186,6 @@ The latest completed full-project verification:
 - Focused frontend vendor order detail tests passed, 2 suites / 8 tests.
 - Focused frontend vendor staff permission tests and route guard tests passed, 5 suites / 20 tests.
 - Focused frontend vendor staff permission matrix tests passed, 2 suites / 8 tests.
+- Focused backend vendor staff audit, bulk upload report snapshot, and vendor settings delivery tests passed, 3 suites / 7 tests.
 - Focused backend vendor return detail test passed, 1 suite / 3 tests.
 - Focused backend API routing hardening tests passed, 3 suites / 124 tests.

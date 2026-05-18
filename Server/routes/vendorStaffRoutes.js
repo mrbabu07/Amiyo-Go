@@ -1,7 +1,29 @@
 const express = require("express");
+const { ObjectId } = require("mongodb");
 const { verifyToken, requireApprovedVendor, requireVendorPermission } = require("../middleware/auth");
+const {
+  buildVendorStaffAuditEntry,
+  summarizeStaffAuditEntry,
+} = require("../utils/vendorStaffAudit");
 
 const router = express.Router();
+
+const writeStaffAudit = async (req, payload) => {
+  try {
+    const entry = buildVendorStaffAuditEntry({
+      vendorId: req.vendor._id,
+      actorId: req.user?.uid,
+      ...payload,
+    });
+
+    await req.app.locals.db.collection("vendor_staff_audit_logs").insertOne({
+      ...entry,
+      summary: summarizeStaffAuditEntry(entry),
+    });
+  } catch (error) {
+    console.error("Failed to write vendor staff audit:", error.message);
+  }
+};
 
 const assertOwner = (req, res, next) => {
   if (req.vendorStaff) {
@@ -11,6 +33,26 @@ const assertOwner = (req, res, next) => {
 };
 
 router.use(verifyToken, requireApprovedVendor);
+
+router.get("/audit", requireVendorPermission("staff:manage"), assertOwner, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit || 40), 100);
+    const query = { vendorId: req.vendor._id.toString() };
+    if (req.query.staffId) query.staffId = String(req.query.staffId);
+
+    const logs = await req.app.locals.db
+      .collection("vendor_staff_audit_logs")
+      .find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .toArray();
+
+    res.json({ success: true, data: logs });
+  } catch (error) {
+    console.error("Error loading vendor staff audit:", error);
+    res.status(500).json({ success: false, error: "Failed to load staff audit history" });
+  }
+});
 
 router.get("/", requireVendorPermission("staff:manage"), assertOwner, async (req, res) => {
   try {
@@ -58,6 +100,13 @@ router.post("/", requireVendorPermission("staff:manage"), assertOwner, async (re
       );
     }
 
+    await writeStaffAudit(req, {
+      action: "staff.invited",
+      before: null,
+      after: staff,
+      metadata: { email, userLinked: Boolean(existingUser) },
+    });
+
     res.status(201).json({ success: true, data: staff });
   } catch (error) {
     const duplicate = error.code === 11000;
@@ -73,7 +122,7 @@ router.patch("/:id", requireVendorPermission("staff:manage"), assertOwner, async
     const VendorStaff = req.app.locals.models.VendorStaff;
     const staff = await VendorStaff.findById(req.params.id);
 
-    if (!staff || staff.vendorId !== req.vendor._id.toString()) {
+    if (!staff || staff.vendorId?.toString?.() !== req.vendor._id.toString()) {
       return res.status(404).json({ success: false, error: "Staff account not found" });
     }
 
@@ -84,6 +133,35 @@ router.patch("/:id", requireVendorPermission("staff:manage"), assertOwner, async
 
     await VendorStaff.update(req.params.id, update);
     const updated = await VendorStaff.findById(req.params.id);
+
+    if (updated?.userId && req.body.permissions !== undefined) {
+      const User = req.app.locals.models.User;
+      if (User?.collection) {
+        const userId = updated.userId.toString();
+        const userQuery = ObjectId.isValid(userId)
+          ? { $or: [{ _id: new ObjectId(userId) }, { _id: userId }] }
+          : { _id: userId };
+
+        await User.collection.updateOne(
+          userQuery,
+          {
+            $set: {
+              permissions: { vendor: updated.permissions || [] },
+              updatedAt: new Date(),
+              updatedBy: req.user.uid,
+            },
+          },
+        ).catch(() => null);
+      }
+    }
+
+    await writeStaffAudit(req, {
+      action: "staff.updated",
+      before: staff,
+      after: updated,
+      metadata: { staffId: req.params.id },
+    });
+
     res.json({ success: true, data: updated });
   } catch (error) {
     console.error("Error updating vendor staff:", error);
@@ -94,7 +172,22 @@ router.patch("/:id", requireVendorPermission("staff:manage"), assertOwner, async
 router.delete("/:id", requireVendorPermission("staff:manage"), assertOwner, async (req, res) => {
   try {
     const VendorStaff = req.app.locals.models.VendorStaff;
+    const staff = await VendorStaff.findById(req.params.id);
+
+    if (!staff || staff.vendorId?.toString?.() !== req.vendor._id.toString()) {
+      return res.status(404).json({ success: false, error: "Staff account not found" });
+    }
+
     await VendorStaff.remove(req.params.id, req.vendor._id);
+    const removed = await VendorStaff.findById(req.params.id);
+
+    await writeStaffAudit(req, {
+      action: "staff.removed",
+      before: staff,
+      after: removed || { ...staff, status: "removed" },
+      metadata: { staffId: req.params.id },
+    });
+
     res.json({ success: true, message: "Staff account removed" });
   } catch (error) {
     console.error("Error removing vendor staff:", error);

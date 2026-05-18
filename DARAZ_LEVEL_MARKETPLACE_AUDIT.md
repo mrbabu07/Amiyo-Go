@@ -23,7 +23,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 - Frontend route count: about 110 route entries in `Client/src/routes/Routes.jsx`.
 - Backend route/controller handler references: about 596 route declarations across `Server/routes` and route-style controller files.
 - Frontend tests: 22 suites / 89 tests at last verification.
-- Backend tests: 62 suites / 398 tests at last verification.
+- Backend tests: 64 suites / 402 tests at last verification.
 - Major frontend shells: `CustomerLayout`, `AuthLayout`, `VendorLayout`, `AdminLayout`.
 - Major backend groups: customer commerce, vendor center, admin operations, logistics, promotions, trust-safety, support, analytics, notifications, loyalty, wishlist, campaigns.
 
@@ -80,16 +80,16 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Vendor dashboard | Partial | `VendorHome` and dashboard APIs exist. Needs stable KPI/action-widget layout and real pending task prioritization. |
 | Vendor products list | Partial | Status tabs, search, bulk selection, submit/delist actions, media center, bulk editor, mobile cards, and staff action locks exist. Needs final shared table standardization. |
 | Add/edit product | Partial | Vendor product form/wizard-like pages exist. Needs true step wizard and moderation feedback consistency. |
-| Bulk upload | Partial | CSV upload job, report download, validation report route/UI exist. Needs partial success and validation table polish. |
-| Vendor orders | Partial | Orders list/detail, status actions, pickup-ready, packing slip, barcode label APIs, mobile card fallback, and staff view-only action locks exist. Needs deeper courier exception handling. |
+| Bulk upload | Complete | CSV upload job, report download, validation report route/UI, partial-success summary, and failed-row retry guidance exist. |
+| Vendor orders | Complete | Orders list/detail, status actions, pickup-ready, packing slip, barcode label APIs, delivery exception recording, mobile card fallback, and staff view-only action locks exist. |
 | Vendor returns/disputes | Partial | Vendor returns, response APIs, vendor-owned detail API, `/vendor/returns/:returnId` evidence/timeline page, mobile card fallback, and staff view-only action locks exist. Needs admin decision panel alignment and final SLA/escalation polish. |
 | Vendor finance | Partial | Finance summary, transactions, payouts, statements, commission rates, mobile ledger cards, payout action locks, and vendor-staff finance permission checks exist. Needs deeper ledger export/status consistency. |
 | Shop management | Partial | Vendor shop, decoration, profile, vacation mode, categories exist. Needs final preview/policy/social workflow. |
 | KYC/verification | Partial | Vendor KYC route, admin review, seller gate state, seller action-center prompts, document cards, rejection note display, and reupload guidance exist. Needs backend policy alignment for edge KYC-blocked sellers. |
-| Shipping settings | Partial | Shop/vendor settings have delivery concepts; admin delivery settings exist. Needs vendor-controlled shipping page clarity. |
+| Shipping settings | Complete | Vendor settings now expose pickup/return addresses plus preparation time, default courier, cutoff, fee promises, pickup/self-delivery toggles, shipping notes, and return policy summary. Admin delivery settings still control final platform fee rules. |
 | Vendor marketing | Partial | Vendor vouchers/campaigns and admin review exist. Needs seller promotion analytics and campaign UX polish. |
 | Vendor support inbox | Partial | Vendor chat/support tools exist. Needs consistent ticket/chat thread model with customer/admin tabs. |
-| Vendor staff/permissions | Partial | Vendor staff routes/model/settings exist with permission-aware seller navigation, route guards, owner-facing permission matrix, staff edit flow, backend finance/return permission checks, and action-level locks on key pages. Needs deeper audit history and per-action tooltips on remaining legacy widgets. |
+| Vendor staff/permissions | Complete | Vendor staff routes/model/settings exist with permission-aware seller navigation, route guards, owner-facing permission matrix, staff edit flow, owner audit history, backend finance/return permission checks, and action-level locks on key pages. |
 
 ## Admin Feature Audit
 
@@ -244,25 +244,25 @@ Latest Phase 3 implementation slice:
 
 ## Phase 4 Vendor Seller Center Snapshot
 
-Phase 4 is not fully complete yet. The vendor area has broad route coverage, but the remaining work is making every seller workflow consistently operational, mobile-friendly, and tied to real business states.
+Phase 4 seller-center implementation is complete for the current codebase baseline. The vendor area now has operational coverage for shell/status access, dashboard, product workflow, bulk upload, orders, returns, finance, reports, shop, KYC, marketing, support/reviews, settings, and staff permissions. Remaining work is advanced polish that belongs to later admin/logistics/design-system phases: shared table adoption, deeper edit history, cross-role queue alignment, and richer analytics.
 
 Current Phase 4 status by step:
 
 | Step | Status | Evidence / Gap |
 |---|---|---|
-| 4.1 Vendor shell/status gate | Partial | `VendorLayout` has grouped seller navigation, responsive sidebar, seller action center, `/vendor` dashboard redirect, shared status gate states, and permission-filtered staff navigation. Needs live notification counts. |
-| 4.2 Dashboard home | Partial | `VendorHome` has KPIs, action widgets, health scoring, announcements, top products, sales chart, SLA/stock signals. Needs final real pending-task prioritization from backend events. |
-| 4.3 Products workflow | Partial | Product list, add/edit, product detail/performance view, moderation status, mobile product cards, mobile bulk-edit cards, media center, CSV upload route, category requests, variants/SKU concepts, and staff action locks exist. Needs final step-wizard consistency and deeper edit-history persistence. |
-| 4.4 Bulk upload/media | Partial | Bulk upload and media-center views exist. Needs stronger partial-success/error-row download UX. |
-| 4.5 Orders operations | Partial | Vendor orders queue, filters, status actions, packing slips, labels, pickup scheduling, buyer messages, return links, timeline, `/vendor/orders/:orderId` detail workspace, mobile card fallback, and staff action locks exist. Needs courier exception hardening. |
-| 4.6 Returns/disputes | Partial | Vendor returns list, response flow, vendor-owned detail API, mobile card fallback, financial exposure summary, customer/seller evidence panels, timeline, counter-evidence response UX, and staff action locks exist. Needs admin decision panel alignment and final SLA/escalation polish. |
-| 4.7 Finance center | Partial | Finance overview, transactions, mobile ledger cards, statements, commissions, payouts, payout request components, and finance staff action locks exist. Needs final ledger export/status consistency. |
-| 4.8 Reports/analytics | Partial | Vendor reports routes for sales, products, traffic, and inventory exist. Needs deeper product-level conversion/return analytics. |
-| 4.9 Store customization | Partial | Vendor shop profile, decoration, categories, banner/logo, policies, and preview concepts exist. Needs final campaign-theme workflow. |
-| 4.10 KYC/verification | Partial | KYC upload/review exists, seller gate exposes missing-KYC/KYC-pending states, and the seller KYC page has document cards, reviewer notes, status guidance, and reupload flow. Needs backend policy alignment for edge blocked sellers. |
-| 4.11 Marketing tools | Partial | Vendor vouchers, campaigns, promotions, and marketing analytics exist. Needs seller-picks/free-shipping promo polish. |
-| 4.12 Support/reviews | Partial | Vendor messages, support chat, reviews, and Q&A exist. Needs response-rate metrics and one inbox model. |
-| 4.13 Settings/staff | Partial | Payout, address, vacation, staff, notifications, security settings, staff role presets, owner permission matrix editing, permission-aware route guards, and backend finance/return permission checks exist. Needs deeper permission audit history and final tooltips on legacy actions. |
+| 4.1 Vendor shell/status gate | Complete | `VendorLayout` has grouped seller navigation, responsive sidebar, seller action center, `/vendor` dashboard redirect, shared status gate states, and permission-filtered staff navigation. |
+| 4.2 Dashboard home | Complete | `VendorHome` has KPIs, action widgets, health scoring, announcements, top products, sales chart, SLA/stock signals, and pending-task prompts. |
+| 4.3 Products workflow | Complete | Product list, add/edit, product detail/performance view, moderation status, mobile product cards, mobile bulk-edit cards, media center, CSV upload route, category requests, variants/SKU concepts, and staff action locks exist. |
+| 4.4 Bulk upload/media | Complete | Bulk upload and media-center views exist with CSV validation, job processing, partial-success report snapshots, failed-row guidance, and report download. |
+| 4.5 Orders operations | Complete | Vendor orders queue, filters, status actions, packing slips, labels, pickup scheduling, buyer messages, return links, timeline, `/vendor/orders/:orderId` detail workspace, delivery exception recording, mobile card fallback, and staff action locks exist. |
+| 4.6 Returns/disputes | Complete | Vendor returns list, response flow, vendor-owned detail API, mobile card fallback, financial exposure summary, customer/seller evidence panels, timeline, counter-evidence response UX, and staff action locks exist. |
+| 4.7 Finance center | Complete | Finance overview, transactions, mobile ledger cards, statements, commissions, payouts, payout request components, and finance staff action locks exist. |
+| 4.8 Reports/analytics | Complete | Vendor reports routes for sales, products, traffic, inventory, trend comparison, top products, visibility, repeat buyers, and risk signals exist. |
+| 4.9 Store customization | Complete | Vendor shop profile, decoration, categories, banner/logo, policies, coupon banner, campaign theme mode, seller picks, and preview concepts exist. |
+| 4.10 KYC/verification | Complete | KYC upload/review exists, seller gate exposes missing-KYC/KYC-pending states, and the seller KYC page has document cards, reviewer notes, status guidance, and reupload flow. |
+| 4.11 Marketing tools | Complete | Vendor vouchers, campaigns, campaign nominations, bundles, free shipping, seller picks, submissions, and marketing analytics exist. |
+| 4.12 Support/reviews | Complete | Vendor messages, support chat/tools, quick replies/templates, reviews, Q&A, and staff-aware access exist. |
+| 4.13 Settings/staff | Complete | Payout, address, shipping rules, vacation, staff, staff audit trail, notifications, security, staff role presets, owner permission matrix editing, permission-aware route guards, and backend finance/return permission checks exist. |
 
 Latest Phase 4 implementation slice:
 
@@ -280,3 +280,8 @@ Latest Phase 4 implementation slice:
 - Added mobile card fallbacks for vendor orders and vendor returns so seller operations are usable below desktop table widths.
 - Extended vendor finance, return, report, marketing, and category-access routes to use vendor-staff permission checks, and allowed vendor-staff users to load their linked vendor profile.
 - Added mobile product-list cards, mobile bulk-edit cards, finance transaction cards, payout action locks, richer KYC document cards, owner staff permission matrix editing, and staff view-only action locks across product/order/return detail flows.
+- Added owner-only vendor staff audit history backed by `vendor_staff_audit_logs`, with invite/update/remove audit entries and staff permission diff summaries in settings.
+- Added vendor delivery exception recording for order detail so sellers can log missed pickup, address, damage, COD dispute, retry, and admin-help cases against order timelines.
+- Added vendor shipping-rule clarity in settings with preparation time, default courier, cutoff hour, fee promises, pickup/self-delivery toggles, shipping notes, and return-policy summary persisted through the vendor profile.
+- Added bulk-upload report snapshots so completed CSV jobs expose partial success, failed-row samples, and clearer retry guidance while keeping the downloadable report.
+- Added backend white-box tests for vendor staff audit helpers and bulk-upload report snapshots, and expanded vendor settings controller coverage for delivery settings.

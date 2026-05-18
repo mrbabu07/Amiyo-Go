@@ -156,6 +156,7 @@ export const getVendorOrderActionPlan = (order = {}) => {
     canDeliver: status === "shipped",
     canCancel: !terminal,
     canCollectCod: cod && !order.codCollected && !["cancelled", "returned"].includes(status),
+    canRecordException: !terminal && ["ready_to_ship", "pickup_ready", "shipped"].includes(status),
     cod,
   };
 };
