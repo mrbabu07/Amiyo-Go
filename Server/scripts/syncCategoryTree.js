@@ -1,17 +1,24 @@
 const { MongoClient, ServerApiVersion } = require("mongodb");
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 const { categoryTree } = require("./seedCategories");
 
 const uri = process.env.MONGO_URI;
 const dbName = process.env.DB_NAME || "BazarBD";
 
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  },
-});
+function createMongoClient() {
+  if (!uri) {
+    throw new Error("MONGO_URI is required to sync categories.");
+  }
+
+  return new MongoClient(uri, {
+    serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true,
+    },
+  });
+}
 
 async function syncNodes(collection, nodes, parentId = null) {
   let created = 0;
@@ -63,7 +70,10 @@ async function syncNodes(collection, nodes, parentId = null) {
 }
 
 async function syncCategoryTree() {
+  let client;
+
   try {
+    client = createMongoClient();
     await client.connect();
     const db = client.db(dbName);
     const collection = db.collection("categories");
@@ -84,7 +94,7 @@ async function syncCategoryTree() {
     console.error("Category sync failed:", error);
     process.exitCode = 1;
   } finally {
-    await client.close();
+    if (client) await client.close();
   }
 }
 

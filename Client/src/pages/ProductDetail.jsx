@@ -369,6 +369,14 @@ export default function ProductDetail() {
     { id: "reviews", label: `Reviews${reviewCount ? ` (${reviewCount})` : ""}` },
     { id: "qa", label: "Q&A" },
   ];
+  const selectedPurchaseLabel =
+    [
+      selectedVariant?.sku ? `SKU ${selectedVariant.sku}` : "",
+      selectedSize ? `Size ${selectedSize}` : "",
+      selectedColor?.name ? selectedColor.name : "",
+    ]
+      .filter(Boolean)
+      .join(" / ") || stockStatus.text;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-32 text-gray-950 dark:bg-gray-950 dark:text-white lg:pb-12">
@@ -740,16 +748,28 @@ export default function ProductDetail() {
         </section>
       </main>
 
-      <div className="fixed inset-x-0 bottom-16 z-40 border-t border-gray-200 bg-white/95 p-3 shadow-2xl backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 lg:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-[1fr_auto] gap-3">
+      <div
+        className="fixed inset-x-0 z-40 border-t border-gray-200 bg-white/95 p-3 shadow-2xl dark:border-gray-800 dark:bg-gray-950/95 lg:hidden"
+        style={{ bottom: "calc(4.75rem + env(safe-area-inset-bottom, 0px))" }}
+      >
+        <div className="mx-auto grid max-w-md grid-cols-[1fr_auto_auto] gap-2">
           <div className="min-w-0">
             <p className="truncate text-xs font-bold text-gray-500 dark:text-gray-400">
-              {stockStatus.text}
+              {selectedPurchaseLabel}
             </p>
             <p className="truncate text-lg font-black text-orange-600 dark:text-orange-300">
               {formatPrice(activePrice)}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            disabled={!stockStatus.available || isAdding}
+            className="inline-flex min-h-12 items-center justify-center gap-1 rounded-lg border border-primary-500 bg-white px-3 text-sm font-black text-primary-600 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-500 dark:bg-gray-950 dark:text-primary-300"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            {isAdding ? "Added" : "Add"}
+          </button>
           <button
             type="button"
             onClick={handleBuyNow}

@@ -59,7 +59,13 @@ const categoryFieldGroups = {
       'groceries', 'super-shop', 'fresh-produce', 'dairy', 'eggs', 
       'snacks', 'beverages', 'personal-care', 'vegetables', 'fruits',
       'farm-fresh', 'leafy', 'root', 'gourd', 'pumpkin', 'brinjal',
-      'okra', 'village-fresh', 'herbs', 'spices'
+      'okra', 'village-fresh', 'herbs', 'spices', 'food-cupboard',
+      'rice', 'grain', 'grains', 'flour', 'baking', 'lentils', 'pulses',
+      'oil', 'ghee', 'sugar', 'salt', 'sauces', 'condiments', 'noodles',
+      'pasta', 'vermicelli', 'semai', 'macaroni', 'masala', 'fresh-food',
+      'meat', 'chicken', 'breakfast', 'bread', 'bakery', 'cereal', 'oats',
+      'honey', 'baby-food', 'diapers', 'wipes', 'household', 'cleaning',
+      'dishwashing', 'laundry', 'tissue'
     ],
     fields: [
       {
@@ -435,7 +441,7 @@ const categoryFieldGroups = {
 
 // Helper function to get field configuration for a category slug
 function getFieldsForCategory(categorySlug) {
-  for (const [groupName, config] of Object.entries(categoryFieldGroups)) {
+  for (const config of Object.values(categoryFieldGroups)) {
     if (config.slugPatterns.some(pattern => categorySlug.includes(pattern))) {
       return config.fields;
     }

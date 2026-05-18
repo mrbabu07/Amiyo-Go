@@ -6,12 +6,16 @@ import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../hooks/useCurrency";
 import BackButton from "../components/BackButton";
 import Breadcrumb from "../components/Breadcrumb";
+import DeliveryEstimateWidget from "../components/DeliveryEstimateWidget";
 import { getDefaultAddress, validateCoupon } from "../services/api";
 import {
   CART_COUPON_STORAGE_KEY,
+  estimateAddressDelivery,
   getCartColorName,
   getCartItemImage,
   getCartItemKey,
+  getCheckoutCtaLabel,
+  getCheckoutTarget,
   getCouponDiscountBreakdown,
   getItemMaxOrder,
   getMaxOrderWarning,
@@ -192,13 +196,26 @@ export default function Cart() {
     0,
   );
   const estimatedTotal = Math.max(cartTotal - totalVoucherDiscount, 0) + shippingTotal;
+  const checkoutTarget = getCheckoutTarget(user);
+  const checkoutCtaLabel = getCheckoutCtaLabel(user);
+  const deliveryEta = defaultAddress
+    ? estimateAddressDelivery(defaultAddress).replace("Estimated delivery: ", "")
+    : "2-5 business days";
+  const deliveryArea = defaultAddress
+    ? [defaultAddress.area, defaultAddress.union, defaultAddress.upazila, defaultAddress.district || defaultAddress.city]
+        .filter(Boolean)
+        .join(", ")
+    : "Exact area confirmed at checkout";
+  const deliveryFeeLabel = deliveryQuoteLoading
+    ? "Calculating"
+    : shippingTotal > 0
+      ? formatPrice(shippingTotal)
+      : deliveryQuote
+        ? "FREE"
+        : "Estimated";
 
   const handleCheckout = () => {
-    if (!user) {
-      navigate("/login", { state: { from: { pathname: "/checkout" } } });
-      return;
-    }
-    navigate("/checkout", {
+    navigate(checkoutTarget, {
       state: { preferredVoucherCode: cartCoupon?.code || null },
     });
   };
@@ -356,7 +373,7 @@ export default function Cart() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 pb-32 pt-8 sm:px-6 lg:px-8 lg:pb-8">
       <div className="mb-6">
         <BackButton />
       </div>
@@ -549,6 +566,18 @@ export default function Cart() {
               Order Summary
             </h2>
 
+            <DeliveryEstimateWidget
+              className="mb-5"
+              title="Delivery estimate"
+              eta={deliveryEta}
+              feeLabel={deliveryFeeLabel}
+              serviceArea={deliveryArea || "Exact area confirmed at checkout"}
+              loading={deliveryQuoteLoading}
+              breakdown={deliveryQuote?.breakdown || []}
+              formatAmount={formatPrice}
+              note="Delivery is grouped by seller and recalculated with your checkout address."
+            />
+
             <form onSubmit={handleApplyCoupon} className="mb-5">
               <label className="mb-2 block text-sm font-semibold text-gray-700">
                 Coupon or voucher code
@@ -670,14 +699,54 @@ export default function Cart() {
               onClick={handleCheckout}
               className="btn-primary mt-6 w-full py-3"
             >
-              Proceed to Checkout
+              {checkoutCtaLabel}
             </button>
+
+            {!user && (
+              <div className="mt-3 rounded-lg border border-primary-100 bg-primary-50 p-3 text-sm text-primary-800">
+                <p className="font-semibold">No login required.</p>
+                <p className="mt-1 text-xs leading-5">
+                  Continue as a guest, or{" "}
+                  <Link
+                    to="/login"
+                    state={{ from: { pathname: "/checkout" } }}
+                    className="font-bold underline underline-offset-2"
+                  >
+                    sign in
+                  </Link>{" "}
+                  to save the order to your account.
+                </p>
+              </div>
+            )}
 
             <div className="mt-5 border-t border-gray-200 pt-5 text-center text-sm text-gray-500">
               Secure checkout with address, payment, review, and confirmation.
             </div>
           </div>
         </aside>
+      </div>
+      <div
+        className="fixed inset-x-0 z-40 border-t border-gray-200 bg-white/95 p-3 shadow-2xl lg:hidden"
+        style={{ bottom: "calc(4.75rem + env(safe-area-inset-bottom, 0px))" }}
+      >
+        <div className="mx-auto flex max-w-md items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-bold text-gray-500">
+              {cartCount} item{cartCount === 1 ? "" : "s"} - {vendorGroups.length} seller
+              {vendorGroups.length === 1 ? "" : "s"}
+            </p>
+            <p className="truncate text-lg font-black text-primary-600">
+              {formatPrice(estimatedTotal)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleCheckout}
+            className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-lg bg-primary-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-primary-700"
+          >
+            {user ? "Checkout" : "Guest Checkout"}
+          </button>
+        </div>
       </div>
     </div>
   );

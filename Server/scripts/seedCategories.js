@@ -1,21 +1,29 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 const { MongoClient, ServerApiVersion } = require("mongodb");
 
 const uri = process.env.MONGO_URI;
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  },
-});
+
+function createMongoClient() {
+  if (!uri) {
+    throw new Error("MONGO_URI is required to seed categories.");
+  }
+
+  return new MongoClient(uri, {
+    serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true,
+    },
+  });
+}
 
 const categoryTree = [
   {
     name: "Men's Fashion",
     slug: "mens-fashion",
     icon: "fashion",
-    displayOrder: 1,
+    displayOrder: 4,
     minimumCommissionRate: 8,
     children: [
       {
@@ -102,7 +110,7 @@ const categoryTree = [
     slug: "womens-fashion",
     minimumCommissionRate: 8,
     icon: "fashion",
-    displayOrder: 2,
+    displayOrder: 5,
     children: [
       {
         name: "Clothing",
@@ -168,7 +176,7 @@ const categoryTree = [
     name: "Electronics",
     slug: "electronics",
     icon: "electronics",
-    displayOrder: 3,
+    displayOrder: 6,
     minimumCommissionRate: 5,
     children: [
       {
@@ -233,7 +241,7 @@ const categoryTree = [
     name: "Home & Lifestyle",
     slug: "home-lifestyle",
     icon: "home",
-    displayOrder: 4,
+    displayOrder: 7,
     minimumCommissionRate: 7,
     children: [
       {
@@ -287,7 +295,7 @@ const categoryTree = [
     name: "Beauty & Health",
     slug: "beauty-health",
     icon: "beauty",
-    displayOrder: 5,
+    displayOrder: 8,
     minimumCommissionRate: 10,
     children: [
       {
@@ -336,11 +344,12 @@ const categoryTree = [
     ],
   },
   {
-    name: "Groceries",
+    name: "Groceries & Daily Needs",
     slug: "groceries",
     icon: "grocery",
-    displayOrder: 6,
+    displayOrder: 1,
     minimumCommissionRate: 3,
+    description: "Everyday grocery, cooking staples, fresh food, baby care, and household essentials.",
     children: [
       {
         name: "Food Cupboard",
@@ -378,6 +387,7 @@ const categoryTree = [
       {
         name: "Fresh Food",
         slug: "fresh-food",
+        description: "Daily produce, dairy, meat, and fish.",
         children: [
           { name: "Fruits", slug: "fruits" },
           { name: "Vegetables", slug: "vegetables" },
@@ -408,7 +418,7 @@ const categoryTree = [
         ],
       },
       {
-        name: "Baby & Household Grocery",
+        name: "Household & Baby Essentials",
         slug: "baby-household-grocery",
         children: [
           { name: "Baby Food", slug: "baby-food" },
@@ -416,6 +426,8 @@ const categoryTree = [
           { name: "Cleaning Supplies", slug: "cleaning-supplies" },
           { name: "Dishwashing", slug: "dishwashing" },
           { name: "Laundry", slug: "laundry" },
+          { name: "Tissue & Paper", slug: "tissue-paper" },
+          { name: "Household Essentials", slug: "household-essentials" },
         ],
       },
     ],
@@ -424,7 +436,7 @@ const categoryTree = [
     name: "Homemade Products",
     slug: "homemade-products",
     icon: "homemade",
-    displayOrder: 7,
+    displayOrder: 9,
     minimumCommissionRate: 6,
     children: [
       {
@@ -477,7 +489,7 @@ const categoryTree = [
     name: "Restaurants & Food Ordering",
     slug: "restaurants-food-ordering",
     icon: "restaurant",
-    displayOrder: 7.5,
+    displayOrder: 10,
     minimumCommissionRate: 8,
     children: [
       {
@@ -568,7 +580,7 @@ const categoryTree = [
     name: "Resell Market",
     slug: "resell-market",
     icon: "resell",
-    displayOrder: 8,
+    displayOrder: 11,
     minimumCommissionRate: 4,
     children: [
       {
@@ -630,8 +642,9 @@ const categoryTree = [
     name: "Fresh Fish & Seafood",
     slug: "fresh-fish-seafood",
     icon: "fish",
-    displayOrder: 9,
+    displayOrder: 3,
     minimumCommissionRate: 3,
+    description: "Fresh, cleaned, frozen, and ready-to-cook fish and seafood.",
     children: [
       {
         name: "Fresh Fish",
@@ -682,8 +695,9 @@ const categoryTree = [
     name: "Fresh Vegetables",
     slug: "fresh-vegetables",
     icon: "vegetable",
-    displayOrder: 10,
+    displayOrder: 2,
     minimumCommissionRate: 2,
+    description: "Daily vegetables, fresh fruits, farm items, and weekly produce packs.",
     children: [
       {
         name: "Daily Vegetables",
@@ -734,7 +748,7 @@ const categoryTree = [
     name: "Stationery & Office",
     slug: "stationery-office",
     icon: "stationery",
-    displayOrder: 11,
+    displayOrder: 12,
     minimumCommissionRate: 5,
     children: [
       {
@@ -803,7 +817,7 @@ const categoryTree = [
     name: "Pharmacy",
     slug: "pharmacy",
     icon: "pharmacy",
-    displayOrder: 12,
+    displayOrder: 13,
     minimumCommissionRate: 6,
     children: [
       {
@@ -911,7 +925,10 @@ function displayTree(categories, parentId = null, level = 0) {
 }
 
 async function seedCategories() {
+  let client;
+
   try {
+    client = createMongoClient();
     await client.connect();
     console.log("Connected to MongoDB");
 
@@ -932,7 +949,7 @@ async function seedCategories() {
     console.error("Error seeding categories:", error);
     process.exitCode = 1;
   } finally {
-    await client.close();
+    if (client) await client.close();
   }
 }
 

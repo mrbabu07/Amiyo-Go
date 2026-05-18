@@ -450,6 +450,8 @@ const buildFacets = (products = [], categories = []) => {
       name: category.name,
       slug: category.slug || "",
       image: category.image || category.imageUrl || "",
+      icon: category.icon || category.iconUrl || "",
+      displayOrder: category.displayOrder ?? 0,
       parentId: normalizeId(category.parentId),
       productCount: categoryDescendantIds(categories, category._id).reduce(
         (sum, categoryId) =>

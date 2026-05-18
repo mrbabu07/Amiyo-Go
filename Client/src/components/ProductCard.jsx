@@ -140,7 +140,11 @@ export default function ProductCard({ product }) {
             )}
 
             {cardBadges.length ? (
-              <div className="absolute bottom-2 left-2 z-20 flex max-w-[calc(100%-1rem)] flex-wrap gap-1">
+              <div
+                className={`absolute left-2 z-20 flex max-w-[calc(100%-4rem)] flex-wrap gap-1 ${
+                  discountPercentage > 0 ? "top-10" : "top-2"
+                }`}
+              >
                 {cardBadges.map((badge) => (
                   <span
                     key={badge.label}
@@ -183,11 +187,24 @@ export default function ProductCard({ product }) {
               />
             </div>
 
-            {/* Action Buttons - Only show on hover */}
+            {/* Image action buttons */}
             <div className="absolute right-2 top-2 z-30 flex flex-col gap-2 opacity-100 transition-all duration-300 md:translate-x-2 md:opacity-0 md:group-hover:translate-x-0 md:group-hover:opacity-100">
               <div onClick={(e) => e.preventDefault()}>
                 <WishlistButton product={product} size="sm" />
               </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowQuickView(true);
+                }}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/95 text-gray-900 shadow-sm ring-1 ring-black/5 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:bg-gray-900/95 dark:text-gray-100 dark:ring-white/10 md:hidden"
+                aria-label={t("productCard.quickView")}
+                title={t("productCard.quickView")}
+              >
+                <Eye className="h-4 w-4" />
+              </button>
               <div className="hidden md:block" onClick={(e) => e.preventDefault()}>
                 <CompareButton product={product} size="sm" />
               </div>
@@ -205,7 +222,7 @@ export default function ProductCard({ product }) {
             )}
 
             {/* Quick Actions Overlay */}
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent p-3 opacity-0 transition-all duration-300 translate-y-2 group-hover:translate-y-0 group-hover:opacity-100">
+            <div className="absolute inset-x-0 bottom-0 z-30 hidden translate-y-2 bg-gradient-to-t from-black/80 via-black/35 to-transparent p-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 md:block">
               <div className="grid grid-cols-[2.375rem_minmax(0,1fr)] gap-2">
                 <button
                   type="button"
@@ -379,44 +396,32 @@ export default function ProductCard({ product }) {
               </div>
             )}
 
-            {/* Action Buttons - Always visible on mobile */}
-            <div className="grid grid-cols-[2.375rem_minmax(0,1fr)] gap-2 md:hidden">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowQuickView(true);
-                }}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-                aria-label={t("productCard.quickView")}
-                title={t("productCard.quickView")}
-              >
-                <Eye className="h-4 w-4" />
-              </button>
+            {/* Mobile cart action */}
+            <div className="mt-3 md:hidden">
               <button
                 type="button"
                 onClick={handleAddToCart}
                 disabled={!stockStatus.available || isAdding}
-                className={`inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-bold transition-colors ${
+                aria-label={t("productCard.addToCart")}
+                className={`inline-flex h-10 w-full min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-extrabold leading-none transition-colors ${
                   isAdding
                     ? "bg-green-500 text-white"
                     : !stockStatus.available
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      ? "cursor-not-allowed bg-gray-300 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
                       : "bg-primary-600 text-white hover:bg-primary-700"
                 }`}
               >
                 {isAdding ? (
                   <>
-                    <Check className="h-4 w-4 shrink-0" />
+                    <Check className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">{t("productCard.added")}</span>
                   </>
                 ) : !stockStatus.available ? (
                   <span className="truncate">{t("productCard.outOfStock")}</span>
                 ) : (
                   <>
-                    <ShoppingCart className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{t("productCard.addToCart")}</span>
+                    <ShoppingCart className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{t("mobileNav.cart")}</span>
                   </>
                 )}
               </button>

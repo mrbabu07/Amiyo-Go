@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import useCart from "../hooks/useCart";
 import { useCurrency } from "../hooks/useCurrency";
 import { createGuestOrder } from "../services/api";
+import DeliveryEstimateWidget from "./DeliveryEstimateWidget";
 
 const GUEST_CART_COOKIE = "amiyo_guest_cart";
 
@@ -146,15 +147,26 @@ export default function GuestCheckout() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <div className="mx-auto max-w-5xl px-4 pb-32 pt-8 lg:pb-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Guest Checkout</h1>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Complete your order without creating an account.
+          Complete your order without creating an account. Login is optional.
+        </p>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          Already have an account?{" "}
+          <Link to="/login" className="font-bold text-orange-600 hover:text-orange-700">
+            Sign in to save this order
+          </Link>
+          .
         </p>
       </div>
 
-      <form onSubmit={handleGuestCheckout} className="grid gap-6 lg:grid-cols-[1fr_340px]">
+      <form
+        id="guest-checkout-form"
+        onSubmit={handleGuestCheckout}
+        className="grid gap-6 lg:grid-cols-[1fr_340px]"
+      >
         <div className="space-y-6">
           <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Information</h2>
@@ -226,7 +238,11 @@ export default function GuestCheckout() {
               ].map(([value, label]) => (
                 <label
                   key={value}
-                  className="flex cursor-pointer items-center gap-3 rounded-md border border-gray-300 p-3 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700"
+                  className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm font-bold transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700 ${
+                    guestInfo.paymentMethod === value
+                      ? "border-orange-500 bg-orange-50 text-orange-800 dark:bg-orange-950/30 dark:text-orange-100"
+                      : "border-gray-300 text-gray-800"
+                  }`}
                 >
                   <input
                     type="radio"
@@ -258,6 +274,14 @@ export default function GuestCheckout() {
 
         <aside className="h-fit rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Order Summary</h2>
+          <DeliveryEstimateWidget
+            className="mt-4"
+            title="Guest delivery estimate"
+            eta="2-5 business days"
+            feeLabel="Confirmed after order"
+            serviceArea={guestInfo.area || guestInfo.district || "Enter area for delivery check"}
+            note="Your cart is preserved in this browser session while guest checkout is completed."
+          />
           <div className="mt-4 space-y-3">
             <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
               <span>Items ({cart.length})</span>
@@ -287,6 +311,29 @@ export default function GuestCheckout() {
           </p>
         </aside>
       </form>
+      <div
+        className="fixed inset-x-0 z-40 border-t border-gray-200 bg-white/95 p-3 shadow-2xl lg:hidden"
+        style={{ bottom: "calc(4.75rem + env(safe-area-inset-bottom, 0px))" }}
+      >
+        <div className="mx-auto flex max-w-md items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-bold text-gray-500 dark:text-gray-400">
+              Guest checkout
+            </p>
+            <p className="truncate text-lg font-black text-orange-600">
+              {formatPrice(total)}
+            </p>
+          </div>
+          <button
+            type="submit"
+            form="guest-checkout-form"
+            disabled={loading}
+            className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-lg bg-orange-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Placing" : "Place Order"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

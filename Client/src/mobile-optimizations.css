@@ -143,12 +143,7 @@
     pointer-events: auto;
   }
 
-  /* Sticky navbar on mobile */
-  nav {
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-  }
+  /* Page-level navigation components define their own sticky/fixed behavior. */
 }
 
 /* ========================================

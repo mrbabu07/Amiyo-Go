@@ -9,7 +9,7 @@ import { useComparison } from "../context/ComparisonContext";
 import { getCategories, getMyLoyalty, getSearchNavigation } from "../services/api";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
-import TopBarLanguageSwitcher from "./SimpleLanguageSwitcher";
+import TopBarLanguageSwitcher from "./TopBarLanguageSwitcher";
 import LanguageSwitcher from "./LanguageSwitcher";
 import SearchBar from "./SearchBar";
 import { LOYALTY_BALANCE_EVENT, getLoyaltyPointsFromPayload } from "../utils/loyaltyBalance";
@@ -164,12 +164,6 @@ export default function Navbar() {
 
   const activeCategory =
     categoryGroups.find((category) => category._id === activeCategoryId) || categoryGroups[0];
-
-  useEffect(() => {
-    if (!activeCategoryId && categoryGroups.length > 0) {
-      setActiveCategoryId(categoryGroups[0]._id);
-    }
-  }, [activeCategoryId, categoryGroups]);
 
   return (
     <>
@@ -756,7 +750,7 @@ export default function Navbar() {
                       type="button"
                       aria-label="Close categories menu"
                       onClick={() => setCategoriesOpen(false)}
-                      className="fixed inset-0 z-[250] cursor-default bg-black/20 backdrop-blur-[1px]"
+                      className="fixed inset-0 z-[250] cursor-default bg-black/15"
                     />
                     <div className="absolute top-full left-0 z-[300] mt-2 w-[min(960px,calc(100vw-2rem))] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-800">
                       {categoryGroups.length > 0 ? (

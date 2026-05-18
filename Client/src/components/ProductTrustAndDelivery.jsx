@@ -1,4 +1,5 @@
-import { CalendarClock, LockKeyhole, RotateCcw, ShieldCheck, Truck } from "lucide-react";
+import { LockKeyhole, RotateCcw, ShieldCheck } from "lucide-react";
+import DeliveryEstimateWidget from "./DeliveryEstimateWidget";
 import StockAlertButton from "./StockAlertButton";
 
 const iconMap = {
@@ -21,25 +22,13 @@ export default function ProductTrustAndDelivery({ product, stockStatus }) {
   return (
     <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
       {delivery && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-white text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
-              <Truck className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="font-semibold text-emerald-950 dark:text-emerald-100">
-                {delivery.label}
-              </p>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-emerald-800 dark:text-emerald-200">
-                <span className="inline-flex items-center gap-1">
-                  <CalendarClock className="h-4 w-4" />
-                  Delivery window: {delivery.rangeLabel}
-                </span>
-                <span>{delivery.courierZone}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DeliveryEstimateWidget
+          title={delivery.label || "Delivery estimate"}
+          eta={delivery.rangeLabel || "2-5 business days"}
+          feeLabel={delivery.feeLabel || "Shown at checkout"}
+          serviceArea={delivery.courierZone || "Service area confirmed by address"}
+          note="Delivery availability and fee are confirmed again at checkout."
+        />
       )}
 
       {!stockStatus.available && (

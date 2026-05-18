@@ -15,6 +15,9 @@ export default function ProductVariantSelector({
   const [selectedSize, setSelectedSize] = useState(firstVariant?.size || null);
   const [selectedColor, setSelectedColor] = useState(firstVariant?.color || null);
   const onVariantChangeRef = useRef(onVariantChange);
+  const variantMatrix = product.detail?.variantMatrix;
+  const matrixSizes = variantMatrix?.sizes;
+  const matrixColors = variantMatrix?.colors;
 
   useEffect(() => {
     onVariantChangeRef.current = onVariantChange;
@@ -22,24 +25,24 @@ export default function ProductVariantSelector({
 
   const allSizes = useMemo(
     () =>
-      product.detail?.variantMatrix?.sizes?.length
-        ? product.detail.variantMatrix.sizes
+      matrixSizes?.length
+        ? matrixSizes
         : uniqueValues(variants.map((variant) => variant.size)),
-    [product.detail?.variantMatrix?.sizes, variants],
+    [matrixSizes, variants],
   );
   const allColors = useMemo(
     () =>
-      product.detail?.variantMatrix?.colors?.length
-        ? product.detail.variantMatrix.colors.map((color) => color.name)
+      matrixColors?.length
+        ? matrixColors.map((color) => color.name)
         : uniqueValues(variants.map((variant) => variant.color)),
-    [product.detail?.variantMatrix?.colors, variants],
+    [matrixColors, variants],
   );
   const colorOptions = useMemo(
     () =>
-      product.detail?.variantMatrix?.colors?.length
-        ? product.detail.variantMatrix.colors
+      matrixColors?.length
+        ? matrixColors
         : allColors.map((color) => ({ name: color, value: getColorHex(color) })),
-    [allColors, product.detail?.variantMatrix?.colors],
+    [allColors, matrixColors],
   );
 
   const currentVariant = useMemo(() => {

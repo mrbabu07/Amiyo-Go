@@ -134,8 +134,8 @@ export const initializeInstallPrompt = () => {
     installButton.innerHTML = `
       <div style="
         position: fixed;
-        bottom: 20px;
-        right: 20px;
+        bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+        right: 16px;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         padding: 12px 20px;
@@ -168,6 +168,13 @@ export const initializeInstallPrompt = () => {
         </button>
       </div>
       <style>
+        @media (min-width: 1024px) {
+          #pwa-install-button > div {
+            bottom: 20px !important;
+            right: 20px !important;
+          }
+        }
+
         @keyframes slideInUp {
           from {
             transform: translateY(100px);
@@ -220,7 +227,7 @@ export const initializeInstallPrompt = () => {
   };
 
   // Listen for app installed event
-  window.addEventListener("appinstalled", (evt) => {
+  window.addEventListener("appinstalled", () => {
     console.log("🎉 PWA: App was installed successfully");
 
     // Hide install button if still visible

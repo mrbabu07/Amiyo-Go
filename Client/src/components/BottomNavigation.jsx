@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import { Home, LayoutGrid, Package, ShoppingCart, UserRound } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -22,9 +23,11 @@ export default function BottomNavigation() {
   ];
 
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-[210] border-t border-gray-200 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden dark:border-gray-800 dark:bg-gray-950/95"
+    <div
+      className="fixed inset-x-0 bottom-0 top-auto z-[210] border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(15,23,42,0.08)] lg:hidden dark:border-gray-800 dark:bg-gray-950"
       aria-label="Mobile primary navigation"
+      role="navigation"
+      style={{ bottom: 0, left: 0, position: "fixed", right: 0, top: "auto" }}
     >
       <div className="mx-auto grid h-14 max-w-md grid-cols-5 px-2">
         {items.map(({ label, to, icon: Icon, badge, end }) => (
@@ -41,7 +44,11 @@ export default function BottomNavigation() {
             }
           >
             <span className="relative">
-              <Icon className="h-5 w-5" strokeWidth={2.2} aria-hidden="true" />
+              {createElement(Icon, {
+                className: "h-5 w-5",
+                strokeWidth: 2.2,
+                "aria-hidden": true,
+              })}
               {badge > 0 ? (
                 <span className="absolute -right-2.5 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-500 px-1 text-[10px] font-extrabold leading-none text-white">
                   {badge > 99 ? "99+" : badge}
@@ -52,6 +59,6 @@ export default function BottomNavigation() {
           </NavLink>
         ))}
       </div>
-    </nav>
+    </div>
   );
 }

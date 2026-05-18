@@ -17,6 +17,7 @@ import { useCurrency } from "../hooks/useCurrency";
 import BackButton from "../components/BackButton";
 import Breadcrumb from "../components/Breadcrumb";
 import AddressLocationFields from "../components/AddressLocationFields";
+import DeliveryEstimateWidget from "../components/DeliveryEstimateWidget";
 import {
   CART_COUPON_STORAGE_KEY,
   checkoutSteps,
@@ -183,6 +184,19 @@ export default function Checkout() {
     loading,
   });
   const step = activeCheckoutStep;
+  const checkoutDeliveryEta = hasCompleteAddress
+    ? estimateAddressDelivery(formData).replace("Estimated delivery: ", "")
+    : "Complete address for exact ETA";
+  const checkoutDeliveryArea = hasCompleteAddress
+    ? [formData.area, formData.union, formData.upazila, formData.district]
+        .filter(Boolean)
+        .join(", ")
+    : "Service area checked at checkout";
+  const checkoutDeliveryFeeLabel = deliveryQuoteLoading
+    ? "Calculating"
+    : deliveryCharge === 0
+      ? "FREE"
+      : formatPrice(deliveryCharge);
 
   const paymentMethods = [
     {
@@ -813,7 +827,7 @@ export default function Checkout() {
     );
   }
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 pb-32 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 lg:pb-0">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-6xl mx-auto px-4 py-6">
@@ -976,7 +990,7 @@ export default function Checkout() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Form */}
           <div className="lg:col-span-2">
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form id="checkout-form" onSubmit={handleSubmit} className="space-y-6">
               {/* Shipping Information */}
               <div className="bg-white rounded-2xl shadow-sm border p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between mb-6">
@@ -2602,36 +2616,44 @@ export default function Checkout() {
                 </div>
               </div>
 
-              {/* Delivery Info */}
-              <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                <div className="flex items-start gap-3">
-                  <svg
-                    className="w-5 h-5 text-blue-600 mt-0.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <div className="text-sm">
-                    <p className="font-semibold text-blue-800">
-                      Delivery Information
-                    </p>
-                    <ul className="text-xs text-blue-600 mt-1 space-y-1">
-                      <li>• Standard delivery: 2-5 business days</li>
-                      <li>• Free delivery on orders over ৳5,500</li>
-                      <li>• Multiple payment options available</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
+              <DeliveryEstimateWidget
+                className="mt-4"
+                title="Delivery information"
+                eta={checkoutDeliveryEta}
+                feeLabel={checkoutDeliveryFeeLabel}
+                serviceArea={checkoutDeliveryArea}
+                loading={deliveryQuoteLoading}
+                breakdown={deliveryQuote?.breakdown || []}
+                formatAmount={formatPrice}
+                note="Vendor delivery fees, service area, and payment options are reviewed before you place the order."
+              />
             </div>
           </div>
+        </div>
+      </div>
+      <div
+        className="fixed inset-x-0 z-40 border-t border-gray-200 bg-white/95 p-3 shadow-2xl lg:hidden"
+        style={{ bottom: "calc(4.75rem + env(safe-area-inset-bottom, 0px))" }}
+      >
+        <div className="mx-auto flex max-w-md items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-bold text-gray-500">
+              {activeCheckoutStep >= 4
+                ? "Ready to review"
+                : checkoutSteps[activeCheckoutStep - 1]?.title || "Checkout"}
+            </p>
+            <p className="truncate text-lg font-black text-primary-600">
+              {formatPrice(finalTotal)}
+            </p>
+          </div>
+          <button
+            type="submit"
+            form="checkout-form"
+            disabled={loading}
+            className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-lg bg-primary-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Processing" : "Place Order"}
+          </button>
         </div>
       </div>
     </div>

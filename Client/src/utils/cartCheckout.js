@@ -167,6 +167,11 @@ export const getCouponDiscountBreakdown = (appliedCoupon) => {
   return { platformVoucherDiscount: amount, vendorVoucherDiscount: 0 };
 };
 
+export const getCheckoutTarget = (user) => (user ? "/checkout" : "/checkout/guest");
+
+export const getCheckoutCtaLabel = (user) =>
+  user ? "Proceed to Checkout" : "Checkout as Guest";
+
 export const estimateAddressDelivery = (address = {}) => {
   const district = String(address.district || address.city || "").toLowerCase();
   const division = String(address.division || "").toLowerCase();
