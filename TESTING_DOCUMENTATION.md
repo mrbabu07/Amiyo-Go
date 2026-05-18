@@ -37,6 +37,7 @@ npm test -- --runTestsByPath src/utils/__tests__/supportQueue.blackbox.test.js s
 npm test -- --runTestsByPath src/utils/__tests__/customerNotifications.blackbox.test.js src/utils/__tests__/customerNotifications.whitebox.test.js
 npm test -- --runTestsByPath src/utils/__tests__/vendorSellerCenter.blackbox.test.js src/utils/__tests__/vendorSellerCenter.whitebox.test.js
 npm test -- --runTestsByPath src/utils/__tests__/vendorProductDetail.blackbox.test.js src/utils/__tests__/vendorProductDetail.whitebox.test.js
+npm test -- --runTestsByPath src/utils/__tests__/vendorReturnDispute.blackbox.test.js src/utils/__tests__/vendorReturnDispute.whitebox.test.js
 ```
 
 Run focused backend black-box and white-box tests:
@@ -44,6 +45,7 @@ Run focused backend black-box and white-box tests:
 ```bash
 cd Server
 npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController.blackbox.test.js __tests__/controllers/supportController.whitebox.test.js
+npm test -- --runInBand --runTestsByPath __tests__/controllers/returnController.vendorDetail.test.js
 ```
 
 ## Current Coverage Map
@@ -57,6 +59,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController
   - `Client/src/utils/__tests__/customerNotifications.blackbox.test.js`
   - `Client/src/utils/__tests__/supportQueue.blackbox.test.js`
   - `Client/src/utils/__tests__/vendorProductDetail.blackbox.test.js`
+  - `Client/src/utils/__tests__/vendorReturnDispute.blackbox.test.js`
   - `Client/src/utils/__tests__/vendorSellerCenter.blackbox.test.js`
 - White-box helper behavior:
   - `Client/src/components/ui/__tests__/designSystem.whitebox.test.js`
@@ -66,6 +69,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController
   - `Client/src/utils/__tests__/supportQueue.whitebox.test.js`
   - `Client/src/utils/__tests__/vendorCategoryRequests.whitebox.test.js`
   - `Client/src/utils/__tests__/vendorProductDetail.whitebox.test.js`
+  - `Client/src/utils/__tests__/vendorReturnDispute.whitebox.test.js`
   - `Client/src/utils/__tests__/vendorSellerCenter.whitebox.test.js`
 - Route guard behavior:
   - `Client/src/routes/__tests__/guards.blackbox.test.jsx`
@@ -74,6 +78,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController
 
 - Black-box API/helper contracts:
   - `Server/__tests__/controllers/categoryRequestController.test.js`
+  - `Server/__tests__/controllers/returnController.vendorDetail.test.js`
   - `Server/__tests__/controllers/supportController.blackbox.test.js`
   - `Server/__tests__/routes.health.test.js`
   - Existing route, controller, model, service, and utility Jest tests under `Server/__tests__`.
@@ -157,10 +162,10 @@ Before pushing frontend or backend changes:
 
 The latest completed full-project verification:
 
-- `Client`: `npm test` passed, 16 suites / 62 tests.
+- `Client`: `npm test` passed, 18 suites / 71 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
-- `Server`: `npm test -- --runInBand` passed, 61 suites / 394 tests.
+- `Server`: `npm test -- --runInBand` passed, 62 suites / 398 tests.
 - Focused backend rate limiter analytics/defaults test passed, 1 suite / 7 tests.
 - Focused backend Phase 1 reliability/security tests passed, 5 suites / 13 tests.
 - Focused backend black-box and white-box support tests remain covered by the full backend run.
@@ -168,3 +173,5 @@ The latest completed full-project verification:
 - Focused frontend customer notification center tests passed, 2 suites / 8 tests.
 - Focused frontend vendor seller-center tests passed, 2 suites / 7 tests.
 - Focused frontend vendor product detail tests passed, 2 suites / 7 tests.
+- Focused frontend vendor return dispute tests passed, 2 suites / 9 tests.
+- Focused backend vendor return detail test passed, 1 suite / 3 tests.

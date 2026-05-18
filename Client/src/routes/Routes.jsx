@@ -64,6 +64,7 @@ const VendorMessages = lazy(() => import("../pages/vendor/VendorMessages"));
 const VendorReviews = lazy(() => import("../pages/vendor/VendorReviews"));
 const VendorQA = lazy(() => import("../pages/vendor/VendorQA"));
 const VendorReturns = lazy(() => import("../pages/vendor/VendorReturns"));
+const VendorReturnDetail = lazy(() => import("../pages/vendor/VendorReturnDetail"));
 const VendorBulkUpload = lazy(() => import("../pages/vendor/VendorBulkUpload"));
 const VendorSupportChat = lazy(() => import("../pages/vendor/VendorSupportChat"));
 const VendorKyc = lazy(() => import("../pages/vendor/VendorKyc"));
@@ -220,6 +221,7 @@ const router = createBrowserRouter([
       { path: "messages", element: lazyElement(VendorMessages) },
       { path: "reviews", element: lazyElement(VendorReviews) },
       { path: "returns", element: lazyElement(VendorReturns) },
+      { path: "returns/:returnId", element: lazyElement(VendorReturnDetail) },
       { path: "qa", element: lazyElement(VendorQA) },
       { path: "support-chat", element: lazyElement(VendorSupportChat) },
       { path: "kyc", element: lazyElement(VendorKyc) },

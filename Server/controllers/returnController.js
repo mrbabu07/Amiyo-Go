@@ -375,6 +375,97 @@ const getVendorReturns = async (req, res) => {
 };
 
 /**
+ * Get one vendor return with customer evidence, timeline, and order context
+ */
+const getVendorReturnById = async (req, res) => {
+  try {
+    const Return = req.app.locals.models.Return;
+    const db = req.app.locals.db;
+    const { id } = req.params;
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid return ID",
+      });
+    }
+
+    const returnRequest = await Return.findById(id);
+
+    if (!returnRequest) {
+      return res.status(404).json({
+        success: false,
+        error: "Return request not found",
+      });
+    }
+
+    if (String(returnRequest.vendorId || "") !== String(vendorId || "")) {
+      return res.status(403).json({
+        success: false,
+        error: "This return does not belong to your products",
+      });
+    }
+
+    let orderSummary = null;
+    const orderId = String(returnRequest.orderId || "");
+    if (db && ObjectId.isValid(orderId)) {
+      const order = await db.collection("orders").findOne(
+        { _id: new ObjectId(orderId) },
+        {
+          projection: {
+            _id: 1,
+            orderNumber: 1,
+            status: 1,
+            paymentMethod: 1,
+            paymentStatus: 1,
+            shippingInfo: 1,
+            deliveryInfo: 1,
+            trackingNumber: 1,
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        },
+      );
+
+      if (order) {
+        orderSummary = {
+          id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          paymentMethod: order.paymentMethod,
+          paymentStatus: order.paymentStatus,
+          shippingInfo: order.shippingInfo,
+          deliveryInfo: order.deliveryInfo,
+          trackingNumber: order.trackingNumber,
+          createdAt: order.createdAt,
+          updatedAt: order.updatedAt,
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...returnRequest,
+        orderSummary,
+        vendorTracker: buildReturnTracker(returnRequest),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching vendor return detail:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
  * Get vendor return statistics
  */
 const getVendorReturnStats = async (req, res) => {
@@ -499,6 +590,7 @@ module.exports = {
   getReturnStats,
   getOrderReturns,
   getVendorReturns,
+  getVendorReturnById,
   getVendorReturnStats,
   vendorRespondToReturn,
   getPendingVendorResponse,

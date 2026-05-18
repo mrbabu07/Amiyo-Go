@@ -12,6 +12,7 @@ const {
   getReturnStats,
   getOrderReturns,
   getVendorReturns,
+  getVendorReturnById,
   getVendorReturnStats,
   vendorRespondToReturn,
   getPendingVendorResponse,
@@ -38,6 +39,7 @@ router.post("/", createReturnIdempotency, createReturnRequest);
 router.get("/vendor/my-returns", requireRole("vendor"), getVendorReturns);
 router.get("/vendor/stats", requireRole("vendor"), getVendorReturnStats);
 router.get("/vendor/pending-response", requireRole("vendor"), getPendingVendorResponse);
+router.get("/vendor/:id", requireRole("vendor"), getVendorReturnById);
 router.post("/vendor/:id/respond", requireRole("vendor"), vendorRespondToReturn);
 
 // Admin routes

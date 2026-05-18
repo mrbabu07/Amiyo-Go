@@ -302,7 +302,12 @@ export default function VendorReturns() {
                     <tr key={returnItem._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          #{returnItem._id.slice(-8)}
+                          <Link
+                            to={`/vendor/returns/${returnItem._id}`}
+                            className="text-orange-600 hover:text-orange-700 hover:underline"
+                          >
+                            #{returnItem._id.slice(-8)}
+                          </Link>
                         </div>
                         <div className="text-xs text-gray-500">
                           Order: #{returnItem.orderId.slice(-8)}
@@ -362,18 +367,24 @@ export default function VendorReturns() {
                         {new Date(returnItem.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {returnItem.status === 'pending' && !returnItem.vendorResponse ? (
+                        <div className="flex items-center gap-2">
+                          <Link
+                            to={`/vendor/returns/${returnItem._id}`}
+                            className="rounded-lg border border-gray-300 px-3 py-2 font-medium text-gray-700 transition hover:bg-gray-50"
+                          >
+                            Details
+                          </Link>
+                          {returnItem.status === 'pending' && !returnItem.vendorResponse ? (
                           <button
                             onClick={() => openResponseModal(returnItem)}
                             className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition font-medium"
                           >
                             Respond
                           </button>
-                        ) : returnItem.vendorResponse ? (
-                          <span className="text-gray-400 text-xs">Responded</span>
-                        ) : (
-                          <span className="text-gray-400 text-xs">-</span>
-                        )}
+                          ) : returnItem.vendorResponse ? (
+                            <span className="text-gray-400 text-xs">Responded</span>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ))}

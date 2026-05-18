@@ -285,6 +285,8 @@ export const processRefund = (id, refundAmount, refundMethod) =>
 // Vendor Returns
 export const getVendorReturns = (params) => 
   api.get("/returns/vendor/my-returns", { params });
+export const getVendorReturnById = (id) =>
+  api.get(`/returns/vendor/${id}`);
 export const getVendorReturnStats = () => 
   api.get("/returns/vendor/stats");
 export const getPendingVendorResponse = () =>

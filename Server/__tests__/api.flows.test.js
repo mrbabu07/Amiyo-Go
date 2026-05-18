@@ -204,6 +204,7 @@ jest.mock("../controllers/returnController", () => ({
   getReturnStats: (req, res) => res.json({ route: "returns:admin-stats" }),
   getOrderReturns: (req, res) => res.json({ route: "returns:order", orderId: req.params.orderId }),
   getVendorReturns: (req, res) => res.json({ route: "returns:vendor-list" }),
+  getVendorReturnById: (req, res) => res.json({ route: "returns:vendor-detail", id: req.params.id }),
   getVendorReturnStats: (req, res) => res.json({ route: "returns:vendor-stats" }),
   vendorRespondToReturn: (req, res) =>
     res.json({
@@ -489,6 +490,19 @@ describe("Black-box workflow API tests", () => {
         route: "returns:vendor-respond",
         id: "return-20",
         decision: "approve",
+      });
+    });
+
+    test("GET /api/returns/vendor/:id lets a vendor open return detail", async () => {
+      const response = await request(app)
+        .get("/api/returns/vendor/return-20")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "returns:vendor-detail",
+        id: "return-20",
       });
     });
 
