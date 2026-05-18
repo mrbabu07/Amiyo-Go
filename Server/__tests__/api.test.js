@@ -42,6 +42,7 @@ jest.mock("../middleware/auth", () => ({
     }
     return next();
   },
+  requireVendorPermission: () => (req, res, next) => next(),
 }));
 
 jest.mock("../controllers/productController", () => ({
@@ -746,7 +747,7 @@ describe("Black-box API tests", () => {
         .set("x-test-role", "admin");
 
       expect(response.status).toBe(403);
-      expect(response.body).toEqual({ error: "vendor access required" });
+      expect(response.body).toEqual({ error: "Approved vendor access required" });
     });
   });
 

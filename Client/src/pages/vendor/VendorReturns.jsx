@@ -267,7 +267,85 @@ export default function VendorReturns() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="divide-y divide-gray-200 md:hidden">
+              {returns.map((returnItem) => {
+                const returnId = String(returnItem._id || "");
+                const orderId = String(returnItem.orderId || "");
+                const hasOpenResponse = returnItem.status === 'pending' && !returnItem.vendorResponse;
+
+                return (
+                  <article key={returnItem._id} className="p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <Link
+                          to={`/vendor/returns/${returnItem._id}`}
+                          className="font-mono text-sm font-bold text-orange-600 hover:text-orange-700 hover:underline"
+                        >
+                          #{returnId.slice(-8)}
+                        </Link>
+                        <p className="mt-1 text-xs text-gray-500">Order: #{orderId.slice(-8)}</p>
+                      </div>
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusBadge(returnItem.status)}`}>
+                        {returnItem.status}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 p-3">
+                      <p className="line-clamp-2 text-sm font-semibold text-gray-900">
+                        {returnItem.productTitle}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Qty: {returnItem.quantity} x {formatPrice(returnItem.productPrice)}
+                      </p>
+                      <p className="mt-3 text-sm text-gray-700">{getReasonLabel(returnItem.reason)}</p>
+                      {returnItem.description ? (
+                        <p className="mt-1 line-clamp-2 text-xs text-gray-500">{returnItem.description}</p>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-lg border border-gray-100 p-3">
+                        <p className="text-xs font-semibold uppercase text-gray-400">Refund</p>
+                        <p className="mt-1 font-bold text-gray-900">{formatPrice(returnItem.refundAmount || 0)}</p>
+                      </div>
+                      <div className="rounded-lg border border-gray-100 p-3">
+                        <p className="text-xs font-semibold uppercase text-gray-400">Deduction</p>
+                        <p className="mt-1 font-bold text-red-600">-{formatPrice(returnItem.vendorDeduction || 0)}</p>
+                      </div>
+                    </div>
+
+                    {returnItem.vendorResponse ? (
+                      <div className="mt-3 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-800">
+                        {returnItem.vendorResponse === 'approved' ? 'You approved this return' : 'You disputed this return'}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Link
+                        to={`/vendor/returns/${returnItem._id}`}
+                        className="inline-flex min-h-10 items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                      >
+                        Details
+                      </Link>
+                      {hasOpenResponse ? (
+                        <button
+                          type="button"
+                          onClick={() => openResponseModal(returnItem)}
+                          className="inline-flex min-h-10 items-center rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600"
+                        >
+                          Respond
+                        </button>
+                      ) : null}
+                    </div>
+                    <p className="mt-3 text-xs text-gray-500">
+                      Created {new Date(returnItem.createdAt).toLocaleDateString()}
+                    </p>
+                  </article>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
@@ -391,6 +469,7 @@ export default function VendorReturns() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
 
           {/* Pagination */}

@@ -39,6 +39,7 @@ npm test -- --runTestsByPath src/utils/__tests__/vendorSellerCenter.blackbox.tes
 npm test -- --runTestsByPath src/utils/__tests__/vendorProductDetail.blackbox.test.js src/utils/__tests__/vendorProductDetail.whitebox.test.js
 npm test -- --runTestsByPath src/utils/__tests__/vendorReturnDispute.blackbox.test.js src/utils/__tests__/vendorReturnDispute.whitebox.test.js
 npm test -- --runTestsByPath src/utils/__tests__/vendorOrderDetail.blackbox.test.js src/utils/__tests__/vendorOrderDetail.whitebox.test.js
+npm test -- --runTestsByPath src/utils/__tests__/vendorStaffPermissions.blackbox.test.js src/utils/__tests__/vendorStaffPermissions.whitebox.test.js
 ```
 
 Run focused backend black-box and white-box tests:
@@ -63,6 +64,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/returnController.
   - `Client/src/utils/__tests__/vendorOrderDetail.blackbox.test.js`
   - `Client/src/utils/__tests__/vendorReturnDispute.blackbox.test.js`
   - `Client/src/utils/__tests__/vendorSellerCenter.blackbox.test.js`
+  - `Client/src/utils/__tests__/vendorStaffPermissions.blackbox.test.js`
 - White-box helper behavior:
   - `Client/src/components/ui/__tests__/designSystem.whitebox.test.js`
   - `Client/src/utils/__tests__/cartCheckout.whitebox.test.js`
@@ -74,6 +76,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/returnController.
   - `Client/src/utils/__tests__/vendorOrderDetail.whitebox.test.js`
   - `Client/src/utils/__tests__/vendorReturnDispute.whitebox.test.js`
   - `Client/src/utils/__tests__/vendorSellerCenter.whitebox.test.js`
+  - `Client/src/utils/__tests__/vendorStaffPermissions.whitebox.test.js`
 - Route guard behavior:
   - `Client/src/routes/__tests__/guards.blackbox.test.jsx`
 
@@ -165,7 +168,7 @@ Before pushing frontend or backend changes:
 
 The latest completed full-project verification:
 
-- `Client`: `npm test` passed, 20 suites / 79 tests.
+- `Client`: `npm test` passed, 22 suites / 88 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
 - `Server`: `npm test -- --runInBand` passed, 62 suites / 398 tests.
@@ -178,4 +181,6 @@ The latest completed full-project verification:
 - Focused frontend vendor product detail tests passed, 2 suites / 7 tests.
 - Focused frontend vendor return dispute tests passed, 2 suites / 9 tests.
 - Focused frontend vendor order detail tests passed, 2 suites / 8 tests.
+- Focused frontend vendor staff permission tests and route guard tests passed, 5 suites / 20 tests.
 - Focused backend vendor return detail test passed, 1 suite / 3 tests.
+- Focused backend API routing hardening tests passed, 3 suites / 124 tests.

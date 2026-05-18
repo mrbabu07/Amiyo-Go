@@ -51,7 +51,7 @@ const staffRoles = [
   {
     id: "order-manager",
     label: "Order manager",
-    permissions: ["orders:view", "orders:manage", "orders:ship", "returns:view"],
+    permissions: ["orders:view", "orders:manage", "orders:ship", "returns:view", "returns:manage"],
   },
   {
     id: "product-editor",
@@ -62,6 +62,16 @@ const staffRoles = [
     id: "finance-viewer",
     label: "Finance viewer",
     permissions: ["finance:view", "reports:view"],
+  },
+  {
+    id: "support-operator",
+    label: "Support operator",
+    permissions: ["support:view", "support:manage", "reviews:view", "returns:view"],
+  },
+  {
+    id: "marketing-manager",
+    label: "Marketing manager",
+    permissions: ["marketing:manage", "reports:view"],
   },
 ];
 

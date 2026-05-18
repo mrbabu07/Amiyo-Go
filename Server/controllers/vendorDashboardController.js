@@ -176,12 +176,31 @@ const deriveVendorOrderStatus = (statuses = []) => {
 const firstVendorField = (products, field) =>
   products.find((product) => product[field] !== undefined && product[field] !== null)?.[field];
 
+const vendorStaffCan = (req, permission) => {
+  if (!req.vendorStaff) return true;
+  const permissions = req.vendorStaff.permissions || [];
+  const [resource, action] = permission.split(":");
+  return (
+    permissions.includes("*") ||
+    permissions.includes(permission) ||
+    permissions.includes(`${resource}:*`) ||
+    (action === "view" && permissions.includes(`${resource}:manage`)) ||
+    (action === "view" && permissions.includes(`${resource}:ship`))
+  );
+};
+
+const rejectVendorStaffPermission = (res, permission) =>
+  res.status(403).json({
+    error: "Vendor staff permission denied",
+    required: permission,
+  });
+
 const getVendorForRequest = async (req) => {
   const Vendor = req.app.locals.models.Vendor;
   const User = req.app.locals.models.User;
-  const user = await User.findByFirebaseUid(req.user.uid);
+  const user = req.dbUser || await User.findByFirebaseUid(req.user.uid);
   if (!user) return { error: "User not found" };
-  const vendor = await Vendor.findByUserId(user._id);
+  const vendor = req.vendor || await Vendor.findByUserId(user._id);
   if (!vendor) return { error: "Vendor not found" };
   return { user, vendor };
 };
@@ -554,6 +573,9 @@ exports.getDashboardStats = async (req, res) => {
   try {
     const { vendor, error } = await getVendorForRequest(req);
     if (error) return res.status(404).json({ error });
+    if (!vendorStaffCan(req, "orders:view") && !vendorStaffCan(req, "products:view") && !vendorStaffCan(req, "finance:view")) {
+      return rejectVendorStaffPermission(res, "orders:view");
+    }
 
     if (vendor.status !== "approved") {
       return res.status(403).json({ error: "Vendor not approved" });
@@ -626,6 +648,10 @@ exports.getDashboardStats = async (req, res) => {
 // Get vendor orders (from parent orders collection, filtered by vendor items)
 exports.getVendorOrders = async (req, res) => {
   try {
+    if (!vendorStaffCan(req, "orders:view")) {
+      return rejectVendorStaffPermission(res, "orders:view");
+    }
+
     const { limit = 100, page = 1, status, vendorId: requestedVendorId } = req.query;
     const Vendor = req.app.locals.models.Vendor;
     const Order = req.app.locals.models.Order;
@@ -636,11 +662,11 @@ exports.getVendorOrders = async (req, res) => {
     if (req.user?.role === "admin" && requestedVendorId) {
       vendor = await Vendor.findById(requestedVendorId);
     } else {
-      const user = await User.findByFirebaseUid(req.user.uid);
+      const user = req.dbUser || await User.findByFirebaseUid(req.user.uid);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      vendor = await Vendor.findByUserId(user._id);
+      vendor = req.vendor || await Vendor.findByUserId(user._id);
     }
 
     if (!vendor) {
@@ -812,6 +838,10 @@ exports.getVendorOrders = async (req, res) => {
 // Update order status
 exports.updateOrderStatus = async (req, res) => {
   try {
+    if (!vendorStaffCan(req, "orders:manage")) {
+      return rejectVendorStaffPermission(res, "orders:manage");
+    }
+
     const { orderId } = req.params;
     const { status, reason = "", note = "" } = req.body;
     const Vendor = req.app.locals.models.Vendor;
@@ -825,12 +855,12 @@ exports.updateOrderStatus = async (req, res) => {
       return res.status(400).json({ error: `Status must be one of: ${validStatuses.join(", ")}` });
     }
 
-    const user = await User.findByFirebaseUid(req.user.uid);
+    const user = req.dbUser || await User.findByFirebaseUid(req.user.uid);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const vendor = await Vendor.findByUserId(user._id);
+    const vendor = req.vendor || await Vendor.findByUserId(user._id);
     if (!vendor) {
       return res.status(404).json({ error: "Vendor not found" });
     }
@@ -971,6 +1001,10 @@ exports.getTopProducts = async (req, res) => {
 
 exports.getVendorReports = async (req, res) => {
   try {
+    if (!vendorStaffCan(req, "reports:view")) {
+      return rejectVendorStaffPermission(res, "reports:view");
+    }
+
     const days = getReportDays(req.query.period);
     const { currentStart, currentEnd, previousStart, previousEnd } = buildPeriodRange(days);
     const { vendor, error } = await getVendorForRequest(req);
@@ -1188,16 +1222,20 @@ exports.getVendorReports = async (req, res) => {
 // ─── Vendor: Single order detail ─────────────────────────────
 exports.getVendorOrderDetail = async (req, res) => {
   try {
+    if (!vendorStaffCan(req, "orders:view")) {
+      return rejectVendorStaffPermission(res, "orders:view");
+    }
+
     const { orderId } = req.params;
     const Order = req.app.locals.models.Order;
     const Vendor = req.app.locals.models.Vendor;
     const User = req.app.locals.models.User;
     const db = req.app.locals.db;
 
-    const user = await User.findByFirebaseUid(req.user.uid);
+    const user = req.dbUser || await User.findByFirebaseUid(req.user.uid);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const vendor = await Vendor.findByUserId(user._id);
+    const vendor = req.vendor || await Vendor.findByUserId(user._id);
     if (!vendor) return res.status(404).json({ error: "Vendor not found" });
 
     const vendorId = vendor._id.toString();

@@ -12,6 +12,7 @@ import {
   CustomerRoute,
   GuestCheckoutRoute,
   PublicRoute,
+  VendorPermissionGuard,
 } from "../guards";
 
 jest.mock("../../hooks/useAuth", () => ({
@@ -107,5 +108,24 @@ describe("shared route guards", () => {
     );
 
     expect(screen.getByText("Checkout")).toBeInTheDocument();
+  });
+
+  test("VendorPermissionGuard blocks staff without the required seller permission", () => {
+    useAuth.mockReturnValue({
+      user: { email: "staff@test.dev" },
+      loading: false,
+      role: "vendor_staff",
+      permissions: { vendor: ["orders:view"] },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/vendor/finance"]}>
+        <VendorPermissionGuard permission="finance:view">
+          <p>Finance</p>
+        </VendorPermissionGuard>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Seller access restricted")).toBeInTheDocument();
   });
 });

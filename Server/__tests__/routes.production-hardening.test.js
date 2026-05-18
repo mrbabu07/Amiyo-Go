@@ -11,6 +11,8 @@ jest.mock("../middleware/auth", () => ({
   },
   verifyAdmin: (req, res, next) => next(),
   requireRole: () => (req, res, next) => next(),
+  requireApprovedVendor: (req, res, next) => next(),
+  requireVendorPermission: () => (req, res, next) => next(),
 }));
 
 jest.mock("../controllers/paymentController", () => ({

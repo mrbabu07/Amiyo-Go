@@ -33,6 +33,7 @@ jest.mock("../middleware/auth", () => ({
     }
     return next();
   },
+  requireVendorPermission: () => (req, res, next) => next(),
 }));
 
 jest.mock("../controllers/couponController", () => ({

@@ -1,7 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
-const { verifyToken, verifyAdmin, requireRole, requireApprovedVendor } = require("../middleware/auth");
+const {
+  verifyToken,
+  verifyAdmin,
+  requireRole,
+  requireApprovedVendor,
+  requireVendorPermission,
+} = require("../middleware/auth");
 const vendorController = require("../controllers/vendorController");
 const vendorDashboardController = require("../controllers/vendorDashboardController");
 const vendorPerformanceController = require("../controllers/adminVendorPerformanceController");
@@ -59,14 +65,50 @@ router.post("/upload-logo", verifyToken, memoryUpload.single("image"), vendorCon
 router.post("/upload-banner", verifyToken, memoryUpload.single("image"), vendorController.uploadBanner);
 
 // Vendor allowed categories
-router.get("/my-categories", verifyToken, requireRole("vendor"), vendorController.getVendorAllowedCategories);
+router.get(
+  "/my-categories",
+  verifyToken,
+  requireApprovedVendor,
+  requireVendorPermission("products:view"),
+  vendorController.getVendorAllowedCategories,
+);
 
 // Vendor marketing workflow
-router.get("/marketing/items", verifyToken, requireRole("vendor"), vendorMarketingController.listVendorMarketingItems);
-router.post("/marketing/items", verifyToken, requireRole("vendor"), vendorMarketingController.createVendorMarketingItem);
-router.patch("/marketing/items/:id", verifyToken, requireRole("vendor"), vendorMarketingController.updateVendorMarketingItem);
-router.delete("/marketing/items/:id", verifyToken, requireRole("vendor"), vendorMarketingController.deleteVendorMarketingItem);
-router.get("/marketing/analytics", verifyToken, requireRole("vendor"), vendorMarketingController.getCampaignVoucherAnalytics);
+router.get(
+  "/marketing/items",
+  verifyToken,
+  requireApprovedVendor,
+  requireVendorPermission("marketing:manage"),
+  vendorMarketingController.listVendorMarketingItems,
+);
+router.post(
+  "/marketing/items",
+  verifyToken,
+  requireApprovedVendor,
+  requireVendorPermission("marketing:manage"),
+  vendorMarketingController.createVendorMarketingItem,
+);
+router.patch(
+  "/marketing/items/:id",
+  verifyToken,
+  requireApprovedVendor,
+  requireVendorPermission("marketing:manage"),
+  vendorMarketingController.updateVendorMarketingItem,
+);
+router.delete(
+  "/marketing/items/:id",
+  verifyToken,
+  requireApprovedVendor,
+  requireVendorPermission("marketing:manage"),
+  vendorMarketingController.deleteVendorMarketingItem,
+);
+router.get(
+  "/marketing/analytics",
+  verifyToken,
+  requireApprovedVendor,
+  requireVendorPermission("marketing:manage"),
+  vendorMarketingController.getCampaignVoucherAnalytics,
+);
 
 // Vendor shop status management
 router.get("/shop/status", verifyToken, requireRole("vendor"), vendorController.getShopStatus);
@@ -79,7 +121,13 @@ router.delete("/security/2fa", verifyToken, requireRole("vendor"), vendorControl
 
 // Vendor dashboard
 router.get("/dashboard/stats", verifyToken, vendorDashboardController.getDashboardStats);
-router.get("/reports", verifyToken, requireRole("vendor"), vendorDashboardController.getVendorReports);
+router.get(
+  "/reports",
+  verifyToken,
+  requireApprovedVendor,
+  requireVendorPermission("reports:view"),
+  vendorDashboardController.getVendorReports,
+);
 router.get("/orders/stats",    verifyToken, vendorDashboardController.getVendorOrderStats);
 router.get("/orders",          verifyToken, vendorDashboardController.getVendorOrders);
 router.get("/orders/:orderId", verifyToken, vendorDashboardController.getVendorOrderDetail);

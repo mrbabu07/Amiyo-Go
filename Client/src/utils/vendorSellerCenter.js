@@ -44,7 +44,7 @@ export const getVendorGateStatus = ({
   if (missingKycStatuses.has(vendorStatus)) return "missing_kyc";
   if (!activeVendorStatuses.has(vendorStatus)) return vendorStatus || "pending";
 
-  if (role !== "vendor") return "role_pending";
+  if (!["vendor", "vendor_staff"].includes(role)) return "role_pending";
 
   const kycStatus = getVendorKycStatus(vendorProfile);
   const requiresKyc =

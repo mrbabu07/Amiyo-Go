@@ -726,6 +726,76 @@ export default function VendorOrders() {
     }
   };
 
+  const renderOrderActions = (order, { align = "end" } = {}) => {
+    const orderId = getOrderId(order);
+    const isBusy = busyOrderId === orderId;
+    const canMove = !terminalStatuses.includes(order.status);
+    const alignClass = align === "start" ? "justify-start" : "justify-end";
+
+    return (
+      <>
+        <div className={`flex flex-wrap gap-2 ${alignClass}`}>
+          <Link
+            to={`/vendor/orders/${orderId}`}
+            className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+          >
+            Details
+          </Link>
+          <IconButton title="View details" onClick={() => toggleExpandedOrder(orderId)}>
+            <Eye className="h-4 w-4" />
+          </IconButton>
+          <IconButton title="Print packing slip" onClick={() => printPackingSlip(order)}>
+            <Printer className="h-4 w-4" />
+          </IconButton>
+          <IconButton title="Download packing slip PDF" onClick={() => downloadPackingSlipPdf(order)}>
+            <FileText className="h-4 w-4" />
+          </IconButton>
+          <IconButton title="Download waybill barcode" onClick={() => downloadBarcodePdf(order)}>
+            <Barcode className="h-4 w-4" />
+          </IconButton>
+        </div>
+        <div className={`mt-2 flex flex-wrap gap-2 ${alignClass}`}>
+          {canMove && !["packed", "ready_to_ship", "pickup_ready", "shipped"].includes(order.status) && (
+            <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "packed")}>
+              Pack
+            </SmallActionButton>
+          )}
+          {canMove && ["packed", "processing", "pending"].includes(order.status) && (
+            <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "ready_to_ship")}>
+              Ready
+            </SmallActionButton>
+          )}
+          {canMove && ["packed", "ready_to_ship", "pickup_ready"].includes(order.status) && (
+            <SmallActionButton disabled={isBusy} onClick={() => openPickupSchedule(order)}>
+              Schedule
+            </SmallActionButton>
+          )}
+          {canMove && ["ready_to_ship", "pickup_ready"].includes(order.status) && (
+            <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "shipped")}>
+              Ship
+            </SmallActionButton>
+          )}
+          {order.status === "shipped" && (
+            <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "delivered")}>
+              Deliver
+            </SmallActionButton>
+          )}
+          {isCodOrder(order) && !order.codCollected && order.status !== "cancelled" && (
+            <SmallActionButton disabled={isBusy} onClick={() => markCodCollected(order)}>
+              COD
+            </SmallActionButton>
+          )}
+          <SmallActionButton onClick={() => openBuyerMessage(order)}>Message</SmallActionButton>
+          {canMove && (
+            <SmallDangerButton disabled={isBusy} onClick={() => openCancelOrder(order)}>
+              Cancel
+            </SmallDangerButton>
+          )}
+        </div>
+      </>
+    );
+  };
+
   if (loading) return <Loading />;
 
   const allVisibleSelected =
@@ -837,7 +907,110 @@ export default function VendorOrders() {
               <p className="mt-1 text-sm text-slate-500">Try another tab or search term.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="divide-y divide-slate-200 lg:hidden">
+              {filteredOrders.map((order) => {
+                const orderId = getOrderId(order);
+                const statusMeta = STATUS_META[order.status] || STATUS_META.pending;
+                const products = order.products || [];
+                const primaryProduct = products[0];
+                const isExpanded = expandedOrderId === orderId;
+
+                return (
+                  <article key={orderId} className="bg-white p-4">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(orderId)}
+                        onChange={() => toggleSelection(orderId)}
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-400"
+                        aria-label={`Select order ${shortId(orderId)}`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Link
+                            to={`/vendor/orders/${orderId}`}
+                            className="font-mono text-sm font-semibold text-orange-600 hover:text-orange-700 hover:underline"
+                          >
+                            #{shortId(orderId)}
+                          </Link>
+                          <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusMeta.className}`}>
+                            {statusMeta.label}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">{formatDateTime(order.createdAt)}</p>
+                        <div className="mt-3 flex items-start gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                            {primaryProduct?.image || primaryProduct?.productDetails?.images?.[0] ? (
+                              <img
+                                src={primaryProduct.image || primaryProduct.productDetails.images[0]}
+                                alt={primaryProduct.title || primaryProduct.productDetails?.title || "Product"}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-slate-400">
+                                <Package className="h-5 w-5" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="line-clamp-2 text-sm font-semibold text-slate-950">
+                              {primaryProduct?.title || primaryProduct?.productDetails?.title || "Product"}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {products.length} item{products.length === 1 ? "" : "s"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                          <div className="rounded-lg border border-slate-100 p-3">
+                            <p className="text-xs font-semibold uppercase text-slate-400">Customer</p>
+                            <p className="mt-1 font-semibold text-slate-950">{order.shippingInfo?.name || "Customer"}</p>
+                            <p className="text-xs text-slate-500">{order.shippingInfo?.phone || "No phone"}</p>
+                          </div>
+                          <div className="rounded-lg border border-slate-100 p-3">
+                            <p className="text-xs font-semibold uppercase text-slate-400">Total</p>
+                            <p className="mt-1 font-semibold text-slate-950">
+                              {formatPrice(order.vendorSubtotal || order.totalAmount || orderProductsTotal(order))}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {isCodOrder(order) ? (order.codCollected ? "COD collected" : "COD pending") : "Prepaid"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-3 rounded-lg border border-slate-100 p-3 text-xs text-slate-600">
+                          <div className="flex items-center gap-1.5">
+                            <CalendarClock className="h-3.5 w-3.5 text-slate-400" />
+                            {order.pickupSchedule
+                              ? `${formatDateOnly(order.pickupSchedule.pickupDate)} ${order.pickupSchedule.timeSlot || ""}`
+                              : "No pickup slot"}
+                          </div>
+                          {order.hasReturnRequest && (
+                            <span className="mt-2 inline-flex rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                              Return requested
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-4">{renderOrderActions(order, { align: "start" })}</div>
+                      </div>
+                    </div>
+                    {isExpanded && (
+                      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <OrderDetail
+                          order={order}
+                          timeline={timelineByOrder[orderId]}
+                          formatPrice={formatPrice}
+                          onCopyAddress={copyAddress}
+                          onMessage={openBuyerMessage}
+                          onReturnAction={openReturnAction}
+                        />
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto lg:block">
               <table className="min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50">
                   <tr>
@@ -865,9 +1038,7 @@ export default function VendorOrders() {
                     const statusMeta = STATUS_META[order.status] || STATUS_META.pending;
                     const products = order.products || [];
                     const primaryProduct = products[0];
-                    const isBusy = busyOrderId === orderId;
                     const isExpanded = expandedOrderId === orderId;
-                    const canMove = !terminalStatuses.includes(order.status);
 
                     return (
                       <Fragment key={orderId}>
@@ -952,64 +1123,7 @@ export default function VendorOrders() {
                             {formatPrice(order.vendorSubtotal || order.totalAmount || orderProductsTotal(order))}
                           </td>
                           <td className="px-4 py-4">
-                            <div className="flex justify-end gap-2">
-                              <Link
-                                to={`/vendor/orders/${orderId}`}
-                                className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
-                              >
-                                Details
-                              </Link>
-                              <IconButton title="View details" onClick={() => toggleExpandedOrder(orderId)}>
-                                <Eye className="h-4 w-4" />
-                              </IconButton>
-                              <IconButton title="Print packing slip" onClick={() => printPackingSlip(order)}>
-                                <Printer className="h-4 w-4" />
-                              </IconButton>
-                              <IconButton title="Download packing slip PDF" onClick={() => downloadPackingSlipPdf(order)}>
-                                <FileText className="h-4 w-4" />
-                              </IconButton>
-                              <IconButton title="Download waybill barcode" onClick={() => downloadBarcodePdf(order)}>
-                                <Barcode className="h-4 w-4" />
-                              </IconButton>
-                            </div>
-                            <div className="mt-2 flex flex-wrap justify-end gap-2">
-                              {canMove && !["packed", "ready_to_ship", "pickup_ready", "shipped"].includes(order.status) && (
-                                <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "packed")}>
-                                  Pack
-                                </SmallActionButton>
-                              )}
-                              {canMove && ["packed", "processing", "pending"].includes(order.status) && (
-                                <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "ready_to_ship")}>
-                                  Ready
-                                </SmallActionButton>
-                              )}
-                              {canMove && ["packed", "ready_to_ship", "pickup_ready"].includes(order.status) && (
-                                <SmallActionButton disabled={isBusy} onClick={() => openPickupSchedule(order)}>
-                                  Schedule
-                                </SmallActionButton>
-                              )}
-                              {canMove && ["ready_to_ship", "pickup_ready"].includes(order.status) && (
-                                <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "shipped")}>
-                                  Ship
-                                </SmallActionButton>
-                              )}
-                              {order.status === "shipped" && (
-                                <SmallActionButton disabled={isBusy} onClick={() => handleStatusUpdate(order, "delivered")}>
-                                  Deliver
-                                </SmallActionButton>
-                              )}
-                              {isCodOrder(order) && !order.codCollected && order.status !== "cancelled" && (
-                                <SmallActionButton disabled={isBusy} onClick={() => markCodCollected(order)}>
-                                  COD
-                                </SmallActionButton>
-                              )}
-                              <SmallActionButton onClick={() => openBuyerMessage(order)}>Message</SmallActionButton>
-                              {canMove && (
-                                <SmallDangerButton disabled={isBusy} onClick={() => openCancelOrder(order)}>
-                                  Cancel
-                                </SmallDangerButton>
-                              )}
-                            </div>
+                            {renderOrderActions(order)}
                           </td>
                         </tr>
                         {isExpanded && (
@@ -1032,6 +1146,7 @@ export default function VendorOrders() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </section>
 

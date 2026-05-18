@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { verifyToken, verifyAdmin, requireRole } = require("../middleware/auth");
+const { verifyToken, verifyAdmin, requireApprovedVendor, requireVendorPermission } = require("../middleware/auth");
 const { idempotencyMiddleware } = require("../middleware/idempotency");
 const {
   getAllReturns,
@@ -36,11 +36,36 @@ router.get("/order/:orderId", getOrderReturns);
 router.post("/", createReturnIdempotency, createReturnRequest);
 
 // Vendor routes
-router.get("/vendor/my-returns", requireRole("vendor"), getVendorReturns);
-router.get("/vendor/stats", requireRole("vendor"), getVendorReturnStats);
-router.get("/vendor/pending-response", requireRole("vendor"), getPendingVendorResponse);
-router.get("/vendor/:id", requireRole("vendor"), getVendorReturnById);
-router.post("/vendor/:id/respond", requireRole("vendor"), vendorRespondToReturn);
+router.get(
+  "/vendor/my-returns",
+  requireApprovedVendor,
+  requireVendorPermission("returns:view"),
+  getVendorReturns,
+);
+router.get(
+  "/vendor/stats",
+  requireApprovedVendor,
+  requireVendorPermission("returns:view"),
+  getVendorReturnStats,
+);
+router.get(
+  "/vendor/pending-response",
+  requireApprovedVendor,
+  requireVendorPermission("returns:view"),
+  getPendingVendorResponse,
+);
+router.get(
+  "/vendor/:id",
+  requireApprovedVendor,
+  requireVendorPermission("returns:view"),
+  getVendorReturnById,
+);
+router.post(
+  "/vendor/:id/respond",
+  requireApprovedVendor,
+  requireVendorPermission("returns:manage"),
+  vendorRespondToReturn,
+);
 
 // Admin routes
 router.get("/admin/all", verifyAdmin, getAllReturns);

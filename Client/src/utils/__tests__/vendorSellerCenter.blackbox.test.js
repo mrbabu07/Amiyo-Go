@@ -46,4 +46,13 @@ describe("vendor seller center black-box behavior", () => {
       label: "Blocked",
     });
   });
+
+  test("allows approved vendor staff through the seller status gate", () => {
+    const vendorProfile = {
+      status: "approved",
+      kyc: { status: "approved" },
+    };
+
+    expect(getVendorGateStatus({ vendorProfile, role: "vendor_staff" })).toBe("active");
+  });
 });

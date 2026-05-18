@@ -278,11 +278,13 @@ const requireVendorPermission = (permission) => {
     if (!req.vendorStaff) return next();
 
     const permissions = req.vendorStaff.permissions || [];
-    const [resource] = permission.split(":");
+    const [resource, action] = permission.split(":");
     const allowed =
       permissions.includes("*") ||
       permissions.includes(permission) ||
-      permissions.includes(`${resource}:*`);
+      permissions.includes(`${resource}:*`) ||
+      (action === "view" && permissions.includes(`${resource}:manage`)) ||
+      (action === "view" && permissions.includes(`${resource}:ship`));
 
     if (!allowed) {
       return res.status(403).json({

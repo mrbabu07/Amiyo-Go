@@ -694,7 +694,7 @@ exports.getMyVendorProfile = async (req, res) => {
   try {
     const Vendor = req.app.locals.models.Vendor;
     const VendorShop = req.app.locals.models.VendorShop;
-    const vendor = await Vendor.findByUserId(req.user._id);
+    const vendor = req.vendor || await Vendor.findByUserId(req.user._id);
 
     if (!vendor) {
       return res.status(404).json({ error: "Vendor profile not found" });
