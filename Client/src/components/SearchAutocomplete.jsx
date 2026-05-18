@@ -189,7 +189,7 @@ export default function SearchAutocomplete({
   const handleSuggestionClick = (suggestion) => {
     switch (suggestion.type) {
       case "product":
-        navigate(`/products/${suggestion.id}`);
+        navigate(`/product/${suggestion.id}`);
         addToRecentSearches(suggestion.title);
         break;
       case "category":

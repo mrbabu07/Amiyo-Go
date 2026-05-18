@@ -50,10 +50,12 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController
 - Black-box UI behavior:
   - `Client/src/components/ui/__tests__/designSystem.blackbox.test.jsx`
   - `Client/src/components/__tests__/DeliveryEstimateWidget.blackbox.test.jsx`
+  - `Client/src/utils/__tests__/customerOrders.blackbox.test.js`
   - `Client/src/utils/__tests__/supportQueue.blackbox.test.js`
 - White-box helper behavior:
   - `Client/src/components/ui/__tests__/designSystem.whitebox.test.js`
   - `Client/src/utils/__tests__/cartCheckout.whitebox.test.js`
+  - `Client/src/utils/__tests__/customerOrders.whitebox.test.js`
   - `Client/src/utils/__tests__/supportQueue.whitebox.test.js`
   - `Client/src/utils/__tests__/vendorCategoryRequests.whitebox.test.js`
 - Route guard behavior:
@@ -146,10 +148,11 @@ Before pushing frontend or backend changes:
 
 The latest completed full-project verification:
 
-- `Client`: `npm test` passed, 8 suites / 33 tests.
+- `Client`: `npm test` passed, 10 suites / 40 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
 - `Server`: `npm test -- --runInBand` passed, 61 suites / 394 tests.
 - Focused backend rate limiter analytics/defaults test passed, 1 suite / 7 tests.
 - Focused backend Phase 1 reliability/security tests passed, 5 suites / 13 tests.
 - Focused backend black-box and white-box support tests remain covered by the full backend run.
+- Focused frontend customer order journey tests passed, 2 suites / 7 tests.

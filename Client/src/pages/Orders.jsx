@@ -784,6 +784,18 @@ export default function Orders() {
                         </span>
                         {formatStatusText(order.status)}
                       </span>
+                      <Link
+                        to={`/orders/${order._id}/track`}
+                        className="inline-flex rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-700 transition hover:bg-sky-100"
+                      >
+                        Track
+                      </Link>
+                      <Link
+                        to={`/orders/${order._id}`}
+                        className="inline-flex rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-primary-300 hover:text-primary-700"
+                      >
+                        Details
+                      </Link>
                     </div>
                   </div>
                 </div>

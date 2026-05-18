@@ -152,7 +152,7 @@ function TopCategorySection({ categories, t }) {
   const visibleCategories = categories.slice(0, 14);
 
   return (
-    <section className="border-b border-gray-200 bg-slate-50 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+    <section className="sticky top-20 z-[120] border-b border-gray-200 bg-slate-50/95 py-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-950/95">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-2 flex items-center justify-between gap-3">
@@ -332,8 +332,6 @@ function ProductGridSection({
   actionLabel = "View all",
   tone = "gray",
 }) {
-  if (!loading && !products?.length) return null;
-
   const toneClasses = {
     gray: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200",
     orange: "bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-200",
@@ -369,11 +367,26 @@ function ProductGridSection({
               <ProductCardSkeleton key={index} />
             ))}
           </div>
-        ) : (
+        ) : products?.length ? (
           <div className="grid auto-rows-fr grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {sectionProducts(products, 10).map((product) => (
               <ProductCard key={product._id} product={product} />
             ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <p className="text-sm font-bold text-gray-900 dark:text-white">
+              No products are ready in this section yet.
+            </p>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Browse the full catalog while this collection is refreshed.
+            </p>
+            <Link
+              to={actionTo}
+              className="mt-4 inline-flex min-h-10 items-center rounded-lg bg-primary-500 px-4 text-sm font-bold text-white transition hover:bg-primary-600"
+            >
+              {actionLabel}
+            </Link>
           </div>
         )}
       </div>

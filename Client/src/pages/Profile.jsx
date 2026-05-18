@@ -22,6 +22,7 @@ import {
   Save,
   ShieldAlert,
   ShieldCheck,
+  Star,
   Trash2,
   UserRound,
   WalletCards,
@@ -221,6 +222,13 @@ export default function Profile() {
         description: "Unread updates",
         icon: Bell,
         color: "bg-cyan-50 text-cyan-700",
+      },
+      {
+        to: "/my-reviews",
+        label: "My Reviews",
+        description: "Submitted ratings",
+        icon: Star,
+        color: "bg-amber-50 text-amber-700",
       },
       {
         to: "/support",

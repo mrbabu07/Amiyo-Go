@@ -755,7 +755,11 @@ export default function Checkout() {
       const response = await createOrder(orderData);
 
       // Get order ID safely
-      const orderId = response.data?.data?._id || response.data?._id || "NEW";
+      const orderIdValue =
+        response.data?.data?.orderId ||
+        response.data?.data?._id ||
+        response.data?._id;
+      const orderId = orderIdValue ? String(orderIdValue) : "NEW";
       const orderIdShort =
         orderId !== "NEW" ? orderId.slice(-8).toUpperCase() : "NEW";
 
@@ -764,7 +768,7 @@ export default function Checkout() {
         type: "order",
         title: "Order Placed Successfully!",
         message: `Your order #${orderIdShort} has been placed and is being processed.`,
-        link: "/orders",
+        link: orderId !== "NEW" ? `/orders/${orderId}` : "/orders",
       });
 
       if (appliedPoints?.points) {
@@ -772,7 +776,16 @@ export default function Checkout() {
       }
 
       clearCart();
-      navigate("/orders", { state: { orderSuccess: true } });
+      navigate("/order-confirmation", {
+        state: {
+          orderId,
+          isGuest: false,
+          paymentMethod: formData.paymentMethod,
+          eta: checkoutDeliveryEta,
+          total: finalTotal,
+          itemCount,
+        },
+      });
     } catch (error) {
       console.error("Order failed:", error);
       console.error("Error details:", error.response?.data);

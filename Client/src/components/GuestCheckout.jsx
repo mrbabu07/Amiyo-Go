@@ -103,7 +103,9 @@ export default function GuestCheckout() {
       const response = await createGuestOrder(orderData);
 
       if (response.data.success) {
-        const orderId = response.data.data?.orderId;
+        const orderId = response.data.data?.orderId
+          ? String(response.data.data.orderId)
+          : "";
         clearCart();
         clearSessionCookie(GUEST_CART_COOKIE);
         sessionStorage.removeItem(GUEST_CART_COOKIE);
@@ -113,6 +115,9 @@ export default function GuestCheckout() {
             isGuest: true,
             email: guestInfo.email,
             paymentMethod: guestInfo.paymentMethod,
+            eta: "2-5 business days",
+            total,
+            itemCount: cart.reduce((sum, item) => sum + item.quantity, 0),
           },
         });
       }

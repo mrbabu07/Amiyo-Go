@@ -31,6 +31,7 @@ const Checkout = lazy(() => import("../pages/Checkout"));
 const GuestCheckout = lazy(() => import("../components/GuestCheckout"));
 const OrderConfirmation = lazy(() => import("../pages/OrderConfirmation"));
 const Orders = lazy(() => import("../pages/Orders"));
+const OrderDetail = lazy(() => import("../pages/OrderDetail"));
 const Profile = lazy(() => import("../pages/Profile"));
 const Messages = lazy(() => import("../pages/Messages"));
 const Returns = lazy(() => import("../pages/Returns"));
@@ -39,6 +40,7 @@ const Addresses = lazy(() => import("../pages/Addresses"));
 const FlashSales = lazy(() => import("../pages/FlashSales"));
 const MyAlerts = lazy(() => import("../pages/MyAlerts"));
 const LoyaltyDashboard = lazy(() => import("../pages/LoyaltyDashboard"));
+const MyReviews = lazy(() => import("../pages/MyReviews"));
 const SearchResults = lazy(() => import("../pages/SearchResults"));
 const AuthDebug = lazy(() => import("../pages/AuthDebug"));
 const VendorStore = lazy(() => import("../pages/VendorStore"));
@@ -157,6 +159,8 @@ const router = createBrowserRouter([
       { path: "/checkout/guest", element: <GuestCheckoutRoute>{lazyElement(GuestCheckout)}</GuestCheckoutRoute> },
       { path: "/order-confirmation", element: lazyElement(OrderConfirmation) },
       { path: "/orders", element: privateElement(Orders) },
+      { path: "/orders/:orderId", element: privateElement(OrderDetail) },
+      { path: "/orders/:orderId/track", element: privateElement(OrderDetail) },
       { path: "/profile", element: privateElement(Profile) },
       { path: "/messages", element: privateElement(Messages) },
       { path: "/returns", element: privateElement(Returns) },
@@ -164,6 +168,7 @@ const router = createBrowserRouter([
       { path: "/addresses", element: privateElement(Addresses) },
       { path: "/my-alerts", element: privateElement(MyAlerts) },
       { path: "/loyalty", element: privateElement(LoyaltyDashboard) },
+      { path: "/my-reviews", element: privateElement(MyReviews) },
       { path: "/vendor/register", element: privateElement(VendorRegister) },
     ],
   },

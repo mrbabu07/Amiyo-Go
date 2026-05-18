@@ -22,7 +22,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 - Frontend route count: about 110 route entries in `Client/src/routes/Routes.jsx`.
 - Backend route/controller handler references: about 596 route declarations across `Server/routes` and route-style controller files.
-- Frontend tests: 8 suites / 33 tests at last verification.
+- Frontend tests: 10 suites / 40 tests at last verification.
 - Backend tests: 61 suites / 394 tests at last verification.
 - Major frontend shells: `CustomerLayout`, `AuthLayout`, `VendorLayout`, `AdminLayout`.
 - Major backend groups: customer commerce, vendor center, admin operations, logistics, promotions, trust-safety, support, analytics, notifications, loyalty, wishlist, campaigns.
@@ -47,10 +47,10 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 | Feature | Status | Notes |
 |---|---|---|
-| Homepage discovery | Partial | `Home`, discovery APIs, hero/category/flash/recommendation concepts exist. Needs one consistent section order and skeleton/empty handling everywhere. |
+| Homepage discovery | Partial | `Home`, discovery APIs, hero/category/flash/recommendation concepts exist. Category strip is now sticky and product sections have empty fallbacks. Needs final vendor-highlight/trust-block adoption pass. |
 | Category listing | Partial | `CategoryPage`, dynamic categories, category fields, and filters exist. Needs cleaner subcategory chips, SEO block consistency, and mobile filter bottom sheet completion. |
 | Product listing `/products` | Partial | Products page exists and has improved category/daily needs work. Needs final grid consistency and complete mobile polish. |
-| Search results | Partial | Search routes, autocomplete, navigation, history, and search UI exist. Needs final chips, bottom-sheet filters, and zero-result recovery consistency. |
+| Search results | Partial | Search routes, autocomplete, navigation, history, bottom-sheet filters, applied chips, and zero-result recovery exist. Product autocomplete now routes to the real product detail path. Needs analytics tracking completion. |
 | Product detail | Partial | Gallery, delivery, seller, Q&A, reviews, trust widgets exist. Product detail now owns product-view tracking instead of listing cards. Needs final above-fold hierarchy and consistent sticky purchase bar behavior. |
 | Vendor storefront | Partial | `VendorStore`, public vendor APIs, follow status, marketing items exist. Needs final trust metrics, policy accordion, and storefront consistency. |
 | Flash sale page | Partial | `FlashSales`, flash sale API/admin exist. Needs expired-state handling and stock-left UX consistency. |
@@ -61,15 +61,15 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Cart | Partial | Cart exists with vendor grouping and checkout CTA work. Needs final sticky summary and full voucher/coin/shipping breakdown consistency. |
 | Guest checkout | Partial | `/checkout/guest` exists and guest order API exists. Needs final validation, optional account creation, and success path hardening. |
 | Checkout | Partial | Checkout page and order creation exist. Needs stricter stepper enforcement, idempotency, and payment confirmation hardening. |
-| Order success | Partial | `OrderConfirmation` exists. Needs clearer ETA/order summary/recommended items. |
+| Order success | Partial | `OrderConfirmation` now shows order ID copy, ETA, item count, total, trust steps, and track/detail CTAs. Needs recommended items and guest tracking hardening. |
 | Account dashboard | Partial | `Profile` links profile/orders/addresses/coins/notifications/support. Needs one complete hub with embedded summaries. |
-| Orders/history/detail | Partial | `Orders`, order timeline, invoice download APIs exist. Needs dedicated detail route and action shortcuts polish. |
+| Orders/history/detail | Partial | `Orders`, order timeline, invoice download APIs, `/orders/:orderId`, and `/orders/:orderId/track` now exist. Needs deeper item-level tracking and post-delivery action polish. |
 | Wishlist | Partial | Wishlist, collections, sharing, alerts exist. Needs final grid, move-to-cart, and price-drop states. |
 | Loyalty/coins | Partial | Loyalty dashboard/API exists. Needs checkout integration consistency. |
 | Notifications center | Partial | `MyAlerts`, notification context, preferences, push services exist. Needs event-driven backend consolidation. |
 | Support center | Partial | Ticket list/detail concepts and admin queue exist. Needs order-detail entry points and attachment UX finish. |
 | Returns flow | Partial | `Returns`, return model/controller, vendor/admin flows exist. Needs full self-serve wizard and case detail polish. |
-| Reviews | Partial | Review APIs, review components, admin moderation, vendor reply exist. Needs verified-purchase enforcement review and My Reviews polish. |
+| Reviews | Partial | Review APIs, review components, admin moderation, vendor reply, and `/my-reviews` now exist. Needs final moderation status consistency and richer media management. |
 
 ## Vendor Feature Audit
 
@@ -205,3 +205,37 @@ Remaining Phase 2 adoption work:
 - Convert vendor/admin tables to the shared table plus mobile card fallback.
 - Remove page-local `Toaster` instances after each page moves to the global feedback pattern.
 - Run a visual mobile pass on product, cart, checkout, vendor products, vendor orders, and admin queues.
+
+## Phase 3 Customer Journey Snapshot
+
+Phase 3 is not fully complete yet. The customer route map is broad and many buying-flow pieces exist, but the journey is still a set of partial workflows rather than a fully polished end-to-end customer system.
+
+Current Phase 3 status by step:
+
+| Step | Status | Evidence / Gap |
+|---|---|---|
+| 3.1 Homepage | Partial | Hero, category strip, flash sale, personalized/trending/new-arrival sections, skeletons, and empty fallbacks exist. Category strip is now sticky. Needs final top-vendor and footer trust block consistency. |
+| 3.2 Category browsing | Partial | `/categories`, `/category/:category`, and `/products?category=` exist. Search catalog has filters, bottom sheet, applied chips, sort, pagination, and zero-state recovery. Dedicated category landing pages still need the same filter depth. |
+| 3.3 Search | Partial | Autocomplete, recent/popular/product/category suggestions, search result filters, chips, sort, and zero-result recovery exist. Product suggestions now route to `/product/:id`. Needs analytics for popular/zero-result/click events. |
+| 3.4 Product detail | Partial | Gallery, title/rating/sold count, price, variants, delivery, seller info, reviews, Q&A, related products, and view dedupe exist. Needs final above-fold hierarchy and sticky purchase regression pass. |
+| 3.5 Cart | Partial | Vendor grouping, voucher, delivery breakdown, empty state, and sticky mobile CTA exist. Needs final loyalty/coin consistency between cart and checkout. |
+| 3.6 Guest checkout | Partial | Public `/checkout/guest`, cart preservation, address capture, and payment selection exist. Needs optional account creation/merge workflow. |
+| 3.7 Checkout | Partial | Address, payment, review progress, saved addresses, payment cards, vouchers, loyalty points, and idempotent order placement exist. Authenticated checkout now lands on the success page. Needs stricter step blocking and payment confirmation hardening. |
+| 3.8 Success/tracking | Partial | Success page, `/orders/:orderId`, `/orders/:orderId/track`, timeline, invoice summary, support/return shortcuts, and invoice download exist. Needs guest-accessible tracking and recommended items. |
+| 3.9 Account dashboard | Partial | Profile hub links orders, addresses, wishlist, coins, notifications, support, returns, and reviews. Needs embedded summaries instead of mostly navigation cards. |
+| 3.10 Orders pages | Partial | Order history, detail, tracking, reorder, invoice, return, support, and review entry points exist. Needs item-level tracking polish. |
+| 3.11 Support pages | Partial | Support list/detail/thread, create-ticket, FAQ, bot, linked order/return fields, and escalation entry points exist. Needs attachment preview polish and persistent assignment/SLA refinement. |
+| 3.12 Returns pages | Partial | Returns wizard, active/completed returns, evidence upload, refund method, timeline, and support escalation exist. Needs dedicated per-return detail route. |
+| 3.13 Reviews pages | Partial | Product review form and `/my-reviews` list/edit/remove page exist. Needs final moderation-status language and richer media editing. |
+| 3.14 Notifications | Partial | Notification context/dropdown, stock/price alerts page, preferences, and push settings exist. Needs consolidated notification center grouped by Today/Yesterday/Earlier. |
+| 3.15 Trust content | Partial | Delivery, seller, buyer protection, return/support/review signals appear across key pages. Needs a final copy/placement pass across every customer route. |
+
+Latest Phase 3 implementation slice:
+
+- Authenticated checkout now routes to `/order-confirmation` with order ID, ETA, payment method, total, and item count.
+- Order success now includes order ID copy, trust steps, Track Order, and Order Details CTAs.
+- Added dedicated private routes `/orders/:orderId` and `/orders/:orderId/track`.
+- Added `OrderDetail` with timeline, delivery/payment details, invoice summary, invoice download, support shortcut, return shortcut, and review shortcuts.
+- Added `/my-reviews` for customer review management with status badges, verified badge, edit, remove, media preview, and vendor reply display.
+- Added `customerOrders` helper coverage with black-box and white-box Jest tests.
+- Fixed search autocomplete product suggestions to navigate to `/product/:id`.
