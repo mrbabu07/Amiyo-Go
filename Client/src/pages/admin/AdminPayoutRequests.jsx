@@ -1,6 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import {
+  AdminQueueDetailSection,
+  AdminQueueDrawer,
+  AdminQueueKeyValue,
+  AdminQueueMetric,
+} from '../../components/admin/AdminQueuePrimitives';
 import {
   getAdminPayoutRequests,
   approvePayoutRequest,
@@ -8,6 +14,12 @@ import {
   markPayoutRequestPaid,
 } from '../../services/api';
 import Modal from '../../components/Modal';
+import {
+  buildQueueSummary,
+  formatQueueDate,
+  getQueueStatusTone,
+  normalizePayoutQueueItem,
+} from '../../utils/adminQueuePattern';
 
 export default function AdminPayoutRequests() {
   const [requests, setRequests] = useState([]);
@@ -22,6 +34,14 @@ export default function AdminPayoutRequests() {
     transactionId: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [selectedQueueRequest, setSelectedQueueRequest] = useState(null);
+
+  const queueItems = useMemo(() => requests.map(normalizePayoutQueueItem), [requests]);
+  const queueSummary = useMemo(() => buildQueueSummary(queueItems), [queueItems]);
+  const selectedQueueItem = useMemo(
+    () => (selectedQueueRequest ? normalizePayoutQueueItem(selectedQueueRequest) : null),
+    [selectedQueueRequest],
+  );
 
   useEffect(() => {
     loadRequests();
@@ -43,6 +63,7 @@ export default function AdminPayoutRequests() {
   };
 
   const openModal = (request, action) => {
+    setSelectedQueueRequest(null);
     setSelectedRequest(request);
     setModalAction(action);
     setFormData({ note: '', reason: '', transactionId: '' });
@@ -75,6 +96,7 @@ export default function AdminPayoutRequests() {
       }
 
       setShowModal(false);
+      setSelectedQueueRequest(null);
       loadRequests();
     } catch (error) {
       console.error('Error processing request:', error);
@@ -127,6 +149,27 @@ export default function AdminPayoutRequests() {
               <p className="text-gray-600 mt-1">Review and approve vendor-initiated payout requests</p>
             </div>
           </div>
+        </div>
+
+        <div className="grid gap-4 mb-6 md:grid-cols-3">
+          <AdminQueueMetric
+            label="Visible Requests"
+            value={queueSummary.total.toLocaleString('en-US')}
+            helper={`${statusFilter} queue`}
+            tone="neutral"
+          />
+          <AdminQueueMetric
+            label="Review Risk"
+            value={queueSummary.risk.toLocaleString('en-US')}
+            helper="Rows with holds or danger status"
+            tone={queueSummary.risk ? 'danger' : 'success'}
+          />
+          <AdminQueueMetric
+            label="Payout Exposure"
+            value={`BDT ${queueSummary.amount.toLocaleString('en-US')}`}
+            helper="Visible request amount"
+            tone="warning"
+          />
         </div>
 
         {/* Info Banner */}
@@ -264,8 +307,14 @@ export default function AdminPayoutRequests() {
                         {new Date(request.requestedAt || request.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          onClick={() => setSelectedQueueRequest(request)}
+                          className="mr-3 font-medium text-orange-600 hover:text-orange-800"
+                        >
+                          Details
+                        </button>
                         {request.status === 'pending' && (
-                          <div className="flex gap-2">
+                          <div className="inline-flex gap-2">
                             <button
                               onClick={() => openModal(request, 'approve')}
                               className="text-green-600 hover:text-green-800 font-medium"
@@ -499,6 +548,96 @@ export default function AdminPayoutRequests() {
           </form>
         )}
       </Modal>
+
+      <AdminQueueDrawer
+        open={Boolean(selectedQueueRequest)}
+        title={selectedQueueItem?.title}
+        subtitle={selectedQueueItem?.subtitle}
+        onClose={() => setSelectedQueueRequest(null)}
+        badges={[
+          {
+            label: selectedQueueRequest?.status || 'pending',
+            tone: getQueueStatusTone(selectedQueueRequest?.status),
+          },
+          {
+            label: selectedQueueItem?.riskLabel || 'No risk notes',
+            tone: selectedQueueItem?.riskCount ? 'danger' : 'neutral',
+          },
+        ]}
+        footer={selectedQueueRequest ? (
+          <div className="grid gap-2 sm:grid-cols-3">
+            {selectedQueueRequest.status === 'pending' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => openModal(selectedQueueRequest, 'approve')}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openModal(selectedQueueRequest, 'reject')}
+                  className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700"
+                >
+                  Reject
+                </button>
+              </>
+            ) : null}
+            {selectedQueueRequest.status === 'approved' ? (
+              <button
+                type="button"
+                onClick={() => openModal(selectedQueueRequest, 'mark-paid')}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+              >
+                Mark Paid
+              </button>
+            ) : null}
+            <Link
+              to={selectedQueueRequest.vendorId ? `/admin/vendors/${selectedQueueRequest.vendorId}` : '/admin/vendors'}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-bold text-slate-700 hover:bg-slate-50"
+            >
+              Vendor Profile
+            </Link>
+          </div>
+        ) : null}
+      >
+        {selectedQueueRequest && selectedQueueItem ? (
+          <div className="space-y-4">
+            <AdminQueueDetailSection title="Request Snapshot">
+              <AdminQueueKeyValue label="Request ID" value={selectedQueueRequest._id} />
+              <AdminQueueKeyValue label="Requested" value={formatQueueDate(selectedQueueItem.createdAt)} />
+              <AdminQueueKeyValue label="Amount" value={`BDT ${Number(selectedQueueRequest.amount || 0).toLocaleString('en-US')}`} />
+              <AdminQueueKeyValue label="Status" value={selectedQueueRequest.status} />
+              <AdminQueueKeyValue label="Vendor Note" value={selectedQueueRequest.note} />
+            </AdminQueueDetailSection>
+
+            <AdminQueueDetailSection title="Vendor">
+              <AdminQueueKeyValue label="Name" value={selectedQueueRequest.vendorName} />
+              <AdminQueueKeyValue label="Email" value={selectedQueueRequest.vendorEmail} />
+              <AdminQueueKeyValue label="Phone" value={selectedQueueRequest.vendorPhone} />
+              <AdminQueueKeyValue label="Vendor ID" value={selectedQueueRequest.vendorId} />
+            </AdminQueueDetailSection>
+
+            <AdminQueueDetailSection title="Payment Destination">
+              <AdminQueueKeyValue label="Method" value={selectedQueueRequest.payoutMethod || 'bank'} />
+              <AdminQueueKeyValue label="Bank" value={selectedQueueRequest.bankName} />
+              <AdminQueueKeyValue label="Account Name" value={selectedQueueRequest.bankAccountName} />
+              <AdminQueueKeyValue label="Account Number" value={selectedQueueRequest.bankAccountNumber} />
+              <AdminQueueKeyValue label="Mobile Provider" value={selectedQueueRequest.mobileBankingProvider} />
+              <AdminQueueKeyValue label="Mobile Number" value={selectedQueueRequest.mobileBankingNumber} />
+            </AdminQueueDetailSection>
+
+            {selectedQueueRequest.rejectionReason ? (
+              <AdminQueueDetailSection title="Decision Notes">
+                <p className="rounded-lg bg-rose-50 p-3 font-semibold text-rose-700">
+                  {selectedQueueRequest.rejectionReason}
+                </p>
+              </AdminQueueDetailSection>
+            ) : null}
+          </div>
+        ) : null}
+      </AdminQueueDrawer>
     </div>
   );
 }

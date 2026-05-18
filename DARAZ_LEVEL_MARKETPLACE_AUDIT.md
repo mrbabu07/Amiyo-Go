@@ -297,11 +297,11 @@ Current Phase 5 status by step:
 | 5.1 Admin shell | Partial | Admin shell now includes RBAC-aware navigation, alert badges, topbar route search, quick links, role badge, and dark-mode toggle. Needs resource-ID backed global search across orders/users/vendors/products. |
 | 5.2 Queue-based model | Complete | `/admin/operations` now normalizes vendor approval, KYC, product moderation, review moderation, returns, support, payouts, and failed-notification queues with SLA/risk/exposure signals. |
 | 5.3 Vendor management | Partial | Vendor requests, detail, KYC, status actions, category access, and related queues exist. Needs one consistent right-drawer detail pattern. |
-| 5.4 Product moderation | Partial | Product queue, approve/reject/disable, scans, duplicates, IP, and brand tools exist. Needs shared moderation drawer adoption. |
+| 5.4 Product moderation | Partial | Product queue, approve/reject/disable, scans, duplicates, IP, brand tools, and shared queue detail drawer exist. Needs the same drawer model expanded to every moderation sub-view. |
 | 5.5 Review moderation | Partial | Review moderation/trust-safety queues exist and now feed operations workload. Needs richer vendor-reply visibility in queue details. |
 | 5.6 Support operations | Partial | Support queue has stats, SLA, assignment UI, and thread drawer. Needs assignment persistence and internal-note automation verification. |
 | 5.7 Returns decision | Partial | Return queue/dispute workflows exist and now feed operations workload. Needs final side-by-side decision panel standardization. |
-| 5.8 Payout operations | Partial | Payout queue, payout requests, approvals/rejections/paid states, finance overview, and payout exposure signals exist. Needs linked-order risk details in one drawer. |
+| 5.8 Payout operations | Partial | Payout queue, payout requests, approvals/rejections/paid states, finance overview, payout exposure signals, and payout request detail drawer exist. Needs linked-order risk details and payout history inside the drawer. |
 | 5.9 Order operations | Partial | Admin orders, status/payment/delivery views, SLA/fraud queues, and export exist. Needs override action audit UI polish. |
 | 5.10 Categories/commission | Partial | Dynamic categories, attributes, category requests, platform commission rules, and finance rules exist. Needs drag/drop tree and inheritance preview polish. |
 | 5.11 Delivery/logistics | Partial | Logistics overview, zones, couriers, fee rules, dispatch manifest, failed delivery, COD float, and audit log exist. Needs canonical shipment state-machine enforcement. |
@@ -323,3 +323,6 @@ Latest Phase 5 implementation slice:
 - Added unified `/api/admin/audit-logs` filters for search, module, severity, actor, target, date range, pagination, and operational summaries.
 - Added `/admin/audit-logs` with summary cards, desktop table, mobile cards, and a right-side evidence drawer for actor/target/request/metadata/diff review.
 - Added admin audit-log frontend black-box/white-box helper tests and backend controller tests for query construction, severity derivation, normalization, and paginated responses.
+- Added shared admin queue primitives for status badges, queue metrics, right-side detail drawers, and key/value evidence sections.
+- Added `adminQueuePattern` helpers plus black-box and white-box tests for queue normalization, search/status/type filtering, tone mapping, date fallbacks, and summary cards.
+- Adopted the shared queue drawer in product moderation and payout requests so admins can review listing evidence, vendor/payment detail, and decision actions without leaving the queue.

@@ -2,7 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
 import Loading from "../../components/Loading";
+import {
+  AdminQueueBadge,
+  AdminQueueDetailSection,
+  AdminQueueDrawer,
+  AdminQueueKeyValue,
+} from "../../components/admin/AdminQueuePrimitives";
 import useCurrency from "../../hooks/useCurrency";
+import {
+  formatQueueDate,
+  getQueueStatusTone,
+  normalizeProductQueueItem,
+} from "../../utils/adminQueuePattern";
 import {
   getAdminProducts,
   approveAdminProduct,
@@ -77,6 +88,7 @@ export default function AdminProducts() {
   const [editForm, setEditForm] = useState({ title: "", sku: "", categoryId: "", brand: "", note: "", approveAfterEdit: true });
   const [brandForm, setBrandForm] = useState({ name: "", ownerVendorId: "", trademarkNumber: "" });
   const [ipForm, setIpForm] = useState({ productId: "", brandName: "", reason: "" });
+  const [selectedQueueProduct, setSelectedQueueProduct] = useState(null);
 
   const metrics = useMemo(() => {
     const flags = products.reduce((sum, product) => sum + (product.moderationFlags?.length || 0), 0);
@@ -88,6 +100,11 @@ export default function AdminProducts() {
       flags,
     };
   }, [products, total]);
+
+  const selectedQueueItem = useMemo(
+    () => (selectedQueueProduct ? normalizeProductQueueItem(selectedQueueProduct) : null),
+    [selectedQueueProduct],
+  );
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -162,6 +179,7 @@ export default function AdminProducts() {
   };
 
   const openReject = (product = null, mode = "single") => {
+    setSelectedQueueProduct(null);
     setRejectModal({ product, mode });
     setRejectReason("");
   };
@@ -231,6 +249,7 @@ export default function AdminProducts() {
   };
 
   const openEdit = (product) => {
+    setSelectedQueueProduct(null);
     setEditModal(product);
     setEditForm({
       title: product.title || "",
@@ -516,6 +535,9 @@ export default function AdminProducts() {
                             <button onClick={() => openEdit(product)} className="rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100">
                               Quick Edit
                             </button>
+                            <button onClick={() => setSelectedQueueProduct(product)} className="rounded-lg bg-orange-50 px-3 py-1.5 text-sm font-semibold text-orange-700 hover:bg-orange-100">
+                              Details
+                            </button>
                             <Link to={`/admin/products/edit/${product._id}`} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
                               Full Edit
                             </Link>
@@ -753,6 +775,109 @@ export default function AdminProducts() {
           </div>
         </div>
       )}
+
+      <AdminQueueDrawer
+        open={Boolean(selectedQueueProduct)}
+        title={selectedQueueItem?.title}
+        subtitle={selectedQueueItem?.subtitle}
+        onClose={() => setSelectedQueueProduct(null)}
+        badges={[
+          {
+            label: selectedQueueProduct?.approvalStatus || selectedQueueProduct?.status || "approved",
+            tone: getQueueStatusTone(selectedQueueProduct?.approvalStatus || selectedQueueProduct?.status),
+          },
+          {
+            label: selectedQueueItem?.riskLabel || "No moderation flags",
+            tone: selectedQueueItem?.riskCount ? "danger" : "success",
+          },
+        ]}
+        footer={selectedQueueProduct ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedQueueProduct(null);
+                handleApprove(selectedQueueProduct._id);
+              }}
+              disabled={actionLoading}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              onClick={() => openReject(selectedQueueProduct)}
+              className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700"
+            >
+              Reject
+            </button>
+            <button
+              type="button"
+              onClick={() => openEdit(selectedQueueProduct)}
+              className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100"
+            >
+              Quick Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedQueueProduct(null);
+                handleDelist(selectedQueueProduct._id);
+              }}
+              className="rounded-lg border border-slate-900 bg-slate-950 px-4 py-2 text-sm font-bold text-white hover:bg-black"
+            >
+              Delist
+            </button>
+          </div>
+        ) : null}
+      >
+        {selectedQueueProduct && selectedQueueItem ? (
+          <div className="space-y-4">
+            <AdminQueueDetailSection title="Listing Snapshot">
+              <div className="flex gap-3">
+                <img
+                  src={getProductImage(selectedQueueProduct)}
+                  alt={selectedQueueProduct.title}
+                  className="h-20 w-20 rounded-lg object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-slate-950 dark:text-white">{selectedQueueProduct.title}</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    {selectedQueueProduct.description || "No description provided"}
+                  </p>
+                </div>
+              </div>
+            </AdminQueueDetailSection>
+
+            <AdminQueueDetailSection title="Operational Detail">
+              <AdminQueueKeyValue label="Product ID" value={selectedQueueProduct._id} />
+              <AdminQueueKeyValue label="Vendor" value={selectedQueueItem.owner} />
+              <AdminQueueKeyValue label="Category" value={selectedQueueProduct.categoryName || selectedQueueProduct.categoryId} />
+              <AdminQueueKeyValue label="Price" value={formatPrice(selectedQueueProduct.price || 0)} />
+              <AdminQueueKeyValue label="Submitted" value={formatQueueDate(selectedQueueItem.createdAt)} />
+            </AdminQueueDetailSection>
+
+            <AdminQueueDetailSection title="Moderation Evidence">
+              {(selectedQueueProduct.moderationFlags || []).length ? (
+                <div className="flex flex-wrap gap-2">
+                  {selectedQueueProduct.moderationFlags.map((flag) => (
+                    <AdminQueueBadge key={`${flag.type}-${flag.message}`} tone={flag.severity === "high" ? "danger" : "warning"}>
+                      {flag.message || flag.type}
+                    </AdminQueueBadge>
+                  ))}
+                </div>
+              ) : (
+                <p>No automated policy flags on this listing.</p>
+              )}
+              {selectedQueueProduct.rejectionReason ? (
+                <p className="rounded-lg bg-rose-50 p-3 text-rose-700">
+                  Previous rejection: {selectedQueueProduct.rejectionReason}
+                </p>
+              ) : null}
+            </AdminQueueDetailSection>
+          </div>
+        ) : null}
+      </AdminQueueDrawer>
     </div>
   );
 }
