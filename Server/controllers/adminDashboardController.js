@@ -49,6 +49,13 @@ const getOrderCommission = (order) =>
 const getRefundAmount = (returnDoc) =>
   Number(returnDoc.refundAmount ?? returnDoc.adminRefund ?? returnDoc.amount ?? returnDoc.totalAmount ?? 0);
 
+const percentChange = (current, previous) => {
+  const currentValue = Number(current || 0);
+  const previousValue = Number(previous || 0);
+  if (previousValue === 0) return currentValue > 0 ? 100 : 0;
+  return round2(((currentValue - previousValue) / previousValue) * 100);
+};
+
 const getOrderCustomerName = (order) =>
   order.customerName || order.shippingInfo?.name || order.userName || order.shippingInfo?.phone || "Customer";
 
@@ -596,6 +603,51 @@ const buildTopProducts = (orders = [], vendors = []) => {
     .slice(0, 10);
 };
 
+const buildTopCategories = (orders = []) => {
+  const categoryRows = new Map();
+
+  orders
+    .filter((order) => order.status !== "cancelled")
+    .forEach((order) => {
+      const items = order.products || order.items || [];
+      items.forEach((item) => {
+        const categoryId = normalizeId(item.categoryId || item.category || item.categoryName || item.categoryPath || "uncategorized");
+        const categoryName =
+          item.categoryName ||
+          item.categoryLabel ||
+          (Array.isArray(item.categoryPath) ? item.categoryPath.filter(Boolean).join(" / ") : item.categoryPath) ||
+          item.category ||
+          "Uncategorized";
+        const row = categoryRows.get(categoryId) || {
+          categoryId,
+          categoryName,
+          gmv: 0,
+          commission: 0,
+          units: 0,
+          orderIds: new Set(),
+        };
+
+        row.gmv += getItemAmount(item);
+        row.commission += getItemCommission(item);
+        row.units += Number(item.quantity || item.qty || 1);
+        row.orderIds.add(normalizeId(order._id));
+        categoryRows.set(categoryId, row);
+      });
+    });
+
+  return [...categoryRows.values()]
+    .map((row) => ({
+      categoryId: row.categoryId,
+      categoryName: row.categoryName,
+      gmv: round2(row.gmv),
+      commission: round2(row.commission),
+      units: row.units,
+      orders: row.orderIds.size,
+    }))
+    .sort((a, b) => b.gmv - a.gmv)
+    .slice(0, 8);
+};
+
 const mapActivity = (type, title, at, meta = {}, severity = "info") => ({
   id: `${type}-${normalizeId(meta.id || title)}-${new Date(at || Date.now()).getTime()}`,
   type,
@@ -728,6 +780,8 @@ exports.getAdminDashboardOverview = async (req, res) => {
     const tomorrowStart = endOfDay(now);
     const dayAgo = new Date(now.getTime() - DAY_MS);
     const slaDeadline = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    const supportSlaDeadline = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const previousStart = new Date(range.start.getTime() - (range.end.getTime() - range.start.getTime()));
 
     const ordersCollection = safeCollection(db, "orders");
     const usersCollection = safeCollection(db, "users");
@@ -737,11 +791,18 @@ exports.getAdminDashboardOverview = async (req, res) => {
     const payoutsCollection = safeCollection(db, "vendor_payouts");
     const paymentsCollection = safeCollection(db, "payments");
     const vendorOrdersCollection = safeCollection(db, "vendorOrders");
+    const supportTicketsCollection = safeCollection(db, "supportTickets");
+    const reviewsCollection = safeCollection(db, "reviews");
+    const notificationDeliveriesCollection = safeCollection(db, "notification_deliveries");
+    const bulkJobsCollection = safeCollection(db, "bulk_upload_jobs");
+    const analyticsSummaryCollection = safeCollection(db, "analytics_summaries");
 
     const [
       ordersInRange,
+      previousOrders,
       todayOrders,
       returnsInRange,
+      previousReturns,
       vendors,
       recentOrders,
       pendingVendors,
@@ -759,10 +820,20 @@ exports.getAdminDashboardOverview = async (req, res) => {
       payoutRequests,
       returnDisputes,
       kycReviews,
+      activeVendors,
+      openSupportTickets,
+      supportSlaBreaches,
+      reviewModeration,
+      failedNotificationDeliveries,
+      failedBulkJobs,
+      payoutQueue,
+      latestAnalyticsSummary,
     ] = await Promise.all([
       safeFind(ordersCollection, { createdAt: { $gte: range.start, $lt: range.end } }, { sort: { createdAt: -1 }, limit: 5000 }),
+      safeFind(ordersCollection, { createdAt: { $gte: previousStart, $lt: range.start } }, { sort: { createdAt: -1 }, limit: 5000 }),
       safeFind(ordersCollection, { createdAt: { $gte: todayStart, $lt: tomorrowStart } }, { sort: { createdAt: -1 }, limit: 2000 }),
       safeFind(returnsCollection, { createdAt: { $gte: range.start, $lt: range.end } }, { sort: { createdAt: -1 }, limit: 2000 }),
+      safeFind(returnsCollection, { createdAt: { $gte: previousStart, $lt: range.start } }, { sort: { createdAt: -1 }, limit: 2000 }),
       safeFind(vendorsCollection, {}, { limit: 2000 }),
       safeFind(ordersCollection, { createdAt: { $gte: dayAgo } }, { sort: { createdAt: -1 }, limit: 12 }),
       safeFind(vendorsCollection, { status: "pending" }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 8 }),
@@ -780,11 +851,29 @@ exports.getAdminDashboardOverview = async (req, res) => {
       safeCount(payoutsCollection, { type: "vendor_requested", status: "pending" }),
       countActiveDisputes(returnsCollection),
       safeCount(vendorsCollection, { "kyc.status": { $in: ["pending", "submitted", "under_review"] } }),
+      safeCount(vendorsCollection, { status: { $in: ["approved", "active"] } }),
+      safeCount(supportTicketsCollection, { status: { $in: ["open", "in_progress"] } }),
+      safeCount(supportTicketsCollection, { status: { $in: ["open", "in_progress"] }, createdAt: { $lt: supportSlaDeadline } }),
+      safeCount(reviewsCollection, {
+        $or: [
+          { moderationStatus: { $in: ["flagged", "pending_review"] } },
+          { status: { $in: ["flagged", "pending_review"] } },
+          { flagged: true },
+          { reportCount: { $gt: 0 } },
+        ],
+      }),
+      safeCount(notificationDeliveriesCollection, { status: failedStatusQuery }),
+      safeCount(bulkJobsCollection, { status: { $in: ["failed", "error"] } }),
+      safeFind(payoutsCollection, {
+        status: { $in: ["pending", "approved", "processing", "hold", "held"] },
+      }, { sort: { requestedAt: -1, updatedAt: -1, createdAt: -1 }, limit: 500 }),
+      safeFind(analyticsSummaryCollection, {}, { sort: { updatedAt: -1, createdAt: -1 }, limit: 1 }),
     ]);
 
     const todayActiveOrders = todayOrders.filter((order) => order.status !== "cancelled");
     const todayGmv = todayActiveOrders.reduce((sum, order) => sum + getOrderAmount(order), 0);
     const revenueSeries = buildRevenueSeries(ordersInRange, returnsInRange, range.start, range.end);
+    const previousRevenueSeries = buildRevenueSeries(previousOrders, previousReturns, previousStart, range.start);
     const orderFunnel = buildFunnel(ordersInRange, returnsInRange);
     const fraudFlags = ordersInRange.filter((order) => order.fraudFlag || order.risk?.flagged || Number(order.riskScore || 0) >= 80).length;
     const health = buildHealthAlerts({ orders: ordersInRange, failedPayments24h, slaBreaches, fraudFlags });
@@ -797,6 +886,21 @@ exports.getAdminDashboardOverview = async (req, res) => {
       }),
       { gmv: 0, commission: 0, refunds: 0 },
     );
+    const previousRevenueTotals = previousRevenueSeries.reduce(
+      (totals, day) => ({
+        gmv: round2(totals.gmv + day.gmv),
+        commission: round2(totals.commission + day.commission),
+        refunds: round2(totals.refunds + day.refunds),
+      }),
+      { gmv: 0, commission: 0, refunds: 0 },
+    );
+    const refundRate = revenueTotals.gmv ? round2((revenueTotals.refunds / revenueTotals.gmv) * 100) : 0;
+    const previousRefundRate = previousRevenueTotals.gmv
+      ? round2((previousRevenueTotals.refunds / previousRevenueTotals.gmv) * 100)
+      : 0;
+    const analyticsUpdatedAt = latestAnalyticsSummary[0]?.updatedAt || latestAnalyticsSummary[0]?.createdAt || null;
+    const analyticsFresh =
+      analyticsUpdatedAt && now.getTime() - new Date(analyticsUpdatedAt).getTime() <= 2 * 60 * 60 * 1000;
 
     res.json({
       success: true,
@@ -814,10 +918,37 @@ exports.getAdminDashboardOverview = async (req, res) => {
           newUsers,
           newVendors,
           pendingPayouts,
+          payoutExposure: sumPayoutExposure(payoutQueue),
           activeDisputes,
+          activeVendors,
+          supportOpen: openSupportTickets,
+          supportSlaBreaches,
+          reviewModeration,
+          failedNotifications: failedNotificationDeliveries,
+          failedBulkJobs,
+          refundAmount: revenueTotals.refunds,
+          refundRate,
           cancellationRate: health.cancellationRate,
         },
         revenueTotals,
+        comparison: {
+          previousStart,
+          previousEnd: range.start,
+          gmvChange: percentChange(revenueTotals.gmv, previousRevenueTotals.gmv),
+          ordersChange: percentChange(ordersInRange.length, previousOrders.length),
+          commissionChange: percentChange(revenueTotals.commission, previousRevenueTotals.commission),
+          refundsChange: percentChange(revenueTotals.refunds, previousRevenueTotals.refunds),
+          refundRateChange: round2(refundRate - previousRefundRate),
+        },
+        opsSummary: {
+          supportOpen: openSupportTickets,
+          supportSlaBreaches,
+          failedNotifications: failedNotificationDeliveries,
+          failedBulkJobs,
+          failedPayments: failedPayments24h,
+          analyticsCronStatus: analyticsFresh ? "running" : "watch",
+          analyticsUpdatedAt,
+        },
         revenueSeries,
         orderFunnel,
         activityFeed: buildActivityFeed({
@@ -828,6 +959,7 @@ exports.getAdminDashboardOverview = async (req, res) => {
         }),
         healthAlerts: health.alerts,
         topVendors: buildTopVendors(ordersInRange, vendors),
+        topCategories: buildTopCategories(ordersInRange),
         topProductsToday: buildTopProducts(todayOrders, vendors),
         pendingActions: {
           vendorApprovals,
@@ -835,6 +967,9 @@ exports.getAdminDashboardOverview = async (req, res) => {
           payoutRequests,
           returnDisputes,
           kycReviews,
+          supportTickets: openSupportTickets,
+          reviewModeration,
+          failedNotifications: failedNotificationDeliveries,
         },
       },
     });

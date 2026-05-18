@@ -196,6 +196,7 @@ The latest completed full-project verification:
 - `Server`: `npm test -- --runInBand` passed, 66 suites / 410 tests.
 - `Server`: latest focused Phase 5 admin audit-log controller tests passed, 1 suite / 4 tests.
 - `Server`: focused admin order search/management tests passed, 2 suites / 6 tests.
+- `Server`: focused admin dashboard workflow tests passed, 2 suites / 7 tests.
 - `Server`: Phase 5 admin operations helper tests remain covered, 1 suite / 6 tests.
 - Focused backend rate limiter analytics/defaults test passed, 1 suite / 7 tests.
 - Focused backend Phase 1 reliability/security tests passed, 5 suites / 13 tests.

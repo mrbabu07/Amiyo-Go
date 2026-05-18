@@ -12,6 +12,7 @@ import {
   CreditCard,
   FileCheck2,
   Filter,
+  Headphones,
   Loader2,
   PackageSearch,
   RefreshCcw,
@@ -19,6 +20,7 @@ import {
   ShieldAlert,
   ShoppingCart,
   Store,
+  Tags,
   TrendingDown,
   TrendingUp,
   Users,
@@ -55,15 +57,41 @@ const emptyDashboard = {
     newUsers: 0,
     newVendors: 0,
     pendingPayouts: 0,
+    payoutExposure: 0,
     activeDisputes: 0,
+    activeVendors: 0,
+    supportOpen: 0,
+    supportSlaBreaches: 0,
+    reviewModeration: 0,
+    failedNotifications: 0,
+    failedBulkJobs: 0,
+    refundAmount: 0,
+    refundRate: 0,
     cancellationRate: 0,
   },
   revenueTotals: { gmv: 0, commission: 0, refunds: 0 },
+  comparison: {
+    gmvChange: 0,
+    ordersChange: 0,
+    commissionChange: 0,
+    refundsChange: 0,
+    refundRateChange: 0,
+  },
+  opsSummary: {
+    supportOpen: 0,
+    supportSlaBreaches: 0,
+    failedNotifications: 0,
+    failedBulkJobs: 0,
+    failedPayments: 0,
+    analyticsCronStatus: "watch",
+    analyticsUpdatedAt: null,
+  },
   revenueSeries: [],
   orderFunnel: [],
   activityFeed: [],
   healthAlerts: [],
   topVendors: [],
+  topCategories: [],
   topProductsToday: [],
   pendingActions: {
     vendorApprovals: 0,
@@ -71,6 +99,9 @@ const emptyDashboard = {
     payoutRequests: 0,
     returnDisputes: 0,
     kycReviews: 0,
+    supportTickets: 0,
+    reviewModeration: 0,
+    failedNotifications: 0,
   },
 };
 
@@ -84,8 +115,14 @@ const pendingActionLinks = [
   {
     key: "productModeration",
     label: "Product moderation",
-    path: "/admin/vendor-activity",
+    path: "/admin/products",
     icon: PackageSearch,
+  },
+  {
+    key: "reviewModeration",
+    label: "Review moderation",
+    path: "/admin/reviews",
+    icon: ShieldAlert,
   },
   {
     key: "payoutRequests",
@@ -100,10 +137,22 @@ const pendingActionLinks = [
     icon: RefreshCcw,
   },
   {
+    key: "supportTickets",
+    label: "Support tickets",
+    path: "/admin/support",
+    icon: Headphones,
+  },
+  {
     key: "kycReviews",
     label: "KYC reviews",
     path: "/admin/vendor-requests",
     icon: FileCheck2,
+  },
+  {
+    key: "failedNotifications",
+    label: "Failed messages",
+    path: "/admin/operations",
+    icon: BellRing,
   },
 ];
 
@@ -123,6 +172,14 @@ const compactNumber = (value) => {
 };
 
 const formatCount = (value) => Number(value || 0).toLocaleString("en-US");
+
+const formatPercent = (value) => `${Number(value || 0).toFixed(1)}%`;
+
+const formatChange = (value) => {
+  const number = Number(value || 0);
+  if (Object.is(number, -0)) return "0.0%";
+  return `${number > 0 ? "+" : ""}${number.toFixed(1)}%`;
+};
 
 const formatDateTime = (value) => {
   if (!value) return "Not updated";
@@ -173,6 +230,50 @@ function KpiCard({ label, value, detail, icon, tone = "sky", loading }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function ChangePill({ label, value }) {
+  const number = Number(value || 0);
+  const tone =
+    number > 0
+      ? "bg-emerald-50 text-emerald-700"
+      : number < 0
+        ? "bg-rose-50 text-rose-700"
+        : "bg-slate-100 text-slate-600";
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${tone}`}>
+      {label} {formatChange(number)}
+    </span>
+  );
+}
+
+function WorkflowCard({ to, icon: Icon, label, value, detail, tone = "sky" }) {
+  const tones = {
+    sky: "bg-sky-50 text-sky-700 border-sky-100",
+    emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    amber: "bg-amber-50 text-amber-700 border-amber-100",
+    rose: "bg-rose-50 text-rose-700 border-rose-100",
+    slate: "bg-slate-100 text-slate-700 border-slate-200",
+  };
+
+  return (
+    <Link
+      to={to}
+      className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
+          <p className="mt-1 text-xs text-slate-500">{detail}</p>
+        </div>
+        <div className={`rounded-lg border p-2.5 ${tones[tone]}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -283,6 +384,8 @@ export default function AdminDashboard() {
 
   const kpis = dashboard.kpis || emptyDashboard.kpis;
   const pendingActions = dashboard.pendingActions || emptyDashboard.pendingActions;
+  const comparison = dashboard.comparison || emptyDashboard.comparison;
+  const opsSummary = dashboard.opsSummary || emptyDashboard.opsSummary;
   const totalPendingActions = Object.values(pendingActions).reduce((sum, value) => sum + Number(value || 0), 0);
 
   const sortedVendors = useMemo(() => {
@@ -368,7 +471,7 @@ export default function AdminDashboard() {
           )}
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
           <KpiCard
             label="Today's GMV"
             value={formatPrice(kpis.todayGmv)}
@@ -380,9 +483,17 @@ export default function AdminDashboard() {
           <KpiCard
             label="Total orders"
             value={formatCount(kpis.totalOrders)}
-            detail="All-time marketplace orders"
+            detail={`${formatChange(comparison.ordersChange)} vs previous period`}
             icon={ShoppingCart}
             tone="sky"
+            loading={loading}
+          />
+          <KpiCard
+            label="Active vendors"
+            value={formatCount(kpis.activeVendors)}
+            detail={`${formatCount(kpis.newVendors)} new today`}
+            icon={Store}
+            tone="amber"
             loading={loading}
           />
           <KpiCard
@@ -394,19 +505,27 @@ export default function AdminDashboard() {
             loading={loading}
           />
           <KpiCard
-            label="New vendors"
-            value={formatCount(kpis.newVendors)}
-            detail="Applied today"
-            icon={Store}
-            tone="amber"
+            label="Payout exposure"
+            value={formatPrice(kpis.payoutExposure)}
+            detail={`${formatCount(kpis.pendingPayouts)} pending payouts`}
+            icon={Banknote}
+            tone="rose"
             loading={loading}
           />
           <KpiCard
-            label="Pending payouts"
-            value={formatCount(kpis.pendingPayouts)}
-            detail="Awaiting finance action"
-            icon={Banknote}
-            tone="rose"
+            label="Refund rate"
+            value={formatPercent(kpis.refundRate)}
+            detail={`${formatPrice(kpis.refundAmount)} in refunds`}
+            icon={TrendingDown}
+            tone="slate"
+            loading={loading}
+          />
+          <KpiCard
+            label="Support SLA"
+            value={formatCount(kpis.supportSlaBreaches)}
+            detail={`${formatCount(kpis.supportOpen)} open tickets`}
+            icon={Headphones}
+            tone={Number(kpis.supportSlaBreaches || 0) > 0 ? "rose" : "emerald"}
             loading={loading}
           />
           <KpiCard
@@ -425,14 +544,55 @@ export default function AdminDashboard() {
           ))}
         </section>
 
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <WorkflowCard
+            to="/admin/support"
+            icon={Headphones}
+            label="Support SLA"
+            value={formatCount(opsSummary.supportSlaBreaches)}
+            detail={`${formatCount(opsSummary.supportOpen)} open support tickets`}
+            tone={Number(opsSummary.supportSlaBreaches || 0) > 0 ? "rose" : "emerald"}
+          />
+          <WorkflowCard
+            to="/admin/operations"
+            icon={BellRing}
+            label="Failed notifications"
+            value={formatCount(opsSummary.failedNotifications)}
+            detail="Email, push, and in-app delivery issues"
+            tone={Number(opsSummary.failedNotifications || 0) > 0 ? "amber" : "emerald"}
+          />
+          <WorkflowCard
+            to="/admin/operations"
+            icon={AlertTriangle}
+            label="Failed jobs"
+            value={formatCount(opsSummary.failedBulkJobs)}
+            detail={`${formatCount(opsSummary.failedPayments)} failed payment/webhook events`}
+            tone={Number(opsSummary.failedBulkJobs || 0) > 0 ? "rose" : "emerald"}
+          />
+          <WorkflowCard
+            to="/admin/analytics"
+            icon={Clock3}
+            label="Analytics cron"
+            value={opsSummary.analyticsCronStatus === "running" ? "Running" : "Watch"}
+            detail={`Last signal ${formatDateTime(opsSummary.analyticsUpdatedAt)}`}
+            tone={opsSummary.analyticsCronStatus === "running" ? "emerald" : "amber"}
+          />
+        </section>
+
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.55fr)]">
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-950">Revenue Breakdown</h2>
                 <p className="text-sm text-slate-500">
-                  Commission {formatPrice(dashboard.revenueTotals?.commission)} · GMV {formatPrice(dashboard.revenueTotals?.gmv)} · Refunds {formatPrice(dashboard.revenueTotals?.refunds)}
+                  Commission {formatPrice(dashboard.revenueTotals?.commission)} - GMV {formatPrice(dashboard.revenueTotals?.gmv)} - Refunds {formatPrice(dashboard.revenueTotals?.refunds)}
                 </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <ChangePill label="GMV" value={comparison.gmvChange} />
+                  <ChangePill label="Orders" value={comparison.ordersChange} />
+                  <ChangePill label="Commission" value={comparison.commissionChange} />
+                  <ChangePill label="Refunds" value={comparison.refundsChange} />
+                </div>
               </div>
               <div className="inline-flex w-max items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
                 <TrendingUp className="h-3.5 w-3.5" />
@@ -467,6 +627,40 @@ export default function AdminDashboard() {
                   <Area type="monotone" dataKey="refunds" name="Refunds" stroke="#f43f5e" fill="url(#refundFill)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">Top Categories</h2>
+                <p className="text-sm text-slate-500">Highest GMV categories in the selected period.</p>
+              </div>
+              <Tags className="h-5 w-5 text-slate-400" />
+            </div>
+            <div className="mt-5 space-y-3">
+              {(dashboard.topCategories || []).slice(0, 6).map((category, index) => (
+                <Link
+                  key={category.categoryId || category.categoryName}
+                  to={`/admin/categories?search=${encodeURIComponent(category.categoryName || "")}`}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 transition hover:border-sky-300 hover:bg-sky-50"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">
+                      {index + 1}. {category.categoryName}
+                    </p>
+                    <p className="truncate text-xs text-slate-500">
+                      {formatCount(category.orders)} orders - {formatCount(category.units)} units
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-sm font-bold text-slate-950">{formatPrice(category.gmv)}</span>
+                </Link>
+              ))}
+              {(dashboard.topCategories || []).length === 0 && (
+                <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+                  No category sales found for this range.
+                </div>
+              )}
             </div>
           </div>
 
@@ -526,7 +720,7 @@ export default function AdminDashboard() {
                       <p className="truncate text-sm font-semibold text-slate-900">{activity.title}</p>
                       <p className="mt-0.5 truncate text-xs text-slate-500">
                         {activity.meta?.label || activity.type}
-                        {activity.meta?.amount ? ` · ${formatPrice(activity.meta.amount)}` : ""}
+                        {activity.meta?.amount ? ` - ${formatPrice(activity.meta.amount)}` : ""}
                       </p>
                     </div>
                     <span className="shrink-0 text-xs font-medium text-slate-400">{formatDateTime(activity.at)}</span>
@@ -664,7 +858,7 @@ export default function AdminDashboard() {
                       {index + 1}. {product.productName}
                     </p>
                     <p className="truncate text-xs text-slate-500">
-                      {product.vendorName} · {formatCount(product.units)} units
+                      {product.vendorName} - {formatCount(product.units)} units
                     </p>
                   </div>
                   <span className="shrink-0 text-sm font-bold text-slate-950">{formatPrice(product.revenue)}</span>
@@ -679,7 +873,7 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-3">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <Link to="/admin/orders" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-slate-950">Order Operations</h3>
@@ -694,12 +888,33 @@ export default function AdminDashboard() {
             </div>
             <p className="mt-1 text-sm text-slate-500">Clear vendor, KYC, product, and category approval queues.</p>
           </Link>
+          <Link to="/admin/support" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-950">Support Desk</h3>
+              <ArrowRight className="h-4 w-4 text-slate-400" />
+            </div>
+            <p className="mt-1 text-sm text-slate-500">Resolve customer tickets, SLA risks, and linked order issues.</p>
+          </Link>
           <Link to="/admin/payouts" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-slate-950">Finance Desk</h3>
               <ArrowRight className="h-4 w-4 text-slate-400" />
             </div>
             <p className="mt-1 text-sm text-slate-500">Handle pending payouts, payout requests, and refund impact.</p>
+          </Link>
+          <Link to="/admin/operations" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-950">Ops Monitor</h3>
+              <ArrowRight className="h-4 w-4 text-slate-400" />
+            </div>
+            <p className="mt-1 text-sm text-slate-500">Watch failed jobs, notification health, cron status, and queue load.</p>
+          </Link>
+          <Link to="/admin/analytics" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-950">Analytics</h3>
+              <ArrowRight className="h-4 w-4 text-slate-400" />
+            </div>
+            <p className="mt-1 text-sm text-slate-500">Open GMV, category, vendor, refund, and performance reports.</p>
           </Link>
         </section>
 

@@ -100,6 +100,8 @@ describe("adminDashboardController", () => {
             productId: "rice-1",
             sku: "RICE-1",
             name: "Premium Rice",
+            categoryId: "grocery",
+            categoryName: "Grocery",
             vendorId: "vendor-1",
             price: 700,
             quantity: 1,
@@ -109,6 +111,8 @@ describe("adminDashboardController", () => {
             productId: "oil-1",
             sku: "OIL-1",
             name: "Mustard Oil",
+            categoryId: "grocery",
+            categoryName: "Grocery",
             vendorId: "vendor-2",
             price: 300,
             quantity: 1,
@@ -126,6 +130,8 @@ describe("adminDashboardController", () => {
             productId: "rice-1",
             sku: "RICE-1",
             name: "Premium Rice",
+            categoryId: "grocery",
+            categoryName: "Grocery",
             vendorId: "vendor-1",
             price: 250,
             quantity: 2,
@@ -143,6 +149,8 @@ describe("adminDashboardController", () => {
             productId: "tea-1",
             sku: "TEA-1",
             name: "Black Tea",
+            categoryId: "beverages",
+            categoryName: "Beverages",
             vendorId: "vendor-2",
             price: 400,
             quantity: 1,
@@ -210,8 +218,8 @@ describe("adminDashboardController", () => {
         },
       ]),
       vendor_payouts: new FakeCollection([
-        { _id: "payout-1", type: "vendor_requested", status: "pending", createdAt: new Date("2026-06-15T08:00:00.000Z") },
-        { _id: "payout-2", type: "admin_generated", status: "pending", createdAt: new Date("2026-06-14T08:00:00.000Z") },
+        { _id: "payout-1", type: "vendor_requested", status: "pending", amount: 750, createdAt: new Date("2026-06-15T08:00:00.000Z") },
+        { _id: "payout-2", type: "admin_generated", status: "pending", amount: 500, createdAt: new Date("2026-06-14T08:00:00.000Z") },
       ]),
       payments: new FakeCollection([
         {
@@ -229,6 +237,22 @@ describe("adminDashboardController", () => {
           status: "pending",
           createdAt: new Date("2026-06-12T09:00:00.000Z"),
         },
+      ]),
+      supportTickets: new FakeCollection([
+        { _id: "ticket-1", status: "open", priority: "high", createdAt: new Date("2026-06-13T08:00:00.000Z") },
+        { _id: "ticket-2", status: "in_progress", priority: "medium", createdAt: new Date("2026-06-15T08:00:00.000Z") },
+      ]),
+      reviews: new FakeCollection([
+        { _id: "review-1", moderationStatus: "flagged", reportCount: 2, createdAt: new Date("2026-06-15T08:00:00.000Z") },
+      ]),
+      notification_deliveries: new FakeCollection([
+        { _id: "delivery-1", status: "failed", failedAt: new Date("2026-06-15T08:00:00.000Z") },
+      ]),
+      bulk_upload_jobs: new FakeCollection([
+        { _id: "bulk-1", status: "failed", updatedAt: new Date("2026-06-15T07:00:00.000Z") },
+      ]),
+      analytics_summaries: new FakeCollection([
+        { _id: "summary-1", updatedAt: new Date("2026-06-15T09:30:00.000Z") },
       ]),
     });
 
@@ -249,7 +273,16 @@ describe("adminDashboardController", () => {
         newUsers: 2,
         newVendors: 1,
         pendingPayouts: 2,
+        payoutExposure: 1250,
         activeDisputes: 1,
+        activeVendors: 1,
+        supportOpen: 2,
+        supportSlaBreaches: 1,
+        reviewModeration: 1,
+        failedNotifications: 1,
+        failedBulkJobs: 1,
+        refundAmount: 100,
+        refundRate: 5.26,
       }),
     );
     expect(payload.revenueTotals).toEqual(
@@ -289,12 +322,34 @@ describe("adminDashboardController", () => {
         units: 3,
       }),
     );
+    expect(payload.topCategories[0]).toEqual(
+      expect.objectContaining({
+        categoryName: "Grocery",
+        gmv: 1500,
+        units: 4,
+      }),
+    );
+    expect(payload.comparison).toEqual(expect.objectContaining({
+      gmvChange: expect.any(Number),
+      ordersChange: expect.any(Number),
+      refundRateChange: expect.any(Number),
+    }));
+    expect(payload.opsSummary).toEqual(expect.objectContaining({
+      supportOpen: 2,
+      supportSlaBreaches: 1,
+      failedNotifications: 1,
+      failedBulkJobs: 1,
+      analyticsCronStatus: "running",
+    }));
     expect(payload.pendingActions).toEqual({
       vendorApprovals: 1,
       productModeration: 1,
       payoutRequests: 1,
       returnDisputes: 1,
       kycReviews: 1,
+      supportTickets: 2,
+      reviewModeration: 1,
+      failedNotifications: 1,
     });
     expect(payload.activityFeed.map((item) => item.type)).toEqual(
       expect.arrayContaining(["order", "vendor", "product", "payment"]),

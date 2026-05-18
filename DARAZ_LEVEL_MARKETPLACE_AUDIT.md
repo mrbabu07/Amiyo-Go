@@ -96,7 +96,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Feature | Status | Notes |
 |---|---|---|
 | Admin shell | Partial | `AdminLayout`, shared `AdminRoute`, RBAC-aware navigation, route-level permission wrappers, topbar global route search, quick links, role badge, alert badges, and dark-mode toggle exist. Needs page action-level disables during queue polish. |
-| Admin dashboard | Partial | Dashboard and operations analytics exist. Needs final real-time ops alert quality and date compare UX. |
+| Admin dashboard | Hardened baseline | Dashboard now exposes GMV, orders, active vendors, moderation queues, support SLA, payout exposure, refund rate, top vendors/categories/products, ops health, date range, and previous-period compare workflow. |
 | Vendor list/detail/approval | Partial | Enhanced vendor page, detail, KYC, status actions, warnings exist. Needs consistent queue/detail drawer pattern. |
 | Product moderation | Partial | Admin product queue, approve/reject/disable, duplicate/IP/brand tools exist. Needs one reusable moderation queue layout. |
 | Category manager | Partial | Dynamic categories, category fields, attributes, commission concepts exist. Needs drag/drop tree and inheritance preview polish. |
@@ -307,7 +307,7 @@ Current Phase 5 status by step:
 | 5.11 Delivery/logistics | Complete baseline | Logistics overview, zones, couriers, fee rules, dispatch manifest, failed delivery, COD float, and audit log exist. Future hardening: canonical shipment state-machine enforcement. |
 | 5.12 Promotions manager | Complete baseline | Promotions, coupons, flash sales, offers, campaigns, and vendor marketing review exist. Future hardening: stronger conflict detection and order discount snapshots. |
 | 5.13 Notifications/templates | Complete baseline | Platform controls include broadcasts, templates, email campaigns, announcements, and failed delivery signals in operations. Future hardening: retry controls from delivery-log rows. |
-| 5.14 Analytics/reports | Complete baseline | Admin dashboard/analytics expose GMV, commission, vendors, products, refunds, payouts, exports, and compare controls. Future hardening: more event-backed funnel data. |
+| 5.14 Analytics/reports | Hardened baseline | Admin dashboard/analytics expose GMV, commission, vendors, categories, products, refunds, payout exposure, support SLA, ops health, exports, date range, and previous-period compare controls. Future hardening: more event-backed funnel data. |
 | 5.15 Audit/observability | Complete baseline | Audit middleware, domain audit logs, operations page, queue monitors, and searchable `/admin/audit-logs` viewer exist. Future hardening: external alerting and retry actions from failed-job/notification rows. |
 | 5.16 Staff/RBAC | Complete baseline | Staff access, roles, permissions, session policy, 2FA setup, RBAC route guards, and permission-filtered navigation exist. Future hardening: richer permission matrix editing UX. |
 
@@ -342,3 +342,10 @@ Order search hardening pass:
 - Admin order detail now shows buyer/payment/delivery summary plus vendor order split, vendor-order status, commission, vendor earnings, item statuses, and vendor profile/order shortcuts.
 - Backend order search now normalizes `#` and `order` prefixes, escapes regex input, searches order/invoice/tracking fields, and matches short ObjectId fragments through `$toString`.
 - Added `Order.adminSearch` model tests alongside admin order management coverage.
+
+Admin dashboard workflow pass:
+
+- Expanded `/api/admin/dashboard/overview` with active vendors, support open/SLA breach counts, review moderation count, failed notifications, failed bulk jobs, payout exposure, refund amount/rate, previous-period comparison, operations summary, and top categories.
+- Updated `/admin` dashboard cards so every major marketplace signal links into the relevant workflow: orders, approvals, support, payouts, operations, analytics, categories, products, returns, reviews, KYC, and notification failures.
+- Added dashboard UI for support SLA, failed notifications, failed jobs, analytics cron health, top categories, refund rate, payout exposure, and previous-period GMV/order/commission/refund compare chips.
+- Expanded admin dashboard controller tests for the new workflow metrics, top categories, compare payload, and ops summary fields.
