@@ -404,3 +404,40 @@ Latest Phase 7 implementation slice:
 - Added public trust routes for policies, buyer/seller reports, appeals, and authenticated risk profile lookup.
 - Extended admin trust-safety routes with policy management, verification updates, risk events, risk profiles, queue summary, report actions, dispute cases, evidence, enforcement, appeals, scoring endpoints, and dashboard v2.
 - Added focused Jest coverage for policy evaluation, risk profile rebuilding, return/review/promo/payout scoring, report routing, dispute transitions, payout holds, enforcement audit logs, and appeals.
+
+## Phase 9 Data And Intelligence Snapshot
+
+Phase 9 now has a backend data-intelligence foundation. It builds on the existing admin analytics reports by adding a common metric contract, raw event ingestion, warehouse-style daily facts and dimensions, role-specific intelligence payloads, data-quality checks, and experimentation analytics.
+
+Current Phase 9 status by step:
+
+| Step | Status | Evidence / Gap |
+|---|---|---|
+| 9.1 KPI framework | Complete baseline | `analyticsKpiFramework` defines customer, vendor, and platform KPI definitions with source and grain. |
+| 9.2 Event taxonomy | Complete baseline | Canonical snake-case event names and aliases cover discovery, search, cart, checkout, orders, returns, vouchers, notifications, shipment, trust, payout, and experiments. |
+| 9.3 Raw event ingestion | Complete baseline | Public `/api/analytics/events` and `/api/analytics/events/batch` validate, dedupe, write `event_stream`, mirror legacy analytics/growth streams, and dead-letter invalid events. |
+| 9.4 Warehouse tables | Complete baseline | `AnalyticsWarehouseService` writes `fact_orders_daily`, vendor sales, customer activity, returns, shipments, notifications, promotions, search, reviews, product performance, and dimension tables. |
+| 9.5 Customer funnel | Complete baseline | Intelligence dashboard returns sessions, product views, add-to-cart, checkout, payment, order placed, paid, and delivered funnel with drop-off rates. |
+| 9.6 Search/discovery analytics | Complete baseline | Search analytics include search count, zero-result rate, low-quality queries, CTR, add-to-cart signal, and query-to-purchase signal. |
+| 9.7 Product analytics | Complete baseline | Product performance ranks products by views, add-to-cart rate, conversion, GMV, returns, rating, and stockout signal. |
+| 9.8 Customer analytics/segments | Complete baseline | Customer rows include LTV, order count, basket size, category preference, payment preference, returns, notification engagement, and behavior segments. |
+| 9.9 Vendor scorecards | Complete baseline | Vendor scorecards include GMV, net payout, orders, cancellation/return rates, review score, fulfilment signals, voucher usage, campaign GMV, and repeat-buyer ratio. |
+| 9.10 Promotion/campaign analytics | Complete baseline | Campaign analytics include impressions, clicks, redemptions, influenced orders, influenced GMV, subsidy cost, and AOV signal. |
+| 9.11 Notification analytics | Complete baseline | Notification analytics include sent, delivered, failed, opened, clicked, open rate, CTR, failure rate, and channel performance. |
+| 9.12 Logistics analytics | Complete baseline | Logistics analytics include shipment counts, delivery success/failure, RTO rate, COD exposure, and courier comparison. |
+| 9.13 Trust/risk analytics | Complete baseline | Trust analytics include flagged subjects, reports, disputes, payout holds, appeals, enforcements, and top violation reasons. |
+| 9.14 Finance/profitability | Complete baseline | Finance analytics include gross revenue, commission, promo subsidy, refund cost, payout liability, payout holds, and margin-after-leakage. |
+| 9.15 Cohort/retention | Complete baseline | Cohort rows track first-purchase month, D30 repeat count, D30 repeat rate, and repeat revenue. |
+| 9.16 Forecasting | Complete baseline | Forecasts use simple moving averages for GMV and orders as a no-ML planning baseline. |
+| 9.17 Report center | Complete baseline | Report-center metadata lists customer funnel, search, product, vendor, campaign, notification, logistics, trust, finance, and cohort reports with formats and scheduling support flags. |
+| 9.18 Role dashboard layers | Complete baseline | `/api/admin/analytics/role/:role` exposes customer, vendor, and admin dashboard layers from the shared intelligence model. |
+| 9.19 Data quality/observability | Complete baseline | Data quality checks flag dead-lettered events, duplicate event keys, stale warehouse jobs, and missing fact coverage. |
+| 9.20 Experiment analytics | Complete baseline | Experiment analytics track exposures, conversions, conversion rate, revenue per user, and confidence indicator by variant. |
+
+Latest Phase 9 implementation slice:
+
+- Added `AnalyticsEventService`, `AnalyticsWarehouseService`, `AnalyticsIntelligenceService`, and `analyticsKpiFramework`.
+- Added public analytics ingestion routes under `/api/analytics`.
+- Added admin analytics routes for KPIs, taxonomy, warehouse rebuild, intelligence, data quality, report center, experiments, and role dashboard layers.
+- Added daily fact/dimension rebuild job tracking through `analytics_job_runs`.
+- Added Jest coverage for KPI/taxonomy aliases, accepted/duplicate/rejected event ingestion, warehouse fact generation, dimensions, data-quality checks, funnel intelligence, vendor scorecards, trust/finance/logistics intelligence, and experiment analytics.

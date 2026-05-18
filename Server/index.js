@@ -155,6 +155,7 @@ const rewardRoutes = require("./routes/rewardRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const auditRoutes = require("./routes/auditRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
+const analyticsEventRoutes = require("./routes/analyticsEventRoutes");
 const dispatchRoutes = require("./routes/dispatchRoutes");
 const vendorStaffRoutes = require("./routes/vendorStaffRoutes");
 const accountRoutes = require("./routes/accountRoutes");
@@ -461,6 +462,7 @@ async function run() {
     app.use("/api/uploads", uploadRoutes);
     app.use("/api/admin/audit-logs", auditRoutes);
     app.use("/api/admin/analytics", analyticsRoutes);
+    app.use("/api/analytics", analyticsEventRoutes);
     app.use("/api/admin/dispatch", dispatchRoutes);
     console.log("✅ Store Locations routes registered");
 
