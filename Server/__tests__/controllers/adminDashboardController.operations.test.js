@@ -37,6 +37,61 @@ describe("adminDashboardController operations overview helpers", () => {
     expect(health.score).toBe(19);
   });
 
+  test("includes queue SLA breaches in operations health scoring", () => {
+    const health = _private.summarizeOperationsHealth({
+      webhookFailures: 0,
+      auditServerErrors: 0,
+      failedBulkJobs: 0,
+      failedNotifications: 0,
+      failedNewsletterRecipients: 0,
+      openSupportTickets: 0,
+      returnDisputes: 0,
+      queueSlaBreaches: 2,
+      queueWarningQueues: 3,
+    });
+
+    expect(health).toEqual(expect.objectContaining({
+      status: "watch",
+      critical: 2,
+      warnings: 3,
+      score: 67,
+    }));
+  });
+
+  test("builds normalized marketplace queue workload for Phase 5 admin operations", () => {
+    const now = new Date("2026-05-18T12:00:00.000Z");
+    const workload = _private.buildAdminQueueWorkload({
+      vendorApprovals: [{ _id: "vendor-1", createdAt: new Date("2026-05-15T10:00:00.000Z") }],
+      kycReviews: [{ _id: "vendor-2", kyc: { status: "under_review", submittedAt: new Date("2026-05-18T08:00:00.000Z") } }],
+      productModeration: [{ _id: "product-1", approvalStatus: "flagged", moderationFlags: [{ type: "policy" }], updatedAt: now }],
+      reviewModeration: [{ _id: "review-1", rating: 1, reportCount: 2, createdAt: now }],
+      returnDisputes: [{ _id: "return-1", status: "disputed", refundAmount: 500, createdAt: new Date("2026-05-17T12:00:00.000Z") }],
+      openSupportTickets: [{ _id: "ticket-1", priority: "urgent", createdAt: now }],
+      payoutQueue: [{ _id: "payout-1", status: "pending", amount: 12500, createdAt: now }],
+      failedNotifications: [{ _id: "delivery-1", status: "failed", failedAt: now }],
+      now,
+    });
+
+    expect(workload).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: "vendor_approval",
+        count: 1,
+        status: "breached",
+        breached: 1,
+      }),
+      expect.objectContaining({
+        key: "product_moderation",
+        count: 1,
+        highRiskCount: 1,
+      }),
+      expect.objectContaining({
+        key: "payouts",
+        amount: 12500,
+        highRiskCount: 1,
+      }),
+    ]));
+  });
+
   test("builds job monitor cards from live queue signals", () => {
     const freshAnalytics = new Date();
     const jobs = _private.buildOperationsJobCards({

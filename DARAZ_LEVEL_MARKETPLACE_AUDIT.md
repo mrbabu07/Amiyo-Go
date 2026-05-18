@@ -22,8 +22,8 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 - Frontend route count: about 110 route entries in `Client/src/routes/Routes.jsx`.
 - Backend route/controller handler references: about 596 route declarations across `Server/routes` and route-style controller files.
-- Frontend tests: 22 suites / 89 tests at last verification.
-- Backend tests: 64 suites / 402 tests at last verification.
+- Frontend tests: 24 suites / 93 tests at last verification.
+- Backend tests: 64 suites / 404 tests at last verification.
 - Major frontend shells: `CustomerLayout`, `AuthLayout`, `VendorLayout`, `AdminLayout`.
 - Major backend groups: customer commerce, vendor center, admin operations, logistics, promotions, trust-safety, support, analytics, notifications, loyalty, wishlist, campaigns.
 
@@ -95,7 +95,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 | Feature | Status | Notes |
 |---|---|---|
-| Admin shell | Partial | `AdminLayout`, shared `AdminRoute`, RBAC-aware navigation, and route-level permission wrappers exist. Needs page action-level disables during queue polish. |
+| Admin shell | Partial | `AdminLayout`, shared `AdminRoute`, RBAC-aware navigation, route-level permission wrappers, topbar global route search, quick links, role badge, alert badges, and dark-mode toggle exist. Needs page action-level disables during queue polish. |
 | Admin dashboard | Partial | Dashboard and operations analytics exist. Needs final real-time ops alert quality and date compare UX. |
 | Vendor list/detail/approval | Partial | Enhanced vendor page, detail, KYC, status actions, warnings exist. Needs consistent queue/detail drawer pattern. |
 | Product moderation | Partial | Admin product queue, approve/reject/disable, duplicate/IP/brand tools exist. Needs one reusable moderation queue layout. |
@@ -111,7 +111,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Support queue | Partial | Admin support queue is now professional UI with stats/SLA/drawer. Needs internal notes, assignment persistence verification, and SLA automation. |
 | Staff roles/permissions | Partial | Platform staff access, role/session policy, user permissions exist. Needs permission matrix UI and route-level enforcement pass. |
 | Audit logs | Partial | General audit route and domain audit logs exist. Needs a unified admin audit viewer page. |
-| Ops monitoring | Partial | Admin operations page and backend operation helpers exist. Needs queue dashboards, failed jobs, cron/email/push status. |
+| Ops monitoring | Partial | Admin operations page now merges marketplace workload queues, failed jobs, cron health, notification failures, support/return issues, payout exposure, and recent audit trails. Needs deeper retry actions and external alerting. |
 
 ## Shared Design And UI Audit
 
@@ -285,3 +285,38 @@ Latest Phase 4 implementation slice:
 - Added vendor shipping-rule clarity in settings with preparation time, default courier, cutoff hour, fee promises, pickup/self-delivery toggles, shipping notes, and return-policy summary persisted through the vendor profile.
 - Added bulk-upload report snapshots so completed CSV jobs expose partial success, failed-row samples, and clearer retry guidance while keeping the downloadable report.
 - Added backend white-box tests for vendor staff audit helpers and bulk-upload report snapshots, and expanded vendor settings controller coverage for delivery settings.
+
+## Phase 5 Admin Marketplace Operations Snapshot
+
+Phase 5 admin operating-system work is now implemented as a queue-driven baseline for the current codebase. The admin area already had many role-specific pages; the latest work connects those surfaces through a single operations command center that exposes marketplace workloads, SLA pressure, payout exposure, failed notifications, job health, and recent audit activity.
+
+Current Phase 5 status by step:
+
+| Step | Status | Evidence / Gap |
+|---|---|---|
+| 5.1 Admin shell | Partial | Admin shell now includes RBAC-aware navigation, alert badges, topbar route search, quick links, role badge, and dark-mode toggle. Needs resource-ID backed global search across orders/users/vendors/products. |
+| 5.2 Queue-based model | Complete | `/admin/operations` now normalizes vendor approval, KYC, product moderation, review moderation, returns, support, payouts, and failed-notification queues with SLA/risk/exposure signals. |
+| 5.3 Vendor management | Partial | Vendor requests, detail, KYC, status actions, category access, and related queues exist. Needs one consistent right-drawer detail pattern. |
+| 5.4 Product moderation | Partial | Product queue, approve/reject/disable, scans, duplicates, IP, and brand tools exist. Needs shared moderation drawer adoption. |
+| 5.5 Review moderation | Partial | Review moderation/trust-safety queues exist and now feed operations workload. Needs richer vendor-reply visibility in queue details. |
+| 5.6 Support operations | Partial | Support queue has stats, SLA, assignment UI, and thread drawer. Needs assignment persistence and internal-note automation verification. |
+| 5.7 Returns decision | Partial | Return queue/dispute workflows exist and now feed operations workload. Needs final side-by-side decision panel standardization. |
+| 5.8 Payout operations | Partial | Payout queue, payout requests, approvals/rejections/paid states, finance overview, and payout exposure signals exist. Needs linked-order risk details in one drawer. |
+| 5.9 Order operations | Partial | Admin orders, status/payment/delivery views, SLA/fraud queues, and export exist. Needs override action audit UI polish. |
+| 5.10 Categories/commission | Partial | Dynamic categories, attributes, category requests, platform commission rules, and finance rules exist. Needs drag/drop tree and inheritance preview polish. |
+| 5.11 Delivery/logistics | Partial | Logistics overview, zones, couriers, fee rules, dispatch manifest, failed delivery, COD float, and audit log exist. Needs canonical shipment state-machine enforcement. |
+| 5.12 Promotions manager | Partial | Promotions, coupons, flash sales, offers, campaigns, and vendor marketing review exist. Needs stronger conflict detection and order discount snapshots. |
+| 5.13 Notifications/templates | Partial | Platform controls include broadcasts, templates, email campaigns, announcements, and failed delivery signals in operations. Needs retry controls from delivery-log rows. |
+| 5.14 Analytics/reports | Partial | Admin dashboard/analytics expose GMV, commission, vendors, products, refunds, payouts, exports, and compare controls. Needs more event-backed funnel data. |
+| 5.15 Audit/observability | Partial | Audit middleware, domain audit logs, operations page, queue monitors, and recent audit trail exist. Needs dedicated searchable unified audit-log page. |
+| 5.16 Staff/RBAC | Partial | Staff access, roles, permissions, session policy, 2FA setup, RBAC route guards, and permission-filtered navigation exist. Needs full permission matrix editing UX. |
+
+Latest Phase 5 implementation slice:
+
+- Added backend `buildAdminQueueWorkload` helpers for vendor approval, KYC review, product moderation, review moderation, returns/disputes, support, payouts, and failed notifications.
+- Extended `/api/admin/dashboard/operations` to return `queueWorkload`, open queue item totals, SLA breach counts, warning queue counts, and payout exposure.
+- Added queue issue rows for vendor, KYC, product, review, and payout work so the operations issue list points to the right admin workspace.
+- Added marketplace workload cards to `AdminOperations` with queue status, open count, SLA breaches, risk count, exposure, and direct links.
+- Added `adminOperationsCenter` frontend helpers plus black-box and white-box Jest tests for queue summaries, filtering, tones, and exposure formatting.
+- Added admin shell topbar route search and dark-mode toggle while preserving permission-filtered navigation.
+- Expanded backend operations helper tests for queue SLA scoring and normalized Phase 5 workload generation.

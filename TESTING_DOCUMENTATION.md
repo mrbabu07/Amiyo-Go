@@ -40,6 +40,7 @@ npm test -- --runTestsByPath src/utils/__tests__/vendorProductDetail.blackbox.te
 npm test -- --runTestsByPath src/utils/__tests__/vendorReturnDispute.blackbox.test.js src/utils/__tests__/vendorReturnDispute.whitebox.test.js
 npm test -- --runTestsByPath src/utils/__tests__/vendorOrderDetail.blackbox.test.js src/utils/__tests__/vendorOrderDetail.whitebox.test.js
 npm test -- --runTestsByPath src/utils/__tests__/vendorStaffPermissions.blackbox.test.js src/utils/__tests__/vendorStaffPermissions.whitebox.test.js
+npm test -- --runTestsByPath src/utils/__tests__/adminOperationsCenter.blackbox.test.js src/utils/__tests__/adminOperationsCenter.whitebox.test.js
 ```
 
 Run focused backend black-box and white-box tests:
@@ -49,6 +50,7 @@ cd Server
 npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController.blackbox.test.js __tests__/controllers/supportController.whitebox.test.js
 npm test -- --runInBand --runTestsByPath __tests__/controllers/returnController.vendorDetail.test.js
 npm test -- --runInBand --runTestsByPath __tests__/utils/vendorStaffAudit.test.js __tests__/services/bulkUploadQueue.test.js __tests__/controllers/vendorSettingsController.test.js
+npm test -- --runInBand --runTestsByPath __tests__/controllers/adminDashboardController.operations.test.js
 ```
 
 ## Current Coverage Map
@@ -66,6 +68,7 @@ npm test -- --runInBand --runTestsByPath __tests__/utils/vendorStaffAudit.test.j
   - `Client/src/utils/__tests__/vendorReturnDispute.blackbox.test.js`
   - `Client/src/utils/__tests__/vendorSellerCenter.blackbox.test.js`
   - `Client/src/utils/__tests__/vendorStaffPermissions.blackbox.test.js`
+  - `Client/src/utils/__tests__/adminOperationsCenter.blackbox.test.js`
 - White-box helper behavior:
   - `Client/src/components/ui/__tests__/designSystem.whitebox.test.js`
   - `Client/src/utils/__tests__/cartCheckout.whitebox.test.js`
@@ -78,6 +81,7 @@ npm test -- --runInBand --runTestsByPath __tests__/utils/vendorStaffAudit.test.j
   - `Client/src/utils/__tests__/vendorReturnDispute.whitebox.test.js`
   - `Client/src/utils/__tests__/vendorSellerCenter.whitebox.test.js`
   - `Client/src/utils/__tests__/vendorStaffPermissions.whitebox.test.js`
+  - `Client/src/utils/__tests__/adminOperationsCenter.whitebox.test.js`
 - Route guard behavior:
   - `Client/src/routes/__tests__/guards.blackbox.test.jsx`
 
@@ -171,10 +175,12 @@ Before pushing frontend or backend changes:
 
 The latest completed full-project verification:
 
-- `Client`: `npm test` passed, 22 suites / 89 tests.
+- `Client`: `npm test` passed, 24 suites / 93 tests.
+- `Client`: latest focused Phase 5 admin operations helper tests passed, 2 suites / 4 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
-- `Server`: `npm test -- --runInBand` passed, 64 suites / 402 tests.
+- `Server`: `npm test -- --runInBand` passed, 64 suites / 404 tests.
+- `Server`: latest focused Phase 5 admin operations helper tests passed, 1 suite / 6 tests.
 - Focused backend rate limiter analytics/defaults test passed, 1 suite / 7 tests.
 - Focused backend Phase 1 reliability/security tests passed, 5 suites / 13 tests.
 - Focused backend black-box and white-box support tests remain covered by the full backend run.

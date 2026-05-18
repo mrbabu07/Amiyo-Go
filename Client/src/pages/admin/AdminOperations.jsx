@@ -8,15 +8,27 @@ import {
   Clock3,
   CreditCard,
   FileText,
+  FileCheck2,
   Loader2,
   Mail,
+  PackageSearch,
   RefreshCcw,
   Server,
   ShieldAlert,
+  Star,
+  Store,
   Ticket,
   UploadCloud,
+  Wallet,
 } from "lucide-react";
 import { getAdminOperationsOverview } from "../../services/api";
+import {
+  adminIssueFilters,
+  filterOperationIssues,
+  formatQueueCurrency,
+  getQueueSummary,
+  getQueueTone,
+} from "../../utils/adminOperationsCenter";
 
 const emptyOperations = {
   updatedAt: null,
@@ -39,7 +51,12 @@ const emptyOperations = {
     openSupportTickets: 0,
     returnDisputes: 0,
     auditServerErrors: 0,
+    openAdminQueueItems: 0,
+    queueSlaBreaches: 0,
+    queueWarningQueues: 0,
+    payoutExposure: 0,
   },
+  queueWorkload: [],
   jobMonitors: [],
   notificationHealth: {
     deliveriesInWindow: 0,
@@ -64,18 +81,6 @@ const windowOptions = [
   { value: 168, label: "7d" },
 ];
 
-const issueFilters = [
-  { value: "all", label: "All" },
-  { value: "critical", label: "Critical" },
-  { value: "payment", label: "Payments" },
-  { value: "webhook", label: "Webhooks" },
-  { value: "notification", label: "Notifications" },
-  { value: "newsletter", label: "Newsletter" },
-  { value: "bulk_upload", label: "Bulk uploads" },
-  { value: "support", label: "Support" },
-  { value: "return_dispute", label: "Returns" },
-];
-
 const statusStyles = {
   healthy: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
   running: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
@@ -90,6 +95,10 @@ const statusStyles = {
 };
 
 const typeIcons = {
+  vendor_approval: Store,
+  kyc_review: FileCheck2,
+  product_moderation: PackageSearch,
+  review_moderation: Star,
   payment: CreditCard,
   webhook: Server,
   notification: Bell,
@@ -97,6 +106,7 @@ const typeIcons = {
   bulk_upload: UploadCloud,
   support: Ticket,
   return_dispute: RefreshCcw,
+  payout: Wallet,
   server_error: ShieldAlert,
 };
 
@@ -185,6 +195,50 @@ function JobCard({ job }) {
   );
 }
 
+function QueueWorkloadCard({ queue }) {
+  const tone = getQueueTone(queue);
+  const toneClasses = {
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200",
+    amber: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200",
+    rose: "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200",
+  };
+
+  return (
+    <Link
+      to={queue.path || "/admin/operations"}
+      className={`block rounded-lg border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${toneClasses[tone] || toneClasses.emerald}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold">{queue.label}</p>
+          <p className="mt-1 text-xs font-semibold opacity-75">{queue.owner}</p>
+        </div>
+        <StatusPill status={queue.status || "clear"} />
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-lg bg-white/70 px-2 py-2 dark:bg-slate-950/40">
+          <p className="text-lg font-black">{formatCount(queue.count)}</p>
+          <p className="text-[10px] font-bold uppercase opacity-70">Open</p>
+        </div>
+        <div className="rounded-lg bg-white/70 px-2 py-2 dark:bg-slate-950/40">
+          <p className="text-lg font-black">{formatCount(queue.breached)}</p>
+          <p className="text-[10px] font-bold uppercase opacity-70">SLA</p>
+        </div>
+        <div className="rounded-lg bg-white/70 px-2 py-2 dark:bg-slate-950/40">
+          <p className="text-lg font-black">{formatCount(queue.highRiskCount)}</p>
+          <p className="text-[10px] font-bold uppercase opacity-70">Risk</p>
+        </div>
+      </div>
+      <p className="mt-3 line-clamp-2 min-h-10 text-sm opacity-80">{queue.detail}</p>
+      {Number(queue.amount || 0) > 0 ? (
+        <p className="mt-3 rounded-lg bg-white/70 px-3 py-2 text-xs font-bold dark:bg-slate-950/40">
+          Exposure: BDT {formatQueueCurrency(queue.amount)}
+        </p>
+      ) : null}
+    </Link>
+  );
+}
+
 function IssueRow({ issue }) {
   const Icon = typeIcons[issue.type] || AlertTriangle;
 
@@ -267,8 +321,17 @@ export default function AdminOperations() {
   const metrics = operations.metrics || emptyOperations.metrics;
   const health = operations.health || emptyOperations.health;
   const notificationHealth = operations.notificationHealth || emptyOperations.notificationHealth;
+  const queueWorkload = operations.queueWorkload || [];
+  const queueSummary = useMemo(() => getQueueSummary(queueWorkload), [queueWorkload]);
 
   const metricCards = [
+    {
+      label: "Admin Queue Items",
+      value: metrics.openAdminQueueItems || queueSummary.totalOpen,
+      detail: `${formatCount(metrics.queueSlaBreaches || queueSummary.slaBreached)} SLA breaches`,
+      icon: Activity,
+      tone: (metrics.queueSlaBreaches || queueSummary.slaBreached) ? "rose" : queueSummary.totalOpen ? "amber" : "emerald",
+    },
     {
       label: "Webhook Failures",
       value: metrics.webhookFailures,
@@ -307,12 +370,7 @@ export default function AdminOperations() {
   ];
 
   const filteredIssues = useMemo(() => {
-    const issues = operations.issueQueues || [];
-    if (issueFilter === "all") return issues;
-    if (issueFilter === "critical") {
-      return issues.filter((issue) => issue.severity === "critical");
-    }
-    return issues.filter((issue) => issue.type === issueFilter);
+    return filterOperationIssues(operations.issueQueues || [], issueFilter);
   }, [issueFilter, operations.issueQueues]);
 
   return (
@@ -391,10 +449,52 @@ export default function AdminOperations() {
           </div>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           {metricCards.map((card) => (
             <MetricCard key={card.label} {...card} loading={loading} />
           ))}
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 dark:border-slate-800 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-slate-950 dark:text-white">Marketplace Queue Workload</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                {formatCount(queueSummary.totalOpen)} open items, {formatCount(queueSummary.slaBreached)} SLA breaches, BDT {formatQueueCurrency(queueSummary.payoutExposure)} exposure.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-bold">
+              <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">
+                {formatCount(queueSummary.criticalQueues)} critical
+              </span>
+              <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                {formatCount(queueSummary.watchQueues)} watch
+              </span>
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
+                {formatCount(queueSummary.clearQueues)} clear
+              </span>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <SkeletonBlock key={index} className="h-48" />
+              ))}
+            </div>
+          ) : queueWorkload.length ? (
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {queueWorkload.map((queue) => (
+                <QueueWorkloadCard key={queue.key} queue={queue} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex min-h-40 flex-col items-center justify-center px-4 py-10 text-center">
+              <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-300" />
+              <p className="mt-3 text-base font-bold text-slate-950 dark:text-white">No queue workload available</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Operations data will appear after the next admin overview sync.</p>
+            </div>
+          )}
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
@@ -429,7 +529,7 @@ export default function AdminOperations() {
                     </p>
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-1">
-                    {issueFilters.map((filter) => (
+                    {adminIssueFilters.map((filter) => (
                       <button
                         key={filter.value}
                         type="button"

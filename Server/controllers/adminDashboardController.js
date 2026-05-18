@@ -149,16 +149,209 @@ const toOperationIssue = ({
   meta,
 });
 
+const getQueueItemDate = (item = {}) =>
+  item.submittedAt ||
+  item.kyc?.submittedAt ||
+  item.requestedAt ||
+  item.failedAt ||
+  item.updatedAt ||
+  item.createdAt ||
+  null;
+
+const getQueueItemAgeHours = (item = {}, now = new Date()) => {
+  const date = getQueueItemDate(item);
+  if (!date) return 0;
+  const time = new Date(date).getTime();
+  if (Number.isNaN(time)) return 0;
+  return Math.max(0, (new Date(now).getTime() - time) / (60 * 60 * 1000));
+};
+
+const getOldestQueueDate = (items = []) =>
+  items
+    .map(getQueueItemDate)
+    .filter(Boolean)
+    .sort((left, right) => new Date(left) - new Date(right))[0] || null;
+
+const getPayoutAmount = (payout = {}) =>
+  Number(payout.amount ?? payout.requestedAmount ?? payout.netPayout ?? payout.totalAmount ?? 0);
+
+const sumPayoutExposure = (payouts = []) =>
+  round2(payouts.reduce((sum, payout) => sum + getPayoutAmount(payout), 0));
+
+const buildQueueCard = ({
+  key,
+  label,
+  owner,
+  path,
+  items = [],
+  slaHours = 48,
+  highRiskCount = 0,
+  amount = 0,
+  detail = "",
+  now = new Date(),
+}) => {
+  const count = items.length;
+  const breached = items.filter((item) => getQueueItemAgeHours(item, now) >= slaHours).length;
+  const status = count === 0 ? "clear" : breached > 0 ? "breached" : "needs_review";
+  const severity = breached > 0 ? "critical" : highRiskCount > 0 ? "watch" : count > 0 ? "watch" : "healthy";
+
+  return {
+    key,
+    label,
+    owner,
+    path,
+    count,
+    status,
+    severity,
+    slaHours,
+    breached,
+    highRiskCount,
+    amount: round2(amount),
+    oldestOpenAt: getOldestQueueDate(items),
+    detail,
+  };
+};
+
+const buildAdminQueueWorkload = ({
+  vendorApprovals = [],
+  kycReviews = [],
+  productModeration = [],
+  reviewModeration = [],
+  returnDisputes = [],
+  openSupportTickets = [],
+  payoutQueue = [],
+  failedNotifications = [],
+  now = new Date(),
+}) => {
+  const highRiskProducts = productModeration.filter((product) =>
+    product.flagged ||
+    (product.moderationFlags || []).length > 0 ||
+    ["flagged", "rejected"].includes(normalizeStatus(product.approvalStatus || product.status)),
+  ).length;
+  const highRiskReviews = reviewModeration.filter((review) =>
+    review.flagged ||
+    Number(review.reportCount || review.reportsCount || 0) > 0 ||
+    Number(review.rating || 0) <= 2,
+  ).length;
+  const highRiskReturns = returnDisputes.filter((returnDoc) =>
+    normalizeStatus(returnDoc.vendorResponse) === "disputed" ||
+    ["disputed", "under_review"].includes(normalizeStatus(returnDoc.status)),
+  ).length;
+  const highRiskSupport = openSupportTickets.filter((ticket) =>
+    ["urgent", "high"].includes(normalizeStatus(ticket.priority)),
+  ).length;
+  const payoutExposure = sumPayoutExposure(payoutQueue);
+  const highRiskPayouts = payoutQueue.filter((payout) =>
+    ["hold", "held", "blocked"].includes(normalizeStatus(payout.status)) ||
+    getPayoutAmount(payout) >= 10000,
+  ).length;
+
+  return [
+    buildQueueCard({
+      key: "vendor_approval",
+      label: "Vendor Approval",
+      owner: "Vendor Ops",
+      path: "/admin/vendor-requests",
+      items: vendorApprovals,
+      slaHours: 48,
+      highRiskCount: vendorApprovals.filter((vendor) => (vendor.policyFlags || []).length > 0).length,
+      detail: "New seller applications waiting for approve, reject, or request-info action.",
+      now,
+    }),
+    buildQueueCard({
+      key: "kyc_review",
+      label: "KYC Review",
+      owner: "Vendor Ops",
+      path: "/admin/vendor-kyc",
+      items: kycReviews,
+      slaHours: 48,
+      highRiskCount: kycReviews.filter((vendor) => normalizeStatus(vendor.kyc?.status) === "under_review").length,
+      detail: "Submitted NID, trade license, and business verification packages.",
+      now,
+    }),
+    buildQueueCard({
+      key: "product_moderation",
+      label: "Product Moderation",
+      owner: "Catalog",
+      path: "/admin/products",
+      items: productModeration,
+      slaHours: 24,
+      highRiskCount: highRiskProducts,
+      detail: "Listings requiring approve, reject, disable, or edit-request decisions.",
+      now,
+    }),
+    buildQueueCard({
+      key: "review_moderation",
+      label: "Review Moderation",
+      owner: "Trust & Safety",
+      path: "/admin/reviews",
+      items: reviewModeration,
+      slaHours: 24,
+      highRiskCount: highRiskReviews,
+      detail: "Flagged, reported, or pending-review customer reviews.",
+      now,
+    }),
+    buildQueueCard({
+      key: "returns",
+      label: "Returns & Disputes",
+      owner: "Trust & Safety",
+      path: "/admin/returns",
+      items: returnDisputes,
+      slaHours: 48,
+      highRiskCount: highRiskReturns,
+      amount: returnDisputes.reduce((sum, item) => sum + getRefundAmount(item), 0),
+      detail: "Return cases requiring vendor/customer arbitration or refund approval.",
+      now,
+    }),
+    buildQueueCard({
+      key: "support",
+      label: "Support Queue",
+      owner: "Support",
+      path: "/admin/support",
+      items: openSupportTickets,
+      slaHours: 24,
+      highRiskCount: highRiskSupport,
+      detail: "Open and in-progress customer support tickets.",
+      now,
+    }),
+    buildQueueCard({
+      key: "payouts",
+      label: "Payout Queue",
+      owner: "Finance",
+      path: "/admin/payouts",
+      items: payoutQueue,
+      slaHours: 24,
+      highRiskCount: highRiskPayouts,
+      amount: payoutExposure,
+      detail: "Vendor payout requests, approved payouts, processing holds, and payable exposure.",
+      now,
+    }),
+    buildQueueCard({
+      key: "failed_notifications",
+      label: "Failed Notifications",
+      owner: "Comms",
+      path: "/admin/platform",
+      items: failedNotifications,
+      slaHours: 6,
+      highRiskCount: failedNotifications.length,
+      detail: "Failed push, email, and in-app delivery attempts that may need retry.",
+      now,
+    }),
+  ];
+};
+
 const summarizeOperationsHealth = (metrics = {}) => {
   const critical =
     Number(metrics.webhookFailures || 0) +
     Number(metrics.auditServerErrors || 0) +
-    Number(metrics.failedBulkJobs || 0);
+    Number(metrics.failedBulkJobs || 0) +
+    Number(metrics.queueSlaBreaches || 0);
   const warnings =
     Number(metrics.failedNotifications || 0) +
     Number(metrics.failedNewsletterRecipients || 0) +
     Number(metrics.openSupportTickets || 0) +
-    Number(metrics.returnDisputes || 0);
+    Number(metrics.returnDisputes || 0) +
+    Number(metrics.queueWarningQueues || 0);
 
   const deduction = critical * 12 + warnings * 3;
   const score = Math.max(0, Math.min(100, 100 - deduction));
@@ -668,6 +861,10 @@ exports.getAdminOperationsOverview = async (req, res) => {
     const bulkJobsCollection = safeCollection(db, "bulk_upload_jobs");
     const supportTicketsCollection = safeCollection(db, "supportTickets");
     const returnsCollection = safeCollection(db, "returns");
+    const vendorsCollection = safeCollection(db, "vendors");
+    const productsCollection = safeCollection(db, "products");
+    const reviewsCollection = safeCollection(db, "reviews");
+    const payoutsCollection = safeCollection(db, "vendor_payouts");
     const analyticsSummaryCollection = safeCollection(db, "analytics_summaries");
 
     const failedQuery = {
@@ -700,6 +897,11 @@ exports.getAdminOperationsOverview = async (req, res) => {
       recentAuditLogs,
       recentNotifications,
       latestAnalyticsSummary,
+      vendorApprovalQueue,
+      kycReviewQueue,
+      productModerationQueue,
+      reviewModerationQueue,
+      payoutQueue,
     ] = await Promise.all([
       safeFind(paymentsCollection, failedQuery, { sort: { failedAt: -1, updatedAt: -1, createdAt: -1 }, limit: 20 }),
       safeFind(auditCollection, webhookAuditQuery, { sort: { createdAt: -1 }, limit: 20 }),
@@ -720,6 +922,26 @@ exports.getAdminOperationsOverview = async (req, res) => {
       safeFind(auditCollection, {}, { sort: { createdAt: -1 }, limit: 30 }),
       safeFind(notificationsCollection, { createdAt: { $gte: since } }, { sort: { createdAt: -1 }, limit: 30 }),
       safeFind(analyticsSummaryCollection, {}, { sort: { updatedAt: -1, createdAt: -1 }, limit: 1 }),
+      safeFind(vendorsCollection, { status: "pending" }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 50 }),
+      safeFind(vendorsCollection, { "kyc.status": { $in: ["pending", "submitted", "under_review"] } }, { sort: { "kyc.submittedAt": -1, updatedAt: -1 }, limit: 50 }),
+      safeFind(productsCollection, {
+        $or: [
+          { approvalStatus: { $in: ["pending", "flagged"] } },
+          { status: { $in: ["pending_moderation", "flagged"] } },
+          { "moderationFlags.0": { $exists: true } },
+        ],
+      }, { sort: { submittedForReviewAt: -1, updatedAt: -1, createdAt: -1 }, limit: 50 }),
+      safeFind(reviewsCollection, {
+        $or: [
+          { moderationStatus: { $in: ["flagged", "pending_review"] } },
+          { status: { $in: ["flagged", "pending_review"] } },
+          { flagged: true },
+          { reportCount: { $gt: 0 } },
+        ],
+      }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 50 }),
+      safeFind(payoutsCollection, {
+        status: { $in: ["pending", "approved", "processing", "hold", "held"] },
+      }, { sort: { requestedAt: -1, updatedAt: -1, createdAt: -1 }, limit: 50 }),
     ]);
 
     const failedNewsletterBroadcasts = newsletterBroadcasts.filter((broadcast) =>
@@ -737,6 +959,20 @@ exports.getAdminOperationsOverview = async (req, res) => {
     const processingBulkJobs = bulkJobs.filter((job) =>
       ["queued", "processing", "running", "pending"].includes(normalizeStatus(job.status)),
     );
+    const queueWorkload = buildAdminQueueWorkload({
+      vendorApprovals: vendorApprovalQueue,
+      kycReviews: kycReviewQueue,
+      productModeration: productModerationQueue,
+      reviewModeration: reviewModerationQueue,
+      returnDisputes,
+      openSupportTickets,
+      payoutQueue,
+      failedNotifications: failedNotificationDeliveries,
+      now,
+    });
+    const queueSlaBreaches = queueWorkload.reduce((sum, queue) => sum + Number(queue.breached || 0), 0);
+    const queueWarningQueues = queueWorkload.filter((queue) => queue.status !== "clear").length;
+    const openAdminQueueItems = queueWorkload.reduce((sum, queue) => sum + Number(queue.count || 0), 0);
 
     const metrics = {
       failedPayments: failedPayments.length,
@@ -749,9 +985,57 @@ exports.getAdminOperationsOverview = async (req, res) => {
       openSupportTickets: openSupportTickets.length,
       returnDisputes: returnDisputes.length,
       auditServerErrors: auditServerErrors.length,
+      openAdminQueueItems,
+      queueSlaBreaches,
+      queueWarningQueues,
+      payoutExposure: sumPayoutExposure(payoutQueue),
     };
 
     const issues = [
+      ...vendorApprovalQueue.slice(0, 8).map((vendor) => toOperationIssue({
+        type: "vendor_approval",
+        title: vendor.shopName || vendor.name || vendor.email || "Vendor application",
+        detail: vendor.email || vendor.phone || "Vendor is waiting for approval.",
+        status: vendor.status || "pending",
+        severity: (vendor.policyFlags || []).length ? "medium" : "low",
+        at: vendor.updatedAt || vendor.createdAt,
+        owner: "Vendor Ops",
+        path: "/admin/vendor-requests",
+        meta: { id: vendor._id, vendorId: vendor._id },
+      })),
+      ...kycReviewQueue.slice(0, 8).map((vendor) => toOperationIssue({
+        type: "kyc_review",
+        title: `KYC review: ${vendor.shopName || vendor.name || vendor.email || "Vendor"}`,
+        detail: vendor.kyc?.notes || vendor.kyc?.reviewReason || "Submitted verification documents need review.",
+        status: vendor.kyc?.status || "pending",
+        severity: normalizeStatus(vendor.kyc?.status) === "under_review" ? "medium" : "low",
+        at: vendor.kyc?.submittedAt || vendor.updatedAt || vendor.createdAt,
+        owner: "Vendor Ops",
+        path: "/admin/vendor-kyc",
+        meta: { id: vendor._id, vendorId: vendor._id },
+      })),
+      ...productModerationQueue.slice(0, 8).map((product) => toOperationIssue({
+        type: "product_moderation",
+        title: product.name || product.title || product.sku || "Product listing",
+        detail: (product.moderationFlags || [])[0]?.message || product.rejectionReason || "Listing requires moderation.",
+        status: product.approvalStatus || product.status || "pending",
+        severity: (product.moderationFlags || []).length ? "medium" : "low",
+        at: product.submittedForReviewAt || product.updatedAt || product.createdAt,
+        owner: "Catalog",
+        path: "/admin/products",
+        meta: { id: product._id, vendorId: product.vendorId, sku: product.sku },
+      })),
+      ...reviewModerationQueue.slice(0, 8).map((review) => toOperationIssue({
+        type: "review_moderation",
+        title: review.title || review.comment || review.content || "Review needs moderation",
+        detail: review.flagReason || review.reason || `${Number(review.rating || 0)} star review`,
+        status: review.moderationStatus || review.status || "flagged",
+        severity: Number(review.reportCount || review.reportsCount || 0) > 0 ? "medium" : "low",
+        at: review.updatedAt || review.createdAt,
+        owner: "Trust & Safety",
+        path: "/admin/reviews",
+        meta: { id: review._id, productId: review.productId, vendorId: review.vendorId },
+      })),
       ...failedPayments.map((payment) => toOperationIssue({
         type: "payment",
         title: `Payment failed ${normalizeId(payment._id).slice(-6)}`,
@@ -840,6 +1124,17 @@ exports.getAdminOperationsOverview = async (req, res) => {
         path: "/admin/returns",
         meta: { id: returnDoc._id, orderId: returnDoc.orderId, refundAmount: returnDoc.refundAmount },
       })),
+      ...payoutQueue.slice(0, 8).map((payout) => toOperationIssue({
+        type: "payout",
+        title: `Payout ${normalizeId(payout._id).slice(-6)}`,
+        detail: `${payout.vendorName || payout.vendorId || "Vendor"} - ${round2(getPayoutAmount(payout))} pending finance action.`,
+        status: payout.status || "pending",
+        severity: getPayoutAmount(payout) >= 10000 ? "medium" : "low",
+        at: payout.requestedAt || payout.updatedAt || payout.createdAt,
+        owner: "Finance",
+        path: payout.type === "vendor_requested" ? "/admin/payout-requests" : "/admin/payouts",
+        meta: { id: payout._id, vendorId: payout.vendorId, amount: getPayoutAmount(payout) },
+      })),
     ]
       .filter((issue) => issue.at)
       .sort((a, b) => new Date(b.at) - new Date(a.at))
@@ -855,6 +1150,7 @@ exports.getAdminOperationsOverview = async (req, res) => {
         since,
         health: operationsHealth,
         metrics,
+        queueWorkload,
         jobMonitors: buildOperationsJobCards({
           analyticsSummary: latestAnalyticsSummary[0],
           scheduledNewsletterCount,
@@ -895,11 +1191,13 @@ exports.getAdminOperationsOverview = async (req, res) => {
 };
 
 exports._private = {
+  buildAdminQueueWorkload,
   buildFunnel,
   buildOperationsJobCards,
   buildRevenueSeries,
   buildTopProducts,
   buildTopVendors,
+  getQueueItemAgeHours,
   resolveDateRange,
   summarizeOperationsHealth,
   toOperationIssue,
