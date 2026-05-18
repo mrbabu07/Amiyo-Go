@@ -22,7 +22,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 - Frontend route count: about 110 route entries in `Client/src/routes/Routes.jsx`.
 - Backend route/controller handler references: about 596 route declarations across `Server/routes` and route-style controller files.
-- Frontend tests: 10 suites / 40 tests at last verification.
+- Frontend tests: 12 suites / 48 tests at last verification.
 - Backend tests: 61 suites / 394 tests at last verification.
 - Major frontend shells: `CustomerLayout`, `AuthLayout`, `VendorLayout`, `AdminLayout`.
 - Major backend groups: customer commerce, vendor center, admin operations, logistics, promotions, trust-safety, support, analytics, notifications, loyalty, wishlist, campaigns.
@@ -66,7 +66,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Orders/history/detail | Partial | `Orders`, order timeline, invoice download APIs, `/orders/:orderId`, and `/orders/:orderId/track` now exist. Needs deeper item-level tracking and post-delivery action polish. |
 | Wishlist | Partial | Wishlist, collections, sharing, alerts exist. Needs final grid, move-to-cart, and price-drop states. |
 | Loyalty/coins | Partial | Loyalty dashboard/API exists. Needs checkout integration consistency. |
-| Notifications center | Partial | `MyAlerts`, notification context, preferences, push services exist. Needs event-driven backend consolidation. |
+| Notifications center | Partial | `/notifications`, `MyAlerts`, notification context, preferences, and push services exist. Notifications now group by Today/Yesterday/Earlier with read/unread and type filters. Needs event-driven backend consolidation. |
 | Support center | Partial | Ticket list/detail concepts and admin queue exist. Needs order-detail entry points and attachment UX finish. |
 | Returns flow | Partial | `Returns`, return model/controller, vendor/admin flows exist. Needs full self-serve wizard and case detail polish. |
 | Reviews | Partial | Review APIs, review components, admin moderation, vendor reply, and `/my-reviews` now exist. Needs final moderation status consistency and richer media management. |
@@ -227,7 +227,7 @@ Current Phase 3 status by step:
 | 3.11 Support pages | Partial | Support list/detail/thread, create-ticket, FAQ, bot, linked order/return fields, and escalation entry points exist. Needs attachment preview polish and persistent assignment/SLA refinement. |
 | 3.12 Returns pages | Partial | Returns wizard, active/completed returns, evidence upload, refund method, timeline, and support escalation exist. Needs dedicated per-return detail route. |
 | 3.13 Reviews pages | Partial | Product review form and `/my-reviews` list/edit/remove page exist. Needs final moderation-status language and richer media editing. |
-| 3.14 Notifications | Partial | Notification context/dropdown, stock/price alerts page, preferences, and push settings exist. Needs consolidated notification center grouped by Today/Yesterday/Earlier. |
+| 3.14 Notifications | Partial | `/notifications` now consolidates order, return, support, promotion, and wishlist updates with Today/Yesterday/Earlier groups, filters, stats, mark-all-read, clear, and click-through actions. Needs event-driven backend consolidation and delivery-log linkage. |
 | 3.15 Trust content | Partial | Delivery, seller, buyer protection, return/support/review signals appear across key pages. Needs a final copy/placement pass across every customer route. |
 
 Latest Phase 3 implementation slice:
@@ -239,3 +239,4 @@ Latest Phase 3 implementation slice:
 - Added `/my-reviews` for customer review management with status badges, verified badge, edit, remove, media preview, and vendor reply display.
 - Added `customerOrders` helper coverage with black-box and white-box Jest tests.
 - Fixed search autocomplete product suggestions to navigate to `/product/:id`.
+- Added `/notifications` customer notification center with grouped timeline sections, unread/type filters, summary stats, refresh, mark-all-read, clear actions, product-alert handoff, and black-box/white-box helper tests.

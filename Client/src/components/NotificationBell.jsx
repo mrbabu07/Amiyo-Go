@@ -200,6 +200,16 @@ export default function NotificationBell() {
               </div>
             )}
           </div>
+
+          <div className="border-t border-gray-200 p-3 dark:border-gray-700">
+            <Link
+              to="/notifications"
+              onClick={() => setIsOpen(false)}
+              className="block rounded-lg px-3 py-2 text-center text-sm font-bold text-primary-700 transition hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-gray-700"
+            >
+              Open notification center
+            </Link>
+          </div>
         </div>
       )}
     </div>

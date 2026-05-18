@@ -39,6 +39,7 @@ const Support = lazy(() => import("../pages/Support"));
 const Addresses = lazy(() => import("../pages/Addresses"));
 const FlashSales = lazy(() => import("../pages/FlashSales"));
 const MyAlerts = lazy(() => import("../pages/MyAlerts"));
+const Notifications = lazy(() => import("../pages/Notifications"));
 const LoyaltyDashboard = lazy(() => import("../pages/LoyaltyDashboard"));
 const MyReviews = lazy(() => import("../pages/MyReviews"));
 const SearchResults = lazy(() => import("../pages/SearchResults"));
@@ -167,6 +168,7 @@ const router = createBrowserRouter([
       { path: "/support", element: privateElement(Support) },
       { path: "/addresses", element: privateElement(Addresses) },
       { path: "/my-alerts", element: privateElement(MyAlerts) },
+      { path: "/notifications", element: privateElement(Notifications) },
       { path: "/loyalty", element: privateElement(LoyaltyDashboard) },
       { path: "/my-reviews", element: privateElement(MyReviews) },
       { path: "/vendor/register", element: privateElement(VendorRegister) },

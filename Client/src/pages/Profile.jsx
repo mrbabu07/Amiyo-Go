@@ -217,11 +217,18 @@ export default function Profile() {
         color: "bg-violet-50 text-violet-700",
       },
       {
-        to: "/my-alerts",
+        to: "/notifications",
         label: "Notifications",
         description: "Unread updates",
         icon: Bell,
         color: "bg-cyan-50 text-cyan-700",
+      },
+      {
+        to: "/my-alerts",
+        label: "Product Alerts",
+        description: "Stock and price drops",
+        icon: ShieldAlert,
+        color: "bg-rose-50 text-rose-700",
       },
       {
         to: "/my-reviews",
