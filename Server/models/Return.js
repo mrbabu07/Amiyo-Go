@@ -7,17 +7,91 @@ const vendorIdValues = (vendorId) => {
   return values;
 };
 
+const DEDUCTIBLE_STATUSES = new Set(["approved", "completed", "refunded"]);
+
+const round2 = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+
+const getLineRefundAmount = (returnDoc = {}) => {
+  const safeReturn = returnDoc || {};
+  const quantity = Number(safeReturn.quantity || 1);
+  const productPrice = Number(safeReturn.productPrice || safeReturn.price || safeReturn.unitPrice || 0);
+  const fallbackAmount = productPrice * quantity;
+  return round2(
+    safeReturn.refundAmount ??
+      safeReturn.adminRefund ??
+      safeReturn.totalAmount ??
+      safeReturn.amount ??
+      fallbackAmount,
+  );
+};
+
+const calculateVendorDeduction = (returnDoc = {}, refundOverride = null) => {
+  const safeReturn = returnDoc || {};
+  if (!safeReturn.vendorId) return 0;
+
+  const storedDeduction = Number(safeReturn.vendorDeduction || 0);
+  if (storedDeduction > 0) return round2(storedDeduction);
+
+  const vendorEarning = Number(safeReturn.vendorEarningAmount || 0);
+  if (vendorEarning > 0) return round2(vendorEarning);
+
+  const refundAmount = refundOverride === null || refundOverride === undefined
+    ? getLineRefundAmount(safeReturn)
+    : round2(refundOverride);
+  const commission = Number(safeReturn.adminCommissionAmount || 0);
+
+  return round2(Math.max(0, refundAmount - commission));
+};
+
+const getAdminRefundAmount = (returnDoc = {}, refundOverride = null) => {
+  const amount = refundOverride === null || refundOverride === undefined
+    ? getLineRefundAmount(returnDoc || {})
+    : round2(refundOverride);
+  return round2(amount);
+};
+
+const normalizeReturnFinancials = (returnDoc = {}) => {
+  if (!returnDoc) return returnDoc;
+  const status = String(returnDoc.status || "").toLowerCase();
+  if (!DEDUCTIBLE_STATUSES.has(status)) return returnDoc;
+
+  const adminRefund = getAdminRefundAmount(returnDoc);
+  return {
+    ...returnDoc,
+    adminRefund: returnDoc.adminRefund || adminRefund,
+    vendorDeduction: calculateVendorDeduction(returnDoc, adminRefund),
+  };
+};
+
+const buildDateFilter = (periodStart = null, periodEnd = null) => {
+  if (!periodStart && !periodEnd) return null;
+
+  const bounds = {};
+  if (periodStart) bounds.$gte = new Date(periodStart);
+  if (periodEnd) bounds.$lte = new Date(periodEnd);
+
+  return [
+    { approvedAt: bounds },
+    { refundProcessedAt: bounds },
+    { completedAt: bounds },
+    { refundedAt: bounds },
+    { updatedAt: bounds },
+  ];
+};
+
 class Return {
   constructor(db) {
     this.collection = db.collection("returns");
   }
 
   async findAll() {
-    return await this.collection.find({}).sort({ createdAt: -1 }).toArray();
+    const returns = await this.collection.find({}).sort({ createdAt: -1 }).toArray();
+    return returns.map(normalizeReturnFinancials);
   }
 
   async findById(id) {
-    return await this.collection.findOne({ _id: new ObjectId(id) });
+    const returnDoc = await this.collection.findOne({ _id: new ObjectId(id) });
+    return normalizeReturnFinancials(returnDoc);
   }
 
   async findByUserId(userId) {
@@ -87,16 +161,20 @@ class Return {
 
     if (status === "approved") {
       updateData.approvedAt = new Date();
-      // When approved, calculate deductions
+      // When approved, calculate deductions from stored earning data or sale/refund fallback.
       const returnDoc = await this.findById(id);
       if (returnDoc) {
-        // Vendor loses their earning amount
-        updateData.vendorDeduction = returnDoc.vendorEarningAmount || 0;
-        // Admin refunds full amount to customer (including commission)
-        updateData.adminRefund = returnDoc.refundAmount || 0;
+        updateData.vendorDeduction = calculateVendorDeduction(returnDoc);
+        updateData.adminRefund = getAdminRefundAmount(returnDoc);
       }
     } else if (status === "completed" || status === "refunded") {
       updateData.completedAt = new Date();
+      const returnDoc = await this.findById(id);
+      if (returnDoc) {
+        const adminRefund = getAdminRefundAmount(returnDoc);
+        updateData.vendorDeduction = calculateVendorDeduction(returnDoc, adminRefund);
+        updateData.adminRefund = adminRefund;
+      }
     }
 
     return await this.collection.updateOne(
@@ -203,13 +281,20 @@ class Return {
   }
 
   async processRefund(returnId, refundAmount, refundMethod = "original") {
+    const returnDoc = await this.findById(returnId);
+    const adminRefund = getAdminRefundAmount(returnDoc, refundAmount);
+    const vendorDeduction = calculateVendorDeduction(returnDoc, adminRefund);
+
     return await this.collection.updateOne(
       { _id: new ObjectId(returnId) },
       {
         $set: {
-          refundAmount,
+          refundAmount: adminRefund,
           refundMethod,
+          adminRefund,
+          vendorDeduction,
           refundProcessedAt: new Date(),
+          completedAt: new Date(),
           status: "completed",
           updatedAt: new Date(),
         },
@@ -250,7 +335,7 @@ class Return {
     ]);
 
     return {
-      returns,
+      returns: returns.map(normalizeReturnFinancials),
       total,
       page,
       pages: Math.ceil(total / limit),
@@ -261,19 +346,6 @@ class Return {
    * Get vendor return statistics
    */
   async getVendorReturnStats(vendorId) {
-    const pipeline = [
-      { $match: { vendorId: { $in: vendorIdValues(vendorId) } } },
-      {
-        $group: {
-          _id: "$status",
-          count: { $sum: 1 },
-          totalDeduction: { $sum: "$vendorDeduction" },
-        },
-      },
-    ];
-
-    const stats = await this.collection.aggregate(pipeline).toArray();
-
     const result = {
       pending: 0,
       approved: 0,
@@ -286,15 +358,20 @@ class Return {
       approvedDeductions: 0,
     };
 
-    stats.forEach((stat) => {
-      result[stat._id] = stat.count;
-      result.totalReturns += stat.count;
-      result.totalDeductions += stat.totalDeduction || 0;
-      
-      if (stat._id === "approved" || stat._id === "completed" || stat._id === "refunded") {
-        result.approvedDeductions += stat.totalDeduction || 0;
+    const returns = await this.collection.find({ vendorId: { $in: vendorIdValues(vendorId) } }).toArray();
+    returns.map(normalizeReturnFinancials).forEach((returnDoc) => {
+      const status = String(returnDoc.status || "pending").toLowerCase();
+      if (result[status] !== undefined) result[status] += 1;
+      result.totalReturns += 1;
+      result.totalDeductions += Number(returnDoc.vendorDeduction || 0);
+
+      if (DEDUCTIBLE_STATUSES.has(status)) {
+        result.approvedDeductions += Number(returnDoc.vendorDeduction || 0);
       }
     });
+
+    result.totalDeductions = round2(result.totalDeductions);
+    result.approvedDeductions = round2(result.approvedDeductions);
 
     return result;
   }
@@ -309,16 +386,13 @@ class Return {
       status: { $in: ["approved", "completed", "refunded"] },
     };
 
-    if (periodStart || periodEnd) {
-      query.approvedAt = {};
-      if (periodStart) query.approvedAt.$gte = new Date(periodStart);
-      if (periodEnd) query.approvedAt.$lte = new Date(periodEnd);
-    }
+    const dateFilter = buildDateFilter(periodStart, periodEnd);
+    if (dateFilter) query.$or = dateFilter;
 
-    const returns = await this.collection.find(query).toArray();
+    const returns = (await this.collection.find(query).toArray()).map(normalizeReturnFinancials);
 
     const totalDeduction = returns.reduce(
-      (sum, ret) => sum + (ret.vendorDeduction || 0),
+      (sum, ret) => sum + Number(ret.vendorDeduction || 0),
       0
     );
 
@@ -330,7 +404,10 @@ class Return {
         orderId: r.orderId,
         productTitle: r.productTitle,
         deduction: r.vendorDeduction,
+        vendorDeduction: r.vendorDeduction,
+        refundAmount: r.refundAmount,
         approvedAt: r.approvedAt,
+        completedAt: r.completedAt || r.refundProcessedAt || null,
         status: r.status,
       })),
     };
@@ -392,8 +469,8 @@ class Return {
     if (action === 'approved') {
       updateData.status = 'approved';
       updateData.approvedAt = new Date();
-      updateData.vendorDeduction = returnDoc.vendorEarningAmount || 0;
-      updateData.adminRefund = returnDoc.refundAmount || 0;
+      updateData.vendorDeduction = calculateVendorDeduction(returnDoc);
+      updateData.adminRefund = getAdminRefundAmount(returnDoc);
     }
 
     // If vendor disputes, add dispute reason and keep status pending for admin review

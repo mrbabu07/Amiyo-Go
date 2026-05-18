@@ -139,9 +139,11 @@ const createReturnRequest = async (req, res) => {
     const orderProduct = canReturn.orderProduct;
 
     // Calculate refund amount and track vendor/commission info
-    const refundAmount = orderProduct.price * orderProduct.quantity;
-    const vendorEarningAmount = orderProduct.vendorEarningAmount || 0;
+    const refundAmount = Number(orderProduct.price || 0) * Number(orderProduct.quantity || 1);
     const adminCommissionAmount = orderProduct.adminCommissionAmount || 0;
+    const vendorEarningAmount =
+      orderProduct.vendorEarningAmount ??
+      Math.max(0, refundAmount - Number(adminCommissionAmount || 0));
     const commissionRateSnapshot = orderProduct.commissionRateSnapshot || 0;
 
     const returnData = {

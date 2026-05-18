@@ -182,7 +182,7 @@ const buildLedgerRows = ({ orders = [], returns = [], vendorId }) => {
       : 0;
     const vendorReturns = returnsByOrder.get(normalizeId(order._id)) || [];
     const refundDeducted = vendorReturns.reduce(
-      (sum, item) => sum + Number(item.vendorDeduction || 0),
+      (sum, item) => sum + Number(item.vendorDeduction ?? item.deduction ?? 0),
       0,
     );
     const delivery = getVendorDeliveryBreakdown(order, vendorId, saleAmount);
@@ -215,7 +215,7 @@ const buildLedgerRows = ({ orders = [], returns = [], vendorId }) => {
         returnId: item._id,
         status: item.status,
         productTitle: item.productTitle || item.productName || "",
-        deduction: round2(item.vendorDeduction || 0),
+        deduction: round2(item.vendorDeduction ?? item.deduction ?? 0),
         approvedAt: item.approvedAt || item.updatedAt || null,
       })),
       items: vendorProducts.map((product) => {

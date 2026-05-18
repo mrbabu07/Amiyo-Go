@@ -195,7 +195,7 @@ describe("vendor finance controller", () => {
           orderId,
           status: "completed",
           productTitle: "Cotton panjabi",
-          vendorDeduction: 300,
+          deduction: 300,
         },
       ],
       query: { limit: "20" },
