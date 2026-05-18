@@ -6,17 +6,21 @@ const toNumber = (value, fallback = 0) => {
 export const normalizeOrderId = (value) =>
   value?.toString?.() || String(value || "");
 
+const asOrder = (order = {}) => order || {};
+
 export const getOrderItems = (order = {}) => {
-  if (Array.isArray(order.products)) return order.products;
-  if (Array.isArray(order.items)) return order.items;
+  const safeOrder = asOrder(order);
+  if (Array.isArray(safeOrder.products)) return safeOrder.products;
+  if (Array.isArray(safeOrder.items)) return safeOrder.items;
   return [];
 };
 
 export const getShortOrderId = (orderOrId = {}) => {
+  const safeOrderOrId = orderOrId || {};
   const id =
-    typeof orderOrId === "string"
-      ? orderOrId
-      : normalizeOrderId(orderOrId._id || orderOrId.id || orderOrId.orderId);
+    typeof safeOrderOrId === "string"
+      ? safeOrderOrId
+      : normalizeOrderId(safeOrderOrId._id || safeOrderOrId.id || safeOrderOrId.orderId);
 
   return id ? `#${id.slice(-8).toUpperCase()}` : "Order";
 };
@@ -87,30 +91,37 @@ export const getOrderItemLineTotal = (item = {}) =>
     getOrderItemUnitPrice(item) * getOrderItemQuantity(item),
   );
 
-export const getOrderSubtotal = (order = {}) =>
-  toNumber(
-    order.subtotal,
-    getOrderItems(order).reduce((sum, item) => sum + getOrderItemLineTotal(item), 0),
+export const getOrderSubtotal = (order = {}) => {
+  const safeOrder = asOrder(order);
+  return toNumber(
+    safeOrder.subtotal,
+    getOrderItems(safeOrder).reduce((sum, item) => sum + getOrderItemLineTotal(item), 0),
   );
-
-export const getOrderDeliveryFee = (order = {}) =>
-  toNumber(order.deliveryCharge ?? order.deliveryFee ?? order.shippingFee, 0);
-
-export const getOrderDiscount = (order = {}) => {
-  if (order.totalDiscount !== undefined && order.totalDiscount !== null) {
-    return toNumber(order.totalDiscount, 0);
-  }
-  if (order.discount !== undefined && order.discount !== null) {
-    return toNumber(order.discount, 0);
-  }
-  return toNumber(order.couponDiscount, 0) + toNumber(order.pointsDiscount, 0);
 };
 
-export const getOrderTotal = (order = {}) =>
-  toNumber(
-    order.total ?? order.totalAmount ?? order.finalTotal ?? order.grandTotal,
-    getOrderSubtotal(order) + getOrderDeliveryFee(order) - getOrderDiscount(order),
+export const getOrderDeliveryFee = (order = {}) => {
+  const safeOrder = asOrder(order);
+  return toNumber(safeOrder.deliveryCharge ?? safeOrder.deliveryFee ?? safeOrder.shippingFee, 0);
+};
+
+export const getOrderDiscount = (order = {}) => {
+  const safeOrder = asOrder(order);
+  if (safeOrder.totalDiscount !== undefined && safeOrder.totalDiscount !== null) {
+    return toNumber(safeOrder.totalDiscount, 0);
+  }
+  if (safeOrder.discount !== undefined && safeOrder.discount !== null) {
+    return toNumber(safeOrder.discount, 0);
+  }
+  return toNumber(safeOrder.couponDiscount, 0) + toNumber(safeOrder.pointsDiscount, 0);
+};
+
+export const getOrderTotal = (order = {}) => {
+  const safeOrder = asOrder(order);
+  return toNumber(
+    safeOrder.total ?? safeOrder.totalAmount ?? safeOrder.finalTotal ?? safeOrder.grandTotal,
+    getOrderSubtotal(safeOrder) + getOrderDeliveryFee(safeOrder) - getOrderDiscount(safeOrder),
   );
+};
 
 export const getPaymentLabel = (method = "") => {
   const normalized = String(method || "").toLowerCase();
@@ -125,11 +136,12 @@ export const getPaymentLabel = (method = "") => {
 };
 
 export const getOrderEtaLabel = (order = {}) => {
+  const safeOrder = asOrder(order);
   const eta =
-    order.customerExperience?.tracking?.eta?.label ||
-    order.estimatedDelivery ||
-    order.deliveryEta ||
-    order.expectedDeliveryDate;
+    safeOrder.customerExperience?.tracking?.eta?.label ||
+    safeOrder.estimatedDelivery ||
+    safeOrder.deliveryEta ||
+    safeOrder.expectedDeliveryDate;
 
   if (!eta) return "ETA will be updated after seller confirmation";
 
@@ -144,24 +156,25 @@ export const getOrderEtaLabel = (order = {}) => {
 };
 
 export const getCustomerOrderSummary = (order = {}) => {
-  const items = getOrderItems(order);
+  const safeOrder = asOrder(order);
+  const items = getOrderItems(safeOrder);
   const itemCount = items.reduce(
     (sum, item) => sum + getOrderItemQuantity(item),
     0,
   );
 
   return {
-    id: normalizeOrderId(order._id || order.id || order.orderId),
-    shortId: getShortOrderId(order),
-    status: order.status || "pending",
-    statusLabel: formatOrderStatus(order.status || "pending"),
+    id: normalizeOrderId(safeOrder._id || safeOrder.id || safeOrder.orderId),
+    shortId: getShortOrderId(safeOrder),
+    status: safeOrder.status || "pending",
+    statusLabel: formatOrderStatus(safeOrder.status || "pending"),
     itemCount,
-    subtotal: getOrderSubtotal(order),
-    deliveryFee: getOrderDeliveryFee(order),
-    discount: getOrderDiscount(order),
-    total: getOrderTotal(order),
-    paymentLabel: getPaymentLabel(order.paymentMethod),
-    etaLabel: getOrderEtaLabel(order),
-    hasReturns: Boolean(order.customerExperience?.hasReturn),
+    subtotal: getOrderSubtotal(safeOrder),
+    deliveryFee: getOrderDeliveryFee(safeOrder),
+    discount: getOrderDiscount(safeOrder),
+    total: getOrderTotal(safeOrder),
+    paymentLabel: getPaymentLabel(safeOrder.paymentMethod),
+    etaLabel: getOrderEtaLabel(safeOrder),
+    hasReturns: Boolean(safeOrder.customerExperience?.hasReturn),
   };
 };

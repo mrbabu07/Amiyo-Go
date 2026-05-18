@@ -3,9 +3,11 @@ import {
   formatOrderStatus,
   getOrderDiscount,
   getOrderEtaLabel,
+  getOrderItems,
   getOrderItemImage,
   getOrderItemProductId,
   getOrderItemTitle,
+  getOrderSubtotal,
   getOrderTotal,
   getPaymentLabel,
   getShortOrderId,
@@ -35,6 +37,15 @@ describe("customer order helpers white-box behavior", () => {
         couponDiscount: 10,
       }),
     ).toBe(230);
+  });
+
+  test("treats null order data as an empty loading state", () => {
+    expect(getOrderItems(null)).toEqual([]);
+    expect(getShortOrderId(null)).toBe("Order");
+    expect(getOrderSubtotal(null)).toBe(0);
+    expect(getOrderDiscount(null)).toBe(0);
+    expect(getOrderTotal(null)).toBe(0);
+    expect(getOrderEtaLabel(null)).toBe("ETA will be updated after seller confirmation");
   });
 
   test("uses tracking ETA label before date fallback", () => {
