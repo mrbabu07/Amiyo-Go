@@ -3,6 +3,14 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(number) ? number : fallback;
 };
 
+const hasNumberValue = (value) =>
+  value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value));
+
+const firstNumberValue = (...values) => {
+  const value = values.find(hasNumberValue);
+  return value === undefined ? null : toNumber(value, 0);
+};
+
 export const normalizeOrderId = (value) =>
   value?.toString?.() || String(value || "");
 
@@ -106,21 +114,49 @@ export const getOrderDeliveryFee = (order = {}) => {
 
 export const getOrderDiscount = (order = {}) => {
   const safeOrder = asOrder(order);
+  const breakdownDiscount = safeOrder.discountBreakdown?.totals?.discountTotal;
+  if (breakdownDiscount !== undefined && breakdownDiscount !== null) {
+    return toNumber(breakdownDiscount, 0);
+  }
   if (safeOrder.totalDiscount !== undefined && safeOrder.totalDiscount !== null) {
     return toNumber(safeOrder.totalDiscount, 0);
   }
   if (safeOrder.discount !== undefined && safeOrder.discount !== null) {
     return toNumber(safeOrder.discount, 0);
   }
-  return toNumber(safeOrder.couponDiscount, 0) + toNumber(safeOrder.pointsDiscount, 0);
+  if (safeOrder.discountAmount !== undefined && safeOrder.discountAmount !== null) {
+    return toNumber(safeOrder.discountAmount, 0);
+  }
+  return (
+    toNumber(safeOrder.couponDiscount ?? safeOrder.couponApplied?.discountAmount, 0) +
+    toNumber(safeOrder.pointsDiscount, 0)
+  );
 };
 
 export const getOrderTotal = (order = {}) => {
   const safeOrder = asOrder(order);
-  return toNumber(
-    safeOrder.total ?? safeOrder.totalAmount ?? safeOrder.finalTotal ?? safeOrder.grandTotal,
-    getOrderSubtotal(safeOrder) + getOrderDeliveryFee(safeOrder) - getOrderDiscount(safeOrder),
+  const subtotal = getOrderSubtotal(safeOrder);
+  const deliveryFee = getOrderDeliveryFee(safeOrder);
+  const discount = getOrderDiscount(safeOrder);
+  const computedTotal = Math.max(0, subtotal + deliveryFee - discount);
+  const storedTotal = firstNumberValue(
+    safeOrder.discountBreakdown?.totals?.payableTotal,
+    safeOrder.total,
+    safeOrder.finalTotal,
+    safeOrder.totalAmount,
+    safeOrder.grandTotal,
+    safeOrder.payableTotal,
   );
+
+  if (storedTotal === null) return computedTotal;
+
+  const preDiscountTotal = subtotal + deliveryFee;
+  const storedLooksUndiscounted =
+    discount > 0 &&
+    storedTotal > computedTotal &&
+    Math.abs(storedTotal - preDiscountTotal) <= 0.01;
+
+  return storedLooksUndiscounted ? computedTotal : storedTotal;
 };
 
 export const getPaymentLabel = (method = "") => {

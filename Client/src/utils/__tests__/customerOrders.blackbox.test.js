@@ -51,4 +51,19 @@ describe("customer order journey black-box behavior", () => {
   test("keeps customer totals stable when a row only has unit price and quantity", () => {
     expect(getOrderItemLineTotal({ price: 99.5, quantity: 3 })).toBe(298.5);
   });
+
+  test("shows the discounted amount when a legacy order stored the pre-discount total", () => {
+    const summary = getCustomerOrderSummary({
+      _id: "6620fd2f45d3ad8bbec0a888",
+      status: "pending",
+      paymentMethod: "cod",
+      products: [{ title: "Laptop", price: 10000, quantity: 1 }],
+      couponApplied: { code: "PROMO1000", discountAmount: 1000 },
+      totalDiscount: 1000,
+      total: 10000,
+    });
+
+    expect(summary.discount).toBe(1000);
+    expect(summary.total).toBe(9000);
+  });
 });

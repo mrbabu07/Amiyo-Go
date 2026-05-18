@@ -390,6 +390,53 @@ class Order {
           console.error("Error processing vendor voucher:", voucherError);
         }
       }
+
+      if (!couponApplied) {
+        try {
+          const offersCollection = this.collection.db.collection("offers");
+          const now = new Date();
+          const offer = await offersCollection.findOne({
+            couponCode: orderData.couponCode.toUpperCase(),
+            isActive: true,
+            startDate: { $lte: now },
+            endDate: { $gte: now },
+          });
+
+          if (offer) {
+            if (offer.discountType === "percentage") {
+              couponDiscountAmount = (subtotal * Number(offer.discountValue || 0)) / 100;
+            } else if (offer.discountType === "fixed") {
+              couponDiscountAmount = Number(offer.discountValue || 0);
+            }
+
+            couponDiscountAmount = Math.min(Math.max(0, couponDiscountAmount), subtotal);
+
+            await offersCollection.updateOne(
+              { _id: offer._id },
+              {
+                $inc: { usedCount: 1 },
+                $set: { updatedAt: new Date() },
+                $push: {
+                  usedBy: { userId: orderData.userId, usedAt: new Date() },
+                },
+              },
+            );
+
+            couponApplied = {
+              couponId: offer._id,
+              code: offer.couponCode,
+              name: offer.title,
+              discountType: offer.discountType,
+              discountValue: offer.discountValue,
+              discountAmount: round2(couponDiscountAmount),
+              source: "offer",
+              type: "offer",
+            };
+          }
+        } catch (offerError) {
+          console.error("Error processing offer promo code:", offerError);
+        }
+      }
     }
 
     // Handle points redemption
@@ -431,11 +478,18 @@ class Order {
       couponDiscount: round2(couponDiscountAmount),
       pointsDiscount: round2(pointsDiscountAmount),
       flashDiscount: round2(flashDiscountAmount),
+      discount: round2(totalDiscountAmount),
+      discountAmount: round2(totalDiscountAmount),
       totalDiscount: round2(totalDiscountAmount),
       deliveryCharge: round2(deliveryCharge),
       deliveryMethod: orderData.deliveryMethod || "standard",
       deliveryBreakdown: orderData.deliveryBreakdown || [],
       total: round2(finalTotal),
+      totalAmount: round2(finalTotal),
+      finalTotal: round2(finalTotal),
+      grandTotal: round2(finalTotal),
+      payableTotal: round2(finalTotal),
+      originalTotal: round2(subtotal + deliveryCharge),
       couponApplied,
       discountBreakdown,
       redeemedPoints,

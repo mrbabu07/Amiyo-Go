@@ -13,6 +13,14 @@ const toNumber = (value, fallback = 0) => {
 
 const round2 = (value) => Math.round((toNumber(value) + Number.EPSILON) * 100) / 100;
 
+const hasMoneyValue = (value) =>
+  value !== undefined && value !== null && Number.isFinite(Number(value));
+
+const firstMoneyValue = (...values) => {
+  const value = values.find(hasMoneyValue);
+  return value === undefined ? null : round2(value);
+};
+
 const normalizeId = (value) => {
   if (!value) return "";
   return value.toString ? value.toString() : String(value);
@@ -181,17 +189,40 @@ class InvoiceService {
       items.reduce((sum, item) => sum + item.lineTotal, 0),
     );
     const subtotal = calculatedSubtotal > 0 ? calculatedSubtotal : round2(order.subtotal);
-    const couponDiscount = Math.max(0, round2(order.couponDiscount));
+    const couponDiscount = Math.max(
+      0,
+      firstMoneyValue(order.couponDiscount, order.couponApplied?.discountAmount) || 0,
+    );
     const pointsDiscount = Math.max(0, round2(order.pointsDiscount));
-    const totalDiscount = Math.max(0, round2(order.totalDiscount));
+    const totalDiscount = Math.max(
+      0,
+      firstMoneyValue(
+        order.totalDiscount,
+        order.discount,
+        order.discountAmount,
+        order.discountBreakdown?.totals?.discountTotal,
+      ) || 0,
+    );
     const namedDiscounts = round2(couponDiscount + pointsDiscount);
     const otherDiscount = Math.max(0, round2(totalDiscount - namedDiscounts));
     const discountTotal = round2(namedDiscounts + otherDiscount);
     const deliveryCharge = getDeliveryCharge(order);
     const taxAmount = Math.max(0, round2(order.taxAmount || order.vatAmount));
     const computedTotal = round2(Math.max(0, subtotal - discountTotal + deliveryCharge + taxAmount));
-    const storedTotal = round2(order.total);
-    const hasStoredTotal = storedTotal > 0;
+    const storedTotal = firstMoneyValue(
+      order.total,
+      order.finalTotal,
+      order.totalAmount,
+      order.grandTotal,
+      order.payableTotal,
+    );
+    const preDiscountTotal = round2(subtotal + deliveryCharge + taxAmount);
+    const storedLooksUndiscounted =
+      discountTotal > 0 &&
+      storedTotal !== null &&
+      storedTotal > computedTotal &&
+      Math.abs(storedTotal - preDiscountTotal) <= EPSILON;
+    const hasStoredTotal = storedTotal !== null && !storedLooksUndiscounted;
     const total = hasStoredTotal ? storedTotal : computedTotal;
     const adjustment = hasStoredTotal && Math.abs(storedTotal - computedTotal) > EPSILON
       ? round2(storedTotal - computedTotal)

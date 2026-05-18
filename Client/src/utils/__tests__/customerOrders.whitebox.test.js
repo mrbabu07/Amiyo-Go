@@ -29,6 +29,12 @@ describe("customer order helpers white-box behavior", () => {
 
   test("calculates fallback discounts and totals without leaking NaN", () => {
     expect(getOrderDiscount({ couponDiscount: 30, pointsDiscount: 20 })).toBe(50);
+    expect(
+      getOrderDiscount({
+        couponApplied: { discountAmount: 75 },
+        discountBreakdown: { totals: { discountTotal: 75 } },
+      }),
+    ).toBe(75);
     expect(getOrderDiscount({ couponDiscount: undefined, pointsDiscount: undefined })).toBe(0);
     expect(
       getOrderTotal({
@@ -37,6 +43,14 @@ describe("customer order helpers white-box behavior", () => {
         couponDiscount: 10,
       }),
     ).toBe(230);
+    expect(
+      getOrderTotal({
+        products: [{ price: 10000, quantity: 1 }],
+        couponApplied: { discountAmount: 1000 },
+        totalDiscount: 1000,
+        total: 10000,
+      }),
+    ).toBe(9000);
   });
 
   test("treats null order data as an empty loading state", () => {

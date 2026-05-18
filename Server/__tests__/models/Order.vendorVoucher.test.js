@@ -50,12 +50,18 @@ const buildDb = () => {
     findOne: jest.fn().mockResolvedValue(null),
   };
 
+  const offersCollection = {
+    findOne: jest.fn().mockResolvedValue(null),
+    updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+  };
+
   const db = {
     collection: jest.fn((name) => {
       if (name === "orders") return ordersCollection;
       if (name === "categories") return categoriesCollection;
       if (name === "coupons") return couponsCollection;
       if (name === "vendorMarketingItems") return voucherCollection;
+      if (name === "offers") return offersCollection;
       if (name === "promotion_settings") return promotionSettingsCollection;
       if (["campaignVendorJoins", "vendorMarketingEvents", "campaignVoucherAnalytics"].includes(name)) {
         return analyticsCollection;
@@ -72,6 +78,7 @@ const buildDb = () => {
     ordersCollection,
     couponsCollection,
     voucherCollection,
+    offersCollection,
   };
 };
 
@@ -161,5 +168,58 @@ describe("Order model vendor voucher flow", () => {
       }),
     );
     expect(couponsCollection.updateOne).toHaveBeenCalled();
+  });
+
+  test("create persists offer promo code discounts in every customer-facing total field", async () => {
+    const { db, inserted, voucherCollection, offersCollection } = buildDb();
+    voucherCollection.findOne.mockResolvedValueOnce(null);
+    offersCollection.findOne.mockResolvedValueOnce({
+      _id: "offer-1",
+      couponCode: "EID100",
+      title: "Eid promo",
+      discountType: "fixed",
+      discountValue: 100,
+      isActive: true,
+      startDate: new Date(Date.now() - 1000),
+      endDate: new Date(Date.now() + 60_000),
+    });
+    const orderModel = new Order(db);
+
+    await orderModel.create({
+      userId: "user-1",
+      products: [{ title: "A", vendorId: "vendor-1", price: 500, quantity: 1 }],
+      couponCode: "eid100",
+      paymentMethod: "cod",
+      deliveryCharge: 50,
+    });
+
+    const insertedOrder = inserted[0];
+    expect(insertedOrder.couponDiscount).toBe(100);
+    expect(insertedOrder.totalDiscount).toBe(100);
+    expect(insertedOrder.discount).toBe(100);
+    expect(insertedOrder.discountAmount).toBe(100);
+    expect(insertedOrder.total).toBe(450);
+    expect(insertedOrder.totalAmount).toBe(450);
+    expect(insertedOrder.finalTotal).toBe(450);
+    expect(insertedOrder.grandTotal).toBe(450);
+    expect(insertedOrder.payableTotal).toBe(450);
+    expect(insertedOrder.originalTotal).toBe(550);
+    expect(insertedOrder.couponApplied).toEqual(
+      expect.objectContaining({
+        code: "EID100",
+        source: "offer",
+        type: "offer",
+        discountAmount: 100,
+      }),
+    );
+    expect(insertedOrder.discountBreakdown.totals).toEqual(
+      expect.objectContaining({
+        subtotal: 500,
+        deliveryCharge: 50,
+        discountTotal: 100,
+        payableTotal: 450,
+      }),
+    );
+    expect(offersCollection.updateOne).toHaveBeenCalled();
   });
 });

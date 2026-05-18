@@ -17,6 +17,7 @@ import useCart from "../hooks/useCart";
 import BackButton from "../components/BackButton";
 import OrderTracking from "../components/OrderTracking";
 import ReturnStatusTracker from "../components/ReturnStatusTracker";
+import { getCustomerOrderSummary } from "../utils/customerOrders";
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
@@ -744,7 +745,11 @@ export default function Orders() {
           </div>
         ) : (
           <div className="space-y-6">
-            {filteredOrders.map((order) => (
+            {filteredOrders.map((order) => {
+              const summary = getCustomerOrderSummary(order);
+              const couponCode = order.couponApplied?.code || order.couponCode;
+
+              return (
               <div
                 key={order._id}
                 className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition-all overflow-hidden"
@@ -1144,35 +1149,41 @@ export default function Orders() {
                     <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 space-y-3">
                       <div className="flex justify-between text-gray-600">
                         <span>
-                          Subtotal (
-                          {order.products.reduce(
-                            (sum, item) => sum + item.quantity,
-                            0,
-                          )}{" "}
-                          items)
+                          Subtotal ({summary.itemCount}{" "}
+                          {summary.itemCount === 1 ? "item" : "items"})
                         </span>
                         <span>
-                          {formatPrice(order.subtotal || order.total || 0)}
+                          {formatPrice(summary.subtotal)}
                         </span>
                       </div>
                       <div className="flex justify-between text-gray-600">
                         <span>Delivery Charge</span>
                         <span
                           className={
-                            (order.deliveryCharge || 0) === 0
+                            summary.deliveryFee === 0
                               ? "text-green-600 font-medium"
                               : ""
                           }
                         >
-                          {(order.deliveryCharge || 0) === 0
+                          {summary.deliveryFee === 0
                             ? "FREE"
-                            : formatPrice(order.deliveryCharge)}
+                            : formatPrice(summary.deliveryFee)}
                         </span>
                       </div>
+                      {summary.discount > 0 && (
+                        <div className="flex justify-between text-emerald-700">
+                          <span>
+                            Discount{couponCode ? ` (${couponCode})` : ""}
+                          </span>
+                          <span className="font-semibold">
+                            -{formatPrice(summary.discount)}
+                          </span>
+                        </div>
+                      )}
                       <div className="border-t pt-3 flex justify-between text-xl font-bold">
                         <span>Total Paid</span>
                         <span className="text-primary-600">
-                          {formatPrice(order.total || 0)}
+                          {formatPrice(summary.total)}
                         </span>
                       </div>
 
@@ -1258,7 +1269,8 @@ export default function Orders() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

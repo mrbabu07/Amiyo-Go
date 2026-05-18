@@ -112,6 +112,28 @@ describe("invoiceService customer invoice data", () => {
     );
   });
 
+  it("repairs stale undiscounted stored totals when a promo discount is present", () => {
+    const invoice = invoiceService.buildInvoiceData({
+      _id: "order-legacy-promo",
+      products: [{ title: "Laptop", quantity: 1, price: 10000 }],
+      couponApplied: { code: "PROMO1000", discountAmount: 1000 },
+      totalDiscount: 1000,
+      deliveryCharge: 0,
+      total: 10000,
+    });
+
+    expect(invoice.couponDiscount).toBe(1000);
+    expect(invoice.discountTotal).toBe(1000);
+    expect(invoice.computedTotal).toBe(9000);
+    expect(invoice.total).toBe(9000);
+    expect(invoice.adjustment).toBe(0);
+    expect(invoice.summaryRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Coupon (PROMO1000)", amount: -1000 }),
+      ]),
+    );
+  });
+
   it("formats money with ASCII BDT text for PDF font compatibility", () => {
     expect(invoiceService.formatMoney(1234.5)).toBe("BDT 1,234.50");
   });

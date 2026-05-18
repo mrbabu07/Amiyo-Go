@@ -771,8 +771,12 @@ const createOrder = async (req, res) => {
         ? couponScopeVendorId === vendorId
           ? Number(createdOrder.couponDiscount || 0)
           : 0
-        : (vendorSubtotal / createdOrder.subtotal) * (createdOrder.couponDiscount || 0);
-      const vendorPointsDiscount = (vendorSubtotal / createdOrder.subtotal) * (createdOrder.pointsDiscount || 0);
+        : createdOrder.subtotal > 0
+          ? (vendorSubtotal / createdOrder.subtotal) * (createdOrder.couponDiscount || 0)
+          : 0;
+      const vendorPointsDiscount = createdOrder.subtotal > 0
+        ? (vendorSubtotal / createdOrder.subtotal) * (createdOrder.pointsDiscount || 0)
+        : 0;
       const vendorTotalDiscount = vendorCouponDiscount + vendorPointsDiscount;
 
       // Calculate vendor order total
@@ -911,7 +915,7 @@ const createOrder = async (req, res) => {
         userEmail: shippingInfo.email,
         userName: shippingInfo.name,
         orderId: orderId.toString(),
-        orderTotal: total,
+        orderTotal: createdOrder?.total ?? createdOrder?.totalAmount ?? total,
         items: products,
         shippingAddress: shippingInfo,
       });
@@ -935,7 +939,16 @@ const createOrder = async (req, res) => {
     console.log("🎉 Order creation completed successfully");
     res.status(201).json({
       success: true,
-      data: { orderId },
+      data: {
+        orderId,
+        subtotal: createdOrder?.subtotal,
+        deliveryCharge: createdOrder?.deliveryCharge,
+        couponDiscount: createdOrder?.couponDiscount,
+        pointsDiscount: createdOrder?.pointsDiscount,
+        totalDiscount: createdOrder?.totalDiscount,
+        total: createdOrder?.total,
+        couponApplied: createdOrder?.couponApplied || null,
+      },
       message: "Order created successfully",
     });
   } catch (error) {
