@@ -37,7 +37,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Health/readiness endpoints | Complete | `/health`, `/ready`, `/ops` and `/api/*` aliases now report liveness, readiness, dependency state, jobs, and degraded ops. | Wire external uptime/monitoring to these endpoints. |
 | Security/RBAC | Complete | Backend permission resolution is role/resource/action based; admin frontend navigation and route elements are RBAC-aware. | Continue adding action-level button disables as pages are polished. |
 | Idempotency | Complete | Critical checkout, guest order, payment, refund, return, vendor payout, and admin payout writes use `Idempotency-Key`. Client API adds keys automatically. | Add dashboard visibility for idempotency conflicts if ops needs it. |
-| Audit logs | Complete | Sensitive admin/vendor/order/payment/return/support/upload actions are audited with redaction and clearer target types. | Add a dedicated admin audit viewer UI when the admin queue pass happens. |
+| Audit logs | Complete | Sensitive admin/vendor/order/payment/return/support/upload actions are audited with redaction, clearer target types, and a unified admin audit viewer. | Add retention/export policy once compliance requirements are finalized. |
 | Rate limits | Complete | Configurable global API, search, payment, product-view analytics, upload, KYC, and bulk-upload limiters are wired in `Server/index.js`. Product/campaign view analytics no longer consume the general API budget. | Tune `API_RATE_LIMIT_MAX` and `API_RATE_LIMIT_WINDOW_MS` from production traffic. |
 | Sanitization | Complete | `sanitizeMiddleware` is wired before API routes. | Add route-specific validation schemas during page cleanup. |
 | Helmet/security headers | Complete | `helmet` and strict CORS allowlist config are wired during startup. | Maintain `CORS_ORIGINS` per environment. |
@@ -110,7 +110,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Notification templates/logs | Partial | Platform controls include templates/broadcast/email campaigns. Needs delivery log, retry monitor, and event bus integration. |
 | Support queue | Partial | Admin support queue is now professional UI with stats/SLA/drawer. Needs internal notes, assignment persistence verification, and SLA automation. |
 | Staff roles/permissions | Partial | Platform staff access, role/session policy, user permissions exist. Needs permission matrix UI and route-level enforcement pass. |
-| Audit logs | Partial | General audit route and domain audit logs exist. Needs a unified admin audit viewer page. |
+| Audit logs | Complete | `/api/admin/audit-logs` now supports unified search/filter/pagination/summary, and `/admin/audit-logs` gives admins a detail drawer for evidence review. |
 | Ops monitoring | Partial | Admin operations page now merges marketplace workload queues, failed jobs, cron health, notification failures, support/return issues, payout exposure, and recent audit trails. Needs deeper retry actions and external alerting. |
 
 ## Shared Design And UI Audit
@@ -148,7 +148,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 | Move | Status | Next Action |
 |---|---|---|
-| 1. Add full audit log | Complete | Sensitive-operation audit middleware is expanded and tested. Admin audit viewer UI remains part of the admin polish pass. |
+| 1. Add full audit log | Complete | Sensitive-operation audit middleware, unified admin audit endpoint, and searchable admin audit viewer are implemented and tested. |
 | 2. Add admin RBAC | Complete | Admin backend permissions, frontend nav filtering, and admin route guards are resource/action aware. |
 | 3. Add guest checkout | Complete | Existing guest checkout is now protected by critical-write idempotency. UX polish continues in buyer-flow phase. |
 | 4. Rebuild product page | Partial | Finish above-fold hierarchy and sticky purchase bar behavior. |
@@ -166,7 +166,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 3. Finish customer buy flow: product detail, cart, checkout, guest checkout, order success, order detail.
 4. Finish support/returns/reviews: customer entry points, vendor response, admin queues, audit events.
 5. Finish vendor seller center: dashboard, product workflow, orders, finance, shop, KYC, marketing.
-6. Finish admin operations: queue pattern, detail drawers, RBAC navigation, audit viewer.
+6. Finish admin operations: queue pattern, detail drawers, RBAC navigation, retry controls.
 7. Build canonical logistics and COD state machines.
 8. Consolidate promotions, notifications, analytics, and exports behind event-driven workflows.
 9. Run UI consistency and mobile-first review across every role.
@@ -308,7 +308,7 @@ Current Phase 5 status by step:
 | 5.12 Promotions manager | Partial | Promotions, coupons, flash sales, offers, campaigns, and vendor marketing review exist. Needs stronger conflict detection and order discount snapshots. |
 | 5.13 Notifications/templates | Partial | Platform controls include broadcasts, templates, email campaigns, announcements, and failed delivery signals in operations. Needs retry controls from delivery-log rows. |
 | 5.14 Analytics/reports | Partial | Admin dashboard/analytics expose GMV, commission, vendors, products, refunds, payouts, exports, and compare controls. Needs more event-backed funnel data. |
-| 5.15 Audit/observability | Partial | Audit middleware, domain audit logs, operations page, queue monitors, and recent audit trail exist. Needs dedicated searchable unified audit-log page. |
+| 5.15 Audit/observability | Partial | Audit middleware, domain audit logs, operations page, queue monitors, and searchable `/admin/audit-logs` viewer exist. Needs external alerting and retry actions from failed-job/notification rows. |
 | 5.16 Staff/RBAC | Partial | Staff access, roles, permissions, session policy, 2FA setup, RBAC route guards, and permission-filtered navigation exist. Needs full permission matrix editing UX. |
 
 Latest Phase 5 implementation slice:
@@ -320,3 +320,6 @@ Latest Phase 5 implementation slice:
 - Added `adminOperationsCenter` frontend helpers plus black-box and white-box Jest tests for queue summaries, filtering, tones, and exposure formatting.
 - Added admin shell topbar route search and dark-mode toggle while preserving permission-filtered navigation.
 - Expanded backend operations helper tests for queue SLA scoring and normalized Phase 5 workload generation.
+- Added unified `/api/admin/audit-logs` filters for search, module, severity, actor, target, date range, pagination, and operational summaries.
+- Added `/admin/audit-logs` with summary cards, desktop table, mobile cards, and a right-side evidence drawer for actor/target/request/metadata/diff review.
+- Added admin audit-log frontend black-box/white-box helper tests and backend controller tests for query construction, severity derivation, normalization, and paginated responses.

@@ -73,6 +73,7 @@ const VendorKyc = lazy(() => import("../pages/vendor/VendorKyc"));
 
 const AdminDashboard = lazy(() => import("../pages/admin/AdminDashboard"));
 const AdminOperations = lazy(() => import("../pages/admin/AdminOperations"));
+const AdminAuditLogs = lazy(() => import("../pages/admin/AdminAuditLogs"));
 const AdminAnalyticsReports = lazy(() => import("../pages/admin/AdminAnalyticsReports"));
 const AdminDynamicCategories = lazy(() => import("../pages/admin/AdminDynamicCategories"));
 const AdminCategoryManagement = lazy(() => import("../pages/admin/AdminCategoryManagement"));
@@ -248,6 +249,7 @@ const router = createBrowserRouter([
     children: [
       { path: "", element: adminElement(AdminDashboard, "system", "read") },
       { path: "operations", element: adminElement(AdminOperations, "system", "read") },
+      { path: "audit-logs", element: adminElement(AdminAuditLogs, "audit_logs", "read") },
       { path: "analytics", element: adminElement(AdminAnalyticsReports, "analytics", "read") },
       { path: "platform", element: adminElement(AdminPlatformControls, "system", "read") },
       { path: "vendors", element: adminElement(AdminVendors, "vendors", "read") },

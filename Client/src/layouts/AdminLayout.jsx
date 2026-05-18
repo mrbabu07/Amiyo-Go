@@ -9,6 +9,7 @@ import {
   CreditCard,
   DollarSign,
   FileCheck,
+  FileClock,
   Home,
   LayoutDashboard,
   LogOut,
@@ -41,6 +42,12 @@ const navigation = [
     name: 'Operations',
     icon: Activity,
     path: '/admin/operations',
+    exact: true,
+  },
+  {
+    name: 'Audit Logs',
+    icon: FileClock,
+    path: '/admin/audit-logs',
     exact: true,
   },
   {
@@ -151,6 +158,7 @@ const matchesRoute = (pathname, item) => {
 const adminPermissionRules = [
   { pattern: /^\/admin$/, resource: 'system', action: 'read' },
   { pattern: /^\/admin\/operations/, resource: 'system', action: 'read' },
+  { pattern: /^\/admin\/audit-logs/, resource: 'audit_logs', action: 'read' },
   { pattern: /^\/admin\/analytics/, resource: 'analytics', action: 'read' },
   { pattern: /^\/admin\/platform/, resource: 'system', action: 'read' },
   { pattern: /^\/admin\/(vendor|vendors|chats|chat)/, resource: 'vendors', action: 'read' },
