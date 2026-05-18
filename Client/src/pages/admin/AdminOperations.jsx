@@ -21,6 +21,7 @@ import {
   UploadCloud,
   Wallet,
 } from "lucide-react";
+import RoleWorkflowPanel from "../../components/workflow/RoleWorkflowPanel";
 import { getAdminOperationsOverview } from "../../services/api";
 import {
   adminIssueFilters,
@@ -29,6 +30,7 @@ import {
   getQueueSummary,
   getQueueTone,
 } from "../../utils/adminOperationsCenter";
+import { buildAdminWorkflow } from "../../utils/roleWorkflowCenter";
 
 const emptyOperations = {
   updatedAt: null,
@@ -323,6 +325,17 @@ export default function AdminOperations() {
   const notificationHealth = operations.notificationHealth || emptyOperations.notificationHealth;
   const queueWorkload = operations.queueWorkload || [];
   const queueSummary = useMemo(() => getQueueSummary(queueWorkload), [queueWorkload]);
+  const adminWorkflow = useMemo(
+    () =>
+      buildAdminWorkflow({
+        queueSummary,
+        metrics,
+        health,
+        notificationHealth,
+        jobMonitors: operations.jobMonitors || [],
+      }),
+    [health, metrics, notificationHealth, operations.jobMonitors, queueSummary],
+  );
 
   const metricCards = [
     {
@@ -454,6 +467,8 @@ export default function AdminOperations() {
             <MetricCard key={card.label} {...card} loading={loading} />
           ))}
         </section>
+
+        <RoleWorkflowPanel workflow={adminWorkflow} />
 
         <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 dark:border-slate-800 lg:flex-row lg:items-center lg:justify-between">

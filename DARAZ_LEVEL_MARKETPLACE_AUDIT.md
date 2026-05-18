@@ -62,7 +62,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Guest checkout | Partial | `/checkout/guest` exists and guest order API exists. Needs final validation, optional account creation, and success path hardening. |
 | Checkout | Partial | Checkout page and order creation exist. Needs stricter stepper enforcement, idempotency, and payment confirmation hardening. |
 | Order success | Partial | `OrderConfirmation` now shows order ID copy, ETA, item count, total, trust steps, and track/detail CTAs. Needs recommended items and guest tracking hardening. |
-| Account dashboard | Partial | `Profile` links profile/orders/addresses/coins/notifications/support. Needs one complete hub with embedded summaries. |
+| Account dashboard | Partial | `Profile` links profile/orders/addresses/coins/notifications/support and now has a buyer workflow readiness panel for profile, address, payment, contact, and update channels. Needs richer embedded order/wishlist/support summaries. |
 | Orders/history/detail | Partial | `Orders`, order timeline, invoice download APIs, `/orders/:orderId`, and `/orders/:orderId/track` now exist. Needs deeper item-level tracking and post-delivery action polish. |
 | Wishlist | Partial | Wishlist, collections, sharing, alerts exist. Needs final grid, move-to-cart, and price-drop states. |
 | Loyalty/coins | Partial | Loyalty dashboard/API exists. Needs checkout integration consistency. |
@@ -251,7 +251,7 @@ Current Phase 4 status by step:
 | Step | Status | Evidence / Gap |
 |---|---|---|
 | 4.1 Vendor shell/status gate | Complete | `VendorLayout` has grouped seller navigation, responsive sidebar, seller action center, `/vendor` dashboard redirect, shared status gate states, and permission-filtered staff navigation. |
-| 4.2 Dashboard home | Complete | `VendorHome` has KPIs, action widgets, health scoring, announcements, top products, sales chart, SLA/stock signals, and pending-task prompts. |
+| 4.2 Dashboard home | Complete | `VendorHome` has KPIs, action widgets, workflow readiness scoring, health scoring, announcements, top products, sales chart, SLA/stock signals, and pending-task prompts. |
 | 4.3 Products workflow | Complete | Product list, add/edit, product detail/performance view, moderation status, mobile product cards, mobile bulk-edit cards, media center, CSV upload route, category requests, variants/SKU concepts, and staff action locks exist. |
 | 4.4 Bulk upload/media | Complete | Bulk upload and media-center views exist with CSV validation, job processing, partial-success report snapshots, failed-row guidance, and report download. |
 | 4.5 Orders operations | Complete | Vendor orders queue, filters, status actions, packing slips, labels, pickup scheduling, buyer messages, return links, timeline, `/vendor/orders/:orderId` detail workspace, delivery exception recording, mobile card fallback, and staff action locks exist. |
@@ -298,7 +298,7 @@ Current Phase 5 status by step:
 | Step | Status | Evidence / Gap |
 |---|---|---|
 | 5.1 Admin shell | Hardened baseline | Admin shell includes RBAC-aware navigation, alert badges, resource-aware topbar search, quick links, role badge, and dark-mode toggle. |
-| 5.2 Queue-based model | Complete | `/admin/operations` now normalizes vendor approval, KYC, product moderation, review moderation, returns, support, payouts, and failed-notification queues with SLA/risk/exposure signals. |
+| 5.2 Queue-based model | Complete | `/admin/operations` now normalizes vendor approval, KYC, product moderation, review moderation, returns, support, payouts, and failed-notification queues with SLA/risk/exposure signals plus a marketplace workflow score. |
 | 5.3 Vendor management | Complete baseline | Vendor requests, detail, KYC, status actions, category access, bulk actions, and shared vendor approval drawer exist. Advanced history/risk scoring can continue in later hardening. |
 | 5.4 Product moderation | Complete baseline | Product queue, approve/reject/disable, scans, duplicates, IP, brand tools, and shared queue detail drawer exist. |
 | 5.5 Review moderation | Complete baseline | Review moderation/trust-safety queues feed operations workload, and review management now has shared risk metrics plus a right-side detail drawer with reply/delete actions. |
@@ -352,3 +352,12 @@ Admin dashboard workflow pass:
 - Updated `/admin` dashboard cards so every major marketplace signal links into the relevant workflow: orders, approvals, support, payouts, operations, analytics, categories, products, returns, reviews, KYC, and notification failures.
 - Added dashboard UI for support SLA, failed notifications, failed jobs, analytics cron health, top categories, refund rate, payout exposure, and previous-period GMV/order/commission/refund compare chips.
 - Expanded admin dashboard controller tests for the new workflow metrics, top categories, compare payload, and ops summary fields.
+
+Cross-role workflow pass:
+
+- Added a shared `roleWorkflowCenter` helper that scores customer, vendor, and admin workflow readiness with consistent priority ordering.
+- Added a reusable `RoleWorkflowPanel` used by the customer account dashboard, vendor seller dashboard, and admin operations command center.
+- Customer workflow now highlights profile, address, payment, contact verification, and order-update channel readiness before checkout.
+- Vendor workflow now highlights onboarding, shipment SLA, listing quality, moderation wait, and marketing activation from the seller dashboard.
+- Admin workflow now highlights queue SLA breaches, critical queues, support backlog, notification delivery failures, and background job failures from operations.
+- Added black-box and white-box Jest tests for the cross-role workflow helper.

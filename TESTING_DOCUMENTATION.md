@@ -187,8 +187,9 @@ Before pushing frontend or backend changes:
 
 The latest completed full-project verification:
 
-- `Client`: `npm test` passed, 32 suites / 118 tests.
-- `Client`: latest focused Phase 5 hardening helper tests passed, 4 suites / 16 tests.
+- `Client`: `npm test` passed, 34 suites / 125 tests.
+- `Client`: latest focused cross-role workflow helper tests passed, 2 suites / 7 tests.
+- `Client`: latest focused Phase 5 hardening helper tests passed, 4 suites / 12 tests.
 - `Client`: focused admin resource search tests passed, 2 suites / 7 tests.
 - `Client`: Phase 5 admin audit-log helper tests remain covered, 2 suites / 5 tests.
 - `Client`: `npm run lint -- --quiet` passed.

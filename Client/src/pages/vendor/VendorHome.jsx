@@ -23,11 +23,13 @@ import {
 } from "lucide-react";
 import useAuth from "../../hooks/useAuth";
 import { useCurrency } from "../../hooks/useCurrency";
+import RoleWorkflowPanel from "../../components/workflow/RoleWorkflowPanel";
 import {
   getMyVendorProfile,
   getShopStatus,
   getVendorMarketingItems,
 } from "../../services/api";
+import { buildVendorWorkflow } from "../../utils/roleWorkflowCenter";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const SHIP_SLA_HOURS = 48;
@@ -422,6 +424,17 @@ const VendorHome = () => {
 
   const healthTone = getHealthTone(dashboard.healthScore);
   const currentAnnouncement = announcements[announcementIndex];
+  const pendingModerationCount =
+    dashboard.productIssues.find((issue) => issue.id === "pending-moderation")?.count || 0;
+  const vendorWorkflow = buildVendorWorkflow({
+    onboardingProgress: dashboard.onboardingProgress,
+    healthScore: dashboard.healthScore,
+    actionRequiredOrders: dashboard.actionableOrders.length,
+    breachedShipments: dashboard.slaOrders.filter((order) => order.breached).length,
+    listingIssues: dashboard.advisorProducts.length,
+    pendingModeration: pendingModerationCount,
+    marketingItems: marketingItems.length,
+  });
 
   if (loading) {
     return (
@@ -501,6 +514,8 @@ const VendorHome = () => {
             tone={dashboard.cancellationRate > 8 ? "red" : "gray"}
           />
         </div>
+
+        <RoleWorkflowPanel workflow={vendorWorkflow} />
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
           <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm xl:col-span-2">

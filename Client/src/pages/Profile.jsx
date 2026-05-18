@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import useAuth from "../hooks/useAuth";
 import Loading from "../components/Loading";
+import RoleWorkflowPanel from "../components/workflow/RoleWorkflowPanel";
 import {
   addSavedPaymentMethod,
   cancelAccountDeletion,
@@ -37,12 +38,14 @@ import {
   exportAccountData,
   getAccountLoginActivity,
   getAccountProfile,
+  getUserAddresses,
   requestAccountDeletion,
   setupAccountTwoFactor,
   updateAccountPreferences,
   updateAccountProfile,
   verifyAccountTwoFactor,
 } from "../services/api";
+import { buildCustomerWorkflow } from "../utils/roleWorkflowCenter";
 
 const emptyProfile = {
   displayName: "",
@@ -178,6 +181,7 @@ export default function Profile() {
   const [disableCode, setDisableCode] = useState("");
   const [deletionReason, setDeletionReason] = useState("");
   const [loginActivity, setLoginActivity] = useState([]);
+  const [addresses, setAddresses] = useState([]);
 
   const quickLinks = useMemo(
     () => [
@@ -284,6 +288,13 @@ export default function Profile() {
         setLoginActivity(activityResponse.data.data || nextAccount.loginActivity || []);
       } catch (activityError) {
         console.error("Failed to load login activity:", activityError);
+      }
+
+      try {
+        const addressesResponse = await getUserAddresses();
+        setAddresses(addressesResponse.data.data || []);
+      } catch (addressError) {
+        console.error("Failed to load saved addresses:", addressError);
       }
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to load account profile"));
@@ -487,6 +498,7 @@ export default function Profile() {
   const verification = account?.verificationBadges || {};
   const twoFactorEnabled = Boolean(account?.security?.twoFactorEnabled);
   const deletionPending = account?.status === "deletion_pending" || account?.deletion;
+  const customerWorkflow = buildCustomerWorkflow({ account, addresses });
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
@@ -615,6 +627,8 @@ export default function Profile() {
             </div>
           </div>
         )}
+
+        <RoleWorkflowPanel workflow={customerWorkflow} className="mb-6" />
 
         <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {quickLinks.map((item) => {
