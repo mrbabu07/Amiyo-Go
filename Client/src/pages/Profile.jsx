@@ -15,6 +15,7 @@ import {
   LogOut,
   Mail,
   MapPin,
+  MessageSquare,
   PackageSearch,
   Phone,
   RotateCcw,
@@ -206,6 +207,27 @@ export default function Profile() {
         description: "Saved products",
         icon: Eye,
         color: "bg-pink-50 text-pink-700",
+      },
+      {
+        to: "/loyalty",
+        label: "Coins",
+        description: "Balance and history",
+        icon: WalletCards,
+        color: "bg-violet-50 text-violet-700",
+      },
+      {
+        to: "/my-alerts",
+        label: "Notifications",
+        description: "Unread updates",
+        icon: Bell,
+        color: "bg-cyan-50 text-cyan-700",
+      },
+      {
+        to: "/support",
+        label: "Support",
+        description: "Tickets and help",
+        icon: MessageSquare,
+        color: "bg-slate-100 text-slate-700",
       },
     ],
     [],
@@ -498,6 +520,9 @@ export default function Profile() {
                     </span>
                   )}
                 </div>
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  Account dashboard for profile, orders, addresses, coins, notifications, and support.
+                </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                     <Mail className="h-3.5 w-3.5" />
@@ -576,7 +601,7 @@ export default function Profile() {
           </div>
         )}
 
-        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {quickLinks.map((item) => {
             const Icon = item.icon;
             return (

@@ -158,6 +158,7 @@ export default function VendorProducts() {
       pending: statusCounts["Pending Moderation"] || 0,
       lowStock,
       variants,
+      statusCounts,
     };
   }, [products]);
 
@@ -314,6 +315,54 @@ export default function VendorProducts() {
     }
   };
 
+  const visibleSelectedCount = filteredProducts.filter((product) =>
+    selectedIds.has(product._id),
+  ).length;
+  const allVisibleSelected =
+    filteredProducts.length > 0 && visibleSelectedCount === filteredProducts.length;
+
+  const toggleVisibleProducts = () => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        filteredProducts.forEach((product) => next.delete(product._id));
+      } else {
+        filteredProducts.forEach((product) => next.add(product._id));
+      }
+      return next;
+    });
+  };
+
+  const submitSelectedForApproval = async () => {
+    const targetIds = [...selectedIds].filter((id) =>
+      products.some((product) => ["Draft", "Rejected"].includes(getProductStatus(product)) && product._id === id),
+    );
+
+    if (targetIds.length === 0) {
+      toast("Select draft or rejected products first.");
+      return;
+    }
+
+    await Promise.all(targetIds.map((id) => submitForApproval(id)));
+    setSelectedIds(new Set());
+  };
+
+  const archiveSelectedProducts = async () => {
+    const targetIds = [...selectedIds].filter((id) =>
+      products.some((product) => getProductStatus(product) !== "Delisted" && product._id === id),
+    );
+
+    if (targetIds.length === 0) {
+      toast("Select active products first.");
+      return;
+    }
+
+    if (!confirm(`Delist ${targetIds.length} selected product(s)?`)) return;
+
+    await Promise.all(targetIds.map((id) => archiveProduct(id)));
+    setSelectedIds(new Set());
+  };
+
   const copyUrl = async (url) => {
     try {
       await navigator.clipboard.writeText(url);
@@ -427,7 +476,34 @@ export default function VendorProducts() {
 
         {activeTab === "listings" && (
           <div className="space-y-5">
-            <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:flex-row md:items-center">
+            <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+                {[
+                  { label: "All", value: "all", count: stats.total },
+                  ...Object.keys(statusStyles).map((status) => ({
+                    label: status,
+                    value: status,
+                    count: stats.statusCounts[status] || 0,
+                  })),
+                ].map((status) => (
+                  <button
+                    key={status.value}
+                    type="button"
+                    onClick={() => setSelectedStatus(status.value)}
+                    className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm font-bold transition ${
+                      selectedStatus === status.value
+                        ? "border-orange-500 bg-orange-50 text-orange-700"
+                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {status.label}
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                      {status.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
               <div className="relative flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
@@ -450,6 +526,39 @@ export default function VendorProducts() {
                   </option>
                 ))}
               </select>
+              </div>
+              {selectedIds.size > 0 && (
+                <div className="mt-4 flex flex-col gap-3 rounded-lg border border-orange-200 bg-orange-50 p-3 md:flex-row md:items-center md:justify-between">
+                  <p className="text-sm font-bold text-orange-900">
+                    {selectedIds.size} selected for bulk action
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={submitSelectedForApproval}
+                      className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-sm font-bold text-white hover:bg-green-700"
+                    >
+                      <Send className="h-4 w-4" />
+                      Submit drafts
+                    </button>
+                    <button
+                      type="button"
+                      onClick={archiveSelectedProducts}
+                      className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800"
+                    >
+                      <Package className="h-4 w-4" />
+                      Delist
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedIds(new Set())}
+                      className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-sm font-bold text-orange-800 hover:bg-orange-100"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {filteredProducts.length === 0 ? (
@@ -471,6 +580,15 @@ export default function VendorProducts() {
                   <table className="min-w-[1020px] w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-4 py-3 text-left">
+                          <input
+                            type="checkbox"
+                            checked={allVisibleSelected}
+                            onChange={toggleVisibleProducts}
+                            className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                            aria-label="Select all visible products"
+                          />
+                        </th>
                         {["Product", "Status", "Price", "Stock", "SEO", "Variants", "Actions"].map((heading) => (
                           <th key={heading} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                             {heading}
@@ -488,6 +606,15 @@ export default function VendorProducts() {
 
                         return (
                           <tr key={product._id} className="hover:bg-gray-50">
+                            <td className="px-4 py-4">
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(product._id)}
+                                onChange={() => toggleSelected(product._id)}
+                                className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                                aria-label={`Select ${product.title}`}
+                              />
+                            </td>
                             <td className="px-4 py-4">
                               <div className="flex items-center gap-3">
                                 {product.images?.[0] ? (
