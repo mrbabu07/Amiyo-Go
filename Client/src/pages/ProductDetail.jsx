@@ -13,6 +13,7 @@ import {
 import { getProductById } from "../services/api";
 import useCart from "../hooks/useCart";
 import { useCurrency } from "../hooks/useCurrency";
+import useProductView from "../hooks/useProductView";
 import { ProductDetailSkeleton } from "../components/Skeleton";
 import ReviewsSection from "../components/reviews/ReviewsSection";
 import ProductRecommendations from "../components/ProductRecommendations";
@@ -74,6 +75,8 @@ export default function ProductDetail() {
   const [categoryPath, setCategoryPath] = useState([]);
   const [selectionError, setSelectionError] = useState("");
   const [activeTab, setActiveTab] = useState("description");
+
+  useProductView(id);
 
   const fetchCategoryPath = useCallback(async (categoryId) => {
     try {

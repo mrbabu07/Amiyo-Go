@@ -6,6 +6,7 @@ class RedisStore {
   constructor(options = {}) {
     this.prefix = options.prefix || "rl:";
     this.client = getRedisClient();
+    this.windowMs = options.windowMs || 60000;
     this.resetExpiryOnChange = options.resetExpiryOnChange || false;
   }
 
@@ -14,11 +15,11 @@ class RedisStore {
     try {
       const current = await this.client.incr(redisKey);
       if (current === 1) {
-        await this.client.expire(redisKey, 60); // 60 seconds default
+        await this.client.expire(redisKey, Math.ceil(this.windowMs / 1000));
       }
       return {
         totalHits: current,
-        resetTime: new Date(Date.now() + 60000),
+        resetTime: new Date(Date.now() + this.windowMs),
       };
     } catch (error) {
       console.error("Rate limit increment error:", error);
@@ -45,6 +46,23 @@ class RedisStore {
   }
 }
 
+const analyticsViewPatterns = [
+  /^\/api\/products\/[a-f\d]{24}\/view$/i,
+  /^\/products\/[a-f\d]{24}\/view$/i,
+  /^\/api\/campaigns\/[^/]+\/view$/i,
+  /^\/campaigns\/[^/]+\/view$/i,
+];
+
+function isAnalyticsViewRequest(req = {}) {
+  if (req.method !== "POST") return false;
+
+  const paths = [req.path, req.url, req.originalUrl]
+    .filter(Boolean)
+    .map((value) => String(value).split("?")[0]);
+
+  return paths.some((path) => analyticsViewPatterns.some((pattern) => pattern.test(path)));
+}
+
 // General API rate limiter
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -55,8 +73,9 @@ const apiLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: isAnalyticsViewRequest,
   // Use Redis store if available
-  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:api:" }) : undefined,
+  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:api:", windowMs: 15 * 60 * 1000 }) : undefined,
 });
 
 // Strict limiter for authentication endpoints
@@ -68,7 +87,7 @@ const authLimiter = rateLimit({
     error: "Too many authentication attempts, please try again later.",
   },
   skipSuccessfulRequests: true,
-  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:auth:" }) : undefined,
+  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:auth:", windowMs: 15 * 60 * 1000 }) : undefined,
 });
 
 // Payment endpoint limiter
@@ -79,7 +98,7 @@ const paymentLimiter = rateLimit({
     success: false,
     error: "Too many payment attempts, please try again later.",
   },
-  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:payment:" }) : undefined,
+  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:payment:", windowMs: 60 * 60 * 1000 }) : undefined,
 });
 
 // Upload limiter
@@ -90,7 +109,7 @@ const uploadLimiter = rateLimit({
     success: false,
     error: "Too many upload requests, please try again later.",
   },
-  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:upload:" }) : undefined,
+  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:upload:", windowMs: 15 * 60 * 1000 }) : undefined,
 });
 
 // Search limiter (prevent scraping)
@@ -101,13 +120,28 @@ const searchLimiter = rateLimit({
     success: false,
     error: "Too many search requests, please slow down.",
   },
-  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:search:" }) : undefined,
+  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:search:", windowMs: 1 * 60 * 1000 }) : undefined,
+});
+
+// High-volume analytics view tracking should not consume the general API budget.
+const productViewLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 300,
+  message: {
+    success: false,
+    error: "Too many product view events, please slow down.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: process.env.REDIS_HOST ? new RedisStore({ prefix: "rl:product-view:", windowMs: 1 * 60 * 1000 }) : undefined,
 });
 
 module.exports = {
   apiLimiter,
   authLimiter,
+  isAnalyticsViewRequest,
   paymentLimiter,
+  productViewLimiter,
   uploadLimiter,
   searchLimiter,
 };

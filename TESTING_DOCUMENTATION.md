@@ -68,6 +68,7 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController
   - `Server/__tests__/controllers/supportController.whitebox.test.js`
   - `Server/__tests__/middleware/audit.test.js`
   - `Server/__tests__/middleware/idempotency.test.js`
+  - `Server/__tests__/middleware/rateLimiter.test.js`
   - `Server/__tests__/utils/envValidation.test.js`
   - `Server/__tests__/utils/permissions.rbac.test.js`
   - Existing service and utility tests for delivery, checkout notes, promotions, loyalty, invoices, campaigns, and marketplace policies.
@@ -146,6 +147,7 @@ The latest completed full-project verification:
 - `Client`: `npm test` passed, 7 suites / 30 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
-- `Server`: `npm test -- --runInBand` passed, 59 suites / 385 tests.
+- `Server`: `npm test -- --runInBand` passed, 60 suites / 388 tests.
+- Focused backend rate limiter analytics test passed, 1 suite / 3 tests.
 - Focused backend Phase 1 reliability/security tests passed, 5 suites / 13 tests.
 - Focused backend black-box and white-box support tests remain covered by the full backend run.

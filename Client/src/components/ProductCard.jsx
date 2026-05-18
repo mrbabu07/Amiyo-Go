@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Check, Eye, ShoppingCart } from "lucide-react";
 import useCart from "../hooks/useCart";
-import useProductView from "../hooks/useProductView";
 import WishlistButton from "./WishlistButton";
 import QuickViewModal from "./QuickViewModal";
 import CompareButton from "./CompareButton";
@@ -19,9 +18,6 @@ export default function ProductCard({ product }) {
   const [isAdding, setIsAdding] = useState(false);
   const [showQuickView, setShowQuickView] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
-
-  // Track product view
-  useProductView(product._id);
 
   const handleAddToCart = (e) => {
     e.preventDefault();

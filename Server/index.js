@@ -29,6 +29,7 @@ const sanitizeMiddleware = require("./middleware/sanitize");
 const {
   apiLimiter,
   paymentLimiter,
+  productViewLimiter,
   searchLimiter,
   uploadLimiter,
 } = require("./middleware/rateLimiter");
@@ -189,6 +190,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(sanitizeMiddleware);
 app.use("/api/search", searchLimiter);
 app.use("/api/payments", paymentLimiter);
+app.use("/api/products/:id/view", productViewLimiter);
 app.use("/api/uploads", uploadLimiter);
 app.use("/api/vendor/products/bulk-jobs", uploadLimiter);
 app.use("/api/vendors/kyc", uploadLimiter);
