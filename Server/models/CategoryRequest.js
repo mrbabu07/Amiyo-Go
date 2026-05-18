@@ -1,5 +1,11 @@
 const { ObjectId } = require("mongodb");
 
+const toObjectId = (value) => {
+  if (!value) return value;
+  if (value instanceof ObjectId) return value;
+  return ObjectId.isValid(value) ? new ObjectId(value) : value;
+};
+
 class CategoryRequest {
   constructor(db) {
     this.collection = db.collection("category_requests");
@@ -20,6 +26,9 @@ class CategoryRequest {
     const request = {
       ...requestData,
       vendorId: new ObjectId(requestData.vendorId),
+      requestedCategoryId: toObjectId(requestData.requestedCategoryId),
+      rootCategoryId: toObjectId(requestData.rootCategoryId),
+      parentCategoryId: toObjectId(requestData.parentCategoryId),
       status: "pending", // pending, approved, rejected
       createdAt: new Date(),
       updatedAt: new Date(),

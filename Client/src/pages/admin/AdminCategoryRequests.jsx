@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuth from '../../hooks/useAuth';
+import { getCategoryPathLabel } from '../../utils/vendorCategoryRequests';
 
 const StatusBadge = ({ status }) => {
   const colors = {
@@ -186,7 +187,7 @@ export default function AdminCategoryRequests() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category Path</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
@@ -198,7 +199,10 @@ export default function AdminCategoryRequests() {
                 <tbody className="divide-y divide-gray-200">
                   {requests.map((request) => (
                     <tr key={request._id} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4 font-medium text-gray-900">{request.categoryName}</td>
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-gray-900">{request.categoryName}</div>
+                        <div className="text-xs text-gray-500">{getCategoryPathLabel(request)}</div>
+                      </td>
                       <td className="px-6 py-4 text-gray-600 text-sm">
                         <div>{request.vendorName}</div>
                         <div className="text-xs text-gray-400">{request.vendorEmail}</div>

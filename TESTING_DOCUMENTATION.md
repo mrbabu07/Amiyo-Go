@@ -55,12 +55,14 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController
   - `Client/src/components/ui/__tests__/designSystem.whitebox.test.js`
   - `Client/src/utils/__tests__/cartCheckout.whitebox.test.js`
   - `Client/src/utils/__tests__/supportQueue.whitebox.test.js`
+  - `Client/src/utils/__tests__/vendorCategoryRequests.whitebox.test.js`
 - Route guard behavior:
   - `Client/src/routes/__tests__/guards.blackbox.test.jsx`
 
 ### Backend
 
 - Black-box API/helper contracts:
+  - `Server/__tests__/controllers/categoryRequestController.test.js`
   - `Server/__tests__/controllers/supportController.blackbox.test.js`
   - `Server/__tests__/routes.health.test.js`
   - Existing route, controller, model, service, and utility Jest tests under `Server/__tests__`.
@@ -144,10 +146,10 @@ Before pushing frontend or backend changes:
 
 The latest completed full-project verification:
 
-- `Client`: `npm test` passed, 7 suites / 30 tests.
+- `Client`: `npm test` passed, 8 suites / 33 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
-- `Server`: `npm test -- --runInBand` passed, 60 suites / 392 tests.
+- `Server`: `npm test -- --runInBand` passed, 61 suites / 394 tests.
 - Focused backend rate limiter analytics/defaults test passed, 1 suite / 7 tests.
 - Focused backend Phase 1 reliability/security tests passed, 5 suites / 13 tests.
 - Focused backend black-box and white-box support tests remain covered by the full backend run.

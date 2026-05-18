@@ -1,9 +1,49 @@
 const { ObjectId } = require("mongodb");
 
+const normalizeId = (value) => (value ? value.toString() : "");
+
+const buildCategoryPath = async (Category, category) => {
+  const path = [];
+  let current = category;
+  const seen = new Set();
+
+  while (current) {
+    path.unshift({
+      _id: current._id,
+      name: current.name,
+      slug: current.slug || "",
+      parentId: current.parentId || null,
+    });
+
+    const parentId = normalizeId(current.parentId);
+    if (!parentId || seen.has(parentId)) break;
+
+    seen.add(parentId);
+    current = await Category.findById(parentId);
+  }
+
+  return path;
+};
+
+const hasVendorCategoryAccess = (vendor, categoryId) => {
+  const requestedId = normalizeId(categoryId);
+  return (vendor.allowedCategoryIds || []).some((id) => normalizeId(id) === requestedId);
+};
+
 // Vendor: Create category request
 exports.createCategoryRequest = async (req, res) => {
   try {
-    const { categoryName, description, reason } = req.body;
+    const {
+      categoryId,
+      categoryName,
+      categoryPath,
+      description,
+      parentCategoryId,
+      parentCategoryName,
+      reason,
+      rootCategoryId,
+      rootCategoryName,
+    } = req.body;
     const vendorId = req.user.vendorId;
 
     if (!vendorId) {
@@ -13,15 +53,16 @@ exports.createCategoryRequest = async (req, res) => {
       });
     }
 
-    if (!categoryName || !categoryName.trim()) {
+    if (!categoryId && (!categoryName || !categoryName.trim())) {
       return res.status(400).json({
         success: false,
-        error: "Category name is required",
+        error: "Category selection is required",
       });
     }
 
     const CategoryRequest = req.app.locals.models.CategoryRequest;
     const Vendor = req.app.locals.models.Vendor;
+    const Category = req.app.locals.models.Category;
 
     // Get vendor details
     const vendor = await Vendor.findById(vendorId);
@@ -32,13 +73,55 @@ exports.createCategoryRequest = async (req, res) => {
       });
     }
 
+    let selectedCategory = null;
+    let selectedPath = [];
+
+    if (categoryId) {
+      if (!ObjectId.isValid(categoryId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid category selection",
+        });
+      }
+
+      selectedCategory = await Category.findById(categoryId);
+      if (!selectedCategory || selectedCategory.isActive === false) {
+        return res.status(404).json({
+          success: false,
+          error: "Selected category was not found or is inactive",
+        });
+      }
+
+      if (hasVendorCategoryAccess(vendor, selectedCategory._id)) {
+        return res.status(400).json({
+          success: false,
+          error: "Your store already has access to this category",
+        });
+      }
+
+      selectedPath = await buildCategoryPath(Category, selectedCategory);
+    }
+
+    const normalizedCategoryName = selectedCategory?.name || categoryName.trim();
+    const pathLabel =
+      selectedPath.length > 0
+        ? selectedPath.map((item) => item.name).join(" > ")
+        : categoryPath || normalizedCategoryName;
+    const rootCategory = selectedPath[0] || null;
+    const parentCategory = selectedPath.length > 1 ? selectedPath[selectedPath.length - 2] : null;
+
     // Check if similar request already exists
     const existingRequests = await CategoryRequest.findByVendorId(vendorId, {
       status: "pending",
     });
-    const duplicate = existingRequests.find(
-      (r) => r.categoryName.toLowerCase() === categoryName.toLowerCase().trim()
-    );
+    const selectedCategoryId = normalizeId(selectedCategory?._id);
+    const duplicate = existingRequests.find((request) => {
+      if (selectedCategoryId && normalizeId(request.requestedCategoryId) === selectedCategoryId) {
+        return true;
+      }
+
+      return request.categoryName.toLowerCase() === normalizedCategoryName.toLowerCase();
+    });
 
     if (duplicate) {
       return res.status(400).json({
@@ -52,7 +135,14 @@ exports.createCategoryRequest = async (req, res) => {
       vendorId,
       vendorName: vendor.shopName,
       vendorEmail: vendor.email,
-      categoryName: categoryName.trim(),
+      categoryName: normalizedCategoryName,
+      requestedCategoryId: selectedCategory?._id || null,
+      categoryPath: pathLabel,
+      requestedCategoryPath: selectedPath,
+      rootCategoryId: rootCategory?._id || rootCategoryId || null,
+      rootCategoryName: rootCategory?.name || rootCategoryName || "",
+      parentCategoryId: parentCategory?._id || parentCategoryId || null,
+      parentCategoryName: parentCategory?.name || parentCategoryName || "",
       description: description?.trim() || "",
       reason: reason?.trim() || "",
     });
@@ -149,10 +239,17 @@ exports.approveCategoryRequest = async (req, res) => {
       });
     }
 
-    // Find the category by name
-    const category = await Category.collection.findOne({ 
-      name: request.categoryName 
-    });
+    // Prefer the saved category id so duplicate category names under different groups approve correctly.
+    let category = null;
+    if (request.requestedCategoryId) {
+      category = await Category.findById(request.requestedCategoryId);
+    }
+
+    if (!category) {
+      category = await Category.collection.findOne({
+        name: request.categoryName,
+      });
+    }
 
     if (!category) {
       return res.status(404).json({

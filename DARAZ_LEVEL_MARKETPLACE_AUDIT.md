@@ -22,8 +22,8 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 - Frontend route count: about 110 route entries in `Client/src/routes/Routes.jsx`.
 - Backend route/controller handler references: about 596 route declarations across `Server/routes` and route-style controller files.
-- Frontend tests: 7 suites / 30 tests at last verification.
-- Backend tests: 60 suites / 392 tests at last verification.
+- Frontend tests: 8 suites / 33 tests at last verification.
+- Backend tests: 61 suites / 394 tests at last verification.
 - Major frontend shells: `CustomerLayout`, `AuthLayout`, `VendorLayout`, `AdminLayout`.
 - Major backend groups: customer commerce, vendor center, admin operations, logistics, promotions, trust-safety, support, analytics, notifications, loyalty, wishlist, campaigns.
 
@@ -76,6 +76,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 | Feature | Status | Notes |
 |---|---|---|
 | Vendor route/status guard | Partial | Vendor access now uses the shared guard/status screen path. KYC-specific state and reupload instructions still need polish. |
+| Vendor category requests | Partial | Vendor category access now supports main/group selection, visible subcategory paths, ID-based request metadata, and admin path visibility. Needs final queue/drawer adoption when admin moderation pages are unified. |
 | Vendor dashboard | Partial | `VendorHome` and dashboard APIs exist. Needs stable KPI/action-widget layout and real pending task prioritization. |
 | Vendor products list | Partial | Status tabs, search, bulk selection, submit/delist actions exist. Needs final table standardization and mobile fallback. |
 | Add/edit product | Partial | Vendor product form/wizard-like pages exist. Needs true step wizard and moderation feedback consistency. |
