@@ -7,13 +7,56 @@ const api = axios.create({
   baseURL: API_URL,
 });
 
+const idempotentMutations = [
+  { method: "post", pattern: /^\/orders$/ },
+  { method: "post", pattern: /^\/orders\/guest$/ },
+  { method: "patch", pattern: /^\/orders\/admin\/[^/]+\/(force-refund|approve-refund)$/ },
+  { method: "post", pattern: /^\/payments\/process$/ },
+  { method: "patch", pattern: /^\/payments\/manual-verifications\/[^/]+\/(approve|reject)$/ },
+  { method: "post", pattern: /^\/payments\/[^/]+\/refund$/ },
+  { method: "post", pattern: /^\/returns$/ },
+  { method: "post", pattern: /^\/returns\/[^/]+\/refund$/ },
+  { method: "patch", pattern: /^\/admin\/finance\/refunds\/[^/]+\/review$/ },
+  { method: "post", pattern: /^\/vendors\/finance\/request-payout$/ },
+  { method: "post", pattern: /^\/admin\/payouts\/(bulk|vendor\/[^/]+)$/ },
+  { method: "patch", pattern: /^\/admin\/payouts\/(requests\/[^/]+\/(approve|reject|mark-paid)|[^/]+\/(paid|cancel))$/ },
+];
+
+const requestPath = (url = "") => {
+  try {
+    return new URL(url, API_URL).pathname.replace(/^\/api/, "") || "/";
+  } catch {
+    return String(url).split("?")[0] || "/";
+  }
+};
+
+const shouldUseIdempotency = (config) => {
+  const method = String(config.method || "get").toLowerCase();
+  const path = requestPath(config.url);
+  return idempotentMutations.some((item) => item.method === method && item.pattern.test(path));
+};
+
+const createIdempotencyKey = () => {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `amiyo-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+};
+
 // Add auth token to requests
 api.interceptors.request.use(async (config) => {
   const user = auth.currentUser;
+  config.headers = config.headers || {};
   if (user) {
     const token = await user.getIdToken();
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  if (shouldUseIdempotency(config) && !config.headers["Idempotency-Key"]) {
+    config.headers["Idempotency-Key"] = createIdempotencyKey();
+  }
+
   return config;
 });
 

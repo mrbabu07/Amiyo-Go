@@ -60,9 +60,14 @@ npm test -- --runInBand --runTestsByPath __tests__/controllers/supportController
 
 - Black-box API/helper contracts:
   - `Server/__tests__/controllers/supportController.blackbox.test.js`
+  - `Server/__tests__/routes.health.test.js`
   - Existing route, controller, model, service, and utility Jest tests under `Server/__tests__`.
 - White-box helper behavior:
   - `Server/__tests__/controllers/supportController.whitebox.test.js`
+  - `Server/__tests__/middleware/audit.test.js`
+  - `Server/__tests__/middleware/idempotency.test.js`
+  - `Server/__tests__/utils/envValidation.test.js`
+  - `Server/__tests__/utils/permissions.rbac.test.js`
   - Existing service and utility tests for delivery, checkout notes, promotions, loyalty, invoices, campaigns, and marketplace policies.
 
 ## Black-Box Testing Rules
@@ -139,5 +144,6 @@ The latest completed full-project verification:
 - `Client`: `npm test` passed, 6 suites / 25 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
-- `Server`: `npm test -- --runInBand` passed, 54 suites / 372 tests.
-- Focused backend black-box and white-box support tests passed, 2 suites / 7 tests.
+- `Server`: `npm test -- --runInBand` passed, 59 suites / 385 tests.
+- Focused backend Phase 1 reliability/security tests passed, 5 suites / 13 tests.
+- Focused backend black-box and white-box support tests remain covered by the full backend run.

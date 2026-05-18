@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { verifyToken, verifyAdmin } = require("../middleware/auth");
+const { idempotencyMiddleware } = require("../middleware/idempotency");
 const {
   getFinanceOverview,
   getCommissionSummary,
@@ -20,6 +21,11 @@ const {
   getFinanceAuditLog,
 } = require("../controllers/adminFinanceController");
 
+const financeRefundIdempotency = idempotencyMiddleware({
+  scope: "admin:finance-refunds",
+  required: true,
+});
+
 router.get("/operations", verifyToken, verifyAdmin, getFinanceOperationsOverview);
 router.get("/payout-schedule", verifyToken, verifyAdmin, getPayoutSchedule);
 router.put("/payout-schedule", verifyToken, verifyAdmin, upsertPayoutSchedule);
@@ -29,7 +35,7 @@ router.post("/commission-rules", verifyToken, verifyAdmin, saveCommissionRule);
 router.patch("/commission-rules/:ruleId", verifyToken, verifyAdmin, saveCommissionRule);
 router.get("/ledger", verifyToken, verifyAdmin, getFinanceLedger);
 router.get("/refunds", verifyToken, verifyAdmin, getRefundWorkflow);
-router.patch("/refunds/:returnId/review", verifyToken, verifyAdmin, reviewFinanceRefund);
+router.patch("/refunds/:returnId/review", verifyToken, verifyAdmin, financeRefundIdempotency, reviewFinanceRefund);
 router.get("/revenue-reports", verifyToken, verifyAdmin, getRevenueReports);
 router.get("/revenue-reports/export", verifyToken, verifyAdmin, downloadRevenueReport);
 router.get("/escrow-rules", verifyToken, verifyAdmin, getEscrowRules);

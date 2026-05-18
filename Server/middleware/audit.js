@@ -1,7 +1,10 @@
 const SENSITIVE_PREFIXES = [
   "/api/admin",
   "/api/vendors",
+  "/api/vendors/finance",
+  "/api/vendors/kyc",
   "/api/vendor/products",
+  "/api/vendor-chat",
   "/api/orders",
   "/api/payments",
   "/api/returns",
@@ -19,11 +22,11 @@ const SENSITIVE_PREFIXES = [
 const REDACTED_KEYS = new Set([
   "password",
   "pin",
-  "bkashPin",
-  "nagadPin",
+  "bkashpin",
+  "nagadpin",
   "token",
   "authorization",
-  "privateKey",
+  "privatekey",
   "secret",
 ]);
 
@@ -34,7 +37,7 @@ const sanitizeValue = (value) => {
   if (typeof value !== "object") return value;
 
   return Object.entries(value).reduce((safe, [key, item]) => {
-    if (REDACTED_KEYS.has(key)) {
+    if (REDACTED_KEYS.has(String(key).toLowerCase())) {
       safe[key] = "[redacted]";
       return safe;
     }
@@ -55,10 +58,11 @@ const inferTarget = (req) => {
     null;
 
   const path = req.baseUrl || req.path || "";
-  const targetType = path
+  const parts = path
     .replace(/^\/api\//, "")
     .split("/")
-    .filter(Boolean)[0] || "api";
+    .filter(Boolean);
+  const targetType = parts[0] === "admin" && parts[1] ? `admin_${parts[1]}` : parts[0] || "api";
 
   return {
     type: targetType,

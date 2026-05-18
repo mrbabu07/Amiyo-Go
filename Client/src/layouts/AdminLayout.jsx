@@ -144,6 +144,64 @@ const matchesRoute = (pathname, item) => {
   });
 };
 
+const adminPermissionRules = [
+  { pattern: /^\/admin$/, resource: 'system', action: 'read' },
+  { pattern: /^\/admin\/operations/, resource: 'system', action: 'read' },
+  { pattern: /^\/admin\/analytics/, resource: 'analytics', action: 'read' },
+  { pattern: /^\/admin\/platform/, resource: 'system', action: 'read' },
+  { pattern: /^\/admin\/(vendor|vendors|chats|chat)/, resource: 'vendors', action: 'read' },
+  { pattern: /^\/admin\/(products|inventory)/, resource: 'products', action: 'read' },
+  { pattern: /^\/admin\/categories|^\/admin\/category-requests/, resource: 'categories', action: 'read' },
+  { pattern: /^\/admin\/orders/, resource: 'orders', action: 'read' },
+  { pattern: /^\/admin\/returns/, resource: 'returns', action: 'read' },
+  { pattern: /^\/admin\/logistics|^\/admin\/delivery-settings/, resource: 'orders', action: 'read' },
+  { pattern: /^\/admin\/support/, resource: 'support', action: 'read' },
+  { pattern: /^\/admin\/(promotions|coupons|flash-sales|offers|newsletter)/, resource: 'system', action: 'read' },
+  { pattern: /^\/admin\/(payouts|payout-requests|payment-verifications)/, resource: 'payments', action: 'read' },
+  { pattern: /^\/admin\/(customers|insights)/, resource: 'users', action: 'read' },
+  { pattern: /^\/admin\/trust-safety/, resource: 'system', action: 'read' },
+  { pattern: /^\/admin\/users/, resource: 'users', action: 'read' },
+  { pattern: /^\/admin\/reviews/, resource: 'reviews', action: 'read' },
+  { pattern: /^\/admin\/qa/, resource: 'products', action: 'read' },
+];
+
+const hasPermission = (permissions = {}, resource, action) => {
+  if (!resource || !action) return true;
+  if (permissions.all === true || permissions['*'] === true) return true;
+
+  const resourcePermission = permissions[resource];
+  if (resourcePermission === true) return true;
+  if (Array.isArray(resourcePermission)) {
+    return resourcePermission.includes(action) || resourcePermission.includes('*');
+  }
+  if (resourcePermission && typeof resourcePermission === 'object') {
+    return Boolean(resourcePermission[action] || resourcePermission['*']);
+  }
+
+  return false;
+};
+
+const canAccessPath = (path, { isAdmin, permissions }) => {
+  if (!path) return true;
+  if (isAdmin) return true;
+
+  const rule = adminPermissionRules.find((item) => item.pattern.test(path));
+  if (!rule) return false;
+  return hasPermission(permissions, rule.resource, rule.action);
+};
+
+const filterNavigationByPermissions = (items, access) =>
+  items
+    .map((item) => {
+      if (item.children) {
+        const children = item.children.filter((child) => canAccessPath(child.path, access));
+        return children.length ? { ...item, children } : null;
+      }
+
+      return canAccessPath(item.path, access) ? item : null;
+    })
+    .filter(Boolean);
+
 const AlertBadge = ({ count }) => {
   if (!count) return null;
   return (
@@ -156,7 +214,7 @@ const AlertBadge = ({ count }) => {
 const AdminLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, role, logout } = useAuth();
+  const { user, role, logout, permissions, isAdmin } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(() => (
     typeof window === 'undefined' ? false : window.innerWidth >= 1024
   ));
@@ -227,6 +285,10 @@ const AdminLayout = () => {
     navigate('/login');
   };
 
+  const access = { isAdmin: isAdmin || role === 'admin', permissions };
+  const visibleNavigation = filterNavigationByPermissions(navigation, access);
+  const visibleQuickLinks = quickLinks.filter((item) => canAccessPath(item.path, access) || item.path === '/');
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
       <header className="fixed inset-x-0 top-0 z-30 h-16 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
@@ -251,7 +313,7 @@ const AdminLayout = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {quickLinks.map((item) => {
+            {visibleQuickLinks.map((item) => {
               const Icon = item.icon;
               return (
                 <Link
@@ -321,7 +383,7 @@ const AdminLayout = () => {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {navigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const Icon = item.icon;
             const sectionActive = item.children
               ? item.children.some((child) => isActive(child))

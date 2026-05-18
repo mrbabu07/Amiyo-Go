@@ -47,6 +47,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     chat: ["read", "create", "update"],
     tickets: ["read", "create", "update"],
     payments: ["read"],
+    system: ["read"],
   },
   support_agent: {
     orders: ["read", "update"],
@@ -73,6 +74,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     chat: ["read", "create", "update", "delete"],
     tickets: ["read", "create", "update", "delete"],
     payments: ["read", "update"],
+    system: ["read"],
   },
   finance_manager: {
     payments: ["read", "create", "update"],
@@ -124,6 +126,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     payments: ["read", "update"],
     finance: ["read", "create", "update"],
     analytics: ["read"],
+    system: ["read"],
   },
   admin: {
     orders: ["read", "create", "update", "delete"],
@@ -181,11 +184,17 @@ const isStaffRole = (role) => STAFF_ROLES.includes(role);
 
 const getEffectivePermissions = (user = {}, permissionDoc = null) => {
   if (permissionDoc?.permissions) {
-    return permissionDoc.permissions;
+    return {
+      ...(DEFAULT_ROLE_PERMISSIONS[user.role] || {}),
+      ...permissionDoc.permissions,
+    };
   }
 
   if (user.permissions) {
-    return user.permissions;
+    return {
+      ...(DEFAULT_ROLE_PERMISSIONS[user.role] || {}),
+      ...user.permissions,
+    };
   }
 
   return DEFAULT_ROLE_PERMISSIONS[user.role] || {};

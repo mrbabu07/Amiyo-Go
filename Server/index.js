@@ -1,13 +1,39 @@
 require("dotenv").config();
+const {
+  buildCorsOptions,
+  validateStartupEnv,
+} = require("./config/env");
+
+const startupEnv = validateStartupEnv(process.env);
+if (!startupEnv.ok) {
+  console.error("Server startup blocked by missing critical environment values:");
+  startupEnv.errors.forEach((error) => {
+    console.error(`- ${error.key}: ${error.message}`);
+  });
+  process.exit(1);
+}
+startupEnv.warnings.forEach((warning) => {
+  console.warn(`Startup warning: ${warning.service} - ${warning.message}`);
+});
+
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
 const mongoose = require("mongoose");
 const cron = require("node-cron");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const fs = require("fs");
 const path = require("path");
 const { auditSensitiveOperations } = require("./middleware/audit");
+const sanitizeMiddleware = require("./middleware/sanitize");
+const {
+  apiLimiter,
+  paymentLimiter,
+  searchLimiter,
+  uploadLimiter,
+} = require("./middleware/rateLimiter");
 const realtimeService = require("./services/realtimeService");
+const healthRoutes = require("./routes/healthRoutes").router;
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, "uploads");
@@ -140,11 +166,33 @@ const campaignScheduler = require("./jobs/campaignScheduler");
 
 const app = express();
 const port = process.env.PORT || 5000;
+app.set("trust proxy", 1);
+app.locals.boot = {
+  startedAt: new Date().toISOString(),
+  env: startupEnv,
+};
+app.locals.mongoose = mongoose;
+app.locals.jobs = {
+  campaignScheduler: false,
+  analyticsSummary: false,
+  newsletterBroadcasts: false,
+};
 
 // Middleware
-app.use(cors());
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+}));
+app.use(cors(buildCorsOptions(process.env)));
+app.use(healthRoutes);
 app.use(express.json({ limit: '10mb' })); // Increased limit for image uploads
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(sanitizeMiddleware);
+app.use("/api/search", searchLimiter);
+app.use("/api/payments", paymentLimiter);
+app.use("/api/uploads", uploadLimiter);
+app.use("/api/vendor/products/bulk-jobs", uploadLimiter);
+app.use("/api/vendors/kyc", uploadLimiter);
+app.use("/api", apiLimiter);
 
 // Add cache control headers for API responses
 app.use((req, res, next) => {
@@ -427,6 +475,12 @@ async function run() {
     console.log("Analytics summary cron scheduled");
     console.log("Newsletter broadcast cron scheduled");
     console.log("✅ Campaign Scheduler initialized");
+    app.locals.jobs = {
+      campaignScheduler: true,
+      analyticsSummary: true,
+      newsletterBroadcasts: true,
+    };
+    app.locals.ready = true;
 
     // Error handling middleware
     app.use((err, req, res, next) => {
@@ -454,6 +508,7 @@ async function run() {
     });
   } catch (error) {
     console.error("❌ MongoDB connection failed:", error.message);
+    process.exit(1);
   }
 }
 

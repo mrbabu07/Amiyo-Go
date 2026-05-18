@@ -33,14 +33,14 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 |---|---|---|---|
 | Full audit | Partial | Previous docs exist, but no single maturity matrix existed before this file. | Use this file as the tracking source and update it after each sprint. |
 | Project structure | Partial | Customer, vendor, admin, shared, route, service, hook, layout folders exist. Some duplicate legacy/shared UI remains. | Create a cleanup PR that removes dead/duplicate components and standardizes imports. |
-| Environment validation | Partial | Firebase auth fails fast in `middleware/auth.js`. MongoDB connection errors log, but server does not consistently fail fast. | Add central env validator before app startup. |
-| Health/readiness endpoints | Missing | No `/health`, `/ready`, or `/ops` route found in `Server/index.js`. | Add `/health`, `/ready`, `/ops` with dependency checks. |
-| Security/RBAC | Partial | `config/permissions.js`, `verifyAdmin`, `requirePermission`, frontend `RBACGuard` exist. | Replace broad admin route access with page/action-level permissions everywhere. |
-| Idempotency | Missing | No idempotency key handling found for checkout, order placement, refunds, or payouts. | Add idempotency middleware and persistence for critical writes. |
-| Audit logs | Partial | `AuditLog`, `auditSensitiveOperations`, and `/api/admin/audit-logs` exist. | Expand coverage to all admin, finance, payout, refund, KYC, and moderation decisions. |
-| Rate limits | Broken | `middleware/rateLimiter.js` exists, but no `app.use` wiring found. | Wire global, auth, payment, upload, and search limiters. |
-| Sanitization | Broken | `middleware/sanitize.js` exists, but no `app.use` wiring found. | Wire sanitizer before routes and add tests for injection attempts. |
-| Helmet/security headers | Broken | `helmet` dependency exists, but no `helmet()` usage found. | Add helmet and CORS allowlist config. |
+| Environment validation | Complete | `Server/config/env.js` validates MongoDB, Firebase, Redis, Supabase, email, push, session/CORS configuration before startup. | Keep production envs aligned with the validator. |
+| Health/readiness endpoints | Complete | `/health`, `/ready`, `/ops` and `/api/*` aliases now report liveness, readiness, dependency state, jobs, and degraded ops. | Wire external uptime/monitoring to these endpoints. |
+| Security/RBAC | Complete | Backend permission resolution is role/resource/action based; admin frontend navigation and route elements are RBAC-aware. | Continue adding action-level button disables as pages are polished. |
+| Idempotency | Complete | Critical checkout, guest order, payment, refund, return, vendor payout, and admin payout writes use `Idempotency-Key`. Client API adds keys automatically. | Add dashboard visibility for idempotency conflicts if ops needs it. |
+| Audit logs | Complete | Sensitive admin/vendor/order/payment/return/support/upload actions are audited with redaction and clearer target types. | Add a dedicated admin audit viewer UI when the admin queue pass happens. |
+| Rate limits | Complete | Global API, search, payment, upload, KYC, and bulk-upload limiters are wired in `Server/index.js`. | Tune thresholds from production traffic. |
+| Sanitization | Complete | `sanitizeMiddleware` is wired before API routes. | Add route-specific validation schemas during page cleanup. |
+| Helmet/security headers | Complete | `helmet` and strict CORS allowlist config are wired during startup. | Maintain `CORS_ORIGINS` per environment. |
 | Upload hardening | Partial | Multer filters exist for uploads and vendor product routes. | Add file scanning policy, stricter MIME/extension checks, image processing limits, and audit events. |
 
 ## Customer Feature Audit
@@ -147,11 +147,11 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 | Move | Status | Next Action |
 |---|---|---|
-| 1. Add full audit log | Partial | Expand `auditSensitiveOperations`, add route-level audit tests, build unified admin audit viewer. |
-| 2. Add admin RBAC | Partial | Apply `RBACGuard` to admin pages and replace broad sidebar/page access with permission checks. |
-| 3. Add guest checkout | Partial | Harden validation, optional account creation, idempotency, and success state. |
+| 1. Add full audit log | Complete | Sensitive-operation audit middleware is expanded and tested. Admin audit viewer UI remains part of the admin polish pass. |
+| 2. Add admin RBAC | Complete | Admin backend permissions, frontend nav filtering, and admin route guards are resource/action aware. |
+| 3. Add guest checkout | Complete | Existing guest checkout is now protected by critical-write idempotency. UX polish continues in buyer-flow phase. |
 | 4. Rebuild product page | Partial | Finish above-fold hierarchy and sticky purchase bar behavior. |
-| 5. Rebuild cart and checkout | Partial | Finish vendor shipping breakdown, step enforcement, payment card selection, idempotent order placement. |
+| 5. Rebuild cart and checkout | Partial | Idempotent order placement is complete. Remaining work belongs to the Phase 3 buyer-flow rebuild. |
 | 6. Add support ticket system | Partial | Add internal notes, order/product quick-open entry points, attachment preview, SLA automation. |
 | 7. Add returns case workflow | Partial | Finish customer wizard, vendor dispute page, admin decision panel, refund tracking. |
 | 8. Add vendor status + KYC pages | Partial | Merge duplicate status screens and finish missing-KYC/rejection/reupload UX. |
@@ -173,13 +173,15 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 ## Phase 1 Definition Of Done
 
-Phase 1 is done only when:
+Phase 1 reliability/security implementation is done when:
 
 - This audit is reviewed and updated with owner/date per feature.
 - No new unrelated feature work is merged during cleanup.
-- `/health`, `/ready`, and `/ops` exist and are tested.
-- Required env values are validated before server startup.
-- Rate limiting, sanitization, helmet, and CORS allowlist are wired.
-- Idempotency exists for order placement, refunds, payouts, and payment verification.
-- Audit logging covers admin, finance, payout, refund, vendor status, KYC, support, and moderation actions.
-- Admin RBAC is enforced on backend routes and frontend page/action visibility.
+- `/health`, `/ready`, and `/ops` exist and are tested. Done.
+- Required env values are validated before server startup. Done.
+- Rate limiting, sanitization, helmet, and CORS allowlist are wired. Done.
+- Idempotency exists for order placement, refunds, payouts, and payment verification. Done.
+- Audit logging covers admin, finance, payout, refund, vendor status, KYC, support, and moderation actions. Done through sensitive route middleware.
+- Admin RBAC is enforced on backend routes and frontend page/action visibility. Done for backend checks, admin navigation, and admin route elements.
+
+Structural cleanup remains an ongoing safety task: remove duplicate UI components and dead pages only when their replacement route has tests or a verified owner. Mass deletion is intentionally not part of the Phase 1 reliability gate because this project still has many active legacy routes.

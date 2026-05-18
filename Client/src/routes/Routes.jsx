@@ -7,6 +7,7 @@ import PrivateRoute from "../components/PrivateRoute";
 import AdminRoute from "../components/AdminRoute";
 import VendorRoute from "../components/VendorRoute";
 import Loading from "../components/Loading";
+import { RBACGuard } from "../components/ui/layout";
 
 const Home = lazy(() => import("../pages/Home"));
 const About = lazy(() => import("../pages/About"));
@@ -107,6 +108,12 @@ const privateElement = (Component) => (
   </PrivateRoute>
 );
 
+const adminElement = (Component, resource = "system", action = "read") => (
+  <RBACGuard resource={resource} action={action}>
+    {lazyElement(Component)}
+  </RBACGuard>
+);
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -199,46 +206,46 @@ const router = createBrowserRouter([
       </AdminRoute>
     ),
     children: [
-      { path: "", element: lazyElement(AdminDashboard) },
-      { path: "operations", element: lazyElement(AdminOperations) },
-      { path: "analytics", element: lazyElement(AdminAnalyticsReports) },
-      { path: "platform", element: lazyElement(AdminPlatformControls) },
-      { path: "vendors", element: lazyElement(AdminVendors) },
-      { path: "vendor-requests", element: lazyElement(AdminVendors) },
-      { path: "vendors/:vendorId", element: lazyElement(AdminVendorDetail) },
-      { path: "vendor-activity", element: lazyElement(VendorActivityDashboard) },
-      { path: "vendor-kyc", element: lazyElement(AdminVendorKyc) },
-      { path: "chats", element: lazyElement(AdminVendorChats) },
-      { path: "chat/:vendorId", element: lazyElement(AdminChatDetail) },
-      { path: "products", element: lazyElement(AdminProducts) },
-      { path: "products/add", element: lazyElement(ProductForm) },
-      { path: "products/edit/:id", element: lazyElement(ProductForm) },
-      { path: "inventory", element: lazyElement(AdminInventory) },
-      { path: "orders", element: lazyElement(AdminOrders) },
-      { path: "returns", element: lazyElement(AdminReturns) },
-      { path: "payouts", element: lazyElement(AdminPayouts) },
-      { path: "payout-requests", element: lazyElement(AdminPayoutRequests) },
-      { path: "payment-verifications", element: lazyElement(AdminPaymentVerifications) },
-      { path: "newsletter", element: lazyElement(AdminNewsletter) },
-      { path: "categories", element: lazyElement(AdminDynamicCategories) },
-      { path: "categories/manage", element: lazyElement(AdminCategoryManagement) },
-      { path: "categories/:categoryId/attributes", element: lazyElement(AdminEditCategoryAttributes) },
-      { path: "category-requests", element: lazyElement(AdminCategoryRequests) },
-      { path: "promotions", element: lazyElement(AdminPromotions) },
-      { path: "coupons", element: lazyElement(AdminCoupons) },
-      { path: "flash-sales", element: lazyElement(AdminFlashSales) },
-      { path: "offers", element: lazyElement(AdminOffers) },
-      { path: "offers/add", element: lazyElement(OfferForm) },
-      { path: "offers/edit/:id", element: lazyElement(OfferForm) },
-      { path: "logistics", element: lazyElement(AdminLogistics) },
-      { path: "delivery-settings", element: lazyElement(AdminDeliverySettings) },
-      { path: "customers", element: lazyElement(AdminCustomers) },
-      { path: "trust-safety", element: lazyElement(AdminTrustSafety) },
-      { path: "users", element: lazyElement(AdminUserManagement) },
-      { path: "insights", element: lazyElement(AdminCustomerInsights) },
-      { path: "support", element: lazyElement(AdminSupport) },
-      { path: "reviews", element: lazyElement(AdminReviews) },
-      { path: "qa", element: lazyElement(AdminQA) },
+      { path: "", element: adminElement(AdminDashboard, "system", "read") },
+      { path: "operations", element: adminElement(AdminOperations, "system", "read") },
+      { path: "analytics", element: adminElement(AdminAnalyticsReports, "analytics", "read") },
+      { path: "platform", element: adminElement(AdminPlatformControls, "system", "read") },
+      { path: "vendors", element: adminElement(AdminVendors, "vendors", "read") },
+      { path: "vendor-requests", element: adminElement(AdminVendors, "vendors", "read") },
+      { path: "vendors/:vendorId", element: adminElement(AdminVendorDetail, "vendors", "read") },
+      { path: "vendor-activity", element: adminElement(VendorActivityDashboard, "vendors", "read") },
+      { path: "vendor-kyc", element: adminElement(AdminVendorKyc, "vendors", "update") },
+      { path: "chats", element: adminElement(AdminVendorChats, "vendors", "read") },
+      { path: "chat/:vendorId", element: adminElement(AdminChatDetail, "vendors", "read") },
+      { path: "products", element: adminElement(AdminProducts, "products", "read") },
+      { path: "products/add", element: adminElement(ProductForm, "products", "create") },
+      { path: "products/edit/:id", element: adminElement(ProductForm, "products", "update") },
+      { path: "inventory", element: adminElement(AdminInventory, "inventory", "read") },
+      { path: "orders", element: adminElement(AdminOrders, "orders", "read") },
+      { path: "returns", element: adminElement(AdminReturns, "returns", "read") },
+      { path: "payouts", element: adminElement(AdminPayouts, "payments", "read") },
+      { path: "payout-requests", element: adminElement(AdminPayoutRequests, "payments", "read") },
+      { path: "payment-verifications", element: adminElement(AdminPaymentVerifications, "payments", "read") },
+      { path: "newsletter", element: adminElement(AdminNewsletter, "system", "read") },
+      { path: "categories", element: adminElement(AdminDynamicCategories, "categories", "read") },
+      { path: "categories/manage", element: adminElement(AdminCategoryManagement, "categories", "update") },
+      { path: "categories/:categoryId/attributes", element: adminElement(AdminEditCategoryAttributes, "categories", "update") },
+      { path: "category-requests", element: adminElement(AdminCategoryRequests, "categories", "read") },
+      { path: "promotions", element: adminElement(AdminPromotions, "system", "read") },
+      { path: "coupons", element: adminElement(AdminCoupons, "coupons", "read") },
+      { path: "flash-sales", element: adminElement(AdminFlashSales, "system", "read") },
+      { path: "offers", element: adminElement(AdminOffers, "system", "read") },
+      { path: "offers/add", element: adminElement(OfferForm, "system", "create") },
+      { path: "offers/edit/:id", element: adminElement(OfferForm, "system", "update") },
+      { path: "logistics", element: adminElement(AdminLogistics, "orders", "read") },
+      { path: "delivery-settings", element: adminElement(AdminDeliverySettings, "orders", "update") },
+      { path: "customers", element: adminElement(AdminCustomers, "users", "read") },
+      { path: "trust-safety", element: adminElement(AdminTrustSafety, "system", "read") },
+      { path: "users", element: adminElement(AdminUserManagement, "users", "read") },
+      { path: "insights", element: adminElement(AdminCustomerInsights, "users", "read") },
+      { path: "support", element: adminElement(AdminSupport, "support", "read") },
+      { path: "reviews", element: adminElement(AdminReviews, "reviews", "read") },
+      { path: "qa", element: adminElement(AdminQA, "products", "read") },
     ],
   },
 ]);
