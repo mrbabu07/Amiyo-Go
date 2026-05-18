@@ -47,6 +47,53 @@ const buildVendorSnapshot = (vendorId, vendor) => {
   };
 };
 
+const STAFF_ORDER_DETAIL_ROLES = new Set(["admin", "manager", "support", "moderator"]);
+
+const hasStaffOrderDetailAccess = (req) => {
+  const role = String(req.dbUser?.role || req.user?.role || "").toLowerCase();
+  return STAFF_ORDER_DETAIL_ROLES.has(role);
+};
+
+const sanitizeCustomerOrderProduct = (product = {}) => {
+  const customerProduct = { ...product };
+
+  delete customerProduct.adminCommissionAmount;
+  delete customerProduct.commissionRate;
+  delete customerProduct.commissionRateSnapshot;
+  delete customerProduct.vendorEarningAmount;
+  delete customerProduct.payoutStatus;
+  delete customerProduct.settlementStatus;
+  return customerProduct;
+};
+
+const sanitizeCustomerOrderDetail = (order = {}) => {
+  const customerOrder = { ...order };
+
+  delete customerOrder.adminNotes;
+  delete customerOrder.codReconciliation;
+  delete customerOrder.fraudFlags;
+  delete customerOrder.fraudReview;
+  delete customerOrder.internalNotes;
+  delete customerOrder.notes;
+  delete customerOrder.payoutStatus;
+  delete customerOrder.perVendorBreakdown;
+  delete customerOrder.riskFlags;
+  delete customerOrder.riskScore;
+  delete customerOrder.settlementStatus;
+  delete customerOrder.staffNotes;
+  delete customerOrder.totalCommission;
+  delete customerOrder.totalVendorEarnings;
+
+  return {
+    ...customerOrder,
+    products: (order.products || []).map(sanitizeCustomerOrderProduct),
+    statusHistory: (order.statusHistory || []).map((entry) => ({
+      status: entry.status,
+      changedAt: entry.changedAt,
+    })),
+  };
+};
+
 const safeObjectId = (id) => {
   const value = normalizeId(id);
   return value && ObjectId.isValid(value) ? new ObjectId(value) : null;
@@ -380,6 +427,46 @@ const getUserOrders = async (req, res) => {
     res.json({ success: true, data: ordersWithExperience });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const getUserOrderById = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const Return = req.app.locals.models.Return;
+    const { id } = req.params;
+
+    if (!safeObjectId(id)) {
+      return res.status(400).json({ success: false, error: "Invalid order id" });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ success: false, error: "Order not found" });
+    }
+
+    const isOwner = normalizeId(order.userId) === normalizeId(req.user?.uid);
+    const isStaff = hasStaffOrderDetailAccess(req);
+
+    if (!isOwner && !isStaff) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+
+    const userReturns = Return?.findByUserId
+      ? await Return.findByUserId(order.userId)
+      : [];
+    const customerOrder = sanitizeCustomerOrderDetail(order);
+
+    res.json({
+      success: true,
+      data: {
+        ...customerOrder,
+        customerExperience: buildCustomerOrderExperience(customerOrder, userReturns),
+      },
+    });
+  } catch (error) {
+    console.error("Error loading customer order detail:", error);
+    res.status(500).json({ success: false, error: "Failed to load order detail" });
   }
 };
 
@@ -2593,6 +2680,7 @@ module.exports = {
   addOrderNote,
   regenerateInvoice,
   getUserOrders,
+  getUserOrderById,
   getOrderTimelineEvents,
   createOrder,
   updateOrderStatus,

@@ -114,6 +114,7 @@ export const deleteCategory = (id) => api.delete(`/categories/${id}`);
 
 // Orders
 export const getUserOrders = () => api.get("/orders/my-orders");
+export const getUserOrderDetail = (id) => api.get(`/orders/${id}/detail`);
 export const getAllOrders = () => api.get("/orders");
 export const getAdminOrderManagement = (params = {}) =>
   api.get("/orders/admin", { params });

@@ -16,7 +16,7 @@ import {
 import BackButton from "../components/BackButton";
 import Loading from "../components/Loading";
 import OrderTracking from "../components/OrderTracking";
-import { downloadOrderInvoice, getUserOrders } from "../services/api";
+import { downloadOrderInvoice, getUserOrderDetail } from "../services/api";
 import { useCurrency } from "../hooks/useCurrency";
 import { useToast } from "../context/ToastContext";
 import {
@@ -92,14 +92,21 @@ export default function OrderDetail() {
       try {
         setLoading(true);
         setLoadError("");
-        const response = await getUserOrders();
+        const response = await getUserOrderDetail(orderId);
         if (!ignore) {
-          setOrders(response.data?.data || []);
+          setOrders(response.data?.data ? [response.data.data] : []);
         }
       } catch (error) {
         console.error("Failed to load order detail:", error);
         if (!ignore) {
-          setLoadError(error.response?.data?.error || "Failed to load this order");
+          const status = error.response?.status;
+          const message =
+            status === 403
+              ? "This order belongs to a different account."
+              : status === 404
+                ? "Order not found."
+                : error.response?.data?.error || "Failed to load this order";
+          setLoadError(message);
         }
       } finally {
         if (!ignore) setLoading(false);
@@ -110,7 +117,7 @@ export default function OrderDetail() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [orderId]);
 
   const order = useMemo(() => findOrderByRouteId(orders, orderId), [orders, orderId]);
   const summary = useMemo(

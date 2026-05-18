@@ -15,6 +15,7 @@ const {
   addOrderNote,
   regenerateInvoice,
   getUserOrders,
+  getUserOrderById,
   getOrderTimelineEvents,
   createOrder,
   updateOrderStatus,
@@ -60,8 +61,8 @@ router.patch("/admin/:id/resolve-dispute", verifyToken, verifyAdmin, adminResolv
 router.patch("/admin/:id/approve-refund",  verifyToken, verifyAdmin, refundOrderIdempotency, adminApproveRefund);
 router.patch("/admin/:id/override-status", verifyToken, verifyAdmin, adminOverrideStatus);
 
-// ── Shared detail (admin + owner) ─────────────────────────────
-router.get("/:id/detail", verifyToken, getAdminOrderById);
+// ── Shared detail (staff + owner, customer-safe response) ─────
+router.get("/:id/detail", verifyToken, getUserOrderById);
 router.get("/:id/timeline", verifyToken, getOrderTimelineEvents);
 
 // ── Admin order-specific actions ──────────────────────────────

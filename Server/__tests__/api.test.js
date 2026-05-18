@@ -109,6 +109,7 @@ jest.mock("../controllers/orderController", () => ({
   regenerateInvoice: (req, res) => res.json({ route: "orders:regenerate-invoice", id: req.params.id }),
   getOrderTimelineEvents: (req, res) => res.json({ route: "orders:timeline", id: req.params.id }),
   getUserOrders: (req, res) => res.json({ route: "orders:my-orders" }),
+  getUserOrderById: (req, res) => res.json({ route: "orders:customer-detail", id: req.params.id }),
   createOrder: (req, res) =>
     res.status(201).json({
       route: req.path === "/guest" ? "orders:guest-create" : "orders:create",
@@ -790,6 +791,18 @@ describe("Black-box API tests", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ route: "orders:fraud-queue" });
+    });
+
+    test("GET /api/orders/:id/detail uses the customer-safe detail route", async () => {
+      const response = await request(app)
+        .get("/api/orders/6a0b2a08063b3d7fdd3556fe/detail")
+        .set("Authorization", "Bearer test");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "orders:customer-detail",
+        id: "6a0b2a08063b3d7fdd3556fe",
+      });
     });
 
     test("PATCH /api/orders/admin/:id/reassign-courier uses the admin courier override route", async () => {

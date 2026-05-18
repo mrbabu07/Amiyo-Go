@@ -72,6 +72,7 @@ jest.mock("../controllers/orderController", () => ({
   regenerateInvoice: (req, res) => res.json({ route: "orders:regenerate-invoice", id: req.params.id }),
   getOrderTimelineEvents: (req, res) => res.json({ route: "orders:timeline", id: req.params.id }),
   getUserOrders: (req, res) => res.json({ route: "orders:my-orders" }),
+  getUserOrderById: (req, res) => res.json({ route: "orders:customer-detail", id: req.params.id }),
   createOrder: (req, res) =>
     res.status(201).json({
       route: req.path === "/guest" ? "orders:guest-create" : "orders:create",
