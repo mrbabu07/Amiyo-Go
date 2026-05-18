@@ -3,6 +3,7 @@ const {
   _financeTestUtils,
   downloadRevenueReport,
   getPayoutQueue,
+  getVendorFinanceSummary,
   reviewFinanceRefund,
   saveCommissionRule,
   upsertEscrowRules,
@@ -23,7 +24,11 @@ const stringify = (value) => (value instanceof ObjectId ? value.toString() : Str
 const getByPath = (doc, path) =>
   String(path)
     .split(".")
-    .reduce((value, key) => (value === undefined || value === null ? undefined : value[key]), doc);
+    .reduce((value, key) => {
+      if (value === undefined || value === null) return undefined;
+      if (Array.isArray(value)) return value.map((item) => item?.[key]).flat();
+      return value[key];
+    }, doc);
 
 const setByPath = (doc, path, value) => {
   const parts = String(path).split(".");
@@ -39,8 +44,16 @@ const matchesQuery = (doc, query = {}) =>
   Object.entries(query).every(([key, expected]) => {
     const actual = getByPath(doc, key);
 
-    if (expected?.$in) return expected.$in.map(stringify).includes(stringify(actual));
+    if (expected?.$in) {
+      const accepted = expected.$in.map(stringify);
+      return Array.isArray(actual)
+        ? actual.some((item) => accepted.includes(stringify(item)))
+        : accepted.includes(stringify(actual));
+    }
     if (expected?.$nin) return !expected.$nin.map(stringify).includes(stringify(actual));
+    if (expected?.$ne !== undefined) return stringify(actual) !== stringify(expected.$ne);
+    if (expected?.$gte && actual < expected.$gte) return false;
+    if (expected?.$lte && actual > expected.$lte) return false;
     if (expected instanceof RegExp) return expected.test(String(actual || ""));
     if (expected instanceof ObjectId) return stringify(actual) === stringify(expected);
     return stringify(actual) === stringify(expected);
@@ -265,6 +278,57 @@ describe("adminFinanceController operations", () => {
         payoutMethodLabel: "bKash 01700000000",
       }),
     );
+  });
+
+  test("vendor finance summary subtracts completed return deductions from payable earnings", async () => {
+    const vendorId = "64f000000000000000000111";
+    const db = buildDb({
+      orders: [
+        {
+          _id: "order-1",
+          status: "delivered",
+          createdAt: new Date("2026-05-18T08:00:00.000Z"),
+          products: [
+            {
+              vendorId,
+              title: "HP laptop",
+              price: 10000,
+              quantity: 1,
+              adminCommissionAmount: 0,
+            },
+          ],
+        },
+      ],
+      returns: [
+        {
+          _id: "return-1",
+          orderId: "order-1",
+          vendorId,
+          status: "completed",
+          productTitle: "HP laptop",
+          refundAmount: 10000,
+          adminCommissionAmount: 0,
+          vendorDeduction: 10000,
+          completedAt: new Date("2026-05-19T08:00:00.000Z"),
+        },
+      ],
+    });
+    const res = createRes();
+
+    await getVendorFinanceSummary(buildReq({ db, params: { vendorId } }), res);
+
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: expect.objectContaining({
+        grossSales: 10000,
+        totalCommission: 0,
+        netEarningsBeforeReturns: 10000,
+        returnDeductions: 10000,
+        netEarnings: 0,
+        payableEarnings: 0,
+        ordersCount: 1,
+      }),
+    });
   });
 
   test("exposes payout queue with schedule minimums", async () => {

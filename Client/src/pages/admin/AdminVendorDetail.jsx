@@ -746,9 +746,9 @@ export default function AdminVendorDetail() {
               <span className="text-2xl">💵</span>
             </div>
             <p className="text-2xl font-bold text-green-600">
-              {formatPrice(financeSummary?.netEarnings || 0)}
+              {formatPrice(financeSummary?.payableEarnings ?? financeSummary?.netEarnings ?? 0)}
             </p>
-            <p className="text-xs text-gray-400 mt-1">Net earnings</p>
+            <p className="text-xs text-gray-400 mt-1">After return deductions</p>
           </div>
           <div className="bg-white rounded-lg shadow-sm p-4">
             <div className="flex items-center justify-between mb-2">
@@ -1657,11 +1657,13 @@ export default function AdminVendorDetail() {
               <>
                 {/* Summary Cards */}
                 {financeSummary && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                     {[
                       { label: 'Gross Sales', val: formatPrice(financeSummary.grossSales || 0), color: 'text-blue-600' },
                       { label: 'Total Commission', val: formatPrice(financeSummary.totalCommission || 0), color: 'text-red-500' },
-                      { label: 'Net Earnings', val: formatPrice(financeSummary.netEarnings || 0), color: 'text-green-600' },
+                      { label: 'Order Earnings', val: formatPrice(financeSummary.netEarningsBeforeReturns ?? financeSummary.netEarnings ?? 0), color: 'text-green-600' },
+                      { label: 'Return Deductions', val: `-${formatPrice(financeSummary.returnDeductions || 0)}`, color: 'text-red-600' },
+                      { label: 'Payable Earnings', val: formatPrice(financeSummary.payableEarnings ?? financeSummary.netEarnings ?? 0), color: 'text-emerald-700' },
                       { label: 'Orders', val: financeSummary.ordersCount, color: 'text-gray-700' },
                     ].map(({ label, val, color }) => (
                       <div key={label} className="bg-white rounded-xl shadow-sm p-4">

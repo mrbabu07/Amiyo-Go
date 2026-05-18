@@ -182,50 +182,98 @@ exports.getVendorFinanceSummary = async (req, res) => {
     const vendorIdValues = [vendorId.toString()];
     if (ObjectId.isValid(vendorId)) vendorIdValues.push(new ObjectId(vendorId));
 
-    const match = {
+    const idStrings = new Set(vendorIdValues.map((value) => value.toString()));
+    const fromDate = from ? new Date(from) : null;
+    const toDate = to ? new Date(to) : null;
+    const inRange = (value) => {
+      const date = value ? new Date(value) : null;
+      if (!date || Number.isNaN(date.getTime())) return !fromDate && !toDate;
+      if (fromDate && date < fromDate) return false;
+      if (toDate && date > toDate) return false;
+      return true;
+    };
+    const getReturnDeduction = (returnDoc = {}) => {
+      const storedDeduction = Number(returnDoc.vendorDeduction || 0);
+      if (storedDeduction > 0) return storedDeduction;
+      const vendorEarning = Number(returnDoc.vendorEarningAmount || 0);
+      if (vendorEarning > 0) return vendorEarning;
+      const quantity = Number(returnDoc.quantity || 1);
+      const fallbackRefund = Number(returnDoc.productPrice || returnDoc.price || returnDoc.unitPrice || 0) * quantity;
+      const refundAmount = Number(
+        returnDoc.refundAmount ??
+        returnDoc.adminRefund ??
+        returnDoc.totalAmount ??
+        returnDoc.amount ??
+        fallbackRefund,
+      );
+      return Math.max(0, refundAmount - Number(returnDoc.adminCommissionAmount || 0));
+    };
+
+    const orderQuery = {
       "products.vendorId": { $in: vendorIdValues },
       status: { $ne: "cancelled" },
     };
-    if (from || to) {
-      match.createdAt = {};
-      if (from) match.createdAt.$gte = new Date(from);
-      if (to)   match.createdAt.$lte = new Date(to);
+    if (fromDate || toDate) {
+      orderQuery.createdAt = {};
+      if (fromDate) orderQuery.createdAt.$gte = fromDate;
+      if (toDate) orderQuery.createdAt.$lte = toDate;
     }
 
-    const pipeline = [
-      { $match: match },
-      { $unwind: "$products" },
-      { $match: { "products.vendorId": { $in: vendorIdValues } } },
-      {
-        $group: {
-          _id: null,
-          grossSales:      { $sum: { $multiply: ["$products.price", "$products.quantity"] } },
-          totalCommission: { $sum: "$products.adminCommissionAmount" },
-          netEarnings:     { $sum: "$products.vendorEarningAmount" },
-          ordersList:      { $addToSet: "$_id" },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          grossSales: 1,
-          totalCommission: 1,
-          netEarnings: 1,
-          ordersCount: { $size: "$ordersList" },
-        },
-      },
-    ];
+    const [orders, returns] = await Promise.all([
+      db.collection("orders").find(orderQuery).toArray(),
+      db.collection("returns").find({ vendorId: { $in: vendorIdValues } }).toArray(),
+    ]);
 
-    const result = await db.collection("orders").aggregate(pipeline).toArray();
-    const summary = result[0] || { grossSales: 0, totalCommission: 0, netEarnings: 0, ordersCount: 0 };
+    const summary = orders
+      .filter((order) => inRange(order.createdAt))
+      .reduce(
+        (acc, order) => {
+          const vendorProducts = (order.products || []).filter((product) =>
+            idStrings.has(product.vendorId?.toString?.() || String(product.vendorId || "")),
+          );
+          if (vendorProducts.length === 0) return acc;
+
+          acc.ordersList.add(order._id?.toString?.() || String(order._id));
+          vendorProducts.forEach((product) => {
+            const gross = Number(product.price || 0) * Number(product.quantity || 0);
+            const commission = Number(product.adminCommissionAmount || 0);
+            acc.grossSales += gross;
+            acc.totalCommission += commission;
+            acc.netEarningsBeforeReturns += Number(product.vendorEarningAmount ?? Math.max(0, gross - commission));
+          });
+          return acc;
+        },
+        { grossSales: 0, totalCommission: 0, netEarningsBeforeReturns: 0, ordersList: new Set() },
+      );
+
+    const returnDeductions = returns
+      .filter((returnDoc) =>
+        idStrings.has(returnDoc.vendorId?.toString?.() || String(returnDoc.vendorId || "")) &&
+        ["approved", "completed", "refunded"].includes(String(returnDoc.refundStatus || returnDoc.status || "").toLowerCase()) &&
+        inRange(
+          returnDoc.refundApprovedAt ||
+          returnDoc.approvedAt ||
+          returnDoc.refundProcessedAt ||
+          returnDoc.completedAt ||
+          returnDoc.refundedAt ||
+          returnDoc.updatedAt ||
+          returnDoc.createdAt,
+        ),
+      )
+      .reduce((sum, returnDoc) => sum + getReturnDeduction(returnDoc), 0);
+
+    const payableEarnings = Math.max(0, summary.netEarningsBeforeReturns - returnDeductions);
 
     res.json({
       success: true,
       data: {
-        grossSales:      round2(summary.grossSales),
+        grossSales: round2(summary.grossSales),
         totalCommission: round2(summary.totalCommission),
-        netEarnings:     round2(summary.netEarnings),
-        ordersCount:     summary.ordersCount,
+        netEarningsBeforeReturns: round2(summary.netEarningsBeforeReturns),
+        returnDeductions: round2(returnDeductions),
+        netEarnings: round2(payableEarnings),
+        payableEarnings: round2(payableEarnings),
+        ordersCount: summary.ordersList.size,
       },
     });
   } catch (error) {
