@@ -8,6 +8,7 @@ import {
   Copy,
   Download,
   FileSpreadsheet,
+  Eye,
   Image as ImageIcon,
   Package,
   Pencil,
@@ -666,6 +667,9 @@ export default function VendorProducts() {
                             </td>
                             <td className="px-4 py-4">
                               <div className="flex flex-wrap gap-2">
+                                <Link to={`/vendor/products/${product._id}`} className="rounded-md p-2 text-slate-600 hover:bg-slate-100" title="Details">
+                                  <Eye className="h-4 w-4" />
+                                </Link>
                                 <Link to={`/vendor/products/edit/${product._id}`} className="rounded-md p-2 text-blue-600 hover:bg-blue-50" title="Edit">
                                   <Pencil className="h-4 w-4" />
                                 </Link>

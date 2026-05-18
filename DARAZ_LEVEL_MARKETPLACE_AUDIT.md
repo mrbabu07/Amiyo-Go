@@ -22,7 +22,7 @@ Freeze new random feature work until Phase 1 is closed. The project already has 
 
 - Frontend route count: about 110 route entries in `Client/src/routes/Routes.jsx`.
 - Backend route/controller handler references: about 596 route declarations across `Server/routes` and route-style controller files.
-- Frontend tests: 14 suites / 55 tests at last verification.
+- Frontend tests: 16 suites / 62 tests at last verification.
 - Backend tests: 61 suites / 394 tests at last verification.
 - Major frontend shells: `CustomerLayout`, `AuthLayout`, `VendorLayout`, `AdminLayout`.
 - Major backend groups: customer commerce, vendor center, admin operations, logistics, promotions, trust-safety, support, analytics, notifications, loyalty, wishlist, campaigns.
@@ -252,7 +252,7 @@ Current Phase 4 status by step:
 |---|---|---|
 | 4.1 Vendor shell/status gate | Partial | `VendorLayout` has grouped seller navigation, responsive sidebar, seller action center, `/vendor` dashboard redirect, and shared status gate states. Needs live notification counts and final staff permission filtering. |
 | 4.2 Dashboard home | Partial | `VendorHome` has KPIs, action widgets, health scoring, announcements, top products, sales chart, SLA/stock signals. Needs final real pending-task prioritization from backend events. |
-| 4.3 Products workflow | Partial | Product list, add/edit, moderation status, bulk edit, media center, CSV upload route, category requests, variants/SKU concepts exist. Needs product detail route and final step-wizard consistency. |
+| 4.3 Products workflow | Partial | Product list, add/edit, product detail/performance view, moderation status, bulk edit, media center, CSV upload route, category requests, variants/SKU concepts exist. Needs final step-wizard consistency and deeper edit-history persistence. |
 | 4.4 Bulk upload/media | Partial | Bulk upload and media-center views exist. Needs stronger partial-success/error-row download UX. |
 | 4.5 Orders operations | Partial | Vendor orders queue, filters, status actions, packing slips, labels, pickup scheduling, notes, and timeline concepts exist. Needs final drawer/page standardization. |
 | 4.6 Returns/disputes | Partial | Vendor returns and response flow exist. Needs dedicated dispute detail polish and counter-evidence UX. |
@@ -271,3 +271,4 @@ Latest Phase 4 implementation slice:
 - Added `/vendor` index redirect to `/vendor/dashboard`.
 - Expanded the shared vendor status gate with role-sync, missing-KYC, and KYC-pending states while keeping KYC/settings/support self-service routes reachable.
 - Added black-box and white-box Jest tests for seller-center gate and action logic.
+- Added `/vendor/products/:id` product detail view with media, moderation state, listing quality, SKU inventory, sales signals, timeline, submit/delist/delete actions, and black-box/white-box helper tests.
