@@ -238,21 +238,30 @@ const getExceptionTone = (issue = {}) => {
 
 const exceptionToneClasses = {
   amber: {
-    card: "border-amber-200 bg-amber-50/50",
-    icon: "bg-amber-100 text-amber-700",
-    pill: "bg-amber-100 text-amber-700",
+    card: "border-amber-200 bg-amber-50/60 dark:border-amber-900/70 dark:bg-amber-950/20",
+    icon: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200",
+    pill: "border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200",
   },
   rose: {
-    card: "border-rose-200 bg-rose-50/60",
-    icon: "bg-rose-100 text-rose-700",
-    pill: "bg-rose-100 text-rose-700",
+    card: "border-rose-200 bg-rose-50/70 dark:border-rose-900/70 dark:bg-rose-950/20",
+    icon: "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-200",
+    pill: "border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-200",
   },
   sky: {
-    card: "border-sky-100 bg-white",
-    icon: "bg-sky-50 text-sky-700",
-    pill: "bg-sky-50 text-sky-700",
+    card: "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900",
+    icon: "bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-200",
+    pill: "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
   },
 };
+
+const priorityBadgeTone = {
+  critical: "border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-200",
+  high: "border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200",
+  normal: "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
+};
+
+const filterCountFor = (items = [], filter = "all") =>
+  items.filter((issue) => matchesExceptionFilter(issue, filter)).length;
 
 const matchesExceptionFilter = (issue = {}, filter = "all") => {
   if (filter === "all") return true;
@@ -414,125 +423,184 @@ function ExceptionInbox({ inbox, filter, onFilterChange, formatPrice, loading })
   const summary = inbox?.summary || emptyDashboard.exceptionInbox.summary;
   const items = inbox?.items || [];
   const visibleItems = items.filter((issue) => matchesExceptionFilter(issue, filter));
+  const nextIssue = visibleItems[0] || items[0];
+  const nextAction = nextIssue?.actions?.[0];
+  const ownerCounts = summary.owners || [];
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-bold text-rose-600">
-            <ShieldAlert className="h-4 w-4" />
-            Admin command center
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="border-b border-slate-100 p-5 dark:border-slate-800">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-bold text-orange-600 dark:text-orange-300">
+              <ShieldAlert className="h-4 w-4" />
+              Admin command center
+            </div>
+            <h2 className="mt-2 text-xl font-bold text-slate-950 dark:text-white">Unified Exception Inbox</h2>
+            <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+              Critical work from vendor ops, catalog, finance, support, trust, and system delivery. Start with breached SLA and high-exposure items.
+            </p>
           </div>
-          <h2 className="mt-2 text-xl font-bold text-slate-950">Unified Exception Inbox</h2>
-          <p className="mt-1 max-w-3xl text-sm text-slate-500">
-            Critical queue items from vendor ops, catalog, finance, support, trust, and system delivery. Work oldest SLA risks first.
-          </p>
+
+          <div className="grid gap-2 sm:grid-cols-4 xl:min-w-[540px]">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
+              <p className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Open</p>
+              <p className="text-xl font-black text-slate-950 dark:text-white">{formatCount(summary.total)}</p>
+            </div>
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 dark:border-rose-900 dark:bg-rose-950/30">
+              <p className="text-xs font-bold uppercase text-rose-600 dark:text-rose-300">Critical</p>
+              <p className="text-xl font-black text-rose-700 dark:text-rose-200">{formatCount(summary.critical)}</p>
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950/30">
+              <p className="text-xs font-bold uppercase text-amber-600 dark:text-amber-300">SLA</p>
+              <p className="text-xl font-black text-amber-700 dark:text-amber-200">{formatCount(summary.breached)}</p>
+            </div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-900 dark:bg-emerald-950/30">
+              <p className="text-xs font-bold uppercase text-emerald-600 dark:text-emerald-300">Exposure</p>
+              <p className="truncate text-xl font-black text-emerald-700 dark:text-emerald-200">{formatPrice(summary.financeExposure)}</p>
+            </div>
+          </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-4 xl:min-w-[520px]">
-          <div className="rounded-lg bg-slate-50 px-3 py-2">
-            <p className="text-xs font-bold uppercase text-slate-500">Open</p>
-            <p className="text-xl font-black text-slate-950">{formatCount(summary.total)}</p>
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {exceptionFilters.map((item) => {
+              const count = filterCountFor(items, item.value);
+              const active = filter === item.value;
+
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => onFilterChange(item.value)}
+                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-orange-500/25 ${
+                    active
+                      ? "border-orange-600 bg-orange-600 text-white"
+                      : "border-slate-200 text-slate-600 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-orange-800 dark:hover:bg-orange-950/30 dark:hover:text-orange-200"
+                  }`}
+                >
+                  <span>{item.label}</span>
+                  <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300"}`}>
+                    {formatCount(count)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-          <div className="rounded-lg bg-rose-50 px-3 py-2">
-            <p className="text-xs font-bold uppercase text-rose-600">Critical</p>
-            <p className="text-xl font-black text-rose-700">{formatCount(summary.critical)}</p>
-          </div>
-          <div className="rounded-lg bg-amber-50 px-3 py-2">
-            <p className="text-xs font-bold uppercase text-amber-600">SLA</p>
-            <p className="text-xl font-black text-amber-700">{formatCount(summary.breached)}</p>
-          </div>
-          <div className="rounded-lg bg-emerald-50 px-3 py-2">
-            <p className="text-xs font-bold uppercase text-emerald-600">Exposure</p>
-            <p className="truncate text-xl font-black text-emerald-700">{formatPrice(summary.financeExposure)}</p>
+
+          <div className="flex flex-wrap gap-2">
+            {nextAction ? (
+              <Link
+                to={nextAction.path}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-bold text-white transition hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+              >
+                Work next issue
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            ) : null}
+            <Link
+              to="/admin/operations"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Operations center
+            </Link>
           </div>
         </div>
+
+        {ownerCounts.length ? (
+          <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
+            {ownerCounts.slice(0, 6).map((owner) => (
+              <span
+                key={owner.owner}
+                className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+              >
+                {owner.owner}: {formatCount(owner.count)}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
 
-      <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-        {exceptionFilters.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => onFilterChange(item.value)}
-            className={`min-h-9 shrink-0 rounded-full border px-3 text-sm font-bold transition ${
-              filter === item.value
-                ? "border-slate-950 bg-slate-950 text-white"
-                : "border-slate-200 text-slate-600 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-4 grid gap-3">
+      <div className="grid gap-3 p-4">
         {loading ? (
           Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-24 animate-pulse rounded-lg bg-slate-100" />
+            <div key={index} className="h-28 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
           ))
         ) : visibleItems.length ? (
           visibleItems.map((issue) => {
             const Icon = getExceptionIcon(issue.type);
             const tone = exceptionToneClasses[getExceptionTone(issue)] || exceptionToneClasses.sky;
+            const primaryAction = (issue.actions || [])[0];
+            const secondaryActions = (issue.actions || []).slice(1, 2);
 
             return (
-              <div key={issue.id} className={`grid gap-3 rounded-lg border p-4 ${tone.card} lg:grid-cols-[minmax(0,1fr)_220px_150px] lg:items-center`}>
+              <article
+                key={issue.id}
+                className={`grid gap-3 rounded-lg border p-4 transition hover:border-orange-300 hover:shadow-sm dark:hover:border-orange-800 ${tone.card} xl:grid-cols-[minmax(0,1fr)_260px_190px] xl:items-center`}
+              >
                 <div className="flex min-w-0 gap-3">
                   <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${tone.icon}`}>
                     <Icon className="h-5 w-5" />
                   </span>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate text-sm font-black text-slate-950">{issue.title}</h3>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold capitalize ${tone.pill}`}>
-                        {issue.priority}
+                      <h3 className="min-w-0 text-sm font-black text-slate-950 dark:text-white">{issue.title}</h3>
+                      <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold capitalize ${priorityBadgeTone[issue.priority] || priorityBadgeTone.normal}`}>
+                        {issue.priority || "normal"}
                       </span>
                       {issue.breached ? (
-                        <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                        <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[11px] font-bold text-white dark:bg-rose-500">
                           SLA breached
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-1 line-clamp-2 text-sm text-slate-600">{issue.detail}</p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
+                    <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">{issue.detail}</p>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
                       <span>{issue.workflow}</span>
+                      <span className="text-slate-300 dark:text-slate-700">/</span>
                       <span>{issue.owner}</span>
+                      <span className="text-slate-300 dark:text-slate-700">/</span>
                       <span className="capitalize">{String(issue.status || "needs attention").replaceAll("_", " ")}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-lg bg-white/70 px-3 py-2 text-sm lg:bg-white">
-                  <p className="font-bold text-slate-950">{issue.nextAction}</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
-                    {formatAgeHours(issue.ageHours)} - due {formatDateTime(issue.dueAt)}
-                  </p>
+                <div className="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/70">
+                  <p className="font-bold text-slate-950 dark:text-white">{issue.nextAction}</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    <span>{formatAgeHours(issue.ageHours)}</span>
+                    <span className="text-right">Due {formatDateTime(issue.dueAt)}</span>
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap justify-end gap-2">
-                  {(issue.actions || []).slice(0, 2).map((action) => (
+                <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
+                  {primaryAction ? (
+                    <Link
+                      to={primaryAction.path}
+                      className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-orange-600 px-3 text-sm font-bold text-white transition hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30 sm:flex-none"
+                    >
+                      {issue.actionLabel || primaryAction.label}
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  ) : null}
+                  {secondaryActions.map((action) => (
                     <Link
                       key={`${issue.id}-${action.label}`}
                       to={action.path}
-                      className={`inline-flex min-h-10 items-center justify-center rounded-lg px-3 text-sm font-bold transition ${
-                        action.variant === "primary"
-                          ? "bg-orange-600 text-white hover:bg-orange-700"
-                          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
+                      className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 sm:flex-none"
                     >
                       {action.label}
                     </Link>
                   ))}
                 </div>
-              </div>
+              </article>
             );
           })
         ) : (
-          <div className="flex min-h-36 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center">
-            <CheckCircle2 className="h-10 w-10 text-emerald-600" />
-            <p className="mt-3 text-sm font-bold text-slate-900">No exceptions in this filter</p>
-            <p className="mt-1 text-sm text-slate-500">The selected admin queue group is clear.</p>
+          <div className="flex min-h-36 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center dark:border-slate-700">
+            <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-300" />
+            <p className="mt-3 text-sm font-bold text-slate-900 dark:text-white">No exceptions in this filter</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">The selected admin queue group is clear.</p>
           </div>
         )}
       </div>
