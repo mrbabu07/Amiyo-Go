@@ -141,6 +141,40 @@ export const getVendorOrderFinancials = (order = {}) => {
   };
 };
 
+export const getVendorOrderProductPricingSummaries = (order = {}) => {
+  const products = Array.isArray(order.products) ? order.products : [];
+  const lineTotals = products.map((item) =>
+    Math.max(0, toNumber(item.price) * Math.max(1, toNumber(item.quantity, 1))),
+  );
+  const totalDiscount = Math.max(0, toNumber(order.totalDiscount || order.discount || order.vendorDiscount || order.couponDiscount));
+  const base = lineTotals.reduce((sum, value) => sum + value, 0);
+  let assigned = 0;
+
+  return products.map((item, index) => {
+    const quantity = Math.max(1, toNumber(item.quantity, 1));
+    const grossLineTotal = lineTotals[index];
+    const discountShare = totalDiscount > 0 && base > 0
+      ? index === products.length - 1
+        ? Math.max(0, totalDiscount - assigned)
+        : (totalDiscount * grossLineTotal) / base
+      : 0;
+    const roundedDiscount = Math.min(grossLineTotal, Math.round((discountShare + Number.EPSILON) * 100) / 100);
+    assigned = Math.round((assigned + roundedDiscount + Number.EPSILON) * 100) / 100;
+    const payableLineTotal = Math.max(0, Math.round((grossLineTotal - roundedDiscount + Number.EPSILON) * 100) / 100);
+
+    return {
+      item,
+      index,
+      quantity,
+      unitPrice: toNumber(item.price),
+      grossLineTotal,
+      discountShare: roundedDiscount,
+      payableLineTotal,
+      payableUnitPrice: quantity > 0 ? Math.round((payableLineTotal / quantity + Number.EPSILON) * 100) / 100 : payableLineTotal,
+    };
+  });
+};
+
 export const getVendorOrderActionPlan = (order = {}) => {
   const status = normalizeVendorOrderStatus(order);
   const terminal = terminalStatuses.includes(status);

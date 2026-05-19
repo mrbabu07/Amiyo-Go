@@ -22,6 +22,9 @@ import toast from "react-hot-toast";
 import {
   downloadVendorBarcodeLabel,
   downloadVendorPackingSlip,
+  assignVendorShipmentCourier,
+  getVendorCourierOptions,
+  getVendorLogisticsShipments,
   getVendorOrderDetail,
   getVendorOrderTimeline,
   getVendorReturns,
@@ -39,6 +42,7 @@ import {
   getVendorOrderActionPlan,
   getVendorOrderFinancials,
   getVendorOrderId,
+  getVendorOrderProductPricingSummaries,
   getVendorOrderStatusMeta,
   isVendorCodOrder,
   shortVendorOrderId,
@@ -61,6 +65,22 @@ const deliveryExceptionReasons = [
   "COD collection dispute",
   "Weather or road issue",
 ];
+
+const providerLabels = {
+  redx: "RedX",
+  steadfast: "Steadfast",
+  local: "Local instant",
+  manual: "Manual",
+};
+
+const emptyCourierAssignment = {
+  shipmentId: "",
+  courierId: "",
+  bookingMode: "manual",
+  trackingNumber: "",
+  estimatedDeliveryDate: "",
+  note: "",
+};
 
 const todayInputValue = () => new Date().toISOString().slice(0, 10);
 
@@ -169,7 +189,9 @@ function Timeline({ events }) {
   );
 }
 
-function ProductList({ products, formatPrice }) {
+function ProductList({ order, products, formatPrice }) {
+  const pricedProducts = getVendorOrderProductPricingSummaries(order);
+
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -181,12 +203,12 @@ function ProductList({ products, formatPrice }) {
       </div>
 
       <div className="divide-y divide-slate-100">
-        {products.map((item, index) => {
+        {pricedProducts.map((pricedProduct) => {
+          const { item, index, quantity, unitPrice, grossLineTotal, discountShare, payableLineTotal, payableUnitPrice } = pricedProduct;
           const image = item.image || item.productDetails?.images?.[0] || item.productDetails?.image;
           const title = item.title || item.productDetails?.title || item.productDetails?.name || "Product";
-          const quantity = Number(item.quantity || 1);
-          const price = Number(item.price || 0);
           const color = renderColor(item.selectedColor || item.color);
+          const hasDiscount = discountShare > 0;
 
           return (
             <div key={`${item.productId || item._id || index}`} className="flex gap-4 py-4 first:pt-0 last:pb-0">
@@ -203,7 +225,8 @@ function ProductList({ products, formatPrice }) {
                 <p className="font-semibold text-slate-950">{title}</p>
                 <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
                   <span>Qty {quantity}</span>
-                  <span>{formatPrice(price)} each</span>
+                  <span>{formatPrice(unitPrice)} each</span>
+                  {hasDiscount ? <span className="font-semibold text-emerald-700">{formatPrice(payableUnitPrice)} after discount</span> : null}
                   {item.selectedSize ? <span>Size {item.selectedSize}</span> : null}
                   {color ? <span>Color {color}</span> : null}
                   {item.sku ? <span>SKU {item.sku}</span> : null}
@@ -211,7 +234,15 @@ function ProductList({ products, formatPrice }) {
                 </div>
               </div>
               <div className="text-right text-sm font-bold text-slate-950">
-                {formatPrice(price * quantity)}
+                {hasDiscount ? (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-400 line-through">{formatPrice(grossLineTotal)}</p>
+                    <p>{formatPrice(payableLineTotal)}</p>
+                    <p className="text-xs font-semibold text-emerald-700">-{formatPrice(discountShare)}</p>
+                  </div>
+                ) : (
+                  formatPrice(grossLineTotal)
+                )}
               </div>
             </div>
           );
@@ -229,6 +260,8 @@ export default function VendorOrderDetail() {
   const [order, setOrder] = useState(null);
   const [timelineEvents, setTimelineEvents] = useState([]);
   const [returns, setReturns] = useState([]);
+  const [shipments, setShipments] = useState([]);
+  const [couriers, setCouriers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
@@ -247,6 +280,7 @@ export default function VendorOrderDetail() {
   const [message, setMessage] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [cancelNotes, setCancelNotes] = useState("");
+  const [courierAssignment, setCourierAssignment] = useState(emptyCourierAssignment);
 
   const loadOrder = useCallback(async () => {
     try {
@@ -273,6 +307,21 @@ export default function VendorOrderDetail() {
           ? returnsResult.value.data?.returns || returnsResult.value.data?.data || []
           : [],
       );
+
+      const [shipmentResult, courierResult] = await Promise.allSettled([
+        getVendorLogisticsShipments({ orderId }),
+        getVendorCourierOptions(),
+      ]);
+      const nextShipments = shipmentResult.status === "fulfilled"
+        ? shipmentResult.value.data?.data || []
+        : [];
+      setShipments(nextShipments);
+      setCouriers(courierResult.status === "fulfilled" ? courierResult.value.data?.data || [] : []);
+      setCourierAssignment((current) => ({
+        ...current,
+        shipmentId: current.shipmentId || nextShipments[0]?._id || "",
+        trackingNumber: current.trackingNumber || nextShipments[0]?.trackingNumber || "",
+      }));
     } catch (err) {
       console.error("Error loading vendor order detail:", err);
       const messageText = err.response?.data?.error || "Failed to load order detail";
@@ -292,6 +341,37 @@ export default function VendorOrderDetail() {
   const actionPlan = useMemo(() => getVendorOrderActionPlan(order || {}), [order]);
   const timeline = useMemo(() => buildVendorOrderTimeline(order || {}, timelineEvents), [order, timelineEvents]);
   const products = order?.products || [];
+  const courierOptions = useMemo(() => {
+    const saved = couriers.map((courier) => {
+      const provider = courier.provider || courier.code || "manual";
+      return {
+        value: `courier:${courier._id}`,
+        type: "courier",
+        id: courier._id,
+        provider,
+        label: courier.name || providerLabels[provider] || "Courier",
+        bookingMode: courier.bookingMode || (["redx", "steadfast"].includes(provider) ? "live" : "manual"),
+        source: "Saved partner",
+      };
+    });
+    const providers = new Set(saved.map((option) => option.provider));
+    const fallback = ["redx", "steadfast", "local", "manual"]
+      .filter((provider) => !providers.has(provider))
+      .map((provider) => ({
+        value: `provider:${provider}`,
+        type: "provider",
+        id: "",
+        provider,
+        label: providerLabels[provider] || provider,
+        bookingMode: ["redx", "steadfast"].includes(provider) ? "live" : "manual",
+        source: "Default",
+      }));
+    return [...saved, ...fallback];
+  }, [couriers]);
+  const selectedShipment = useMemo(
+    () => shipments.find((shipment) => String(shipment._id) === String(courierAssignment.shipmentId)) || shipments[0] || null,
+    [shipments, courierAssignment.shipmentId],
+  );
   const matchingReturns = useMemo(() => {
     const id = getVendorOrderId(order || {});
     return returns.filter((returnItem) => String(returnItem.orderId || "") === id);
@@ -313,6 +393,63 @@ export default function VendorOrderDetail() {
       await loadOrder();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to update order", { id: loadingToast });
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const changeCourier = (value) => {
+    const courier = courierOptions.find((option) => option.value === value);
+    setCourierAssignment((current) => ({
+      ...current,
+      courierId: value,
+      bookingMode: courier?.bookingMode || current.bookingMode || "manual",
+    }));
+  };
+
+  const assignCourierToShipment = async (event) => {
+    event.preventDefault();
+    if (!canManageOrders) {
+      toast.error("Your staff access can view orders, but cannot assign couriers.");
+      return;
+    }
+    const shipmentId = courierAssignment.shipmentId || selectedShipment?._id;
+    if (!shipmentId) {
+      toast.error("No shipment parcel found for this order yet.");
+      return;
+    }
+    const courier = courierOptions.find((option) => option.value === courierAssignment.courierId);
+    if (!courier) {
+      toast.error("Select a courier");
+      return;
+    }
+
+    const providerPayload = courier.type === "courier"
+      ? { courierId: courier.id }
+      : {
+          provider: courier.provider,
+          courierProvider: courier.provider,
+          courierCode: courier.provider,
+          courierName: courier.label,
+        };
+
+    setBusy("assign-courier");
+    const loadingToast = toast.loading(
+      courierAssignment.bookingMode === "live" ? "Booking courier..." : "Assigning courier...",
+    );
+    try {
+      await assignVendorShipmentCourier(shipmentId, {
+        ...providerPayload,
+        bookingMode: courierAssignment.bookingMode,
+        trackingNumber: courierAssignment.trackingNumber,
+        estimatedDeliveryDate: courierAssignment.estimatedDeliveryDate,
+        note: courierAssignment.note,
+      });
+      toast.success("Courier assigned", { id: loadingToast });
+      setCourierAssignment(emptyCourierAssignment);
+      await loadOrder();
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to assign courier", { id: loadingToast });
     } finally {
       setBusy("");
     }
@@ -527,15 +664,20 @@ export default function VendorOrderDetail() {
         </header>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard label="Vendor subtotal" value={formatPrice(financials.vendorSubtotal)} helper={`${financials.quantity} units`} icon={Banknote} />
+          <SummaryCard
+            label="Vendor subtotal"
+            value={formatPrice(financials.vendorSubtotal)}
+            helper={financials.discount > 0 ? `Discount ${formatPrice(financials.discount)} before payable` : `${financials.quantity} units`}
+            icon={Banknote}
+          />
+          <SummaryCard label="Customer payable" value={formatPrice(financials.payableTotal)} helper={`${financials.quantity} units after discount`} icon={Banknote} />
           <SummaryCard label="Net earnings" value={formatPrice(financials.vendorEarnings)} helper={`${formatPrice(financials.vendorCommission)} commission`} icon={CheckCircle2} />
           <SummaryCard label="COD amount" value={formatPrice(financials.codAmount)} helper={isVendorCodOrder(order) ? (order.codCollected ? "Collected" : "Pending collection") : "Prepaid order"} icon={Banknote} />
-          <SummaryCard label="Payment" value={order.paymentStatus || "pending"} helper={order.paymentMethod || "No method"} icon={Truck} />
         </section>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
           <main className="space-y-6">
-            <ProductList products={products} formatPrice={formatPrice} />
+            <ProductList order={order} products={products} formatPrice={formatPrice} />
             <Timeline events={timeline} />
 
             <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -594,6 +736,103 @@ export default function VendorOrderDetail() {
                   Cancel
                 </ActionButton>
               </div>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-950">Courier assignment</h2>
+                  <p className="text-sm text-slate-500">Choose RedX, Steadfast, local, or manual courier for this parcel.</p>
+                </div>
+                <Truck className="h-5 w-5 text-slate-400" aria-hidden="true" />
+              </div>
+
+              {selectedShipment ? (
+                <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                  <p className="font-semibold text-slate-900">Parcel #{shortVendorOrderId(selectedShipment._id)}</p>
+                  <p className="mt-1 text-slate-600">
+                    Current: {selectedShipment.courierName || "Unassigned"} / {selectedShipment.trackingNumber || "No tracking yet"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    State: {String(selectedShipment.shipmentState || "created").replace(/_/g, " ")}
+                  </p>
+                </div>
+              ) : (
+                <p className="mb-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+                  No shipment parcel found yet. Mark the order packed or refresh after order creation.
+                </p>
+              )}
+
+              <form onSubmit={assignCourierToShipment} className="space-y-3">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Parcel
+                  <select
+                    value={courierAssignment.shipmentId || selectedShipment?._id || ""}
+                    onChange={(event) => setCourierAssignment((current) => ({ ...current, shipmentId: event.target.value }))}
+                    className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  >
+                    {shipments.length === 0 && <option value="">No parcel available</option>}
+                    {shipments.map((shipment) => (
+                      <option key={shipment._id} value={shipment._id}>
+                        #{shortVendorOrderId(shipment._id)} / {String(shipment.shipmentState || "created").replace(/_/g, " ")}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm font-semibold text-slate-700">
+                  Courier
+                  <select
+                    value={courierAssignment.courierId}
+                    onChange={(event) => changeCourier(event.target.value)}
+                    className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  >
+                    <option value="">Select courier</option>
+                    {courierOptions.map((courier) => (
+                      <option key={courier.value} value={courier.value}>
+                        {courier.label} ({providerLabels[courier.provider] || courier.provider} / {courier.source})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm font-semibold text-slate-700">
+                  Booking mode
+                  <select
+                    value={courierAssignment.bookingMode}
+                    onChange={(event) => setCourierAssignment((current) => ({ ...current, bookingMode: event.target.value }))}
+                    className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  >
+                    <option value="manual">Assign manually</option>
+                    <option value="live">Book with courier API</option>
+                  </select>
+                </label>
+                <input
+                  value={courierAssignment.trackingNumber}
+                  onChange={(event) => setCourierAssignment((current) => ({ ...current, trackingNumber: event.target.value }))}
+                  placeholder="Tracking number if manual"
+                  className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                />
+                <input
+                  type="date"
+                  value={courierAssignment.estimatedDeliveryDate}
+                  onChange={(event) => setCourierAssignment((current) => ({ ...current, estimatedDeliveryDate: event.target.value }))}
+                  className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                />
+                <textarea
+                  value={courierAssignment.note}
+                  onChange={(event) => setCourierAssignment((current) => ({ ...current, note: event.target.value }))}
+                  rows={2}
+                  placeholder="Pickup or handoff note"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                />
+                <button
+                  type="submit"
+                  disabled={!canManageOrders || !selectedShipment || !courierAssignment.courierId || busy === "assign-courier"}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Truck className="h-4 w-4" aria-hidden="true" />
+                  Assign courier
+                </button>
+              </form>
             </section>
 
             <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

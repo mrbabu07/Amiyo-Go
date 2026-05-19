@@ -37,6 +37,10 @@ import {
   getAdminOrderManagement,
   getAdminSlaBreaches,
 } from "../../services/api";
+import {
+  getCustomerOrderSummary,
+  getOrderItemPricingSummaries,
+} from "../../utils/customerOrders";
 
 const STATUS_TABS = [
   { key: "all", label: "All" },
@@ -115,6 +119,9 @@ const formatStatus = (status = "") =>
     .join(" ") || "Unknown";
 
 const shortId = (id = "") => id.toString().slice(-8).toUpperCase();
+
+const getOrderPayableTotal = (order = {}) => getCustomerOrderSummary(order).total;
+const getOrderDiscountTotal = (order = {}) => getCustomerOrderSummary(order).discount;
 
 const formatDate = (value) => {
   if (!value) return "N/A";
@@ -586,7 +593,14 @@ export default function AdminOrders() {
                               {order.deliveryZone || order.shippingInfo?.district || order.shippingInfo?.city || "N/A"}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatPrice(order.total || 0)}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                            {formatPrice(getOrderPayableTotal(order))}
+                            {getOrderDiscountTotal(order) > 0 && (
+                              <div className="text-xs font-semibold text-emerald-700">
+                                -{formatPrice(getOrderDiscountTotal(order))} discount
+                              </div>
+                            )}
+                          </td>
                           <td className="px-4 py-3">
                             <StatusBadge status={order.status} />
                           </td>
@@ -620,7 +634,12 @@ export default function AdminOrders() {
                   </div>
                   <div className="text-left lg:text-right">
                     <p className="text-sm text-gray-500">Order total</p>
-                    <p className="text-xl font-bold text-gray-900">{formatPrice(selectedOrder.total || 0)}</p>
+                    <p className="text-xl font-bold text-gray-900">{formatPrice(getOrderPayableTotal(selectedOrder))}</p>
+                    {getOrderDiscountTotal(selectedOrder) > 0 && (
+                      <p className="text-xs font-semibold text-emerald-700">
+                        Discount -{formatPrice(getOrderDiscountTotal(selectedOrder))}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -684,8 +703,13 @@ export default function AdminOrders() {
                                       <p className="font-semibold text-gray-900">{formatPrice(vendor.totalCommission || 0)}</p>
                                     </div>
                                     <div className="rounded-lg bg-gray-50 p-2">
-                                      <p className="text-xs text-gray-500">Vendor earning</p>
-                                      <p className="font-semibold text-gray-900">{formatPrice(vendor.netEarnings || 0)}</p>
+                                      <p className="text-xs text-gray-500">Payable / earning</p>
+                                      <p className="font-semibold text-gray-900">{formatPrice(vendor.vendorOrderTotal ?? vendor.netEarnings ?? 0)}</p>
+                                      {vendor.vendorOrderTotal !== null && vendor.vendorOrderTotal !== undefined && Number(vendor.grossSales || 0) > Number(vendor.vendorOrderTotal || 0) && (
+                                        <p className="text-xs font-semibold text-emerald-700">
+                                          Discount -{formatPrice(Number(vendor.grossSales || 0) - Number(vendor.vendorOrderTotal || 0))}
+                                        </p>
+                                      )}
                                     </div>
                                   </div>
                                   <div className="mt-3 space-y-2">
@@ -716,15 +740,23 @@ export default function AdminOrders() {
                       <section>
                         <h3 className="mb-3 font-semibold text-gray-900">Order Items</h3>
                         <div className="overflow-hidden rounded-lg border border-gray-200">
-                          {(selectedOrder.products || []).map((item) => (
-                            <div key={`${item.productId || item._id || item.sku}-${item.title}`} className="flex items-center justify-between gap-3 border-b border-gray-100 px-3 py-3 last:border-b-0">
+                          {getOrderItemPricingSummaries(selectedOrder).map(({ item, index, quantity, grossLineTotal, discountShare, payableLineTotal }) => (
+                            <div key={`${item.productId || item._id || item.sku}-${item.title || index}`} className="flex items-center justify-between gap-3 border-b border-gray-100 px-3 py-3 last:border-b-0">
                               <div>
                                 <p className="font-medium text-gray-900">{item.title || item.name || "Product"}</p>
                                 <p className="text-xs text-gray-500">{item.sku || item.vendorName || item.shopName || "No SKU"}</p>
+                                {discountShare > 0 && (
+                                  <p className="text-xs font-semibold text-emerald-700">
+                                    Item discount -{formatPrice(discountShare)}
+                                  </p>
+                                )}
                               </div>
                               <div className="text-right text-sm">
-                                <p className="font-semibold text-gray-900">{formatPrice(Number(item.price || 0) * Number(item.quantity || 1))}</p>
-                                <p className="text-xs text-gray-500">Qty {item.quantity || 1}</p>
+                                {discountShare > 0 && (
+                                  <p className="text-xs font-semibold text-gray-400 line-through">{formatPrice(grossLineTotal)}</p>
+                                )}
+                                <p className="font-semibold text-gray-900">{formatPrice(payableLineTotal)}</p>
+                                <p className="text-xs text-gray-500">Qty {quantity}</p>
                               </div>
                             </div>
                           ))}

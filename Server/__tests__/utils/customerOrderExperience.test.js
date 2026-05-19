@@ -77,7 +77,10 @@ describe("customerOrderExperience utility", () => {
       title: "Rice Bag",
       quantity: 3,
       unitPrice: 900,
+      grossLineTotal: 2700,
       lineTotal: 2700,
+      lineDiscount: 0,
+      payableLineTotal: 2700,
       vendorName: "Grocery Hub",
       paymentMethod: "cod",
     });
@@ -85,6 +88,37 @@ describe("customerOrderExperience utility", () => {
     expect(experience.reviewPrompt).toMatchObject({
       due: true,
       channelPlan: "in_app_email_push",
+    });
+  });
+
+  it("adds item-level payable totals when an order used a voucher", () => {
+    const experience = buildCustomerOrderExperience(
+      {
+        _id: "order-discount",
+        status: "pending",
+        paymentMethod: "cod",
+        couponApplied: { code: "SUMMER26", discountAmount: 4999 },
+        couponDiscount: 4999,
+        totalDiscount: 4999,
+        products: [
+          {
+            productId: "product-1",
+            title: "HP laptop",
+            quantity: 1,
+            price: 10000,
+            vendorName: "Tech World Bangladesh",
+          },
+        ],
+      },
+      [],
+      now,
+    );
+
+    expect(experience.itemizedReceipt[0]).toMatchObject({
+      grossLineTotal: 10000,
+      lineDiscount: 4999,
+      payableLineTotal: 5001,
+      payableUnitPrice: 5001,
     });
   });
 

@@ -17,7 +17,10 @@ import useCart from "../hooks/useCart";
 import BackButton from "../components/BackButton";
 import OrderTracking from "../components/OrderTracking";
 import ReturnStatusTracker from "../components/ReturnStatusTracker";
-import { getCustomerOrderSummary } from "../utils/customerOrders";
+import {
+  getCustomerOrderSummary,
+  getOrderItemPricingSummaries,
+} from "../utils/customerOrders";
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
@@ -428,18 +431,27 @@ export default function Orders() {
     }
   };
 
-  const getReceiptItem = (order, index, item) =>
-    order.customerExperience?.itemizedReceipt?.[index] || {
+  const getReceiptItem = (order, index, item) => {
+    const pricing = getOrderItemPricingSummaries(order)[index] || {};
+    const receipt = order.customerExperience?.itemizedReceipt?.[index] || {};
+
+    return {
       title: item.title,
       thumbnail: item.image,
       quantity: item.quantity,
       unitPrice: item.price,
       lineTotal: (item.price || 0) * (item.quantity || 0),
+      grossLineTotal: pricing.grossLineTotal ?? (item.price || 0) * (item.quantity || 0),
+      lineDiscount: pricing.discountShare || 0,
+      payableLineTotal: pricing.payableLineTotal ?? (item.price || 0) * (item.quantity || 0),
+      payableUnitPrice: pricing.payableUnitPrice ?? item.price,
       vendorName: item.vendorName || item.shopName || "HnilaBazar",
       courierName: item.courierName || order.customerExperience?.tracking?.courierName || "Internal courier",
       paymentMethod: order.paymentMethod,
       trackingNumber: item.trackingNumber || order.customerExperience?.tracking?.trackingNumber || "",
+      ...receipt,
     };
+  };
 
   // Check if order is eligible for returns (delivered within 7 days)
   const isReturnEligible = (order) => {
@@ -886,6 +898,7 @@ export default function Orders() {
                   <div className="space-y-4 mb-6">
                     {order.products.map((item, index) => {
                       const receiptItem = getReceiptItem(order, index, item);
+                      const itemHasDiscount = Number(receiptItem.lineDiscount || 0) > 0;
                       return (
                       <div
                         key={index}
@@ -929,7 +942,17 @@ export default function Orders() {
                               </span>
                             )}
                             <span>{formatPrice(receiptItem.unitPrice || item.price)} each</span>
+                            {itemHasDiscount && (
+                              <span className="font-semibold text-emerald-700">
+                                {formatPrice(receiptItem.payableUnitPrice)} after discount
+                              </span>
+                            )}
                           </div>
+                          {itemHasDiscount && (
+                            <div className="mt-1 text-xs font-semibold text-emerald-700">
+                              Discount share -{formatPrice(receiptItem.lineDiscount)}
+                            </div>
+                          )}
                           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
                             <span>Vendor: {receiptItem.vendorName}</span>
                             <span>Courier: {receiptItem.courierName}</span>
@@ -945,9 +968,23 @@ export default function Orders() {
                           </div>
                         </div>
                         <div className="text-right flex flex-col items-end gap-2">
-                          <p className="font-bold text-gray-900">
-                            {formatPrice(receiptItem.lineTotal)}
-                          </p>
+                          {itemHasDiscount ? (
+                            <div>
+                              <p className="text-xs font-semibold text-gray-400 line-through">
+                                {formatPrice(receiptItem.grossLineTotal || receiptItem.lineTotal)}
+                              </p>
+                              <p className="font-bold text-gray-900">
+                                {formatPrice(receiptItem.payableLineTotal)}
+                              </p>
+                              <p className="text-xs font-semibold text-emerald-700">
+                                -{formatPrice(receiptItem.lineDiscount)}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="font-bold text-gray-900">
+                              {formatPrice(receiptItem.lineTotal)}
+                            </p>
+                          )}
 
                           {/* Quick Reorder Button */}
                           <button

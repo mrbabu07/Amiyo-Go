@@ -3,6 +3,7 @@ import {
   buildVendorOrderAddress,
   getVendorOrderActionPlan,
   getVendorOrderFinancials,
+  getVendorOrderProductPricingSummaries,
   getVendorOrderStatusMeta,
   shortVendorOrderId,
 } from "../vendorOrderDetail";
@@ -39,6 +40,20 @@ describe("vendor order detail black-box behavior", () => {
       vendorEarnings: 460,
       payableTotal: 540,
       codAmount: 540,
+    });
+  });
+
+  test("shows item payable values after vendor voucher discount", () => {
+    const rows = getVendorOrderProductPricingSummaries({
+      products: [{ price: 10000, quantity: 1, title: "HP laptop" }],
+      totalDiscount: 4999,
+    });
+
+    expect(rows[0]).toMatchObject({
+      grossLineTotal: 10000,
+      discountShare: 4999,
+      payableLineTotal: 5001,
+      payableUnitPrice: 5001,
     });
   });
 

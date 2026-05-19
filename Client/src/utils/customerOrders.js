@@ -3,6 +3,9 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(number) ? number : fallback;
 };
 
+const roundMoney = (value) =>
+  Math.round((toNumber(value, 0) + Number.EPSILON) * 100) / 100;
+
 const hasNumberValue = (value) =>
   value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value));
 
@@ -99,6 +102,44 @@ export const getOrderItemLineTotal = (item = {}) =>
     getOrderItemUnitPrice(item) * getOrderItemQuantity(item),
   );
 
+const getOrderCouponDiscount = (order = {}) =>
+  Math.max(
+    0,
+    toNumber(order.couponDiscount ?? order.couponApplied?.discountAmount, 0),
+  );
+
+const getOrderPointsDiscount = (order = {}) =>
+  Math.max(0, toNumber(order.pointsDiscount, 0));
+
+const getItemVendorId = (item = {}) =>
+  normalizeOrderId(item.vendorId || item.vendor?._id || item.vendor?.id || "");
+
+const isSameId = (left, right) =>
+  normalizeOrderId(left).toLowerCase() === normalizeOrderId(right).toLowerCase();
+
+const distributeDiscount = (lineTotals = [], amount = 0, eligibleIndexes = []) => {
+  const discountAmount = roundMoney(Math.max(0, toNumber(amount, 0)));
+  const eligible = eligibleIndexes.filter((index) => lineTotals[index] > 0);
+  if (discountAmount <= 0 || eligible.length === 0) return new Array(lineTotals.length).fill(0);
+
+  const base = eligible.reduce((sum, index) => sum + lineTotals[index], 0);
+  if (base <= 0) return new Array(lineTotals.length).fill(0);
+
+  const result = new Array(lineTotals.length).fill(0);
+  let assigned = 0;
+
+  eligible.forEach((index, position) => {
+    const isLast = position === eligible.length - 1;
+    const share = isLast
+      ? roundMoney(discountAmount - assigned)
+      : roundMoney((discountAmount * lineTotals[index]) / base);
+    result[index] = Math.min(lineTotals[index], Math.max(0, share));
+    assigned = roundMoney(assigned + result[index]);
+  });
+
+  return result;
+};
+
 export const getOrderSubtotal = (order = {}) => {
   const safeOrder = asOrder(order);
   return toNumber(
@@ -128,9 +169,87 @@ export const getOrderDiscount = (order = {}) => {
     return toNumber(safeOrder.discountAmount, 0);
   }
   return (
-    toNumber(safeOrder.couponDiscount ?? safeOrder.couponApplied?.discountAmount, 0) +
-    toNumber(safeOrder.pointsDiscount, 0)
+    getOrderCouponDiscount(safeOrder) +
+    getOrderPointsDiscount(safeOrder)
   );
+};
+
+export const getOrderCouponCode = (order = {}) =>
+  order?.couponApplied?.code ||
+  order?.couponCode ||
+  order?.discountBreakdown?.lines?.find?.((line) => line?.code)?.code ||
+  "";
+
+export const getOrderItemPricingSummaries = (order = {}) => {
+  const safeOrder = asOrder(order);
+  const items = getOrderItems(safeOrder);
+  const receipt = safeOrder.customerExperience?.itemizedReceipt || [];
+  const lineTotals = items.map((item, index) => {
+    const receiptLine = receipt[index];
+    return roundMoney(
+      firstNumberValue(
+        receiptLine?.grossLineTotal,
+        receiptLine?.lineTotal,
+        getOrderItemLineTotal(item),
+      ) || 0,
+    );
+  });
+  const allIndexes = items.map((_, index) => index);
+  const discounts = new Array(items.length).fill(0);
+
+  items.forEach((item, index) => {
+    const receiptLine = receipt[index];
+    const explicitDiscount = firstNumberValue(
+      receiptLine?.lineDiscount,
+      receiptLine?.discountShare,
+      item.lineDiscount,
+      item.discountShare,
+      item.discountAmount,
+    );
+    if (explicitDiscount !== null) {
+      discounts[index] = Math.min(lineTotals[index], roundMoney(Math.max(0, explicitDiscount)));
+    }
+  });
+
+  const hasExplicitDiscounts = discounts.some((value) => value > 0);
+  if (!hasExplicitDiscounts) {
+    const totalDiscount = getOrderDiscount(safeOrder);
+    const couponDiscount = Math.min(getOrderCouponDiscount(safeOrder), totalDiscount);
+    const pointsDiscount = getOrderPointsDiscount(safeOrder);
+    const otherDiscount = Math.max(0, roundMoney(totalDiscount - couponDiscount - pointsDiscount));
+
+    const couponScopeVendorId = safeOrder.couponApplied?.source === "vendor_voucher"
+      ? safeOrder.couponApplied?.scopeVendorId
+      : null;
+    const couponIndexes = couponScopeVendorId
+      ? allIndexes.filter((index) => isSameId(getItemVendorId(items[index]), couponScopeVendorId))
+      : allIndexes;
+
+    distributeDiscount(lineTotals, couponDiscount, couponIndexes).forEach((value, index) => {
+      discounts[index] = roundMoney(discounts[index] + value);
+    });
+    distributeDiscount(lineTotals, pointsDiscount + otherDiscount, allIndexes).forEach((value, index) => {
+      discounts[index] = Math.min(lineTotals[index], roundMoney(discounts[index] + value));
+    });
+  }
+
+  return items.map((item, index) => {
+    const quantity = getOrderItemQuantity(item);
+    const grossLineTotal = lineTotals[index];
+    const discountShare = Math.min(grossLineTotal, roundMoney(discounts[index]));
+    const payableLineTotal = roundMoney(Math.max(0, grossLineTotal - discountShare));
+
+    return {
+      item,
+      index,
+      quantity,
+      unitPrice: getOrderItemUnitPrice(item),
+      grossLineTotal,
+      discountShare,
+      payableLineTotal,
+      payableUnitPrice: quantity > 0 ? roundMoney(payableLineTotal / quantity) : payableLineTotal,
+    };
+  });
 };
 
 export const getOrderTotal = (order = {}) => {

@@ -273,11 +273,82 @@ const findDeliveryBreakdownForProduct = (order = {}, product = {}) => {
   });
 };
 
-const buildItemizedReceipt = (order = {}) =>
-  (order.products || []).map((product, index) => {
+const firstMoneyValue = (...values) => {
+  const value = values.find((item) => item !== undefined && item !== null && item !== "" && Number.isFinite(Number(item)));
+  return value === undefined ? null : round2(value);
+};
+
+const distributeDiscount = (lineTotals = [], amount = 0, eligibleIndexes = []) => {
+  const discountAmount = Math.max(0, round2(amount));
+  const eligible = eligibleIndexes.filter((index) => lineTotals[index] > 0);
+  if (discountAmount <= 0 || eligible.length === 0) return new Array(lineTotals.length).fill(0);
+
+  const base = eligible.reduce((sum, index) => sum + lineTotals[index], 0);
+  if (base <= 0) return new Array(lineTotals.length).fill(0);
+
+  const result = new Array(lineTotals.length).fill(0);
+  let assigned = 0;
+  eligible.forEach((index, position) => {
+    const share = position === eligible.length - 1
+      ? round2(discountAmount - assigned)
+      : round2((discountAmount * lineTotals[index]) / base);
+    result[index] = Math.min(lineTotals[index], Math.max(0, share));
+    assigned = round2(assigned + result[index]);
+  });
+
+  return result;
+};
+
+const getOrderDiscount = (order = {}) => {
+  const breakdownDiscount = order.discountBreakdown?.totals?.discountTotal;
+  if (breakdownDiscount !== undefined && breakdownDiscount !== null) return Math.max(0, round2(breakdownDiscount));
+  return Math.max(
+    0,
+    round2(
+      firstMoneyValue(order.totalDiscount, order.discount, order.discountAmount) ||
+        round2(Number(order.couponDiscount || order.couponApplied?.discountAmount || 0) + Number(order.pointsDiscount || 0)),
+    ),
+  );
+};
+
+const getProductDiscountShares = (order = {}) => {
+  const products = order.products || [];
+  const lineTotals = products.map((product) => round2(Number(product.price || product.unitPrice || 0) * Number(product.quantity || 0)));
+  const discounts = new Array(products.length).fill(0);
+  const totalDiscount = getOrderDiscount(order);
+  if (totalDiscount <= 0 || products.length === 0) return discounts;
+
+  const couponDiscount = Math.min(totalDiscount, Math.max(0, round2(order.couponDiscount || order.couponApplied?.discountAmount || 0)));
+  const pointsDiscount = Math.max(0, round2(order.pointsDiscount || 0));
+  const otherDiscount = Math.max(0, round2(totalDiscount - couponDiscount - pointsDiscount));
+  const allIndexes = products.map((_, index) => index);
+  const couponScopeVendorId = order.couponApplied?.source === "vendor_voucher"
+    ? normalizeId(order.couponApplied?.scopeVendorId)
+    : "";
+  const couponIndexes = couponScopeVendorId
+    ? allIndexes.filter((index) => normalizeId(products[index].vendorId) === couponScopeVendorId)
+    : allIndexes;
+
+  distributeDiscount(lineTotals, couponDiscount, couponIndexes).forEach((value, index) => {
+    discounts[index] = round2(discounts[index] + value);
+  });
+  distributeDiscount(lineTotals, pointsDiscount + otherDiscount, allIndexes).forEach((value, index) => {
+    discounts[index] = Math.min(lineTotals[index], round2(discounts[index] + value));
+  });
+
+  return discounts;
+};
+
+const buildItemizedReceipt = (order = {}) => {
+  const discountShares = getProductDiscountShares(order);
+
+  return (order.products || []).map((product, index) => {
     const delivery = findDeliveryBreakdownForProduct(order, product) || {};
     const quantity = Number(product.quantity || 0);
     const unitPrice = Number(product.price || product.unitPrice || 0);
+    const grossLineTotal = round2(unitPrice * quantity);
+    const lineDiscount = discountShares[index] || 0;
+    const payableLineTotal = round2(Math.max(0, grossLineTotal - lineDiscount));
 
     return {
       lineId: `${normalizeId(order._id) || "order"}-${index}`,
@@ -286,7 +357,11 @@ const buildItemizedReceipt = (order = {}) =>
       thumbnail: product.image || product.thumbnail || product.coverImage || "",
       quantity,
       unitPrice: round2(unitPrice),
-      lineTotal: round2(unitPrice * quantity),
+      grossLineTotal,
+      lineTotal: grossLineTotal,
+      lineDiscount: round2(lineDiscount),
+      payableLineTotal,
+      payableUnitPrice: quantity > 0 ? round2(payableLineTotal / quantity) : payableLineTotal,
       vendorId: normalizeId(product.vendorId) || null,
       vendorName: product.vendorName || product.shopName || product.storeName || "HnilaBazar",
       courierName: product.courierName || delivery.courierName || getCourierName(order),
@@ -297,6 +372,7 @@ const buildItemizedReceipt = (order = {}) =>
       selectedColor: product.selectedColor || product.color || "",
     };
   });
+};
 
 const returnStatusToStepKey = (status) => {
   const normalized = normalizeStatus(status);

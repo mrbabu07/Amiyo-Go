@@ -5,6 +5,7 @@ import {
   getOrderEtaLabel,
   getOrderItems,
   getOrderItemImage,
+  getOrderItemPricingSummaries,
   getOrderItemProductId,
   getOrderItemTitle,
   getOrderSubtotal,
@@ -72,5 +73,26 @@ describe("customer order helpers white-box behavior", () => {
 
     expect(getOrderEtaLabel({ deliveryEta: "2-4 business days" })).toBe("2-4 business days");
     expect(getOrderEtaLabel({})).toBe("ETA will be updated after seller confirmation");
+  });
+
+  test("keeps vendor vouchers scoped to matching item rows", () => {
+    const rows = getOrderItemPricingSummaries({
+      products: [
+        { title: "Vendor laptop", vendorId: "vendor-1", price: 1000, quantity: 1 },
+        { title: "Other mouse", vendorId: "vendor-2", price: 500, quantity: 1 },
+      ],
+      couponApplied: {
+        source: "vendor_voucher",
+        scopeVendorId: "vendor-1",
+        discountAmount: 100,
+      },
+      couponDiscount: 100,
+      totalDiscount: 100,
+    });
+
+    expect(rows[0].discountShare).toBe(100);
+    expect(rows[0].payableLineTotal).toBe(900);
+    expect(rows[1].discountShare).toBe(0);
+    expect(rows[1].payableLineTotal).toBe(500);
   });
 });

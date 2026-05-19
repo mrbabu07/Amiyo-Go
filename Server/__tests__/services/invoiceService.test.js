@@ -58,12 +58,16 @@ describe("invoiceService customer invoice data", () => {
         quantity: 2,
         unitPrice: 1000,
         lineTotal: 2000,
+        lineDiscount: 200,
+        payableLineTotal: 1800,
       }),
       expect.objectContaining({
         name: "Leather Belt",
         quantity: 1,
         unitPrice: 500,
         lineTotal: 500,
+        lineDiscount: 50,
+        payableLineTotal: 450,
       }),
     ]);
     expect(invoice.items[0]).not.toHaveProperty("adminCommissionAmount");
@@ -124,6 +128,11 @@ describe("invoiceService customer invoice data", () => {
 
     expect(invoice.couponDiscount).toBe(1000);
     expect(invoice.discountTotal).toBe(1000);
+    expect(invoice.items[0]).toMatchObject({
+      lineDiscount: 1000,
+      payableLineTotal: 9000,
+      payableUnitPrice: 9000,
+    });
     expect(invoice.computedTotal).toBe(9000);
     expect(invoice.total).toBe(9000);
     expect(invoice.adjustment).toBe(0);

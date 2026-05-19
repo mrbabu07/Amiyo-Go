@@ -23,14 +23,14 @@ import {
   findOrderByRouteId,
   formatOrderStatus,
   getCustomerOrderSummary,
+  getOrderCouponCode,
   getOrderItemImage,
   getOrderItemLineTotal,
+  getOrderItemPricingSummaries,
   getOrderItemProductId,
-  getOrderItemQuantity,
   getOrderItemTitle,
   getOrderItemUnitPrice,
   getOrderItemVendorName,
-  getOrderItems,
 } from "../utils/customerOrders";
 
 const statusTone = {
@@ -124,7 +124,8 @@ export default function OrderDetail() {
     () => (order ? getCustomerOrderSummary(order) : null),
     [order],
   );
-  const items = useMemo(() => getOrderItems(order), [order]);
+  const pricedItems = useMemo(() => getOrderItemPricingSummaries(order), [order]);
+  const couponCode = useMemo(() => getOrderCouponCode(order), [order]);
 
   const handleDownloadInvoice = async () => {
     if (!order?._id) return;
@@ -265,11 +266,12 @@ export default function OrderDetail() {
               </div>
 
               <div className="space-y-3">
-                {items.map((item, index) => {
+                {pricedItems.map((pricedItem) => {
+                  const { item, index, quantity, discountShare, grossLineTotal, payableLineTotal, payableUnitPrice } = pricedItem;
                   const productId = getOrderItemProductId(item);
                   const image = getOrderItemImage(item);
                   const title = getOrderItemTitle(item);
-                  const quantity = getOrderItemQuantity(item);
+                  const hasItemDiscount = discountShare > 0;
 
                   return (
                     <div
@@ -297,6 +299,11 @@ export default function OrderDetail() {
                           {getOrderItemVendorName(item, order)} - Qty {quantity} -{" "}
                           {formatPrice(getOrderItemUnitPrice(item))} each
                         </p>
+                        {hasItemDiscount && (
+                          <p className="mt-1 text-xs font-semibold text-emerald-700">
+                            Discount share -{formatPrice(discountShare)} · payable item total {formatPrice(payableLineTotal)}
+                          </p>
+                        )}
                         <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
                           {item.selectedSize && <span>Size: {item.selectedSize}</span>}
                           {item.selectedColor && (
@@ -309,9 +316,23 @@ export default function OrderDetail() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end">
-                        <p className="font-black text-slate-950">
-                          {formatPrice(getOrderItemLineTotal(item))}
-                        </p>
+                        {hasItemDiscount ? (
+                          <div className="text-right">
+                            <p className="text-xs font-semibold text-slate-400 line-through">
+                              {formatPrice(grossLineTotal)}
+                            </p>
+                            <p className="font-black text-slate-950">
+                              {formatPrice(payableLineTotal)}
+                            </p>
+                            <p className="text-xs font-semibold text-emerald-700">
+                              {formatPrice(payableUnitPrice)} after discount each
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="font-black text-slate-950">
+                            {formatPrice(getOrderItemLineTotal(item))}
+                          </p>
+                        )}
                         {order.status === "delivered" && productId ? (
                           <Link
                             to={`/product/${productId}#reviews`}
@@ -377,7 +398,7 @@ export default function OrderDetail() {
                 </div>
                 {summary.discount > 0 && (
                   <div className="flex justify-between gap-4 text-emerald-700">
-                    <dt>Discount</dt>
+                    <dt>Discount{couponCode ? ` (${couponCode})` : ""}</dt>
                     <dd className="font-bold">-{formatPrice(summary.discount)}</dd>
                   </div>
                 )}

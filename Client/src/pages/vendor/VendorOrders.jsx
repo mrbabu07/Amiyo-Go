@@ -194,6 +194,18 @@ const orderProductsTotal = (order) =>
     0,
   );
 
+const orderDiscountTotal = (order) =>
+  Number(order.totalDiscount ?? order.discount ?? order.vendorDiscount ?? order.couponDiscount ?? 0) || 0;
+
+const orderPayableTotal = (order) => {
+  const stored = Number(order.payableTotal ?? order.totalAmount ?? order.total ?? 0);
+  if (stored > 0) return stored;
+
+  const gross = Number(order.vendorSubtotal ?? order.subtotal ?? orderProductsTotal(order)) || 0;
+  const delivery = Number(order.deliveryCharge ?? order.deliveryFee ?? order.shippingFee ?? 0) || 0;
+  return Math.max(0, gross + delivery - orderDiscountTotal(order));
+};
+
 const exportOrdersCsv = (orders, moneyFormatter) => {
   const headers = ["Order ID", "Date", "Customer", "Phone", "Status", "Payment", "COD", "Items", "Total"];
   const rows = orders.map((order) => [
@@ -205,7 +217,7 @@ const exportOrdersCsv = (orders, moneyFormatter) => {
     order.paymentMethod || "",
     isCodOrder(order) ? (order.codCollected ? "Collected" : "Pending") : "N/A",
     (order.products || []).map((item) => `${item.title || item.productDetails?.title || item.name || "Product"} x${item.quantity || 1}`).join(" | "),
-    moneyFormatter(order.vendorSubtotal || order.totalAmount || orderProductsTotal(order)),
+    moneyFormatter(orderPayableTotal(order)),
   ]);
   const csv = [headers, ...rows]
     .map((line) => line.map((value) => {
@@ -283,7 +295,11 @@ const buildBatchPackingSlipHtml = (orders, vendorProfile, moneyFormatter) => {
             </thead>
             <tbody>${rows}</tbody>
           </table>
-          <footer>Total: ${escapeHtml(moneyFormatter(orderProductsTotal(order)))}</footer>
+          <footer>
+            Subtotal: ${escapeHtml(moneyFormatter(order.vendorSubtotal || orderProductsTotal(order)))}
+            ${orderDiscountTotal(order) > 0 ? `<br>Discount: -${escapeHtml(moneyFormatter(orderDiscountTotal(order)))}` : ""}
+            <br>Payable: ${escapeHtml(moneyFormatter(orderPayableTotal(order)))}
+          </footer>
         </section>
       `;
     })
@@ -1132,8 +1148,13 @@ export default function VendorOrders() {
                           <div className="rounded-lg border border-slate-100 p-3">
                             <p className="text-xs font-semibold uppercase text-slate-400">Total</p>
                             <p className="mt-1 font-semibold text-slate-950">
-                              {formatPrice(order.vendorSubtotal || order.totalAmount || orderProductsTotal(order))}
+                              {formatPrice(orderPayableTotal(order))}
                             </p>
+                            {orderDiscountTotal(order) > 0 && (
+                              <p className="text-xs font-semibold text-emerald-700">
+                                {formatPrice(order.vendorSubtotal || orderProductsTotal(order))} subtotal - {formatPrice(orderDiscountTotal(order))} discount
+                              </p>
+                            )}
                             <p className="text-xs text-slate-500">
                               {isCodOrder(order) ? (order.codCollected ? "COD collected" : "COD pending") : "Prepaid"}
                             </p>
@@ -1281,7 +1302,12 @@ export default function VendorOrders() {
                             </div>
                           </td>
                           <td className="px-4 py-4 text-right text-sm font-semibold text-slate-950">
-                            {formatPrice(order.vendorSubtotal || order.totalAmount || orderProductsTotal(order))}
+                            {formatPrice(orderPayableTotal(order))}
+                            {orderDiscountTotal(order) > 0 && (
+                              <div className="text-xs font-semibold text-emerald-700">
+                                -{formatPrice(orderDiscountTotal(order))} discount
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-4">
                             {renderOrderActions(order)}

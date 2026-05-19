@@ -12,13 +12,22 @@ export const generateProfessionalInvoice = (order) => {
       })
     : "N/A";
 
+  const roundMoney = (value) =>
+    Math.round(((Number(value) || 0) + Number.EPSILON) * 100) / 100;
+
   const subtotal = order?.subtotal || order?.total || 0;
   const deliveryCharge = order?.deliveryCharge || 0;
   const couponDiscount = order?.couponDiscount || 0;
   const pointsDiscount = order?.pointsDiscount || 0;
   const totalDiscount = order?.totalDiscount || couponDiscount + pointsDiscount;
   const tax = order?.tax || 0;
-  const total = order?.total || order?.totalAmount || 0;
+  const computedTotal = Math.max(0, subtotal + deliveryCharge + tax - totalDiscount);
+  const storedTotal = Number(order?.total ?? order?.finalTotal ?? order?.totalAmount ?? 0);
+  const preDiscountTotal = subtotal + deliveryCharge + tax;
+  const total =
+    totalDiscount > 0 && storedTotal > computedTotal && Math.abs(storedTotal - preDiscountTotal) <= 0.01
+      ? computedTotal
+      : storedTotal || computedTotal;
   const shipping = order?.shippingInfo || {};
   const products = Array.isArray(order?.products) ? order.products : [];
 
@@ -49,6 +58,25 @@ export const generateProfessionalInvoice = (order) => {
     item?.vendor?.shopName ||
     item?.vendor?.name ||
     "HnilaBazar";
+
+  const distributeDiscount = (lineTotals, amount) => {
+    const discountAmount = Math.max(0, roundMoney(amount));
+    const base = lineTotals.reduce((sum, value) => sum + value, 0);
+    if (discountAmount <= 0 || base <= 0) return lineTotals.map(() => 0);
+
+    let assigned = 0;
+    return lineTotals.map((lineTotal, index) => {
+      const share = index === lineTotals.length - 1
+        ? roundMoney(discountAmount - assigned)
+        : roundMoney((discountAmount * lineTotal) / base);
+      const clipped = Math.min(lineTotal, Math.max(0, share));
+      assigned = roundMoney(assigned + clipped);
+      return clipped;
+    });
+  };
+
+  const lineTotals = products.map((item) => roundMoney((item.price || 0) * (item.quantity || 1)));
+  const lineDiscounts = distributeDiscount(lineTotals, totalDiscount);
 
   const addressLines = [
     shipping.name,
@@ -335,14 +363,17 @@ export const generateProfessionalInvoice = (order) => {
                 <th>Product and Store</th>
                 <th style="width: 70px;" class="center">Qty</th>
                 <th style="width: 110px;" class="right">Unit Price</th>
-                <th style="width: 110px;" class="right">Total</th>
+                <th style="width: 100px;" class="right">Discount</th>
+                <th style="width: 110px;" class="right">Payable</th>
               </tr>
             </thead>
             <tbody>
               ${
                 products.length
                   ? products
-                      .map((item) => {
+                      .map((item, index) => {
+                        const lineDiscount = lineDiscounts[index] || 0;
+                        const payableLineTotal = Math.max(0, lineTotals[index] - lineDiscount);
                         const meta = [
                           item.selectedSize ? `Size: ${item.selectedSize}` : "",
                           item.selectedColor
@@ -375,12 +406,13 @@ export const generateProfessionalInvoice = (order) => {
                             </td>
                             <td class="center strong">${escapeHtml(item.quantity || 1)}</td>
                             <td class="right">${escapeHtml(formatPrice(item.price || 0))}</td>
-                            <td class="right strong">${escapeHtml(formatPrice((item.price || 0) * (item.quantity || 1)))}</td>
+                            <td class="right">${lineDiscount > 0 ? `- ${escapeHtml(formatPrice(lineDiscount))}` : "-"}</td>
+                            <td class="right strong">${escapeHtml(formatPrice(payableLineTotal))}</td>
                           </tr>
                         `;
                       })
                       .join("")
-                  : `<tr><td colspan="4" class="center muted">No items in this order</td></tr>`
+                  : `<tr><td colspan="5" class="center muted">No items in this order</td></tr>`
               }
             </tbody>
           </table>

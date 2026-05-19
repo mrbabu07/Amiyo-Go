@@ -80,6 +80,54 @@ const getDeliveryCharge = (order = {}) => {
   );
 };
 
+const distributeDiscount = (lineTotals = [], amount = 0, eligibleIndexes = []) => {
+  const discountAmount = Math.max(0, round2(amount));
+  const eligible = eligibleIndexes.filter((index) => lineTotals[index] > 0);
+  if (discountAmount <= 0 || eligible.length === 0) return new Array(lineTotals.length).fill(0);
+
+  const base = eligible.reduce((sum, index) => sum + lineTotals[index], 0);
+  if (base <= 0) return new Array(lineTotals.length).fill(0);
+
+  const result = new Array(lineTotals.length).fill(0);
+  let assigned = 0;
+  eligible.forEach((index, position) => {
+    const share = position === eligible.length - 1
+      ? round2(discountAmount - assigned)
+      : round2((discountAmount * lineTotals[index]) / base);
+    result[index] = Math.min(lineTotals[index], Math.max(0, share));
+    assigned = round2(assigned + result[index]);
+  });
+
+  return result;
+};
+
+const getProductDiscountShares = ({ order = {}, items = [], couponDiscount = 0, pointsDiscount = 0, discountTotal = 0 }) => {
+  const lineTotals = items.map((item) => round2(item.lineTotal));
+  const discounts = new Array(items.length).fill(0);
+  const totalDiscount = Math.max(0, round2(discountTotal));
+  if (totalDiscount <= 0 || items.length === 0) return discounts;
+
+  const couponAmount = Math.min(totalDiscount, Math.max(0, round2(couponDiscount)));
+  const pointsAmount = Math.max(0, round2(pointsDiscount));
+  const otherAmount = Math.max(0, round2(totalDiscount - couponAmount - pointsAmount));
+  const allIndexes = items.map((_, index) => index);
+  const couponScopeVendorId = order.couponApplied?.source === "vendor_voucher"
+    ? normalizeId(order.couponApplied?.scopeVendorId)
+    : "";
+  const couponIndexes = couponScopeVendorId
+    ? allIndexes.filter((index) => normalizeId(items[index].vendorId) === couponScopeVendorId)
+    : allIndexes;
+
+  distributeDiscount(lineTotals, couponAmount, couponIndexes).forEach((value, index) => {
+    discounts[index] = round2(discounts[index] + value);
+  });
+  distributeDiscount(lineTotals, pointsAmount + otherAmount, allIndexes).forEach((value, index) => {
+    discounts[index] = Math.min(lineTotals[index], round2(discounts[index] + value));
+  });
+
+  return discounts;
+};
+
 const uniqueAddressParts = (parts = []) => {
   const seen = new Set();
   return parts
@@ -162,7 +210,7 @@ class InvoiceService {
   buildInvoiceData(order = {}) {
     const orderId = normalizeId(order._id);
     const products = Array.isArray(order.products) ? order.products : [];
-    const items = products.map((item, index) => {
+    let items = products.map((item, index) => {
       const quantity = Math.max(1, toNumber(item.quantity, 1));
       const unitPrice = round2(item.price ?? item.unitPrice ?? item.product?.price ?? 0);
       const lineTotal = round2(unitPrice * quantity);
@@ -175,6 +223,7 @@ class InvoiceService {
       return {
         lineNo: index + 1,
         productId: normalizeId(item.productId || item._id || item.product?._id),
+        vendorId: normalizeId(item.vendorId || item.vendor?._id || item.vendor?.id),
         sku: item.sku || item.variantSku || item.product?.sku || "",
         name: item.product?.name || item.title || item.name || "Product",
         options,
@@ -206,6 +255,24 @@ class InvoiceService {
     const namedDiscounts = round2(couponDiscount + pointsDiscount);
     const otherDiscount = Math.max(0, round2(totalDiscount - namedDiscounts));
     const discountTotal = round2(namedDiscounts + otherDiscount);
+    const itemDiscountShares = getProductDiscountShares({
+      order,
+      items,
+      couponDiscount,
+      pointsDiscount,
+      discountTotal,
+    });
+    items = items.map((item, index) => {
+      const lineDiscount = Math.min(item.lineTotal, round2(itemDiscountShares[index] || 0));
+      const payableLineTotal = round2(Math.max(0, item.lineTotal - lineDiscount));
+
+      return {
+        ...item,
+        lineDiscount,
+        payableLineTotal,
+        payableUnitPrice: item.quantity > 0 ? round2(payableLineTotal / item.quantity) : payableLineTotal,
+      };
+    });
     const deliveryCharge = getDeliveryCharge(order);
     const taxAmount = Math.max(0, round2(order.taxAmount || order.vatAmount));
     const computedTotal = round2(Math.max(0, subtotal - discountTotal + deliveryCharge + taxAmount));
@@ -231,10 +298,11 @@ class InvoiceService {
     const shippingInfo = order.shippingInfo || {};
     const addressLines = buildAddressLines(shippingInfo);
 
+    const couponCode = order.couponApplied?.code || order.couponCode || "";
     const summaryRows = [
       { label: "Subtotal", amount: subtotal },
       couponDiscount > 0
-        ? { label: `Coupon${order.couponApplied?.code ? ` (${order.couponApplied.code})` : ""}`, amount: -couponDiscount }
+        ? { label: `Coupon${couponCode ? ` (${couponCode})` : ""}`, amount: -couponDiscount }
         : null,
       pointsDiscount > 0
         ? { label: "Loyalty points", amount: -pointsDiscount }
@@ -377,11 +445,12 @@ class InvoiceService {
     doc
       .fillColor("#10B981")
       .fontSize(9)
-      .text("Item", 50, y, { width: 210 })
-      .text("Vendor", 260, y, { width: 95 })
-      .text("Qty", 355, y, { width: 40, align: "right" })
-      .text("Unit", 395, y, { width: 70, align: "right" })
-      .text("Line Total", 465, y, { width: 85, align: "right" });
+      .text("Item", 50, y, { width: 175 })
+      .text("Vendor", 225, y, { width: 75 })
+      .text("Qty", 300, y, { width: 35, align: "right" })
+      .text("Unit", 335, y, { width: 60, align: "right" })
+      .text("Discount", 395, y, { width: 65, align: "right" })
+      .text("Payable", 460, y, { width: 90, align: "right" });
 
     doc
       .strokeColor("#10B981")
@@ -399,7 +468,7 @@ class InvoiceService {
 
     const rows = invoice.items.length > 0
       ? invoice.items
-      : [{ name: "No items available", vendorName: "-", quantity: 0, unitPrice: 0, lineTotal: 0 }];
+      : [{ name: "No items available", vendorName: "-", quantity: 0, unitPrice: 0, lineTotal: 0, lineDiscount: 0, payableLineTotal: 0 }];
 
     rows.forEach((item) => {
       if (position > 700) {
@@ -416,11 +485,14 @@ class InvoiceService {
       doc
         .fillColor("#444444")
         .fontSize(9)
-        .text(itemText, 50, position, { width: 205, height: 34, ellipsis: true })
-        .text(item.vendorName, 260, position, { width: 90, ellipsis: true })
-        .text(String(item.quantity), 355, position, { width: 40, align: "right" })
-        .text(this.formatMoney(item.unitPrice), 395, position, { width: 70, align: "right" })
-        .text(this.formatMoney(item.lineTotal), 465, position, { width: 85, align: "right" });
+        .text(itemText, 50, position, { width: 170, height: 34, ellipsis: true })
+        .text(item.vendorName, 225, position, { width: 70, ellipsis: true })
+        .text(String(item.quantity), 300, position, { width: 35, align: "right" })
+        .text(this.formatMoney(item.unitPrice), 335, position, { width: 60, align: "right" })
+        .fillColor(item.lineDiscount > 0 ? "#EF4444" : "#444444")
+        .text(item.lineDiscount > 0 ? `-${this.formatMoney(item.lineDiscount)}` : "-", 395, position, { width: 65, align: "right" })
+        .fillColor("#444444")
+        .text(this.formatMoney(item.payableLineTotal ?? item.lineTotal), 460, position, { width: 90, align: "right" });
 
       position += 42;
     });
