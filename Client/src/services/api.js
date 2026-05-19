@@ -497,6 +497,10 @@ export const getAdminOperationsOverview = (params = {}) =>
   api.get("/admin/dashboard/operations", { params });
 export const getAdminAuditLogs = (params = {}) =>
   api.get("/admin/audit-logs", { params });
+export const searchAdminResources = (params = {}) =>
+  api.get("/admin/search", { params });
+export const getAdminSearchResourceDetail = (type, id) =>
+  api.get(`/admin/search/${type}/${id}`);
 export const getAdminAnalyticsSummary = (params = {}) =>
   api.get("/admin/analytics/summary", { params });
 export const rebuildAdminAnalyticsSummary = (data = {}) =>

@@ -146,6 +146,7 @@ const adminLogisticsRoutes = require("./routes/adminLogisticsRoutes");
 const adminCustomerRoutes = require("./routes/adminCustomerRoutes");
 const adminTrustSafetyRoutes = require("./routes/adminTrustSafetyRoutes");
 const adminPlatformRoutes = require("./routes/adminPlatformRoutes");
+const adminSearchRoutes = require("./routes/adminSearchRoutes");
 const categoryRequestRoutes = require("./routes/categoryRequestRoutes");
 const vendorChatRoutes = require("./routes/vendorChatRoutes");
 const adminVendorChatRoutes = require("./routes/chatRoutes");
@@ -425,6 +426,9 @@ async function run() {
 
     app.use("/api/admin/alerts", adminAlertRoutes);
     console.log("✅ Admin Alert routes registered");
+
+    app.use("/api/admin/search", adminSearchRoutes);
+    console.log("Admin Global Search routes registered");
 
     app.use("/api/admin/dashboard", adminDashboardRoutes);
     console.log("Admin Dashboard routes registered");

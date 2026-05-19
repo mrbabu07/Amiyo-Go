@@ -17,7 +17,6 @@ import {
   Menu,
   Moon,
   Package,
-  Search,
   ShoppingBag,
   Settings,
   Store,
@@ -29,10 +28,7 @@ import {
 import useAuth from '../hooks/useAuth';
 import { getAdminAlertSummary } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
-import {
-  buildAdminSearchSuggestions,
-  getAdminSearchSubmitPath,
-} from '../utils/adminResourceSearch';
+import AdminGlobalSearch from '../components/admin/AdminGlobalSearch';
 
 const navigation = [
   {
@@ -243,7 +239,6 @@ const AdminLayout = () => {
   ));
   const [alertCounts, setAlertCounts] = useState({});
   const [expandedSections, setExpandedSections] = useState({});
-  const [adminSearch, setAdminSearch] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -313,21 +308,7 @@ const AdminLayout = () => {
   const visibleNavigation = filterNavigationByPermissions(navigation, access);
   const visibleQuickLinks = quickLinks.filter((item) => canAccessPath(item.path, access) || item.path === '/');
   const searchTargets = flattenNavigation(visibleNavigation);
-  const searchMatches = buildAdminSearchSuggestions(adminSearch, searchTargets)
-    .filter((item) => {
-      const basePath = item.path.split('?')[0];
-      return canAccessPath(basePath, access) || item.path === '/';
-    });
-
-  const handleAdminSearch = (event) => {
-    event.preventDefault();
-    const query = adminSearch.trim();
-    if (!query) return;
-
-    navigate(getAdminSearchSubmitPath(query, searchMatches));
-    setAdminSearch('');
-    closeSidebarOnMobile();
-  };
+  const canAccessAdminPath = (path) => canAccessPath(path, access);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
@@ -352,40 +333,11 @@ const AdminLayout = () => {
             </Link>
           </div>
 
-          <form onSubmit={handleAdminSearch} className="relative mx-4 hidden max-w-xl flex-1 md:block">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-            <input
-              type="search"
-              value={adminSearch}
-              onChange={(event) => setAdminSearch(event.target.value)}
-              placeholder="Search order ORD-1, vendor ID, product ID, ticket, email..."
-              className="h-10 w-full rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm font-medium text-gray-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-500/20 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:focus:border-orange-700"
-              aria-label="Search admin workspace"
-            />
-            {adminSearch.trim() && searchMatches.length > 0 ? (
-              <div className="absolute left-0 right-0 top-12 z-40 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-800 dark:bg-gray-900">
-                {searchMatches.map((item) => (
-                  <button
-                    key={item.path}
-                    type="button"
-                    onClick={() => {
-                      navigate(item.path);
-                      setAdminSearch('');
-                    }}
-                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition hover:bg-orange-50 focus:bg-orange-50 focus:outline-none dark:hover:bg-orange-950/30 dark:focus:bg-orange-950/30"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold text-gray-900 dark:text-white">{item.name}</span>
-                      <span className="block truncate text-xs text-gray-500 dark:text-gray-400">{item.description || item.path}</span>
-                    </span>
-                    <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-bold capitalize text-gray-500 dark:bg-gray-800 dark:text-gray-300">
-                      {item.kind || 'route'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </form>
+          <AdminGlobalSearch
+            searchTargets={searchTargets}
+            canAccessPath={canAccessAdminPath}
+            closeSidebarOnMobile={closeSidebarOnMobile}
+          />
 
           <div className="flex items-center gap-2 sm:gap-3">
             {visibleQuickLinks.map((item) => {
