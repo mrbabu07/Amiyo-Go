@@ -1,4 +1,5 @@
 const normalizeId = (value) => (value?.toString ? value.toString() : String(value || ""));
+const MarketplaceEventBus = require("./marketplaceEventBus");
 
 const appendOrderEvent = async ({
   app,
@@ -34,6 +35,26 @@ const appendOrderEvent = async ({
   app.locals.realtime?.broadcast(`order:${normalizeId(orderId)}`, "order.event.created", {
     orderId: normalizeId(orderId),
     event,
+  });
+
+  MarketplaceEventBus.publish(app, "order.timeline_event", {
+    orderId: normalizeId(orderId),
+    status,
+    label: label || status.replace(/_/g, " "),
+    vendorId: vendorId ? normalizeId(vendorId) : null,
+    courierName,
+    trackingNumber,
+    eta,
+    note,
+    metadata,
+  }, {
+    source: "order_timeline",
+    actorId,
+    actorRole,
+    subjectType: "order",
+    subjectId: normalizeId(orderId),
+  }).catch((error) => {
+    console.error("Failed to publish order timeline event:", error);
   });
 
   return event;

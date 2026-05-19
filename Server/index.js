@@ -88,6 +88,7 @@ const TrustSafety = require("./models/TrustSafety");
 const { DEFAULT_ROLE_PERMISSIONS } = require("./config/permissions");
 const analyticsService = require("./services/analyticsService");
 const { initBulkUploadQueue } = require("./services/bulkUploadQueue");
+const { initMarketplaceEventBus } = require("./services/marketplaceEventBus");
 const newsletterBroadcastService = require("./services/newsletterBroadcastService");
 
 // Campaign Manager models
@@ -294,6 +295,7 @@ async function run() {
 
     await app.locals.models.Permission.syncDefaults(DEFAULT_ROLE_PERMISSIONS);
     initBulkUploadQueue(app);
+    initMarketplaceEventBus(app);
 
     // Store db reference for controllers that need it
     app.locals.db = db;

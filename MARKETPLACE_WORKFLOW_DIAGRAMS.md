@@ -9,7 +9,7 @@ The project broadly follows the target modular-monolith marketplace workflow:
 - Customer, vendor, and admin frontends are routed through role-based React layouts.
 - The backend is a Node.js/Express modular monolith with route groups for catalog, checkout/orders, payments, logistics, returns, reviews, support, promotions, trust, analytics, and admin.
 - The current data store is MongoDB through both native Mongo collections and Mongoose models. The supplied PostgreSQL box is a target architecture item, not the current implementation.
-- Redis is optional infrastructure, and BullMQ exists for selected background workflows such as bulk upload jobs. It is not yet the universal event queue for every notification, courier, and payment action.
+- Redis is optional infrastructure. BullMQ exists for selected background workflows, and marketplace events now use a Mongo-backed outbox with an optional BullMQ worker adapter.
 - Search currently uses API/database search. A dedicated search index such as Typesense is still a future adapter.
 - Shipment state machines, COD states, returns, trust, growth, and analytics foundations exist, but some external integrations are still manual or adapter-ready.
 
@@ -57,7 +57,7 @@ flowchart TB
         MDB[(MongoDB)]
         MONGO[Mongoose + native Mongo models]
         REDIS[(Redis optional)]
-        QUEUE[BullMQ selected jobs]
+        QUEUE[Mongo event outbox + BullMQ selected jobs]
         STORAGE[(Uploads / object storage adapters)]
         FTS[(Search index later)]
     end
@@ -427,6 +427,30 @@ flowchart LR
     FACTS --> GROWTH_DASH[Growth analytics]
 ```
 
+## Marketplace Event Bus Flow
+
+The current code has a platform-wide event bus in `Server/services/marketplaceEventBus.js`. It writes important workflow events into `marketplace_events`, stages in-app/email/push work in `marketplace_notification_queue`, and processes in-app notifications immediately when Redis/BullMQ is not enabled. When Redis is enabled with `MARKETPLACE_EVENT_USE_REDIS=true` or `REDIS_URL`, the same event IDs can be processed by the BullMQ `marketplace-events` worker.
+
+```mermaid
+sequenceDiagram
+    participant Domain as Domain Controller/Service
+    participant Bus as MarketplaceEventBus
+    participant Events as marketplace_events
+    participant Queue as marketplace_notification_queue
+    participant Worker as Inline/BullMQ Worker
+    participant Notifications as notifications
+    participant Realtime as Realtime
+
+    Domain->>Bus: publish(eventName, payload, actor, subject)
+    Bus->>Events: Persist event with dedupe key
+    Bus->>Queue: Queue notification work from payload.notifications
+    Bus->>Worker: Process inline or enqueue BullMQ job
+    Worker->>Notifications: Create in-app notification
+    Worker->>Queue: Mark notification sent/failed
+    Worker->>Events: Mark event processed/partial_failure
+    Worker->>Realtime: Broadcast marketplace.event.processed
+```
+
 ## Main Collections and Persistence Map
 
 | Domain | Main current collections/models |
@@ -440,7 +464,7 @@ flowchart LR
 | Logistics | `shipments`, `shipment_events`, `manifests`, `couriers` |
 | Returns | `returns`, return evidence, vendor responses, refund fields |
 | Promotions | `coupons`, `offers`, `vendorMarketingItems`, campaign collections |
-| Notifications | `notifications`, notification subscriptions, push/email logs where configured |
+| Notifications | `marketplace_events`, `marketplace_notification_queue`, `notifications`, notification subscriptions, push/email logs where configured |
 | Trust | risk/report/dispute/enforcement/appeal collections and audit logs |
 | Analytics | `event_stream`, `analytics_events`, `growth_events`, daily analytics summary collections |
 | Admin/audit | `audit_logs`, RBAC permissions and staff-role records |
@@ -455,7 +479,8 @@ flowchart LR
 | Realtime/push | Partial | Push/service-worker support exists; not every domain emits through one realtime bus. |
 | PostgreSQL | Not current | Current database is MongoDB. PostgreSQL would be a migration, not documentation of today. |
 | Redis | Partial/optional | Config exists and can be required by env, but app can run without Redis. |
-| BullMQ jobs | Partial | Used for selected jobs such as bulk upload, not universal queueing. |
+| BullMQ jobs | Partial | Used for selected jobs such as bulk upload; marketplace events have a Mongo outbox and optional BullMQ worker adapter. |
+| Marketplace event bus | Present | `MarketplaceEventBus` persists workflow events, queues notification work, and powers order-created/timeline events. |
 | Object storage | Partial | Upload routes/services exist; storage provider depends on configuration. |
 | Search index/Typesense | Future | Search currently works through API/database search. |
 | Checkout to order flow | Present | `/api/orders` and `/api/orders/guest`; discount persistence is now aligned with invoice/order views. |
@@ -469,7 +494,7 @@ flowchart LR
 
 1. Decide whether PostgreSQL is a real migration target. If yes, add a separate migration plan instead of mixing it into current architecture diagrams.
 2. Add a server-side cart collection only if cross-device cart persistence is required.
-3. Move order-created, payment-updated, shipment-updated, return-updated, and support-replied notifications onto one queue/event bus.
+3. Expand event-bus publishers to every remaining payment-updated, shipment-updated, return-updated, and support-replied path.
 4. Add a search adapter boundary so Mongo search can later be replaced by Typesense without changing page code.
 5. Add courier API adapters on top of the existing shipment drafts/state machine when a delivery partner is selected.
 6. Add a diagram update checklist to every future phase so docs and workflow stay synced with implementation.

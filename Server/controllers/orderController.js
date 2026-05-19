@@ -8,6 +8,7 @@ const {
   sanitizeVendorNotes,
 } = require("../utils/checkoutVendorNotes");
 const { appendOrderEvent, getTimelineForOrder } = require("../services/orderEventService");
+const MarketplaceEventBus = require("../services/marketplaceEventBus");
 const {
   buildCustomerOrderExperience,
 } = require("../utils/customerOrderExperience");
@@ -586,7 +587,6 @@ const createOrder = async (req, res) => {
     const Order = req.app.locals.models.Order;
     const VendorOrder = req.app.locals.models.VendorOrder;
     const Product = req.app.locals.models.Product;
-    const Notification = req.app.locals.models.Notification;
     const Shipment = req.app.locals.models.Shipment;
     const Vendor = req.app.locals.models.Vendor;
     const User = req.app.locals.models.User;
@@ -879,42 +879,68 @@ const createOrder = async (req, res) => {
     });
     console.log(`Created ${shipmentDrafts.length} shipment draft(s)`);
 
-    if (Notification) {
-      if (req.user?.uid) {
-        await Notification.create({
-          userId: req.user.uid,
-          type: "order_created",
-          title: "Order placed successfully",
-          message: `Your order #${orderId.toString().slice(-8)} has been placed.`,
-          link: `/orders/${orderId.toString()}`,
-          orderId: orderId.toString(),
-        }).catch((error) => console.error("Failed to create customer order notification:", error));
-      }
-
-      await Promise.all(
-        Object.entries(vendorGroups)
-          .filter(([vendorId]) => vendorId !== "platform")
-          .map(async ([vendorId, vendorProducts]) => {
-            try {
-              const vendor = await Vendor.findById(vendorId);
-              if (!vendor?.ownerUserId) return;
-              const owner = await User.findById(vendor.ownerUserId);
-              if (!owner?.firebaseUid) return;
-              await Notification.create({
-                userId: owner.firebaseUid,
-                type: "vendor_new_order",
-                title: "New vendor order",
-                message: `${vendor.shopName} received ${vendorProducts.length} item(s) in order #${orderId.toString().slice(-8)}.`,
-                link: "/vendor/orders",
-                orderId: orderId.toString(),
-                vendorId,
-              });
-            } catch (error) {
-              console.error("Failed to create vendor new order notification:", error);
-            }
-          }),
-      );
+    const eventNotifications = [];
+    if (req.user?.uid) {
+      eventNotifications.push({
+        userId: req.user.uid,
+        type: "order_created",
+        title: "Order placed successfully",
+        message: `Your order #${orderId.toString().slice(-8)} has been placed.`,
+        link: `/orders/${orderId.toString()}`,
+        orderId: orderId.toString(),
+      });
     }
+
+    await Promise.all(
+      Object.entries(vendorGroups)
+        .filter(([vendorId]) => vendorId !== "platform")
+        .map(async ([vendorId, vendorProducts]) => {
+          try {
+            const vendor = await Vendor.findById(vendorId);
+            if (!vendor?.ownerUserId) return;
+            const owner = await User.findById(vendor.ownerUserId);
+            if (!owner?.firebaseUid) return;
+            eventNotifications.push({
+              userId: owner.firebaseUid,
+              type: "vendor_new_order",
+              title: "New vendor order",
+              message: `${vendor.shopName} received ${vendorProducts.length} item(s) in order #${orderId.toString().slice(-8)}.`,
+              link: "/vendor/orders",
+              orderId: orderId.toString(),
+              vendorId,
+            });
+          } catch (error) {
+            console.error("Failed to build vendor new order notification:", error);
+          }
+        }),
+    );
+
+    await MarketplaceEventBus.publish(req.app, "order.created", {
+      orderId: orderId.toString(),
+      userId: req.user?.uid || null,
+      isGuest: isGuest || false,
+      vendorOrderIds: vendorOrderIds.map((id) => normalizeId(id)),
+      shipmentDrafts,
+      totals: {
+        subtotal: createdOrder?.subtotal,
+        deliveryCharge: createdOrder?.deliveryCharge,
+        couponDiscount: createdOrder?.couponDiscount,
+        pointsDiscount: createdOrder?.pointsDiscount,
+        totalDiscount: createdOrder?.totalDiscount,
+        total: createdOrder?.total,
+      },
+      paymentMethod,
+      notifications: eventNotifications,
+    }, {
+      source: "checkout",
+      actorId: req.user?.uid || null,
+      actorRole: req.user?.uid ? "user" : "guest",
+      subjectType: "order",
+      subjectId: orderId.toString(),
+      dedupeKey: `order.created:${orderId.toString()}`,
+    }).catch((error) => {
+      console.error("Failed to publish order created marketplace event:", error);
+    });
 
     if (vendorOrderIds.length > 0) {
       await Order.collection.updateOne(

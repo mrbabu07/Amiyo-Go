@@ -41,6 +41,67 @@ const buildResponse = () => {
   return res;
 };
 
+const stringify = (value) => (value instanceof ObjectId ? value.toString() : String(value || ""));
+
+const matchesQuery = (doc, query = {}) =>
+  Object.entries(query).every(([key, expected]) => {
+    const actual = doc[key];
+    if (expected instanceof ObjectId) return stringify(actual) === stringify(expected);
+    return stringify(actual) === stringify(expected);
+  });
+
+class FakeCursor {
+  constructor(docs) {
+    this.docs = docs;
+  }
+
+  async toArray() {
+    return this.docs;
+  }
+}
+
+class FakeCollection {
+  constructor(docs = []) {
+    this.docs = docs;
+  }
+
+  async createIndex() {}
+
+  find(query = {}) {
+    return new FakeCursor(this.docs.filter((doc) => matchesQuery(doc, query)));
+  }
+
+  async findOne(query = {}) {
+    return this.docs.find((doc) => matchesQuery(doc, query)) || null;
+  }
+
+  async insertOne(doc) {
+    const saved = { ...doc, _id: doc._id || new ObjectId() };
+    this.docs.push(saved);
+    return { insertedId: saved._id };
+  }
+
+  async insertMany(docs = []) {
+    const insertedIds = {};
+    docs.forEach((doc, index) => {
+      const saved = { ...doc, _id: doc._id || new ObjectId() };
+      this.docs.push(saved);
+      insertedIds[index] = saved._id;
+    });
+    return { insertedCount: docs.length, insertedIds };
+  }
+
+  async updateOne(query, update) {
+    const doc = this.docs.find((item) => matchesQuery(item, query));
+    if (!doc) return { matchedCount: 0, modifiedCount: 0 };
+    Object.assign(doc, update.$set || {});
+    Object.entries(update.$inc || {}).forEach(([key, value]) => {
+      doc[key] = Number(doc[key] || 0) + value;
+    });
+    return { matchedCount: 1, modifiedCount: 1 };
+  }
+}
+
 describe("orderController.createOrder", () => {
   afterEach(() => {
     jest.clearAllMocks();
@@ -63,12 +124,14 @@ describe("orderController.createOrder", () => {
     };
 
     let persistedOrder;
-    const vendorCollection = {
-      findOne: jest.fn().mockResolvedValue(vendorDoc),
-    };
+    const vendorCollection = new FakeCollection([vendorDoc]);
+    const eventCollection = new FakeCollection();
+    const eventNotificationQueue = new FakeCollection();
     const db = {
       collection: jest.fn((name) => {
         if (name === "vendors") return vendorCollection;
+        if (name === "marketplace_events") return eventCollection;
+        if (name === "marketplace_notification_queue") return eventNotificationQueue;
         throw new Error(`Unexpected collection: ${name}`);
       }),
     };
@@ -167,6 +230,23 @@ describe("orderController.createOrder", () => {
 
     await orderController.createOrder(req, res);
 
+    expect(eventCollection.docs[0]).toEqual(
+      expect.objectContaining({
+        eventName: "order.created",
+        subject: expect.objectContaining({ type: "order", id: orderId.toString() }),
+        status: "processed",
+      }),
+    );
+    expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "customer-1",
+      type: "order_created",
+      orderId: orderId.toString(),
+    }));
+    expect(Notification.create).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "vendor-owner-firebase",
+      type: "vendor_new_order",
+      vendorId,
+    }));
     expect(Shipment.createFromOrder).toHaveBeenCalledWith(
       expect.objectContaining({
         _id: orderId,
