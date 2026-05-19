@@ -1,5 +1,74 @@
 const { ObjectId } = require("mongodb");
 
+const productIdQuery = (productId) => {
+  const variants = [productId?.toString?.() || productId].filter(Boolean);
+  if (ObjectId.isValid(productId)) {
+    variants.push(new ObjectId(productId));
+  }
+  return variants.length > 1 ? { $in: variants } : variants[0];
+};
+
+const mediaFilter = (type) => {
+  if (type === "photos") {
+    return {
+      $or: [
+        { "images.0": { $exists: true } },
+        { media: { $elemMatch: { type: "image" } } },
+      ],
+    };
+  }
+
+  if (type === "videos") {
+    return {
+      $or: [
+        { "videos.0": { $exists: true } },
+        { "videoUrls.0": { $exists: true } },
+        { media: { $elemMatch: { type: "video" } } },
+      ],
+    };
+  }
+
+  return {};
+};
+
+const buildProductReviewQuery = (productId, options = {}) => {
+  const query = { productId: productIdQuery(productId) };
+  const filter = String(options.filterBy || options.filter || "all").toLowerCase();
+
+  if (["1", "2", "3", "4", "5"].includes(filter)) {
+    query.rating = Number(filter);
+  }
+
+  if (filter === "verified") {
+    query.verified = true;
+  }
+
+  if (["photos", "photo", "with_photos", "with-photos"].includes(filter)) {
+    Object.assign(query, mediaFilter("photos"));
+  }
+
+  if (["videos", "video", "with_videos", "with-videos"].includes(filter)) {
+    Object.assign(query, mediaFilter("videos"));
+  }
+
+  return query;
+};
+
+const buildReviewSort = (sortBy = "newest") => {
+  switch (String(sortBy).toLowerCase()) {
+    case "oldest":
+      return { createdAt: 1 };
+    case "highest":
+      return { rating: -1, createdAt: -1 };
+    case "lowest":
+      return { rating: 1, createdAt: -1 };
+    case "helpful":
+      return { helpful: -1, createdAt: -1 };
+    default:
+      return { createdAt: -1 };
+  }
+};
+
 class Review {
   constructor(db) {
     this.collection = db.collection("reviews");
@@ -12,10 +81,11 @@ class Review {
       userId: reviewData.userId,
       rating: parseInt(reviewData.rating),
       images: reviewData.images || [], // Array of uploaded image URLs
+      videos: reviewData.videos || [],
       createdAt: new Date(),
       updatedAt: new Date(),
       helpful: 0,
-      verified: false, // Will be set to true if user purchased the product
+      verified: reviewData.verified === true, // Set after purchase verification in the controller
       adminReply: null, // Admin response to the review
       adminRepliedAt: null,
       adminRepliedBy: null,
@@ -76,13 +146,17 @@ class Review {
       .toArray();
   }
 
-  async findByProductId(productId, limit = 10, skip = 0) {
+  async findByProductId(productId, limit = 10, skip = 0, options = {}) {
     return await this.collection
-      .find({ productId: new ObjectId(productId) })
-      .sort({ createdAt: -1 })
+      .find(buildProductReviewQuery(productId, options))
+      .sort(buildReviewSort(options.sortBy || options.sort))
       .limit(limit)
       .skip(skip)
       .toArray();
+  }
+
+  async countByProductId(productId, options = {}) {
+    return await this.collection.countDocuments(buildProductReviewQuery(productId, options));
   }
 
   async findByUserId(userId) {
@@ -94,7 +168,7 @@ class Review {
 
   async getProductRatingStats(productId) {
     const pipeline = [
-      { $match: { productId: new ObjectId(productId) } },
+      { $match: { productId: productIdQuery(productId) } },
       {
         $group: {
           _id: null,
@@ -114,6 +188,9 @@ class Review {
         averageRating: 0,
         totalReviews: 0,
         ratingDistribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+        verifiedReviews: 0,
+        photoReviews: 0,
+        videoReviews: 0,
       };
     }
 
@@ -124,10 +201,19 @@ class Review {
       distribution[rating]++;
     });
 
+    const [verifiedReviews, photoReviews, videoReviews] = await Promise.all([
+      this.countByProductId(productId, { filterBy: "verified" }),
+      this.countByProductId(productId, { filterBy: "photos" }),
+      this.countByProductId(productId, { filterBy: "videos" }),
+    ]);
+
     return {
       averageRating: Math.round(stats.averageRating * 10) / 10,
       totalReviews: stats.totalReviews,
       ratingDistribution: distribution,
+      verifiedReviews,
+      photoReviews,
+      videoReviews,
     };
   }
 
@@ -275,3 +361,5 @@ class Review {
 }
 
 module.exports = Review;
+module.exports.buildProductReviewQuery = buildProductReviewQuery;
+module.exports.buildReviewSort = buildReviewSort;

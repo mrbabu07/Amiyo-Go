@@ -13,6 +13,9 @@ const ReviewsSection = ({ productId }) => {
     averageRating: 0,
     totalReviews: 0,
     ratingDistribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+    verifiedReviews: 0,
+    photoReviews: 0,
+    videoReviews: 0,
   });
   const [loading, setLoading] = useState(true);
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -29,7 +32,7 @@ const ReviewsSection = ({ productId }) => {
     try {
       setLoading(true);
       const response = await fetch(
-        `/api/reviews/product/${productId}?page=${currentPage}&limit=10&sort=${sortBy}&filter=${filterBy}`,
+        `/api/reviews/product/${productId}?page=${currentPage}&limit=10&sort=${encodeURIComponent(sortBy)}&filter=${encodeURIComponent(filterBy)}`,
       );
       const data = await response.json();
 
@@ -180,8 +183,8 @@ const ReviewsSection = ({ productId }) => {
           <div className="space-y-2">
             {[5, 4, 3, 2, 1].map((rating) => (
               <div key={rating} className="flex items-center space-x-3">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 w-8">
-                  {rating}★
+                <span className="w-12 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {rating} star
                 </span>
                 <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div
@@ -220,6 +223,8 @@ const ReviewsSection = ({ productId }) => {
               <option value="2">2 Stars</option>
               <option value="1">1 Star</option>
               <option value="verified">Verified Only</option>
+              <option value="photos">With Photos</option>
+              <option value="videos">With Videos</option>
             </select>
           </div>
 
@@ -242,6 +247,33 @@ const ReviewsSection = ({ productId }) => {
               <option value="helpful">Most Helpful</option>
             </select>
           </div>
+        </div>
+      )}
+
+      {stats.totalReviews > 0 && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[
+            { key: "verified", label: "Verified reviews", value: stats.verifiedReviews || 0 },
+            { key: "photos", label: "With photos", value: stats.photoReviews || 0 },
+            { key: "videos", label: "With videos", value: stats.videoReviews || 0 },
+          ].map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => {
+                setFilterBy(item.key);
+                setCurrentPage(1);
+              }}
+              className={`rounded-xl border px-4 py-3 text-left transition ${
+                filterBy === item.key
+                  ? "border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-950/30 dark:text-primary-200"
+                  : "border-gray-200 bg-white text-gray-700 hover:border-primary-200 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              }`}
+            >
+              <span className="block text-lg font-black">{item.value}</span>
+              <span className="text-xs font-semibold">{item.label}</span>
+            </button>
+          ))}
         </div>
       )}
 

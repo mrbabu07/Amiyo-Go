@@ -4,7 +4,7 @@ const createReview = async (req, res) => {
   try {
     const Review = req.app.locals.models.Review;
     const User = req.app.locals.models.User;
-    const { productId, rating, comment, title, images } = req.body;
+    const { productId, rating, comment, title, images, videos } = req.body;
     const userId = req.user.uid;
     const userName = req.user.name || req.user.email;
 
@@ -85,6 +85,24 @@ const createReview = async (req, res) => {
       }
     }
 
+    if (videos && Array.isArray(videos)) {
+      if (videos.length > 2) {
+        return res.status(400).json({
+          success: false,
+          error: "Maximum 2 videos allowed per review",
+        });
+      }
+
+      for (const videoUrl of videos) {
+        if (typeof videoUrl !== "string" || !videoUrl.startsWith("http")) {
+          return res.status(400).json({
+            success: false,
+            error: "Invalid video URL format",
+          });
+        }
+      }
+    }
+
     const reviewId = await Review.create({
       productId,
       userId,
@@ -93,6 +111,7 @@ const createReview = async (req, res) => {
       comment,
       title: title || "",
       images: images || [],
+      videos: videos || [],
       verified: true, // Always true since we verified purchase above
     });
 
@@ -132,14 +151,22 @@ const getProductReviews = async (req, res) => {
   try {
     const Review = req.app.locals.models.Review;
     const { productId } = req.params;
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, sort = "newest", filter = "all" } = req.query;
 
-    const skip = (page - 1) * limit;
+    const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNumber = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 50);
+    const skip = (pageNumber - 1) * limitNumber;
+    const options = { sortBy: sort, filterBy: filter };
     const reviews = await Review.findByProductId(
       productId,
-      parseInt(limit),
+      limitNumber,
       skip,
+      options,
     );
+    const totalReviews =
+      typeof Review.countByProductId === "function"
+        ? await Review.countByProductId(productId, options)
+        : reviews.length;
     const stats = await Review.getProductRatingStats(productId);
 
     res.json({
@@ -148,9 +175,11 @@ const getProductReviews = async (req, res) => {
         reviews,
         stats,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          hasMore: reviews.length === parseInt(limit),
+          page: pageNumber,
+          limit: limitNumber,
+          total: totalReviews,
+          totalPages: Math.ceil(totalReviews / limitNumber),
+          hasMore: skip + reviews.length < totalReviews,
         },
       },
     });

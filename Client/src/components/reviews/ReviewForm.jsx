@@ -12,6 +12,8 @@ const ReviewForm = ({ productId, onReviewSubmitted, onCancel }) => {
     title: "",
     comment: "",
     images: [], // Array to store uploaded image URLs
+    videos: [],
+    videoUrl: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
@@ -146,6 +148,41 @@ const ReviewForm = ({ productId, onReviewSubmitted, onCancel }) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const addVideoUrl = () => {
+    const videoUrl = formData.videoUrl.trim();
+    if (!videoUrl) return;
+
+    if (!videoUrl.startsWith("http")) {
+      setErrors((prev) => ({
+        ...prev,
+        videos: "Video URL must start with http or https",
+      }));
+      return;
+    }
+
+    if (formData.videos.length >= 2) {
+      setErrors((prev) => ({
+        ...prev,
+        videos: "Maximum 2 videos allowed per review",
+      }));
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      videos: [...prev.videos, videoUrl],
+      videoUrl: "",
+    }));
+    setErrors((prev) => ({ ...prev, videos: null }));
+  };
+
+  const removeVideo = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      videos: prev.videos.filter((_, i) => i !== index),
+    }));
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -182,6 +219,7 @@ const ReviewForm = ({ productId, onReviewSubmitted, onCancel }) => {
           title: formData.title.trim(),
           comment: formData.comment.trim(),
           images: formData.images, // Include uploaded image URLs
+          videos: formData.videos,
         }),
       });
 
@@ -189,7 +227,7 @@ const ReviewForm = ({ productId, onReviewSubmitted, onCancel }) => {
 
       if (data.success) {
         // Reset form
-        setFormData({ rating: 0, title: "", comment: "", images: [] });
+        setFormData({ rating: 0, title: "", comment: "", images: [], videos: [], videoUrl: "" });
         setSelectedFiles([]);
         setErrors({});
 
@@ -570,6 +608,63 @@ const ReviewForm = ({ productId, onReviewSubmitted, onCancel }) => {
               {formData.images.length}/5 images uploaded
             </p>
           </div>
+        </div>
+
+        {/* Video URL */}
+        <div className="rounded-lg border border-purple-200 bg-purple-50 p-4 dark:border-purple-800 dark:bg-purple-900/20">
+          <label
+            htmlFor="review-video-url"
+            className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            Add Video URL (Optional)
+          </label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              id="review-video-url"
+              type="url"
+              value={formData.videoUrl}
+              onChange={(event) =>
+                setFormData((prev) => ({ ...prev, videoUrl: event.target.value }))
+              }
+              placeholder="https://example.com/product-review.mp4"
+              className="min-h-11 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              disabled={formData.videos.length >= 2}
+            />
+            <button
+              type="button"
+              onClick={addVideoUrl}
+              disabled={formData.videos.length >= 2 || !formData.videoUrl.trim()}
+              className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Add Video
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Add up to 2 hosted review videos. Uploaded product-review videos can be pasted here after storage upload.
+          </p>
+
+          {formData.videos.length > 0 && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {formData.videos.map((videoUrl, index) => (
+                <div key={videoUrl} className="rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-800">
+                  <video src={videoUrl} controls playsInline className="h-36 w-full rounded-md bg-black object-contain" />
+                  <button
+                    type="button"
+                    onClick={() => removeVideo(index)}
+                    className="mt-2 text-xs font-semibold text-red-600 hover:text-red-700"
+                  >
+                    Remove video
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {errors.videos && (
+            <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+              {errors.videos}
+            </p>
+          )}
         </div>
 
         {/* Submit Error */}
