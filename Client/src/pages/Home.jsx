@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
@@ -245,9 +245,11 @@ function MarketplacePulse({ discovery, t }) {
 
 function HomepageHero({ discovery, activeHero, setActiveHero, now, formatPrice, t }) {
   return (
-    <section className="relative overflow-hidden bg-[linear-gradient(135deg,#0f2f3e_0%,#123f52_48%,#f8fafc_48%,#f8fafc_100%)] pb-7 pt-4 dark:bg-[linear-gradient(135deg,#07131b_0%,#102a37_52%,#030712_52%,#030712_100%)] md:pb-9 md:pt-6">
+    <section className="relative overflow-hidden bg-slate-950 pb-7 pt-4 text-white md:pb-9 md:pt-6">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+      <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(14,116,144,0.35),rgba(15,23,42,0.9)_46%,rgba(234,88,12,0.16))]" />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="relative grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-4">
             <HeroCarousel
               banners={discovery.heroBanners}
@@ -411,6 +413,8 @@ function TopCategorySection({ categories, t }) {
 }
 
 function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
   const slides = banners?.length
     ? banners
     : [
@@ -426,14 +430,21 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
       ];
 
   const currentSlide = slides[activeHero % slides.length];
+  const featuredSlides = slides.slice(0, 4);
   const trustSignals = [
     { label: t("home.heroFastDelivery"), Icon: Truck },
     { label: t("home.heroCod"), Icon: WalletCards },
     { label: t("home.heroVerifiedSeller"), Icon: ShieldCheck },
   ];
 
+  const submitSearch = (event) => {
+    event.preventDefault();
+    const clean = query.trim();
+    if (clean) navigate(`/search?q=${encodeURIComponent(clean)}`);
+  };
+
   return (
-    <div className="relative min-h-[26rem] overflow-hidden rounded-lg border border-white/70 bg-gray-900 shadow-medium dark:border-gray-800 sm:min-h-[25rem] lg:min-h-[30rem]">
+    <div className="relative min-h-[31rem] overflow-hidden rounded-2xl border border-white/15 bg-gray-900 shadow-2xl shadow-black/30 ring-1 ring-white/10 sm:min-h-[30rem] lg:min-h-[34rem]">
       {slides.map((slide, index) => (
         <div
           key={slide.id || index}
@@ -445,48 +456,112 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
             src={slide.imageUrl || fallbackHeroImage}
             alt=""
             className={`h-full w-full object-cover transition-transform duration-[7000ms] ${
-              index === activeHero % slides.length ? "scale-105" : "scale-100"
+              index === activeHero % slides.length ? "scale-[1.06]" : "scale-100"
             }`}
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-gray-950/85 via-gray-950/40 to-gray-950/5" />
+          <div className="absolute inset-0 bg-gradient-to-r from-gray-950/90 via-gray-950/62 to-gray-950/10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-950/85 via-transparent to-gray-950/15" />
         </div>
       ))}
 
-      <div className="relative flex min-h-[26rem] flex-col justify-end p-5 sm:min-h-[25rem] md:p-8 lg:min-h-[30rem]">
-        <div className="max-w-2xl">
-          <span className="mb-3 inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white shadow-sm">
+      <div className="relative flex min-h-[31rem] flex-col justify-between p-4 sm:min-h-[30rem] sm:p-6 md:p-8 lg:min-h-[34rem]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm backdrop-blur">
             <Sparkles className="h-3.5 w-3.5" />
             {currentSlide.badge || t("home.featured")}
           </span>
-          <h1 className="max-w-xl text-2xl font-extrabold leading-tight text-white sm:text-3xl md:text-4xl">
-            {currentSlide.title}
-          </h1>
-          {currentSlide.subtitle ? (
-            <p className="mt-3 line-clamp-2 max-w-xl text-sm leading-6 text-white/90 md:text-base">
-              {currentSlide.subtitle}
-            </p>
-          ) : null}
-          <Link
-            to={currentSlide.link || "/products"}
-            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-200"
-          >
-            {currentSlide.ctaText || t("home.shopNow")}
-            <ChevronRight className="h-4 w-4" />
-          </Link>
-          <div className="mt-5 hidden max-w-xl grid-cols-3 gap-2 sm:grid">
-            {trustSignals.map((item) => {
-              const SignalIcon = item.Icon;
+          <div className="hidden items-center gap-2 rounded-full border border-white/15 bg-black/20 px-3 py-1.5 text-xs font-semibold text-white/80 backdrop-blur sm:flex">
+            {activeHero + 1}/{slides.length}
+          </div>
+        </div>
 
-              return (
-                <span
-                  key={item.label}
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/15 px-3 py-2 text-xs font-semibold text-white backdrop-blur"
-                >
-                  <SignalIcon className="h-3.5 w-3.5" />
-                  {item.label}
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-end">
+          <div className="max-w-2xl">
+            <h1 className="max-w-2xl text-3xl font-black leading-tight text-white sm:text-4xl md:text-5xl">
+              {currentSlide.title}
+            </h1>
+            {currentSlide.subtitle ? (
+              <p className="mt-4 line-clamp-3 max-w-xl text-sm leading-6 text-white/88 md:text-base">
+                {currentSlide.subtitle}
+              </p>
+            ) : null}
+
+            <form onSubmit={submitSearch} className="mt-6 flex max-w-xl flex-col gap-2 rounded-2xl border border-white/20 bg-white p-2 shadow-2xl shadow-black/20 sm:flex-row">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">Search products</span>
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t("home.heroSearchPlaceholder", "Search products, shops, categories")}
+                  className="h-12 w-full rounded-xl border-0 bg-gray-50 pl-10 pr-3 text-sm font-semibold text-gray-900 outline-none ring-1 ring-gray-200 transition placeholder:text-gray-400 focus:bg-white focus:ring-primary-400"
+                />
+              </label>
+              <button type="submit" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 text-sm font-black text-white transition hover:bg-primary-700">
+                {t("common.search", "Search")}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </form>
+
+            <div className="mt-5 grid max-w-xl grid-cols-1 gap-2 sm:grid-cols-3">
+              {trustSignals.map((item) => {
+                const SignalIcon = item.Icon;
+
+                return (
+                  <span
+                    key={item.label}
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-xs font-semibold text-white backdrop-blur"
+                  >
+                    <SignalIcon className="h-3.5 w-3.5" />
+                    {item.label}
+                  </span>
+                );
+              })}
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              <Link
+                to={currentSlide.link || "/products"}
+                className="inline-flex h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-gray-950 shadow-sm transition hover:-translate-y-0.5 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-white/60"
+              >
+                {currentSlide.ctaText || t("home.shopNow")}
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+              <Link
+                to="/products"
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 text-sm font-bold text-white backdrop-blur transition hover:bg-white/18"
+              >
+                {t("common.viewAll", "View all")}
+              </Link>
+            </div>
+          </div>
+
+          <div className="hidden space-y-2 lg:block">
+            {featuredSlides.map((slide, index) => (
+              <button
+                key={slide.id || index}
+                type="button"
+                onClick={() => setActiveHero(index)}
+                className={`group grid w-full grid-cols-[4rem_minmax(0,1fr)] gap-3 rounded-xl border p-2 text-left transition ${
+                  index === activeHero % slides.length
+                    ? "border-white/70 bg-white text-gray-950"
+                    : "border-white/15 bg-white/10 text-white hover:bg-white/18"
+                }`}
+              >
+                <img
+                  src={slide.imageUrl || fallbackHeroImage}
+                  alt=""
+                  className="h-14 w-16 rounded-lg object-cover"
+                  loading="lazy"
+                />
+                <span className="min-w-0 self-center">
+                  <span className="line-clamp-1 text-xs font-black">{slide.badge || t("home.featured")}</span>
+                  <span className={`mt-1 line-clamp-2 text-xs font-semibold ${index === activeHero % slides.length ? "text-gray-600" : "text-white/70"}`}>
+                    {slide.title}
+                  </span>
                 </span>
-              );
-            })}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -497,7 +572,7 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
             type="button"
             aria-label={t("home.previousBanner")}
             onClick={() => setActiveHero((current) => (current - 1 + slides.length) % slides.length)}
-            className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg bg-white/85 text-gray-900 shadow-sm transition hover:bg-white"
+            className="absolute left-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl bg-white/85 text-gray-900 shadow-sm transition hover:bg-white md:flex"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -505,11 +580,11 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
             type="button"
             aria-label={t("home.nextBanner")}
             onClick={() => setActiveHero((current) => (current + 1) % slides.length)}
-            className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg bg-white/85 text-gray-900 shadow-sm transition hover:bg-white"
+            className="absolute right-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl bg-white/85 text-gray-900 shadow-sm transition hover:bg-white md:flex"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
-          <div className="absolute bottom-4 right-4 flex gap-1">
+          <div className="absolute bottom-4 right-4 flex gap-1 rounded-full bg-black/25 p-1 backdrop-blur">
             {slides.map((slide, index) => (
               <button
                 key={slide.id || index}

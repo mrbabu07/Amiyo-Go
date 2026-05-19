@@ -1,7 +1,13 @@
 import { createElement, useEffect, useMemo, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   BadgePercent,
   CalendarDays,
+  Edit3,
+  Eye,
+  EyeOff,
+  ExternalLink,
   FileClock,
   Gift,
   Image,
@@ -43,6 +49,7 @@ import {
   getPromotionOverview,
   getPromotionRules,
   reviewCampaignNomination,
+  reorderHomepageSlots,
   saveHomepageSlot,
   selectDealOfDay,
   updateLoyaltyRules,
@@ -107,8 +114,12 @@ const voucherDefaults = {
 };
 
 const slotDefaults = {
+  slotId: "",
   slotType: "hero_banner",
   title: "",
+  subtitle: "",
+  badge: "",
+  ctaText: "Shop now",
   imageUrl: "",
   linkUrl: "",
   campaignId: "",
@@ -118,6 +129,8 @@ const slotDefaults = {
   specialPrice: "",
   position: 0,
   status: "active",
+  startsAt: "",
+  endsAt: "",
 };
 
 const clearanceDefaults = {
@@ -214,6 +227,13 @@ const formatDate = (value) => {
   return date.toLocaleString("en-BD", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 };
 
+const toLocalInput = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+
 const inputClass = formInputClass;
 const Field = FormField;
 const Metric = MetricCard;
@@ -243,6 +263,36 @@ export default function AdminPromotions() {
   const [clearanceForm, setClearanceForm] = useState(clearanceDefaults);
 
   const productMap = useMemo(() => new Map(products.map((product) => [product._id, product])), [products]);
+  const heroSlots = useMemo(
+    () => slots.filter((slot) => slot.slotType === "hero_banner").sort((a, b) => Number(a.position || 0) - Number(b.position || 0)),
+    [slots],
+  );
+
+  const resetSlotForm = () => setSlotForm(slotDefaults);
+
+  const editSlot = (slot) => {
+    setSlotForm({
+      ...slotDefaults,
+      slotId: slot._id,
+      slotType: slot.slotType || "hero_banner",
+      title: slot.title || "",
+      subtitle: slot.subtitle || slot.description || "",
+      badge: slot.badge || "",
+      ctaText: slot.ctaText || "Shop now",
+      imageUrl: slot.imageUrl || slot.bannerImageUrl || "",
+      linkUrl: slot.linkUrl || "",
+      campaignId: slot.campaignId || "",
+      vendorId: slot.vendorId || "",
+      categoryId: slot.categoryId || "",
+      productId: slot.productId || "",
+      specialPrice: slot.specialPrice ?? "",
+      position: slot.position ?? 0,
+      status: slot.status || "active",
+      startsAt: toLocalInput(slot.startsAt),
+      endsAt: toLocalInput(slot.endsAt),
+    });
+    setActiveTab("slots");
+  };
 
   const loadAll = async () => {
     setLoading(true);
@@ -375,7 +425,7 @@ export default function AdminPromotions() {
         specialPrice: slotForm.specialPrice === "" ? "" : Number(slotForm.specialPrice),
       });
       toast.success("Homepage slot saved");
-      setSlotForm(slotDefaults);
+      resetSlotForm();
       loadAll();
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to save homepage slot");
@@ -394,10 +444,47 @@ export default function AdminPromotions() {
         dealPrice: slotForm.specialPrice === "" ? productMap.get(slotForm.productId)?.price : Number(slotForm.specialPrice),
       });
       toast.success("Deal of the day selected");
-      setSlotForm(slotDefaults);
+      resetSlotForm();
       loadAll();
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to select deal");
+    }
+  };
+
+  const toggleSlotStatus = async (slot) => {
+    try {
+      await saveHomepageSlot({
+        ...slot,
+        slotId: slot._id,
+        status: slot.status === "inactive" ? "active" : "inactive",
+      });
+      toast.success(slot.status === "inactive" ? "Carousel slide is visible" : "Carousel slide hidden");
+      loadAll();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to update slot");
+    }
+  };
+
+  const moveHeroSlot = async (slot, direction) => {
+    const currentIndex = heroSlots.findIndex((item) => item._id === slot._id);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= heroSlots.length) return;
+
+    const reordered = [...heroSlots];
+    const [selected] = reordered.splice(currentIndex, 1);
+    reordered.splice(targetIndex, 0, selected);
+
+    try {
+      const response = await reorderHomepageSlots(
+        reordered.map((item, index) => ({
+          slotId: item._id,
+          position: index + 1,
+        })),
+      );
+      setSlots(response.data.data || []);
+      toast.success("Carousel order updated");
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to reorder carousel");
     }
   };
 
@@ -676,45 +763,159 @@ export default function AdminPromotions() {
 
             {activeTab === "slots" && (
               <div className="grid gap-6 lg:grid-cols-12">
-                <form onSubmit={saveSlot} className="rounded-lg border border-gray-200 bg-white p-4 lg:col-span-4">
-                  <h2 className="font-semibold text-gray-950">Banner & Slot Management</h2>
-                  <div className="mt-4 space-y-3">
-                    <Field label="Slot Type">
-                      <select className={inputClass} value={slotForm.slotType} onChange={(e) => setSlotForm({ ...slotForm, slotType: e.target.value })}>
-                        <option value="hero_banner">Hero banner</option>
-                        <option value="category_banner">Category banner</option>
-                        <option value="ad_slot">Ad slot</option>
-                        <option value="deal_of_day">Deal of the day</option>
-                      </select>
+                <form onSubmit={saveSlot} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm lg:col-span-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-orange-600">Home carousel</p>
+                      <h2 className="text-lg font-bold text-gray-950">{slotForm.slotId ? "Edit slide" : "Create slide"}</h2>
+                      <p className="mt-1 text-sm text-gray-500">Control the hero carousel shown on the customer homepage.</p>
+                    </div>
+                    {slotForm.slotId ? (
+                      <button type="button" onClick={resetSlotForm} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700">
+                        New slide
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field label="Slot Type">
+                        <select className={inputClass} value={slotForm.slotType} onChange={(e) => setSlotForm({ ...slotForm, slotType: e.target.value })}>
+                          <option value="hero_banner">Hero banner</option>
+                          <option value="category_banner">Category banner</option>
+                          <option value="ad_slot">Ad slot</option>
+                          <option value="deal_of_day">Deal of the day</option>
+                        </select>
+                      </Field>
+                      <Field label="Status">
+                        <select className={inputClass} value={slotForm.status} onChange={(e) => setSlotForm({ ...slotForm, status: e.target.value })}>
+                          <option value="active">Visible</option>
+                          <option value="inactive">Hidden</option>
+                          <option value="scheduled">Scheduled</option>
+                        </select>
+                      </Field>
+                    </div>
+
+                    <Field label="Title">
+                      <input className={inputClass} value={slotForm.title} onChange={(e) => setSlotForm({ ...slotForm, title: e.target.value })} placeholder="Mega sale starts now" />
                     </Field>
-                    <Field label="Title"><input className={inputClass} value={slotForm.title} onChange={(e) => setSlotForm({ ...slotForm, title: e.target.value })} /></Field>
-                    <Field label="Image URL"><input className={inputClass} value={slotForm.imageUrl} onChange={(e) => setSlotForm({ ...slotForm, imageUrl: e.target.value })} /></Field>
-                    <Field label="Link URL"><input className={inputClass} value={slotForm.linkUrl} onChange={(e) => setSlotForm({ ...slotForm, linkUrl: e.target.value })} /></Field>
+                    <Field label="Subtitle">
+                      <textarea className={`${inputClass} min-h-24 resize-y`} value={slotForm.subtitle} onChange={(e) => setSlotForm({ ...slotForm, subtitle: e.target.value })} placeholder="Short customer-facing message for the carousel slide." />
+                    </Field>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field label="Badge"><input className={inputClass} value={slotForm.badge} onChange={(e) => setSlotForm({ ...slotForm, badge: e.target.value })} placeholder="Today only" /></Field>
+                      <Field label="CTA Text"><input className={inputClass} value={slotForm.ctaText} onChange={(e) => setSlotForm({ ...slotForm, ctaText: e.target.value })} placeholder="Shop now" /></Field>
+                    </div>
+
+                    <Field label="Image URL">
+                      <input className={inputClass} value={slotForm.imageUrl} onChange={(e) => setSlotForm({ ...slotForm, imageUrl: e.target.value })} placeholder="https://..." />
+                    </Field>
+                    <Field label="Link URL">
+                      <input className={inputClass} value={slotForm.linkUrl} onChange={(e) => setSlotForm({ ...slotForm, linkUrl: e.target.value })} placeholder="/products?campaign=eid" />
+                    </Field>
+
                     <Field label="Product">
                       <select className={inputClass} value={slotForm.productId} onChange={(e) => setSlotForm({ ...slotForm, productId: e.target.value })}>
                         <option value="">No product</option>
                         {products.map((product) => <option key={product._id} value={product._id}>{product.title || product.name}</option>)}
                       </select>
                     </Field>
-                    <div className="grid grid-cols-2 gap-3">
+
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <Field label="Special Price"><input type="number" className={inputClass} value={slotForm.specialPrice} onChange={(e) => setSlotForm({ ...slotForm, specialPrice: e.target.value })} /></Field>
                       <Field label="Position"><input type="number" className={inputClass} value={slotForm.position} onChange={(e) => setSlotForm({ ...slotForm, position: e.target.value })} /></Field>
                     </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field label="Start"><input type="datetime-local" className={inputClass} value={slotForm.startsAt} onChange={(e) => setSlotForm({ ...slotForm, startsAt: e.target.value })} /></Field>
+                      <Field label="End"><input type="datetime-local" className={inputClass} value={slotForm.endsAt} onChange={(e) => setSlotForm({ ...slotForm, endsAt: e.target.value })} /></Field>
+                    </div>
+
+                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-950 text-white">
+                      <div className="relative min-h-48">
+                        {slotForm.imageUrl ? <img src={slotForm.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-60" /> : null}
+                        <div className="absolute inset-0 bg-gradient-to-r from-gray-950 via-gray-950/70 to-gray-950/10" />
+                        <div className="relative flex min-h-48 flex-col justify-end p-4">
+                          <p className="mb-2 inline-flex w-fit rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-wide">
+                            {slotForm.badge || "Featured"}
+                          </p>
+                          <h3 className="max-w-md text-xl font-black">{slotForm.title || "Slide preview"}</h3>
+                          <p className="mt-2 line-clamp-2 max-w-md text-sm text-white/75">{slotForm.subtitle || "Add a subtitle to preview how this slide will read on the storefront."}</p>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-2">
-                      <button type="submit" className="rounded-lg bg-gray-950 px-3 py-2 text-sm font-semibold text-white">Save Slot</button>
+                      <button type="submit" className="rounded-lg bg-gray-950 px-3 py-2 text-sm font-semibold text-white">{slotForm.slotId ? "Update Slide" : "Save Slide"}</button>
                       <button type="button" onClick={saveDealOfDay} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700">Set Deal</button>
                     </div>
                   </div>
                 </form>
-                <section className="rounded-lg border border-gray-200 bg-white lg:col-span-8">
-                  <div className="border-b border-gray-200 px-4 py-3"><h2 className="font-semibold text-gray-950">Homepage Slots</h2></div>
-                  <div className="divide-y divide-gray-100">
-                    {slots.map((slot) => (
-                      <div key={slot._id} className="flex items-center justify-between gap-4 px-4 py-3">
-                        <div><p className="font-semibold text-gray-950">{slot.position}. {slot.title}</p><p className="text-xs text-gray-500">{slot.slotType} - {slot.linkUrl || "No link"}</p></div>
-                        <Badge value={slot.status} />
+
+                <section className="rounded-lg border border-gray-200 bg-white shadow-sm lg:col-span-7">
+                  <div className="border-b border-gray-200 px-4 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h2 className="font-bold text-gray-950">Homepage Carousel Slides</h2>
+                        <p className="mt-1 text-sm text-gray-500">{heroSlots.length} hero slides. Active slides appear in position order.</p>
                       </div>
-                    ))}
+                      <div className="flex gap-2">
+                        <Metric icon={Image} label="Hero slides" value={heroSlots.length} />
+                        <Metric icon={Eye} label="Visible" value={heroSlots.filter((slot) => slot.status !== "inactive").length} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-gray-100">
+                    {heroSlots.length ? heroSlots.map((slot, index) => (
+                      <div key={slot._id} className="grid gap-4 px-4 py-4 md:grid-cols-[8rem_minmax(0,1fr)_auto] md:items-center">
+                        <div className="relative h-24 overflow-hidden rounded-xl bg-gray-100">
+                          {slot.imageUrl ? (
+                            <img src={slot.imageUrl} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-gray-400"><Image className="h-8 w-8" /></div>
+                          )}
+                          <span className="absolute left-2 top-2 rounded bg-gray-950/80 px-2 py-1 text-xs font-bold text-white">#{slot.position || index + 1}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate font-bold text-gray-950">{slot.title}</p>
+                            <Badge value={slot.status} />
+                            {slot.badge ? <span className="rounded-full bg-orange-50 px-2 py-1 text-xs font-bold text-orange-700">{slot.badge}</span> : null}
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-sm text-gray-600">{slot.subtitle || slot.description || "No subtitle set."}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-gray-500">
+                            <span>{slot.slotType}</span>
+                            <span>{formatDate(slot.startsAt)} - {formatDate(slot.endsAt)}</span>
+                            {slot.linkUrl ? (
+                              <a href={slot.linkUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-orange-700 hover:text-orange-800">
+                                Link <ExternalLink className="h-3 w-3" />
+                              </a>
+                            ) : <span>No link</span>}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button type="button" onClick={() => moveHeroSlot(slot, -1)} disabled={index === 0} className="rounded-lg border border-gray-200 p-2 text-gray-600 disabled:opacity-40" title="Move up">
+                            <ArrowUp className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => moveHeroSlot(slot, 1)} disabled={index === heroSlots.length - 1} className="rounded-lg border border-gray-200 p-2 text-gray-600 disabled:opacity-40" title="Move down">
+                            <ArrowDown className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => editSlot(slot)} className="rounded-lg border border-gray-200 p-2 text-gray-600" title="Edit">
+                            <Edit3 className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => toggleSlotStatus(slot)} className="rounded-lg border border-gray-200 p-2 text-gray-600" title={slot.status === "inactive" ? "Show" : "Hide"}>
+                            {slot.status === "inactive" ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="px-4 py-10 text-center">
+                        <Image className="mx-auto h-10 w-10 text-gray-300" />
+                        <p className="mt-3 font-semibold text-gray-950">No hero slides yet</p>
+                        <p className="mt-1 text-sm text-gray-500">Create the first visible hero banner for the customer homepage.</p>
+                      </div>
+                    )}
                   </div>
                 </section>
               </div>

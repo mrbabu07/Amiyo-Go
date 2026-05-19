@@ -377,7 +377,7 @@ const buildHeroBanners = ({
         subtitle: vendor.tagline || "Fresh collections from a new marketplace seller",
         badge: "New brand",
         imageUrl: vendor.banner || vendor.bannerUrl || vendor.logo || vendor.logoUrl || "",
-        link: vendor.slug ? `/shop/${vendor.slug}` : `/vendors/${normalizeId(vendor._id)}`,
+        link: vendor.slug ? `/shops/${vendor.slug}` : `/vendors/${normalizeId(vendor._id)}`,
         ctaText: "Visit shop",
       });
     });

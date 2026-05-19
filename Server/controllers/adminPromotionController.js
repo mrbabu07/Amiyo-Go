@@ -618,8 +618,12 @@ exports.upsertHomepageSlot = async (req, res) => {
     const payload = {
       slotType,
       title: String(req.body.title || "").trim(),
+      subtitle: String(req.body.subtitle || "").trim(),
+      description: String(req.body.description || req.body.subtitle || "").trim(),
+      badge: String(req.body.badge || "").trim(),
       imageUrl: String(req.body.imageUrl || "").trim(),
       linkUrl: String(req.body.linkUrl || "").trim(),
+      ctaText: String(req.body.ctaText || "").trim(),
       campaignId: normalizeId(req.body.campaignId),
       vendorId: normalizeId(req.body.vendorId),
       categoryId: normalizeId(req.body.categoryId),
