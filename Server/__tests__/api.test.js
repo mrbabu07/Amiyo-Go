@@ -304,6 +304,8 @@ jest.mock("../controllers/adminPromotionController", () => ({
     route: "admin-promotions:save-slot",
     slotId: req.params.slotId || null,
   }),
+  uploadHomepageSlotImage: (req, res) =>
+    res.status(201).json({ route: "admin-promotions:upload-slot-image", url: "https://cdn.test/home.webp" }),
   reorderHomepageSlots: (req, res) => res.json({ route: "admin-promotions:reorder-slots" }),
   selectDealOfDay: (req, res) =>
     res.status(201).json({ route: "admin-promotions:deal-of-day", productId: req.body.productId }),
@@ -1287,6 +1289,23 @@ describe("Black-box API tests", () => {
 
       expect(response.status).toBe(201);
       expect(response.body).toEqual({ route: "admin-promotions:create-voucher", code: "EID10" });
+    });
+
+    test("POST /api/admin/promotions/homepage-slots/upload-image uploads a carousel image", async () => {
+      const response = await request(app)
+        .post("/api/admin/promotions/homepage-slots/upload-image")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .attach("image", Buffer.from("fake-image"), {
+          filename: "home-carousel.png",
+          contentType: "image/png",
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual({
+        route: "admin-promotions:upload-slot-image",
+        url: "https://cdn.test/home.webp",
+      });
     });
 
     test("PUT /api/admin/promotions/loyalty-rules updates loyalty rules", async () => {

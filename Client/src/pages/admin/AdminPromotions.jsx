@@ -20,6 +20,7 @@ import {
   Tag,
   TicketPercent,
   Timer,
+  UploadCloud,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -52,6 +53,7 @@ import {
   reorderHomepageSlots,
   saveHomepageSlot,
   selectDealOfDay,
+  uploadHomepageSlotImage,
   updateLoyaltyRules,
   updatePromotionRules,
 } from "../../services/api";
@@ -255,6 +257,7 @@ export default function AdminPromotions() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [nominationNotes, setNominationNotes] = useState({});
+  const [slotImageUploading, setSlotImageUploading] = useState(false);
 
   const [campaignForm, setCampaignForm] = useState(campaignDefaults);
   const [flashForm, setFlashForm] = useState(flashDefaults);
@@ -429,6 +432,29 @@ export default function AdminPromotions() {
       loadAll();
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to save homepage slot");
+    }
+  };
+
+  const handleSlotImageUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type?.startsWith("image/")) {
+      toast.error("Choose an image file");
+      return;
+    }
+
+    setSlotImageUploading(true);
+    try {
+      const response = await uploadHomepageSlotImage(file);
+      const url = response.data?.url || response.data?.data?.url;
+      if (!url) throw new Error("Upload completed without an image URL");
+      setSlotForm((current) => ({ ...current, imageUrl: url }));
+      toast.success("Carousel image uploaded");
+    } catch (error) {
+      toast.error(error.response?.data?.error || error.message || "Failed to upload image");
+    } finally {
+      setSlotImageUploading(false);
     }
   };
 
@@ -808,8 +834,29 @@ export default function AdminPromotions() {
                       <Field label="CTA Text"><input className={inputClass} value={slotForm.ctaText} onChange={(e) => setSlotForm({ ...slotForm, ctaText: e.target.value })} placeholder="Shop now" /></Field>
                     </div>
 
-                    <Field label="Image URL">
-                      <input className={inputClass} value={slotForm.imageUrl} onChange={(e) => setSlotForm({ ...slotForm, imageUrl: e.target.value })} placeholder="https://..." />
+                    <Field label="Carousel Image">
+                      <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                          <div className="h-24 w-full overflow-hidden rounded-lg bg-white ring-1 ring-gray-200 sm:w-36">
+                            {slotForm.imageUrl ? (
+                              <img src={slotForm.imageUrl} alt="Carousel preview" className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-gray-400">
+                                <Image className="h-8 w-8" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-gray-950">Upload a wide homepage banner</p>
+                            <p className="mt-1 text-xs text-gray-500">Recommended ratio: 16:9 or wider. The file is optimized and stored by the platform.</p>
+                            <label className={`mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white ${slotImageUploading ? "bg-gray-500" : "bg-orange-600 hover:bg-orange-700"}`}>
+                              <UploadCloud className="h-4 w-4" />
+                              {slotImageUploading ? "Uploading..." : "Choose image"}
+                              <input type="file" accept="image/*" className="hidden" disabled={slotImageUploading} onChange={handleSlotImageUpload} />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
                     </Field>
                     <Field label="Link URL">
                       <input className={inputClass} value={slotForm.linkUrl} onChange={(e) => setSlotForm({ ...slotForm, linkUrl: e.target.value })} placeholder="/products?campaign=eid" />

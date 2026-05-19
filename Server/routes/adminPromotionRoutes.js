@@ -1,4 +1,5 @@
 const express = require("express");
+const multer = require("multer");
 const { verifyToken, verifyAdmin } = require("../middleware/auth");
 const {
   applyClearanceSale,
@@ -18,6 +19,7 @@ const {
   reorderHomepageSlots,
   reviewCampaignNomination,
   selectDealOfDay,
+  uploadHomepageSlotImage,
   updatePromotionCampaign,
   upsertHomepageSlot,
   upsertLoyaltyRules,
@@ -25,6 +27,20 @@ const {
 } = require("../controllers/adminPromotionController");
 
 const router = express.Router();
+
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 8 * 1024 * 1024,
+    files: 1,
+  },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype?.startsWith("image/")) {
+      return cb(new Error("Only image files are allowed."));
+    }
+    cb(null, true);
+  },
+});
 
 router.get("/overview", verifyToken, verifyAdmin, getPromotionOverview);
 
@@ -43,6 +59,7 @@ router.post("/vouchers", verifyToken, verifyAdmin, createPlatformVoucher);
 
 router.get("/homepage-slots", verifyToken, verifyAdmin, listHomepageSlots);
 router.post("/homepage-slots", verifyToken, verifyAdmin, upsertHomepageSlot);
+router.post("/homepage-slots/upload-image", verifyToken, verifyAdmin, imageUpload.single("image"), uploadHomepageSlotImage);
 router.patch("/homepage-slots/reorder", verifyToken, verifyAdmin, reorderHomepageSlots);
 router.patch("/homepage-slots/:slotId", verifyToken, verifyAdmin, upsertHomepageSlot);
 router.post("/deal-of-day", verifyToken, verifyAdmin, selectDealOfDay);

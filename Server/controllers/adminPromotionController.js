@@ -4,6 +4,7 @@ const {
   PROMOTION_RULES_SETTING_ID,
   normalizePromotionRules,
 } = require("../utils/promotionRulesEngine");
+const { uploadFile } = require("../services/storageService");
 
 const DEFAULT_LOYALTY_RULES = {
   earnRate: 1,
@@ -682,6 +683,37 @@ exports.reorderHomepageSlots = async (req, res) => {
   } catch (error) {
     console.error("Error reordering homepage slots:", error);
     res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.uploadHomepageSlotImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: "Image file is required." });
+    }
+
+    const upload = await uploadFile({
+      req,
+      file: req.file,
+      folder: "homepage/slots",
+      options: { maxWidth: 1800, quality: 84 },
+    });
+
+    await appendPromotionAudit(req, {
+      action: "promotions.homepage_slot.image_uploaded",
+      target: { type: "homepage_slot_image", id: upload.path || upload.url },
+      changes: {
+        provider: upload.provider,
+        path: upload.path,
+        originalName: upload.originalName,
+        size: upload.size,
+      },
+    });
+
+    res.status(201).json({ success: true, data: upload, url: upload.url });
+  } catch (error) {
+    console.error("Error uploading homepage slot image:", error);
+    res.status(500).json({ success: false, error: error.message || "Failed to upload image" });
   }
 };
 

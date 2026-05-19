@@ -550,6 +550,13 @@ export const saveHomepageSlot = (data) =>
   data.slotId
     ? api.patch(`/admin/promotions/homepage-slots/${data.slotId}`, data)
     : api.post("/admin/promotions/homepage-slots", data);
+export const uploadHomepageSlotImage = (file) => {
+  const formData = new FormData();
+  formData.append("image", file);
+  return api.post("/admin/promotions/homepage-slots/upload-image", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
 export const reorderHomepageSlots = (slots) =>
   api.patch("/admin/promotions/homepage-slots/reorder", { slots });
 export const selectDealOfDay = (data) =>
