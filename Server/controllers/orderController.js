@@ -24,6 +24,21 @@ const getVendorLabel = (vendor) =>
   vendor?.name ||
   "HnilaBazar";
 
+const buildVendorPickupAddress = (vendor) => {
+  if (!vendor) return {};
+
+  const address =
+    vendor.pickupAddress ||
+    vendor.warehouseAddress ||
+    vendor.shippingSettings?.pickupAddress ||
+    vendor.shipping?.pickupAddress ||
+    vendor.businessAddress ||
+    vendor.address ||
+    {};
+
+  return typeof address === "string" ? { address } : address;
+};
+
 const buildVendorSnapshot = (vendorId, vendor) => {
   if (!vendorId) {
     return {
@@ -45,6 +60,42 @@ const buildVendorSnapshot = (vendorId, vendor) => {
     vendorAddress: vendor?.address || "",
     vendorSlug: vendor?.slug || "",
   };
+};
+
+const createShipmentDraftsForOrder = async ({
+  Shipment,
+  order,
+  vendorGroups = {},
+  vendorsById = {},
+  actorId = null,
+}) => {
+  if (!Shipment?.createFromOrder || !order?._id) return [];
+
+  const drafts = [];
+
+  for (const vendorId of Object.keys(vendorGroups)) {
+    try {
+      const vendor = vendorId === "platform" ? null : vendorsById[vendorId] || null;
+      const shipment = await Shipment.createFromOrder(order, vendorId, {
+        actorRole: "system",
+        actorId,
+        pickupAddress: buildVendorPickupAddress(vendor),
+        shipmentState: "created",
+      });
+
+      drafts.push({
+        vendorId: vendorId === "platform" ? null : vendorId,
+        shipmentId: normalizeId(shipment?._id),
+        trackingNumber: shipment?.trackingNumber || "",
+        shipmentState: shipment?.shipmentState || "created",
+        codState: shipment?.codState || null,
+      });
+    } catch (error) {
+      console.error(`Failed to create shipment draft for vendor ${vendorId}:`, error);
+    }
+  }
+
+  return drafts.filter((draft) => draft.shipmentId);
 };
 
 const STAFF_ORDER_DETAIL_ROLES = new Set(["admin", "manager", "support", "moderator"]);
@@ -536,6 +587,7 @@ const createOrder = async (req, res) => {
     const VendorOrder = req.app.locals.models.VendorOrder;
     const Product = req.app.locals.models.Product;
     const Notification = req.app.locals.models.Notification;
+    const Shipment = req.app.locals.models.Shipment;
     const Vendor = req.app.locals.models.Vendor;
     const User = req.app.locals.models.User;
     const {
@@ -818,6 +870,15 @@ const createOrder = async (req, res) => {
     console.log(`✅ Created ${vendorOrderIds.length} vendor orders`);
     console.log("📦 Order split completed successfully");
 
+    const shipmentDrafts = await createShipmentDraftsForOrder({
+      Shipment,
+      order: createdOrder,
+      vendorGroups,
+      vendorsById,
+      actorId: req.user?.uid || null,
+    });
+    console.log(`Created ${shipmentDrafts.length} shipment draft(s)`);
+
     if (Notification) {
       if (req.user?.uid) {
         await Notification.create({
@@ -948,6 +1009,7 @@ const createOrder = async (req, res) => {
         totalDiscount: createdOrder?.totalDiscount,
         total: createdOrder?.total,
         couponApplied: createdOrder?.couponApplied || null,
+        shipmentDrafts,
       },
       message: "Order created successfully",
     });

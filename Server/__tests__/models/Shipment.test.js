@@ -137,6 +137,20 @@ describe("Shipment model", () => {
     );
   });
 
+  test("creates a platform shipment for order items without vendor id", async () => {
+    const { model } = buildModel();
+    const order = buildOrder({ vendorId: null });
+
+    const shipment = await model.createFromOrder(order, "platform");
+
+    expect(shipment.vendorId).toBe("platform");
+    expect(shipment.itemCount).toBe(1);
+    expect(shipment.codAmount).toBe(10000);
+    expect(shipment.items).toEqual([
+      expect.objectContaining({ title: "HP laptop", quantity: 1 }),
+    ]);
+  });
+
   test("marks packed through the required pending packing step", async () => {
     const vendorId = new ObjectId();
     const { model } = buildModel();

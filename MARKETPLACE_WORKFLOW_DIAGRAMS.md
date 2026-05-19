@@ -228,6 +228,7 @@ sequenceDiagram
     participant Order as Order Service
     participant VendorOrder as Vendor Order Split
     participant Pay as Payment Service
+    participant Logistics as Logistics Service
     participant Notif as Notification Service
     participant Invoice as Invoice Service
     participant DB as MongoDB
@@ -253,6 +254,8 @@ sequenceDiagram
     Order->>DB: Save master order with discount snapshot
     Order->>VendorOrder: Split by vendor
     VendorOrder->>DB: Save vendorOrders
+    Order->>Logistics: Create shipment drafts per vendor/platform group
+    Logistics->>DB: Save shipment created events
     API->>Pay: Save payment state or wait for manual verification
     Pay->>DB: Save payment/transaction data
     API->>Notif: Create customer and vendor notifications
@@ -458,7 +461,7 @@ flowchart LR
 | Checkout to order flow | Present | `/api/orders` and `/api/orders/guest`; discount persistence is now aligned with invoice/order views. |
 | Payment gateway flow | Partial | Payment records, manual verification, and webhooks exist; gateway depth depends on provider setup. |
 | Logistics state machine | Present | Forward, reverse, and COD state machines exist. |
-| Auto shipment draft at order placement | Partial | Shipment records are ensured when vendor logistics actions start, not always immediately on order creation. |
+| Auto shipment draft at order placement | Present | Order creation now creates shipment drafts for each vendor/platform group; vendor logistics actions continue the state machine. |
 | Admin queue operations | Present/partial | Vendors, products, orders, returns, payouts, support, trust, logistics, analytics pages exist. Depth varies by workflow. |
 | Analytics event taxonomy and warehouse | Present/partial | Event ingestion, taxonomy, and intelligence services exist; dashboard completeness depends on events being emitted consistently. |
 
@@ -468,5 +471,5 @@ flowchart LR
 2. Add a server-side cart collection only if cross-device cart persistence is required.
 3. Move order-created, payment-updated, shipment-updated, return-updated, and support-replied notifications onto one queue/event bus.
 4. Add a search adapter boundary so Mongo search can later be replaced by Typesense without changing page code.
-5. Create shipment drafts immediately after order creation if operations require every order to have logistics visibility from minute one.
+5. Add courier API adapters on top of the existing shipment drafts/state machine when a delivery partner is selected.
 6. Add a diagram update checklist to every future phase so docs and workflow stay synced with implementation.

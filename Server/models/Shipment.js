@@ -41,7 +41,10 @@ const buildAddressText = (address = {}) => [
 
 const getVendorItems = (order = {}, vendorId) => {
   const vendorKeys = new Set(idValues(vendorId).map(normalizeId));
-  return (order.products || []).filter((item) => vendorKeys.has(normalizeId(item.vendorId)));
+  return (order.products || []).filter((item) => {
+    const itemVendorId = normalizeId(item.vendorId) || "platform";
+    return vendorKeys.has(itemVendorId);
+  });
 };
 
 const shipmentNumber = (prefix, seed = "") => {
