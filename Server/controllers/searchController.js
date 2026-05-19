@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const { createSearchProvider } = require("../services/search/searchProviderRegistry");
 
 const STOP_WORDS = new Set([
   "a",
@@ -623,43 +624,28 @@ const getRecentSearches = async (req) => {
   }
 };
 
+const buildSearchProvider = () => createSearchProvider({
+  loadSource: loadSearchSource,
+  runSearch,
+  buildFacets,
+  buildCategoryTree,
+  flattenCategories,
+  getTrendingSearches,
+  getRecentSearches,
+  buildDictionary,
+  correctQueryTokens,
+  scoreProduct,
+  sortProducts,
+  tokenize,
+  bestTokenMatch,
+});
+
 const getAutocomplete = async (req, res) => {
   try {
-    const query = String(req.query.q || "").trim();
-    const source = await loadSearchSource(req);
-    const tree = buildCategoryTree(source.categories, source.products, source.homepageSlots);
-    const flatCategories = flattenCategories(tree);
-    const recentSearches = await getRecentSearches(req);
-    const trendingSearches = await getTrendingSearches(source.db, source.products);
-    const dictionary = buildDictionary({ products: source.products, categories: source.categories });
-    const queryInfo = correctQueryTokens(query, dictionary);
-    const hasQuery = queryInfo.originalTokens.length > 0;
-
-    const matchingCategories = flatCategories
-      .map((category) => ({
-        ...category,
-        score: hasQuery
-          ? queryInfo.correctedTokens.reduce((sum, token) => sum + bestTokenMatch(token, tokenize(`${category.name} ${category.description}`)), 0)
-          : 1,
-      }))
-      .filter((category) => !hasQuery || category.score > 0.55)
-      .sort((a, b) => b.score - a.score || b.productCount - a.productCount)
-      .slice(0, 6);
-
-    const products = hasQuery
-      ? sortProducts(source.products.map((product) => ({ ...product, searchScore: scoreProduct(product, queryInfo) })).filter((product) => product.searchScore >= 2), "best_match").slice(0, 6)
-      : [];
-
+    const data = await buildSearchProvider().autocomplete(req);
     res.json({
       success: true,
-      data: {
-        query,
-        correctedQuery: queryInfo.corrected ? queryInfo.correctedQuery : "",
-        recentSearches,
-        trendingSearches,
-        matchingCategories,
-        products,
-      },
+      data,
     });
   } catch (error) {
     console.error("Autocomplete error:", error);
@@ -669,33 +655,7 @@ const getAutocomplete = async (req, res) => {
 
 const getSearchResults = async (req, res) => {
   try {
-    const source = await loadSearchSource(req);
-    const filters = {
-      category: req.query.category || "",
-      minPrice: req.query.minPrice !== undefined ? Number(req.query.minPrice) : undefined,
-      maxPrice: req.query.maxPrice !== undefined ? Number(req.query.maxPrice) : undefined,
-      brands: parseArrayParam(req.query.brands || req.query["brands[]"]),
-      minRating: req.query.minRating !== undefined ? Number(req.query.minRating) : undefined,
-      deliverySpeed: req.query.deliverySpeed || "",
-      discountMin: req.query.discountMin !== undefined ? Number(req.query.discountMin) : undefined,
-      inStock: req.query.inStock === "true",
-      location: req.query.location || "",
-    };
-    Object.keys(filters).forEach((key) => {
-      if (filters[key] === "" || filters[key] === undefined || (Array.isArray(filters[key]) && !filters[key].length)) {
-        delete filters[key];
-      }
-    });
-
-    const result = runSearch({
-      products: source.products,
-      categories: source.categories,
-      query: String(req.query.q || req.query.search || "").trim(),
-      filters,
-      sort: req.query.sort || req.query.sortBy || "best_match",
-      page: req.query.page || 1,
-      limit: req.query.limit || 24,
-    });
+    const { result, facets } = await buildSearchProvider().search(req);
 
     await recordSearch(req, result.correctedQuery || result.query, result.totalCount);
 
@@ -703,7 +663,7 @@ const getSearchResults = async (req, res) => {
       success: true,
       data: {
         ...result,
-        facets: buildFacets(source.products, source.categories),
+        facets,
       },
     });
   } catch (error) {
@@ -714,19 +674,9 @@ const getSearchResults = async (req, res) => {
 
 const getSearchNavigation = async (req, res) => {
   try {
-    const source = await loadSearchSource(req);
-    const categories = buildCategoryTree(source.categories, source.products, source.homepageSlots);
-    const trendingSearches = await getTrendingSearches(source.db, source.products);
-
     res.json({
       success: true,
-      data: {
-        categories,
-        trendingSearches,
-        featuredCategories: flattenCategories(categories)
-          .sort((a, b) => b.productCount - a.productCount)
-          .slice(0, 12),
-      },
+      data: await buildSearchProvider().navigation(req),
     });
   } catch (error) {
     console.error("Search navigation error:", error);

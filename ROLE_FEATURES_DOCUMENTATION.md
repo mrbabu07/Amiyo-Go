@@ -696,6 +696,20 @@ Admins can:
 
 These are not blockers for the current marketplace workflow, but they are the next professional upgrades:
 
+### Verified Architecture Gap Status
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| Unified BullMQ event bus coverage | Partial | `MarketplaceEventBus` exists with Mongo outbox and optional BullMQ worker, but every domain transition still needs publisher coverage. |
+| Immediate shipment draft at order creation | Implemented | Order creation creates shipment drafts per vendor/platform group. |
+| Unified notification pipeline | Partial | Event-bus notification work exists, but some controllers still create/send notifications directly. |
+| Search provider abstraction | Implemented | Search now uses a provider registry with MongoDB as the default provider; Typesense/Meilisearch can be added later behind the same interface. |
+| Payment provider adapter | Not yet implemented | Payment logic still needs a uniform provider adapter for bKash, Nagad, Stripe, COD, and manual verification. |
+| Server-side cart persistence with guest merge | Not yet implemented | Cart is still mostly client-side; add persisted carts only if cross-device guest merge is required. |
+| Vendor activation checklist/score | Implemented | Vendor dashboards expose readiness and seller action-center checks. |
+| Failed-job / failed-notification monitoring UI | Partial | Admin operations views expose integration/job readiness, but deeper retry/detail screens can still be expanded. |
+| Analytics emission audit | Partial | Analytics/event services exist; transition-by-transition emission coverage still needs a formal audit pass. |
+
 1. Sponsored product advertising with CPC budget and promoted labels.
 2. Direct video upload workflow for product/review videos.
 3. Map-pin address capture using Leaflet/OpenStreetMap.
@@ -717,4 +731,3 @@ Customer discovers product
 -> Finance settles vendor earnings
 -> Promotions and notifications drive repeat purchase
 ```
-

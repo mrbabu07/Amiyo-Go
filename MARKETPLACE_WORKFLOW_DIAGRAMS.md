@@ -10,7 +10,7 @@ The project broadly follows the target modular-monolith marketplace workflow:
 - The backend is a Node.js/Express modular monolith with route groups for catalog, checkout/orders, payments, logistics, returns, reviews, support, promotions, trust, analytics, and admin.
 - The current data store is MongoDB through both native Mongo collections and Mongoose models. The supplied PostgreSQL box is a target architecture item, not the current implementation.
 - Redis is optional infrastructure. BullMQ exists for selected background workflows, and marketplace events now use a Mongo-backed outbox with an optional BullMQ worker adapter.
-- Search currently uses API/database search. A dedicated search index such as Typesense is still a future adapter.
+- Search currently uses API/database search through a provider boundary. A dedicated search index such as Typesense is still a future provider implementation.
 - Shipment state machines, COD states, returns, trust, growth, analytics, and RedX/Steadfast courier adapter foundations exist, but some external integrations still need production credentials, webhooks, and provider-specific depth.
 
 ## System Architecture
@@ -503,7 +503,8 @@ sequenceDiagram
 | BullMQ jobs | Partial | Used for selected jobs such as bulk upload; marketplace events have a Mongo outbox and optional BullMQ worker adapter. |
 | Marketplace event bus | Present | `MarketplaceEventBus` persists workflow events, queues notification work, and powers order-created/timeline events. |
 | Object storage | Partial | Upload routes/services exist; storage provider depends on configuration. |
-| Search index/Typesense | Future | Search currently works through API/database search. |
+| Search provider abstraction | Present | Search routes now call a provider registry with MongoDB as the default provider, so a future Typesense adapter can be added behind the same controller boundary. |
+| Search index/Typesense | Future | Search currently works through MongoDB-backed API search; a dedicated external index is still a future provider. |
 | Checkout to order flow | Present | `/api/orders` and `/api/orders/guest`; discount persistence is now aligned with invoice/order views. |
 | Payment gateway flow | Partial | Payment records, manual verification, and webhooks exist; gateway depth depends on provider setup. |
 | Logistics state machine | Present | Forward, reverse, and COD state machines exist. |
@@ -533,7 +534,7 @@ sequenceDiagram
 1. Decide whether PostgreSQL is a real migration target. If yes, add a separate migration plan instead of mixing it into current architecture diagrams.
 2. Add a server-side cart collection only if cross-device cart persistence is required.
 3. Continue expanding event-bus publishers to every remaining payment-updated, shipment-updated, return-updated, and support-replied path.
-4. Add a search adapter boundary so Mongo search can later be replaced by Typesense without changing page code.
+4. Add a Typesense or Meilisearch provider implementation behind the existing search provider registry when external search is selected.
 5. Add courier webhooks/status polling and provider-specific retry tools after live RedX/Steadfast credentials are rotated and verified.
 6. Add vendor payout statement export from the reconciliation tab if finance wants a single CSV for orders, returns, COD, and payout movement.
 7. Add Playwright/Cypress browser runs against the new admin and vendor test ids once an E2E runner is selected.
