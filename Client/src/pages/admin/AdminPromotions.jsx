@@ -20,7 +20,10 @@ import {
   Tag,
   TicketPercent,
   Timer,
+  Truck,
   UploadCloud,
+  WalletCards,
+  ShieldCheck,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -115,12 +118,15 @@ const voucherDefaults = {
   campaignId: "",
 };
 
+const TRUST_BADGE_DEFAULTS = ["Fast delivery", "Cash on delivery", "Verified seller"];
+
 const slotDefaults = {
   slotId: "",
   slotType: "hero_banner",
   title: "",
   subtitle: "",
   badge: "",
+  trustBadges: TRUST_BADGE_DEFAULTS,
   ctaText: "Shop now",
   imageUrl: "",
   linkUrl: "",
@@ -222,6 +228,14 @@ const parseList = (value) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const normalizeTrustBadgeLabels = (value) => {
+  if (!Array.isArray(value)) return [...TRUST_BADGE_DEFAULTS];
+  const labels = value
+    .map((item) => (typeof item === "object" ? item?.label : item))
+    .map((item) => String(item || "").trim());
+  return [...labels, ...TRUST_BADGE_DEFAULTS].slice(0, 3);
+};
+
 const formatDate = (value) => {
   if (!value) return "N/A";
   const date = new Date(value);
@@ -271,7 +285,7 @@ export default function AdminPromotions() {
     [slots],
   );
 
-  const resetSlotForm = () => setSlotForm(slotDefaults);
+  const resetSlotForm = () => setSlotForm({ ...slotDefaults, trustBadges: [...TRUST_BADGE_DEFAULTS] });
 
   const editSlot = (slot) => {
     setSlotForm({
@@ -281,6 +295,7 @@ export default function AdminPromotions() {
       title: slot.title || "",
       subtitle: slot.subtitle || slot.description || "",
       badge: slot.badge || "",
+      trustBadges: normalizeTrustBadgeLabels(slot.trustBadges),
       ctaText: slot.ctaText || "Shop now",
       imageUrl: slot.imageUrl || slot.bannerImageUrl || "",
       linkUrl: slot.linkUrl || "",
@@ -433,6 +448,14 @@ export default function AdminPromotions() {
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to save homepage slot");
     }
+  };
+
+  const updateSlotTrustBadge = (index, value) => {
+    setSlotForm((current) => {
+      const trustBadges = normalizeTrustBadgeLabels(current.trustBadges);
+      trustBadges[index] = value;
+      return { ...current, trustBadges };
+    });
   };
 
   const handleSlotImageUpload = async (event) => {
@@ -834,6 +857,30 @@ export default function AdminPromotions() {
                       <Field label="CTA Text"><input className={inputClass} value={slotForm.ctaText} onChange={(e) => setSlotForm({ ...slotForm, ctaText: e.target.value })} placeholder="Shop now" /></Field>
                     </div>
 
+                    <Field label="Hero trust badges">
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {[
+                          { label: "Fast delivery", Icon: Truck },
+                          { label: "COD", Icon: WalletCards },
+                          { label: "Verified seller", Icon: ShieldCheck },
+                        ].map(({ label, Icon }, index) => (
+                          <label key={label} className="rounded-xl border border-gray-200 bg-gray-50 p-2">
+                            <span className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+                              <Icon className="h-3.5 w-3.5" />
+                              {label}
+                            </span>
+                            <input
+                              className={`${inputClass} h-9 text-xs`}
+                              value={slotForm.trustBadges?.[index] || ""}
+                              onChange={(e) => updateSlotTrustBadge(index, e.target.value)}
+                              placeholder={label}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">Shown below the carousel headline. Leave a field blank to hide that badge.</p>
+                    </Field>
+
                     <Field label="Carousel Image">
                       <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -888,6 +935,15 @@ export default function AdminPromotions() {
                           </p>
                           <h3 className="max-w-md text-xl font-black">{slotForm.title || "Slide preview"}</h3>
                           <p className="mt-2 line-clamp-2 max-w-md text-sm text-white/75">{slotForm.subtitle || "Add a subtitle to preview how this slide will read on the storefront."}</p>
+                          {(slotForm.trustBadges || []).filter(Boolean).length ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {(slotForm.trustBadges || []).filter(Boolean).map((badge) => (
+                                <span key={badge} className="rounded-lg border border-white/20 bg-white/15 px-2.5 py-1 text-xs font-semibold text-white">
+                                  {badge}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     </div>

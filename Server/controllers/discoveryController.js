@@ -35,6 +35,15 @@ const idValues = (value) => {
 
 const unique = (values = []) => [...new Set(values.map(normalizeId).filter(Boolean))];
 
+const normalizeTrustBadges = (value) => {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .map((item) => (typeof item === "object" ? item?.label : item))
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .slice(0, 4);
+};
+
 const asDate = (value) => {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(value);
@@ -326,6 +335,7 @@ const buildHeroBanners = ({
         title: slot.title || "Featured on Amiyo Go",
         subtitle: slot.subtitle || slot.description || "",
         badge: slot.badge || "Featured",
+        trustBadges: normalizeTrustBadges(slot.trustBadges),
         imageUrl: slot.imageUrl || slot.bannerImageUrl || "",
         link: slot.linkUrl || slot.targetUrl || slot.url || "/products",
         ctaText: slot.ctaText || "Shop now",

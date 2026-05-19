@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
@@ -413,8 +413,6 @@ function TopCategorySection({ categories, t }) {
 }
 
 function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
-  const navigate = useNavigate();
-  const [query, setQuery] = useState("");
   const slides = banners?.length
     ? banners
     : [
@@ -431,17 +429,19 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
 
   const currentSlide = slides[activeHero % slides.length];
   const featuredSlides = slides.slice(0, 4);
-  const trustSignals = [
-    { label: t("home.heroFastDelivery"), Icon: Truck },
-    { label: t("home.heroCod"), Icon: WalletCards },
-    { label: t("home.heroVerifiedSeller"), Icon: ShieldCheck },
+  const defaultTrustLabels = [
+    t("home.heroFastDelivery"),
+    t("home.heroCod"),
+    t("home.heroVerifiedSeller"),
   ];
-
-  const submitSearch = (event) => {
-    event.preventDefault();
-    const clean = query.trim();
-    if (clean) navigate(`/search?q=${encodeURIComponent(clean)}`);
-  };
+  const trustLabels = Array.isArray(currentSlide.trustBadges)
+    ? currentSlide.trustBadges.map((label) => String(label || "").trim()).filter(Boolean)
+    : defaultTrustLabels;
+  const trustIcons = [Truck, WalletCards, ShieldCheck];
+  const trustSignals = trustLabels.slice(0, 4).map((label, index) => ({
+    label,
+    Icon: trustIcons[index] || ShieldCheck,
+  }));
 
   return (
     <div className="relative min-h-[31rem] overflow-hidden rounded-2xl border border-white/15 bg-gray-900 shadow-2xl shadow-black/30 ring-1 ring-white/10 sm:min-h-[30rem] lg:min-h-[34rem]">
@@ -486,38 +486,23 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
               </p>
             ) : null}
 
-            <form onSubmit={submitSearch} className="mt-6 flex max-w-xl flex-col gap-2 rounded-2xl border border-white/20 bg-white p-2 shadow-2xl shadow-black/20 sm:flex-row">
-              <label className="relative min-w-0 flex-1">
-                <span className="sr-only">Search products</span>
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t("home.heroSearchPlaceholder", "Search products, shops, categories")}
-                  className="h-12 w-full rounded-xl border-0 bg-gray-50 pl-10 pr-3 text-sm font-semibold text-gray-900 outline-none ring-1 ring-gray-200 transition placeholder:text-gray-400 focus:bg-white focus:ring-primary-400"
-                />
-              </label>
-              <button type="submit" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 text-sm font-black text-white transition hover:bg-primary-700">
-                {t("common.search", "Search")}
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </form>
+            {trustSignals.length ? (
+              <div className="mt-6 grid max-w-xl grid-cols-1 gap-2 sm:grid-cols-3">
+                {trustSignals.map((item) => {
+                  const SignalIcon = item.Icon;
 
-            <div className="mt-5 grid max-w-xl grid-cols-1 gap-2 sm:grid-cols-3">
-              {trustSignals.map((item) => {
-                const SignalIcon = item.Icon;
-
-                return (
-                  <span
-                    key={item.label}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-xs font-semibold text-white backdrop-blur"
-                  >
-                    <SignalIcon className="h-3.5 w-3.5" />
-                    {item.label}
-                  </span>
-                );
-              })}
-            </div>
+                  return (
+                    <span
+                      key={item.label}
+                      className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-xs font-semibold text-white backdrop-blur"
+                    >
+                      <SignalIcon className="h-3.5 w-3.5" />
+                      {item.label}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : null}
 
             <div className="mt-6 flex flex-wrap gap-2">
               <Link

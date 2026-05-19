@@ -6,6 +6,7 @@ const {
   createPlatformVoucher,
   createPromotionCampaign,
   reviewCampaignNomination,
+  upsertHomepageSlot,
   upsertLoyaltyRules,
   upsertPromotionRules,
 } = require("../../controllers/adminPromotionController");
@@ -340,6 +341,34 @@ describe("adminPromotionController", () => {
         maxDiscountAmount: 120,
         isPlatformVoucher: true,
         firstOrderOnly: true,
+      }),
+    );
+  });
+
+  test("saves homepage carousel slots with admin-controlled trust badges", async () => {
+    const db = buildDb();
+    const res = createRes();
+
+    await upsertHomepageSlot(
+      buildReq({
+        db,
+        body: {
+          slotType: "hero_banner",
+          title: "Mega marketplace day",
+          subtitle: "Admin controlled homepage copy",
+          badge: "Official sale",
+          imageUrl: "https://cdn/banner.webp",
+          trustBadges: ["Fast delivery", "COD available", "Verified seller", ""],
+        },
+      }),
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(db.collection("homepage_slots").docs[0]).toEqual(
+      expect.objectContaining({
+        title: "Mega marketplace day",
+        trustBadges: ["Fast delivery", "COD available", "Verified seller"],
       }),
     );
   });

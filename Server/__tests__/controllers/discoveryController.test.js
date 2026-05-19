@@ -120,7 +120,18 @@ describe("discoveryController homepage builders", () => {
 
   test("builds active campaign hero banners, category access, flash sales, and new arrivals", () => {
     const heroes = buildHeroBanners({
-      homepageSlots: [{ _id: "slot-1", slotType: "hero_banner", status: "active", title: "Eid Sale", subtitle: "Admin controlled hero copy", badge: "Mega deal", ctaText: "Shop Eid", imageUrl: "eid.jpg", linkUrl: "/campaigns/eid" }],
+      homepageSlots: [{
+        _id: "slot-1",
+        slotType: "hero_banner",
+        status: "active",
+        title: "Eid Sale",
+        subtitle: "Admin controlled hero copy",
+        badge: "Mega deal",
+        trustBadges: ["Fast delivery", "COD available", "Verified seller"],
+        ctaText: "Shop Eid",
+        imageUrl: "eid.jpg",
+        linkUrl: "/campaigns/eid",
+      }],
       campaigns: [{ _id: "camp-1", status: "Active", name: "11.11", bannerImageUrl: "1111.jpg", startDate: "2026-05-01", endDate: "2026-05-30" }],
       flashSales: [],
       vendors,
@@ -139,7 +150,12 @@ describe("discoveryController homepage builders", () => {
     const arrivals = buildNewArrivals({ products, now, categoryId: "cat-fashion" });
 
     expect(heroes.map((banner) => banner.source)).toEqual(expect.arrayContaining(["homepage_slot", "campaign"]));
-    expect(heroes[0]).toEqual(expect.objectContaining({ subtitle: "Admin controlled hero copy", badge: "Mega deal", ctaText: "Shop Eid" }));
+    expect(heroes[0]).toEqual(expect.objectContaining({
+      subtitle: "Admin controlled hero copy",
+      badge: "Mega deal",
+      ctaText: "Shop Eid",
+      trustBadges: ["Fast delivery", "COD available", "Verified seller"],
+    }));
     expect(quickAccess.find((category) => category._id === "cat-tech").productCount).toBe(1);
     expect(flashSales).toHaveLength(1);
     expect(flashSales[0]).toEqual(expect.objectContaining({ productId: "prod-shirt", remainingStock: 17 }));

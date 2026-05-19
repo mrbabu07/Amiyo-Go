@@ -22,6 +22,7 @@ const DEFAULT_LOYALTY_RULES = {
 const SLOT_TYPES = ["hero_banner", "category_banner", "ad_slot", "deal_of_day"];
 const CAMPAIGN_STATUSES = ["Draft", "Scheduled", "Active", "Ended", "Archived"];
 const VOUCHER_TYPES = ["percentage", "fixed", "free_shipping"];
+const DEFAULT_HERO_TRUST_BADGES = ["Fast delivery", "Cash on delivery", "Verified seller"];
 
 const roundMoney = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 const normalizeId = (value) => (value?.toString ? value.toString() : String(value || ""));
@@ -93,6 +94,24 @@ const appendPromotionAudit = async (req, { action, target, changes = {}, metadat
 const normalizeStringArray = (value) => {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map((item) => String(item || "").trim()).filter(Boolean))];
+};
+
+const normalizeTrustBadges = (value, fallback = []) => {
+  const source = value === undefined ? fallback : value;
+  const items = Array.isArray(source)
+    ? source
+    : String(source || "")
+        .split(/[\n,]/)
+        .map((item) => item.trim());
+
+  return [
+    ...new Set(
+      items
+        .map((item) => (typeof item === "object" ? item?.label : item))
+        .map((item) => String(item || "").trim())
+        .filter(Boolean),
+    ),
+  ].slice(0, 4);
 };
 
 const calculateDiscountPercentage = (regularPrice, salePrice) => {
@@ -616,12 +635,18 @@ exports.upsertHomepageSlot = async (req, res) => {
     if (!SLOT_TYPES.includes(slotType)) return res.status(400).json({ success: false, error: "Invalid homepage slot type." });
     if (!String(req.body.title || "").trim()) return res.status(400).json({ success: false, error: "Slot title is required." });
 
+    const slotId = req.params.slotId;
+    const existingSlot = slotId ? await db.collection("homepage_slots").findOne(idFilter(slotId)) : null;
     const payload = {
       slotType,
       title: String(req.body.title || "").trim(),
       subtitle: String(req.body.subtitle || "").trim(),
       description: String(req.body.description || req.body.subtitle || "").trim(),
       badge: String(req.body.badge || "").trim(),
+      trustBadges: normalizeTrustBadges(
+        req.body.trustBadges,
+        existingSlot?.trustBadges ?? DEFAULT_HERO_TRUST_BADGES,
+      ),
       imageUrl: String(req.body.imageUrl || "").trim(),
       linkUrl: String(req.body.linkUrl || "").trim(),
       ctaText: String(req.body.ctaText || "").trim(),
@@ -638,20 +663,20 @@ exports.upsertHomepageSlot = async (req, res) => {
       updatedBy: getActor(req).userId,
     };
 
-    let slotId = req.params.slotId;
+    let savedSlotId = slotId;
     if (slotId) {
       await db.collection("homepage_slots").updateOne(idFilter(slotId), { $set: payload });
     } else {
       payload.createdAt = new Date();
       payload.createdBy = getActor(req).userId;
       const result = await db.collection("homepage_slots").insertOne(payload);
-      slotId = normalizeId(result.insertedId);
+      savedSlotId = normalizeId(result.insertedId);
     }
 
-    const saved = await db.collection("homepage_slots").findOne(idFilter(slotId));
+    const saved = await db.collection("homepage_slots").findOne(idFilter(savedSlotId));
     await appendPromotionAudit(req, {
       action: "promotions.homepage_slot.saved",
-      target: { type: "homepage_slot", id: slotId },
+      target: { type: "homepage_slot", id: savedSlotId },
       changes: payload,
     });
 
