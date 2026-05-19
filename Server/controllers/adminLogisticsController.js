@@ -1,10 +1,16 @@
 const { ObjectId } = require("mongodb");
 const { appendOrderEvent } = require("../services/orderEventService");
+const {
+  getCourierProviderStatus,
+  normalizeProvider,
+} = require("../services/courierProviderService");
 
 const READY_FOR_DISPATCH_STATUSES = ["packed", "ready_to_ship", "pickup_ready"];
 const FAILED_DELIVERY_STATUSES = ["failed_delivery", "delivery_failed", "reattempt_scheduled", "return_to_seller"];
 const FEE_RULE_TYPES = ["free_shipping", "weight_based", "zone_rate", "cod_fee", "redelivery_fee"];
 const COURIER_STATUSES = ["active", "paused", "disabled"];
+const COURIER_BOOKING_MODES = ["manual", "live"];
+const COURIER_COVERAGE_TYPES = ["outside_district", "local_area", "both"];
 const STAFF_STATUSES = ["active", "off_duty", "inactive"];
 
 const DEFAULT_DELIVERY_ZONES = [
@@ -82,6 +88,19 @@ const serializeDoc = (doc) => ({
   ...doc,
   _id: normalizeId(doc?._id),
 });
+
+const attachCourierCredentialStatus = (courier, env = process.env) => {
+  const status = getCourierProviderStatus(env);
+  const provider = normalizeProvider(courier?.provider || courier?.code);
+  const providerStatus = status.providers[provider] || status.providers.manual;
+  return {
+    ...courier,
+    provider,
+    credentialStatus: providerStatus.status,
+    credentialsConfigured: providerStatus.configured,
+    providerBaseUrl: providerStatus.baseUrl || null,
+  };
+};
 
 const getActor = (req) => ({
   userId: normalizeId(req.user?._id || req.user?.uid || "admin"),
@@ -591,11 +610,18 @@ exports.listCourierPartners = async (req, res) => {
     const query = {};
     if (req.query.status && req.query.status !== "all") query.status = req.query.status;
     const couriers = await collectionToArray(req.app.locals.db, "courier_partners", query, { name: 1 });
-    res.json({ success: true, data: couriers.map(serializeDoc) });
+    res.json({
+      success: true,
+      data: couriers.map((courier) => attachCourierCredentialStatus(serializeDoc(courier), process.env)),
+    });
   } catch (error) {
     console.error("Error loading courier partners:", error);
     res.status(500).json({ success: false, error: "Failed to load courier partners" });
   }
+};
+
+exports.getCourierProviderReadiness = (req, res) => {
+  res.json({ success: true, data: getCourierProviderStatus(process.env) });
 };
 
 exports.upsertCourierPartner = async (req, res) => {
@@ -609,6 +635,13 @@ exports.upsertCourierPartner = async (req, res) => {
     if (!name) return res.status(400).json({ success: false, error: "Courier name is required" });
 
     const status = COURIER_STATUSES.includes(req.body.status) ? req.body.status : "active";
+    const provider = normalizeProvider(req.body.provider || code);
+    const bookingMode = COURIER_BOOKING_MODES.includes(req.body.bookingMode)
+      ? req.body.bookingMode
+      : provider === "manual" || provider === "local" ? "manual" : "live";
+    const coverageType = COURIER_COVERAGE_TYPES.includes(req.body.coverageType)
+      ? req.body.coverageType
+      : req.body.localArea && !req.body.outsideDistrict ? "local_area" : "outside_district";
     const slaByZone = Array.isArray(req.body.slaByZone)
       ? req.body.slaByZone.map((row) => ({
           zoneCode: String(row.zoneCode || row.zoneId || "").trim(),
@@ -625,6 +658,13 @@ exports.upsertCourierPartner = async (req, res) => {
       name,
       code,
       status,
+      provider,
+      bookingMode,
+      coverageType,
+      outsideDistrict: req.body.outsideDistrict !== false,
+      localArea: req.body.localArea === true || coverageType === "local_area" || coverageType === "both",
+      instantDelivery: req.body.instantDelivery === true,
+      trackingUrlPattern: String(req.body.trackingUrlPattern || "").trim(),
       contactName: String(req.body.contactName || "").trim(),
       phone: String(req.body.phone || "").trim(),
       email: String(req.body.email || "").trim(),
@@ -637,6 +677,7 @@ exports.upsertCourierPartner = async (req, res) => {
       notes: String(req.body.notes || "").trim(),
       updatedAt: now,
     };
+    payload.credentialStatus = attachCourierCredentialStatus(payload, process.env).credentialStatus;
 
     if (courierId) {
       const result = await db.collection("courier_partners").updateOne(idFilter(courierId), { $set: payload });
@@ -647,7 +688,7 @@ exports.upsertCourierPartner = async (req, res) => {
         changes: payload,
       });
       const updated = await db.collection("courier_partners").findOne(idFilter(courierId));
-      return res.json({ success: true, data: serializeDoc(updated) });
+      return res.json({ success: true, data: attachCourierCredentialStatus(serializeDoc(updated), process.env) });
     }
 
     const doc = { ...payload, createdAt: now };
@@ -658,7 +699,7 @@ exports.upsertCourierPartner = async (req, res) => {
       target: { type: "courier_partner", id: normalizeId(result.insertedId) },
       changes: payload,
     });
-    return res.status(201).json({ success: true, data: serializeDoc(saved) });
+    return res.status(201).json({ success: true, data: attachCourierCredentialStatus(serializeDoc(saved), process.env) });
   } catch (error) {
     console.error("Error saving courier partner:", error);
     res.status(500).json({ success: false, error: "Failed to save courier partner" });

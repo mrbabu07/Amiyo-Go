@@ -31,6 +31,9 @@ describe("environment validation", () => {
       REDIS_ENABLED: "false",
       SMTP_USER: "mailer@example.com",
       SMTP_PASS: "secret",
+      REDX_API_TOKEN: "redx-token",
+      STEADFAST_API_KEY: "steadfast-key",
+      STEADFAST_SECRET_KEY: "steadfast-secret",
     });
 
     expect(services.mongodb).toMatchObject({ configured: true, required: true });
@@ -38,6 +41,10 @@ describe("environment validation", () => {
     expect(services.email).toMatchObject({ configured: true, mode: "smtp" });
     expect(services.supabase).toMatchObject({ configured: false, fallback: "local_uploads" });
     expect(services.push).toMatchObject({ configured: false, mode: "limited" });
+    expect(services.courier).toMatchObject({
+      configured: true,
+      providers: { redx: true, steadfast: true },
+    });
   });
 
   test("builds a strict CORS allowlist with localhost development fallback", () => {

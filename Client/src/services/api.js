@@ -579,6 +579,8 @@ export const saveDeliveryZone = (data) =>
     : api.post("/admin/logistics/delivery-zones", data);
 export const getCourierPartners = (params = {}) =>
   api.get("/admin/logistics/courier-partners", { params });
+export const getCourierProviderStatus = () =>
+  api.get("/admin/logistics/courier-provider-status");
 export const saveCourierPartner = (data) =>
   data.courierId
     ? api.patch(`/admin/logistics/courier-partners/${data.courierId}`, data)
@@ -587,6 +589,10 @@ export const getDispatchManifest = (params = {}) =>
   api.get("/admin/logistics/dispatch-manifest", { params });
 export const downloadDispatchManifestCsv = (params = {}) =>
   api.get("/admin/logistics/dispatch-manifest/export", { params, responseType: "blob" });
+export const getLogisticsShipments = (params = {}) =>
+  api.get("/admin/logistics/shipments", { params });
+export const assignLogisticsShipmentCourier = (shipmentId, data) =>
+  api.post(`/admin/logistics/shipments/${shipmentId}/assign-courier`, data);
 export const getPickupStaff = (params = {}) =>
   api.get("/admin/logistics/pickup-staff", { params });
 export const savePickupStaff = (data) =>
@@ -957,6 +963,13 @@ export const downloadVendorPackingSlip = (orderId) =>
   api.get(`/vendors/orders/${orderId}/packing-slip`, { responseType: "blob" });
 export const downloadVendorBarcodeLabel = (orderId) =>
   api.get(`/vendors/orders/${orderId}/barcode-label`, { responseType: "blob" });
+
+export const getVendorLogisticsShipments = (params = {}) =>
+  api.get("/vendor/logistics/shipments", { params });
+export const getVendorCourierOptions = () =>
+  api.get("/vendor/logistics/courier-options");
+export const assignVendorShipmentCourier = (shipmentId, data) =>
+  api.post(`/vendor/logistics/shipments/${shipmentId}/assign-courier`, data);
 
 export const shipVendorOrder = (orderId, data) =>
   api.post(`/vendors/orders/${orderId}/ship`, data);

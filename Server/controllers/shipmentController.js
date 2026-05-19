@@ -3,6 +3,11 @@ const PDFDocument = require("pdfkit");
 const bwipjs = require("bwip-js");
 const { isStaffRole } = require("../config/permissions");
 const {
+  bookShipment,
+  normalizeProvider,
+  summarizeBookingForStorage,
+} = require("../services/courierProviderService");
+const {
   COD_TRANSITIONS,
   FORWARD_TRANSITIONS,
   REVERSE_TRANSITIONS,
@@ -71,6 +76,53 @@ const vendorArrayFilter = (vendorId) => {
 const orderFilter = (orderId) => {
   const objectId = toObjectId(orderId);
   return objectId ? { _id: objectId } : { _id: orderId };
+};
+
+const findCourierPartner = async (req, data = {}) => {
+  const db = req.app.locals.db;
+  if (!db?.collection) return null;
+
+  const courierId = data.courierId || data.courierPartnerId;
+  if (courierId) {
+    const objectId = toObjectId(courierId);
+    const courier = await db.collection("courier_partners").findOne(
+      objectId ? { $or: [{ _id: objectId }, { _id: normalizeId(courierId) }] } : { _id: normalizeId(courierId) },
+    );
+    if (courier) return courier;
+  }
+
+  const code = String(data.courierCode || data.code || "").trim().toLowerCase();
+  if (code) {
+    const courier = await db.collection("courier_partners").findOne({ code });
+    if (courier) return courier;
+  }
+
+  const name = String(data.courierName || data.name || "").trim();
+  if (name) {
+    const courier = await db.collection("courier_partners").findOne({ name });
+    if (courier) return courier;
+  }
+
+  return null;
+};
+
+const buildCourierAssignmentPayload = ({ data = {}, courier = null, booking = null }) => {
+  const provider = normalizeProvider(data.provider || data.courierProvider || courier?.provider || courier?.code);
+  const trackingNumber = booking?.trackingNumber || data.trackingNumber || data.tracking_number || null;
+  const code = data.courierCode || data.courier_code || courier?.code || provider || "manual";
+
+  return {
+    ...data,
+    courierId: data.courierId || data.courierPartnerId || courier?._id || null,
+    courierCode: code,
+    courierName: data.courierName || data.name || courier?.name || provider || "Manual courier",
+    courierProvider: provider,
+    courierBookingStatus: booking?.status || (provider === "manual" || provider === "local" ? "manual_dispatch" : "manual_required"),
+    courierConsignmentId: booking?.consignmentId || data.courierConsignmentId || null,
+    courierTrackingUrl: booking?.trackingUrl || data.courierTrackingUrl || "",
+    courierBooking: summarizeBookingForStorage(booking),
+    trackingNumber,
+  };
 };
 
 const findOrder = async (req, orderId) => {
@@ -242,6 +294,7 @@ exports.listVendorShipments = async (req, res) => {
   try {
     const shipments = await getShipmentModel(req).list({
       vendorId: req.user.vendorId || req.query.vendorId,
+      orderId: req.query.orderId || undefined,
       shipmentState: req.query.state || req.query.shipmentState || "all",
       codState: req.query.codState || "all",
       reverseState: req.query.reverseState || "all",
@@ -250,6 +303,35 @@ exports.listVendorShipments = async (req, res) => {
     res.json({ success: true, data: shipments });
   } catch (error) {
     jsonError(res, error, "Failed to load shipments");
+  }
+};
+
+exports.listVendorCourierOptions = async (req, res) => {
+  try {
+    const couriers = await req.app.locals.db.collection("courier_partners")
+      .find({ status: { $ne: "inactive" } })
+      .sort({ name: 1 })
+      .toArray();
+
+    res.json({
+      success: true,
+      data: couriers.map((courier) => ({
+        _id: normalizeId(courier._id),
+        name: courier.name,
+        code: courier.code,
+        provider: normalizeProvider(courier.provider || courier.code),
+        bookingMode: courier.bookingMode || "manual",
+        coverageType: courier.coverageType || "outside_district",
+        outsideDistrict: courier.outsideDistrict !== false,
+        localArea: courier.localArea === true,
+        instantDelivery: courier.instantDelivery === true,
+        codSupported: courier.codSupported !== false,
+        defaultSlaHours: courier.defaultSlaHours || 72,
+        serviceZones: courier.serviceZones || [],
+      })),
+    });
+  } catch (error) {
+    jsonError(res, error, "Failed to load courier options");
   }
 };
 
@@ -379,8 +461,83 @@ exports.confirmManifestPickup = async (req, res) => {
 
 exports.assignCourier = async (req, res) => {
   try {
-    const shipment = await getShipmentModel(req).assignCourier(req.params.id, req.body, getActor(req, "admin"));
-    res.json({ success: true, data: shipment });
+    const Shipment = getShipmentModel(req);
+    const currentShipment = await Shipment.findById(req.params.id);
+    if (!currentShipment) {
+      const error = new Error("Shipment not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const courier = await findCourierPartner(req, req.body);
+    const provider = normalizeProvider(req.body.provider || req.body.courierProvider || courier?.provider || courier?.code);
+    const requestedBookingMode = req.body.bookWithCourier === false
+      ? "manual"
+      : req.body.bookingMode || courier?.bookingMode || (provider === "manual" || provider === "local" ? "manual" : "live");
+    const bookingMode = process.env.COURIER_API_MODE === "manual" ? "manual" : requestedBookingMode;
+
+    let booking = null;
+    if (bookingMode === "live") {
+      booking = await bookShipment({
+        shipment: currentShipment,
+        courier: courier || req.body,
+        payload: {
+          ...req.body,
+          provider,
+        },
+      });
+    } else {
+      booking = { attempted: false, status: provider === "local" ? "local_manual_dispatch" : "manual_dispatch", provider };
+    }
+
+    const assignment = buildCourierAssignmentPayload({ data: req.body, courier, booking });
+    const shipment = await Shipment.assignCourier(req.params.id, assignment, getActor(req, "admin"));
+    res.json({ success: true, data: shipment, courierBooking: summarizeBookingForStorage(booking) });
+  } catch (error) {
+    jsonError(res, error, "Failed to assign courier");
+  }
+};
+
+exports.assignVendorCourier = async (req, res) => {
+  try {
+    const Shipment = getShipmentModel(req);
+    const currentShipment = await Shipment.findById(req.params.id);
+    if (!currentShipment) {
+      const error = new Error("Shipment not found");
+      error.statusCode = 404;
+      throw error;
+    }
+    assertVendorShipmentAccess(req, currentShipment);
+
+    const courier = await findCourierPartner(req, req.body);
+    const provider = normalizeProvider(req.body.provider || req.body.courierProvider || courier?.provider || courier?.code);
+    const requestedBookingMode = req.body.bookWithCourier === false
+      ? "manual"
+      : req.body.bookingMode || courier?.bookingMode || (provider === "manual" || provider === "local" ? "manual" : "live");
+    const bookingMode = process.env.COURIER_API_MODE === "manual" ? "manual" : requestedBookingMode;
+
+    let booking = null;
+    if (bookingMode === "live") {
+      booking = await bookShipment({
+        shipment: currentShipment,
+        courier: courier || req.body,
+        payload: {
+          ...req.body,
+          provider,
+        },
+      });
+    } else {
+      booking = { attempted: false, status: provider === "local" ? "local_manual_dispatch" : "manual_dispatch", provider };
+    }
+
+    const assignment = buildCourierAssignmentPayload({ data: req.body, courier, booking });
+    const shipment = await Shipment.assignCourier(req.params.id, assignment, getActor(req, "vendor"));
+    await updateOrderVendorItems(req, currentShipment.orderId, req.user.vendorId, {
+      "products.$[elem].shipmentId": normalizeId(shipment._id),
+      "products.$[elem].trackingNumber": shipment.trackingNumber,
+      "products.$[elem].courierName": shipment.courierName,
+    });
+    res.json({ success: true, data: shipment, courierBooking: summarizeBookingForStorage(booking) });
   } catch (error) {
     jsonError(res, error, "Failed to assign courier");
   }

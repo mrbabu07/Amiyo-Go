@@ -1,4 +1,5 @@
 import { createElement, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Banknote,
@@ -7,6 +8,7 @@ import {
   ClipboardList,
   Download,
   MapPin,
+  Package,
   PackageCheck,
   RefreshCw,
   RotateCcw,
@@ -21,15 +23,18 @@ import {
   downloadDispatchManifestCsv,
   getCodFloatTracker,
   getCourierPartners,
+  getCourierProviderStatus,
   getDeliveryFeeRules,
   getDeliveryZones,
   getDispatchManifest,
   getFailedDeliveries,
+  getLogisticsShipments,
   getLogisticsAuditLog,
   getLogisticsOverview,
   getPickupStaff,
   recordCodRemittance,
   returnFailedDeliveryToSeller,
+  assignLogisticsShipmentCourier,
   saveCourierPartner,
   saveDeliveryFeeRule,
   saveDeliveryZone,
@@ -45,6 +50,7 @@ const TABS = [
   { key: "zones", label: "Zones", icon: MapPin },
   { key: "couriers", label: "Couriers", icon: Truck },
   { key: "manifest", label: "Manifest", icon: ClipboardList },
+  { key: "parcels", label: "Parcels", icon: Package },
   { key: "staff", label: "Pickup Staff", icon: Users },
   { key: "rules", label: "Fee Rules", icon: Calculator },
   { key: "cod", label: "COD Float", icon: Banknote },
@@ -68,6 +74,13 @@ const emptyCourier = {
   name: "",
   code: "",
   status: "active",
+  provider: "manual",
+  bookingMode: "manual",
+  coverageType: "outside_district",
+  outsideDistrict: true,
+  localArea: false,
+  instantDelivery: false,
+  trackingUrlPattern: "",
   contactName: "",
   phone: "",
   email: "",
@@ -136,6 +149,15 @@ const emptyFailureAction = {
   note: "",
 };
 
+const emptyParcelAssignment = {
+  shipmentId: "",
+  courierId: "",
+  bookingMode: "manual",
+  trackingNumber: "",
+  estimatedDeliveryDate: "",
+  note: "",
+};
+
 const toArray = (value) =>
   String(value || "")
     .split(/[\n,]/)
@@ -155,6 +177,26 @@ const formatDate = (value) => {
 };
 
 const shortId = (id = "") => id.toString().slice(-8).toUpperCase();
+
+const providerLabels = {
+  manual: "Manual",
+  local: "Local instant",
+  redx: "RedX",
+  steadfast: "Steadfast",
+};
+
+const credentialTone = (status) => {
+  if (["ready", "manual_dispatch"].includes(status)) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "missing_credentials") return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-slate-200 bg-slate-50 text-slate-600";
+};
+
+const toggleListValue = (list = [], value, checked) => {
+  const current = new Set(list.filter(Boolean));
+  if (checked) current.add(value);
+  else current.delete(value);
+  return [...current];
+};
 
 function Metric({ icon, label, value, tone = "text-slate-950" }) {
   return (
@@ -200,13 +242,19 @@ function EmptyPanel({ children }) {
 
 export default function AdminLogistics() {
   const { formatPrice } = useCurrency();
-  const [activeTab, setActiveTab] = useState("zones");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryTab = searchParams.get("tab");
+  const initialTab = TABS.some((tab) => tab.key === queryTab) ? queryTab : "zones";
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [overview, setOverview] = useState(null);
   const [zones, setZones] = useState([]);
   const [couriers, setCouriers] = useState([]);
+  const [providerStatus, setProviderStatus] = useState({ providers: {}, mode: "manual" });
   const [manifest, setManifest] = useState({ groups: [], rows: [] });
+  const [shipments, setShipments] = useState([]);
+  const [shipmentStateFilter, setShipmentStateFilter] = useState("all");
   const [pickupStaff, setPickupStaff] = useState([]);
   const [feeRules, setFeeRules] = useState([]);
   const [codFloat, setCodFloat] = useState({ summary: {}, byCourier: [], orders: [], remittances: [] });
@@ -221,11 +269,67 @@ export default function AdminLogistics() {
   const [codForm, setCodForm] = useState(emptyCodRemittance);
   const [selectedCodOrderIds, setSelectedCodOrderIds] = useState([]);
   const [failureAction, setFailureAction] = useState(emptyFailureAction);
+  const [parcelAssignment, setParcelAssignment] = useState(emptyParcelAssignment);
 
   const zoneOptions = useMemo(
     () => zones.map((zone) => ({ value: zone.code || zone._id, label: zone.name })),
     [zones],
   );
+
+  const courierById = useMemo(
+    () => new Map(couriers.map((courier) => [String(courier._id), courier])),
+    [couriers],
+  );
+
+  const providerCards = useMemo(() => {
+    const providers = providerStatus.providers || {};
+    return ["redx", "steadfast", "local", "manual"].map((key) => ({
+      key,
+      label: providerLabels[key] || key,
+      ...(providers[key] || {}),
+    }));
+  }, [providerStatus]);
+
+  const courierOptions = useMemo(() => {
+    const savedOptions = couriers.map((courier) => {
+      const provider = courier.provider || courier.code || "manual";
+      return {
+        value: `courier:${courier._id}`,
+        type: "courier",
+        id: courier._id,
+        provider,
+        label: courier.name || providerLabels[provider] || "Courier partner",
+        bookingMode: courier.bookingMode || (["redx", "steadfast"].includes(provider) ? "live" : "manual"),
+        source: "Saved partner",
+      };
+    });
+
+    const savedProviders = new Set(savedOptions.map((option) => option.provider));
+    const fallbackOptions = ["redx", "steadfast", "local", "manual"]
+      .filter((provider) => !savedProviders.has(provider))
+      .map((provider) => ({
+        value: `provider:${provider}`,
+        type: "provider",
+        id: "",
+        provider,
+        label: providerLabels[provider] || provider,
+        bookingMode: ["redx", "steadfast"].includes(provider) ? "live" : "manual",
+        source: providerStatus.providers?.[provider]?.configured ? "Env configured" : "Provider fallback",
+      }));
+
+    return [...savedOptions, ...fallbackOptions];
+  }, [couriers, providerStatus]);
+
+  const selectedParcel = useMemo(
+    () => shipments.find((shipment) => String(shipment._id) === String(parcelAssignment.shipmentId)) || null,
+    [shipments, parcelAssignment.shipmentId],
+  );
+
+  const getZoneCourierNames = (zone) =>
+    (zone.courierPartnerIds || [])
+      .map((id) => courierById.get(String(id))?.name)
+      .filter(Boolean)
+      .join(", ");
 
   const outstandingCodOrders = useMemo(
     () =>
@@ -258,7 +362,9 @@ export default function AdminLogistics() {
         overviewRes,
         zonesRes,
         couriersRes,
+        providerRes,
         manifestRes,
+        shipmentsRes,
         staffRes,
         rulesRes,
         codRes,
@@ -268,7 +374,9 @@ export default function AdminLogistics() {
         getLogisticsOverview(),
         getDeliveryZones(),
         getCourierPartners(),
+        getCourierProviderStatus(),
         getDispatchManifest({ date: manifestDate }),
+        getLogisticsShipments({ state: shipmentStateFilter }),
         getPickupStaff(),
         getDeliveryFeeRules(),
         getCodFloatTracker(),
@@ -279,7 +387,9 @@ export default function AdminLogistics() {
       setOverview(overviewRes.data.data || null);
       setZones(zonesRes.data.data || []);
       setCouriers(couriersRes.data.data || []);
+      setProviderStatus(providerRes.data.data || { providers: {}, mode: "manual" });
       setManifest(manifestRes.data.data || { groups: [], rows: [] });
+      setShipments(shipmentsRes.data.data || []);
       setPickupStaff(staffRes.data.data || []);
       setFeeRules(rulesRes.data.data || []);
       setCodFloat(codRes.data.data || { summary: {}, byCourier: [], orders: [], remittances: [] });
@@ -296,6 +406,19 @@ export default function AdminLogistics() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const nextTab = TABS.some((tab) => tab.key === queryTab) ? queryTab : "zones";
+    setActiveTab(nextTab);
+  }, [queryTab]);
+
+  const changeTab = (tabKey) => {
+    setActiveTab(tabKey);
+    const nextParams = new URLSearchParams(searchParams);
+    if (tabKey === "zones") nextParams.delete("tab");
+    else nextParams.set("tab", tabKey);
+    setSearchParams(nextParams, { replace: true });
+  };
+
   const refreshManifest = async () => {
     try {
       const response = await getDispatchManifest({ date: manifestDate });
@@ -308,6 +431,19 @@ export default function AdminLogistics() {
   useEffect(() => {
     if (!loading) refreshManifest();
   }, [manifestDate]);
+
+  const refreshShipments = async () => {
+    try {
+      const response = await getLogisticsShipments({ state: shipmentStateFilter });
+      setShipments(response.data.data || []);
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to load parcels");
+    }
+  };
+
+  useEffect(() => {
+    if (!loading) refreshShipments();
+  }, [shipmentStateFilter]);
 
   const runSave = async (action, successMessage) => {
     setSaving(true);
@@ -454,6 +590,66 @@ export default function AdminLogistics() {
     ).then(() => setFailureAction(emptyFailureAction));
   };
 
+  const openParcelAssignment = (shipment) => {
+    const currentCourier = couriers.find(
+      (courier) =>
+        String(courier._id) === String(shipment.courierId || "") ||
+        String(courier.name || "").toLowerCase() === String(shipment.courierName || "").toLowerCase(),
+    );
+    setParcelAssignment({
+      shipmentId: shipment._id,
+      courierId: currentCourier?._id ? `courier:${currentCourier._id}` : shipment.courierProvider ? `provider:${shipment.courierProvider}` : "",
+      bookingMode: currentCourier?.bookingMode || (shipment.courierBookingStatus === "booked" ? "live" : "manual"),
+      trackingNumber: shipment.trackingNumber || "",
+      estimatedDeliveryDate: shipment.estimatedDeliveryDate
+        ? new Date(shipment.estimatedDeliveryDate).toISOString().slice(0, 10)
+        : "",
+      note: "",
+    });
+    changeTab("parcels");
+  };
+
+  const changeParcelCourier = (courierId) => {
+    const courier = courierOptions.find((item) => item.value === courierId);
+    setParcelAssignment((current) => ({
+      ...current,
+      courierId,
+      bookingMode: courier?.bookingMode || current.bookingMode || "manual",
+    }));
+  };
+
+  const submitParcelAssignment = (event) => {
+    event.preventDefault();
+    if (!parcelAssignment.shipmentId) {
+      toast.error("Select a parcel first");
+      return;
+    }
+    const courier = courierOptions.find((item) => item.value === parcelAssignment.courierId);
+    if (!courier) {
+      toast.error("Select a courier partner");
+      return;
+    }
+    const providerPayload = courier.type === "courier"
+      ? { courierId: courier.id }
+      : {
+          provider: courier.provider,
+          courierProvider: courier.provider,
+          courierCode: courier.provider,
+          courierName: courier.label,
+        };
+    runSave(
+      () =>
+        assignLogisticsShipmentCourier(parcelAssignment.shipmentId, {
+          ...providerPayload,
+          bookingMode: parcelAssignment.bookingMode,
+          trackingNumber: parcelAssignment.trackingNumber,
+          estimatedDeliveryDate: parcelAssignment.estimatedDeliveryDate,
+          note: parcelAssignment.note,
+        }),
+      parcelAssignment.bookingMode === "live" ? "Courier booking submitted" : "Courier assigned to parcel",
+    ).then(() => setParcelAssignment(emptyParcelAssignment));
+  };
+
   const exportManifest = async () => {
     try {
       const response = await downloadDispatchManifestCsv({ date: manifestDate });
@@ -505,7 +701,7 @@ export default function AdminLogistics() {
                 <button
                   key={tab.key}
                   type="button"
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() => changeTab(tab.key)}
                   className={`inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
                     active ? "bg-orange-600 text-white" : "text-slate-600 hover:bg-slate-100"
                   }`}
@@ -529,6 +725,29 @@ export default function AdminLogistics() {
                 <option value="">Default courier</option>
                 {couriers.map((courier) => <option key={courier._id} value={courier.name}>{courier.name}</option>)}
               </select>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-sm font-semibold text-slate-700">Area courier partners</p>
+                <p className="mt-1 text-xs text-slate-500">Orders matching this zone will prefer these courier partners before the fallback courier.</p>
+                <div className="mt-3 grid gap-2">
+                  {couriers.length === 0 && <p className="text-xs text-slate-500">Create RedX, Steadfast, or local courier partners first.</p>}
+                  {couriers.map((courier) => (
+                    <label key={courier._id} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-sm">
+                      <span className="font-medium text-slate-700">{courier.name}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500">{providerLabels[courier.provider] || courier.provider || "Manual"}</span>
+                        <input
+                          type="checkbox"
+                          checked={(zoneForm.courierPartnerIds || []).map(String).includes(String(courier._id))}
+                          onChange={(event) => setZoneForm({
+                            ...zoneForm,
+                            courierPartnerIds: toggleListValue(zoneForm.courierPartnerIds, courier._id, event.target.checked),
+                          })}
+                        />
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <input className="input-control" type="number" min="1" placeholder="SLA hours" value={zoneForm.slaHours} onChange={(event) => setZoneForm({ ...zoneForm, slaHours: Number(event.target.value) })} />
                 <input className="input-control" type="number" min="1" placeholder="Sort" value={zoneForm.sortOrder} onChange={(event) => setZoneForm({ ...zoneForm, sortOrder: Number(event.target.value) })} />
@@ -555,7 +774,7 @@ export default function AdminLogistics() {
                         {zone.codAvailable !== false && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">COD</span>}
                       </div>
                       <p className="mt-2 text-sm text-slate-600">{(zone.districts || []).join(", ") || "Fallback zone"}</p>
-                      <p className="mt-1 text-xs text-slate-500">Courier: {zone.defaultCourierName || "Unassigned"} · SLA {zone.slaHours || 48}h</p>
+                      <p className="mt-1 text-xs text-slate-500">Couriers: {getZoneCourierNames(zone) || zone.defaultCourierName || "Unassigned"} / SLA {zone.slaHours || 48}h</p>
                     </div>
                     <button
                       type="button"
@@ -577,13 +796,60 @@ export default function AdminLogistics() {
 
         {activeTab === "couriers" && (
           <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+            <div className="xl:col-span-2 grid gap-3 md:grid-cols-4">
+              {providerCards.map((provider) => (
+                <div key={provider.key} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-slate-900">{provider.label}</p>
+                    <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${credentialTone(provider.status)}`}>
+                      {String(provider.status || "manual").replaceAll("_", " ")}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    {provider.configured ? "Credentials are available from server env." : "No secret is stored in admin UI."}
+                  </p>
+                </div>
+              ))}
+            </div>
             <form onSubmit={submitCourier} className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-bold">Courier Partner</h2>
               <div className="grid gap-3 sm:grid-cols-2">
                 <input className="input-control" placeholder="Courier name" value={courierForm.name} onChange={(event) => setCourierForm({ ...courierForm, name: event.target.value })} />
                 <input className="input-control" placeholder="Code" value={courierForm.code} onChange={(event) => setCourierForm({ ...courierForm, code: event.target.value })} />
+                <select
+                  className="input-control"
+                  value={courierForm.provider}
+                  onChange={(event) => {
+                    const provider = event.target.value;
+                    setCourierForm({
+                      ...courierForm,
+                      provider,
+                      bookingMode: ["redx", "steadfast"].includes(provider) ? "live" : "manual",
+                      coverageType: provider === "local" ? "local_area" : courierForm.coverageType,
+                      localArea: provider === "local" || courierForm.localArea,
+                      outsideDistrict: provider === "local" ? false : courierForm.outsideDistrict,
+                    });
+                  }}
+                >
+                  <option value="manual">Manual courier</option>
+                  <option value="redx">RedX</option>
+                  <option value="steadfast">Steadfast</option>
+                  <option value="local">Local instant</option>
+                </select>
+                <select className="input-control" value={courierForm.bookingMode} onChange={(event) => setCourierForm({ ...courierForm, bookingMode: event.target.value })}>
+                  <option value="manual">Manual booking</option>
+                  <option value="live">Live API booking</option>
+                </select>
                 <input className="input-control" placeholder="Contact name" value={courierForm.contactName} onChange={(event) => setCourierForm({ ...courierForm, contactName: event.target.value })} />
                 <input className="input-control" placeholder="Phone" value={courierForm.phone} onChange={(event) => setCourierForm({ ...courierForm, phone: event.target.value })} />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <select className="input-control" value={courierForm.coverageType} onChange={(event) => setCourierForm({ ...courierForm, coverageType: event.target.value })}>
+                  <option value="outside_district">Outside districts</option>
+                  <option value="local_area">Local instant area</option>
+                  <option value="both">Both outside and local</option>
+                </select>
+                <input className="input-control" placeholder="Tracking URL pattern, use {trackingNumber}" value={courierForm.trackingUrlPattern} onChange={(event) => setCourierForm({ ...courierForm, trackingUrlPattern: event.target.value })} />
               </div>
               <textarea className="input-control min-h-20" placeholder="Service zones, comma separated" value={courierForm.serviceZonesText} onChange={(event) => setCourierForm({ ...courierForm, serviceZonesText: event.target.value })} />
               <div className="grid gap-3 sm:grid-cols-3">
@@ -604,6 +870,20 @@ export default function AdminLogistics() {
                 <input type="checkbox" checked={courierForm.codSupported} onChange={(event) => setCourierForm({ ...courierForm, codSupported: event.target.checked })} />
                 COD supported
               </label>
+              <div className="grid gap-2 text-sm font-semibold text-slate-700 sm:grid-cols-3">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={courierForm.outsideDistrict} onChange={(event) => setCourierForm({ ...courierForm, outsideDistrict: event.target.checked })} />
+                  Outside district
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={courierForm.localArea} onChange={(event) => setCourierForm({ ...courierForm, localArea: event.target.checked })} />
+                  Local area
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={courierForm.instantDelivery} onChange={(event) => setCourierForm({ ...courierForm, instantDelivery: event.target.checked })} />
+                  Instant delivery
+                </label>
+              </div>
               <button type="submit" disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
                 <Save className="h-4 w-4" />
                 Save courier
@@ -617,9 +897,15 @@ export default function AdminLogistics() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="font-bold text-slate-950">{courier.name}</h3>
-                      <p className="mt-1 text-sm text-slate-500">{courier.phone || "No phone"} · SLA {courier.defaultSlaHours || 72}h</p>
+                      <p className="mt-1 text-sm text-slate-500">{providerLabels[courier.provider] || courier.provider || "Manual"} / {courier.bookingMode || "manual"} / SLA {courier.defaultSlaHours || 72}h</p>
+                      <p className="mt-1 text-xs text-slate-500">{courier.phone || "No phone"} / {String(courier.coverageType || "outside_district").replaceAll("_", " ")}</p>
                     </div>
-                    <StatusPill status={courier.status || "active"} />
+                    <div className="flex flex-col items-end gap-2">
+                      <StatusPill status={courier.status || "active"} />
+                      <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${credentialTone(courier.credentialStatus)}`}>
+                        {String(courier.credentialStatus || "manual").replaceAll("_", " ")}
+                      </span>
+                    </div>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div className="rounded-lg bg-slate-50 p-3">
@@ -639,6 +925,9 @@ export default function AdminLogistics() {
                       courierId: courier._id,
                       serviceZonesText: (courier.serviceZones || []).join(", "),
                       slaZoneCode: courier.slaByZone?.[0]?.zoneCode || "",
+                      slaProcessingHours: courier.slaByZone?.[0]?.processingHours || emptyCourier.slaProcessingHours,
+                      slaDeliveryDaysMin: courier.slaByZone?.[0]?.deliveryDaysMin || emptyCourier.slaDeliveryDaysMin,
+                      slaDeliveryDaysMax: courier.slaByZone?.[0]?.deliveryDaysMax || emptyCourier.slaDeliveryDaysMax,
                     })}
                     className="mt-4 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
                   >
@@ -701,6 +990,124 @@ export default function AdminLogistics() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {activeTab === "parcels" && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-950">Parcel Courier Assignment</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Assign RedX, Steadfast, local, or manual couriers to shipment parcels after vendor packing.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select className="input-control w-auto" value={shipmentStateFilter} onChange={(event) => setShipmentStateFilter(event.target.value)}>
+                    <option value="all">All states</option>
+                    <option value="created">Created</option>
+                    <option value="pending_packing">Pending packing</option>
+                    <option value="packed">Packed</option>
+                    <option value="pickup_ready">Pickup ready</option>
+                    <option value="pickup_scheduled">Pickup scheduled</option>
+                    <option value="picked_up">Picked up</option>
+                    <option value="in_transit">In transit</option>
+                    <option value="out_for_delivery">Out for delivery</option>
+                    <option value="delivered">Delivered</option>
+                  </select>
+                  <button type="button" onClick={refreshShipments} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              {parcelAssignment.shipmentId && (
+                <form onSubmit={submitParcelAssignment} className="mt-4 grid gap-3 rounded-lg border border-orange-200 bg-orange-50 p-4 lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto]">
+                  <div>
+                    <label className="text-xs font-bold uppercase text-orange-800">Selected parcel</label>
+                    <p className="mt-1 font-semibold text-slate-950">#{shortId(parcelAssignment.shipmentId)}</p>
+                    <p className="text-xs text-slate-600">Order #{shortId(selectedParcel?.orderId || "")}</p>
+                  </div>
+                  <select className="input-control" value={parcelAssignment.courierId} onChange={(event) => changeParcelCourier(event.target.value)}>
+                    <option value="">Select courier</option>
+                    {courierOptions.map((courier) => (
+                      <option key={courier.value} value={courier.value}>
+                        {courier.label} ({providerLabels[courier.provider] || courier.provider || "Manual"} / {courier.source})
+                      </option>
+                    ))}
+                  </select>
+                  {couriers.length === 0 && (
+                    <p className="text-xs font-medium text-orange-800 lg:col-span-5">
+                      No saved courier partners yet. RedX, Steadfast, Local, and Manual fallback options are available here; save partners in the Couriers tab for zone/SLA routing.
+                    </p>
+                  )}
+                  <select className="input-control" value={parcelAssignment.bookingMode} onChange={(event) => setParcelAssignment({ ...parcelAssignment, bookingMode: event.target.value })}>
+                    <option value="manual">Assign manually</option>
+                    <option value="live">Book with courier API</option>
+                  </select>
+                  <input className="input-control" placeholder="Tracking number if manual" value={parcelAssignment.trackingNumber} onChange={(event) => setParcelAssignment({ ...parcelAssignment, trackingNumber: event.target.value })} />
+                  <button type="submit" disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
+                    <PackageCheck className="h-4 w-4" />
+                    Assign
+                  </button>
+                  <input className="input-control lg:col-span-2" type="date" value={parcelAssignment.estimatedDeliveryDate} onChange={(event) => setParcelAssignment({ ...parcelAssignment, estimatedDeliveryDate: event.target.value })} />
+                  <input className="input-control lg:col-span-3" placeholder="Admin note for courier handoff" value={parcelAssignment.note} onChange={(event) => setParcelAssignment({ ...parcelAssignment, note: event.target.value })} />
+                </form>
+              )}
+            </div>
+
+            {shipments.length === 0 && <EmptyPanel>No shipment parcels found for this filter.</EmptyPanel>}
+            <div className="grid gap-3">
+              {shipments.map((shipment) => (
+                <div key={shipment._id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-slate-950">Parcel #{shortId(shipment._id)}</h3>
+                        <StatusPill status={shipment.shipmentState || "created"} />
+                        {shipment.codState && <StatusPill status={shipment.codState} />}
+                      </div>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Order #{shortId(shipment.orderId)} / Vendor #{shortId(shipment.vendorId)} / {shipment.itemCount || 0} items
+                      </p>
+                      <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                        {shipment.deliveryAddressText || shipment.deliveryAddress?.address || "No delivery address"}
+                      </p>
+                    </div>
+                    <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[460px]">
+                      <div className="rounded-md bg-slate-50 p-3">
+                        <p className="text-xs font-semibold uppercase text-slate-500">Courier</p>
+                        <p className="mt-1 font-bold text-slate-950">{shipment.courierName || "Unassigned"}</p>
+                      </div>
+                      <div className="rounded-md bg-slate-50 p-3">
+                        <p className="text-xs font-semibold uppercase text-slate-500">Tracking</p>
+                        <p className="mt-1 font-bold text-slate-950">{shipment.trackingNumber || "Pending"}</p>
+                      </div>
+                      <div className="rounded-md bg-slate-50 p-3">
+                        <p className="text-xs font-semibold uppercase text-slate-500">COD</p>
+                        <p className="mt-1 font-bold text-slate-950">{formatPrice(shipment.codAmount || 0)}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                    <p className="text-xs text-slate-500">
+                      Booking: {String(shipment.courierBookingStatus || "draft").replaceAll("_", " ")}
+                      {shipment.courierConsignmentId ? ` / Consignment ${shipment.courierConsignmentId}` : ""}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => openParcelAssignment(shipment)}
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 text-sm font-semibold text-white hover:bg-slate-800"
+                    >
+                      <Truck className="h-4 w-4" />
+                      Assign courier
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

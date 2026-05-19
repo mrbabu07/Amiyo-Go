@@ -11,7 +11,7 @@ The project broadly follows the target modular-monolith marketplace workflow:
 - The current data store is MongoDB through both native Mongo collections and Mongoose models. The supplied PostgreSQL box is a target architecture item, not the current implementation.
 - Redis is optional infrastructure. BullMQ exists for selected background workflows, and marketplace events now use a Mongo-backed outbox with an optional BullMQ worker adapter.
 - Search currently uses API/database search. A dedicated search index such as Typesense is still a future adapter.
-- Shipment state machines, COD states, returns, trust, growth, and analytics foundations exist, but some external integrations are still manual or adapter-ready.
+- Shipment state machines, COD states, returns, trust, growth, analytics, and RedX/Steadfast courier adapter foundations exist, but some external integrations still need production credentials, webhooks, and provider-specific depth.
 
 ## System Architecture
 
@@ -66,7 +66,7 @@ flowchart TB
         EMAIL[Email Provider]
         PUSH[Push / Service Worker]
         SMS[SMS Provider later]
-        COURIER[Courier APIs later]
+        COURIER[Courier APIs: RedX / Steadfast / local later]
         PAYGW[Payment APIs / webhooks]
     end
 
@@ -132,7 +132,7 @@ flowchart TB
     QUEUE --> EMAIL
     QUEUE --> PUSH
     QUEUE -. later .-> SMS
-    LOGISTICS -. later .-> COURIER
+    LOGISTICS --> COURIER
     PAYMENT --> PAYGW
 ```
 
@@ -508,6 +508,7 @@ sequenceDiagram
 | Payment gateway flow | Partial | Payment records, manual verification, and webhooks exist; gateway depth depends on provider setup. |
 | Logistics state machine | Present | Forward, reverse, and COD state machines exist. |
 | Auto shipment draft at order placement | Present | Order creation now creates shipment drafts for each vendor/platform group; vendor logistics actions continue the state machine. |
+| RedX / Steadfast courier adapters | Present | Credentials are env-only; admin config maps courier partners to zones. Production use still needs rotated secrets and provider-specific endpoint verification. |
 | Vendor seller action center | Present | Vendor dashboard groups late fulfillment, return responses, rejected listings, stock risk, payout holds, category requests, KYC, payout setup, and marketing gaps into one prioritized seller queue. |
 | Vendor bulk operations | Present | Seller center supports server-side bulk order status transitions, product bulk field edits, bulk submit/delist/delete actions, and CSV exports for selected/filtered rows. |
 | Vendor finance command view | Present | Vendor dashboard summarizes available payout estimate, pending payout exposure, COD pending/collected, return deductions, payout holds, delivered earnings, and refund exposure. |
@@ -533,7 +534,7 @@ sequenceDiagram
 2. Add a server-side cart collection only if cross-device cart persistence is required.
 3. Continue expanding event-bus publishers to every remaining payment-updated, shipment-updated, return-updated, and support-replied path.
 4. Add a search adapter boundary so Mongo search can later be replaced by Typesense without changing page code.
-5. Add courier API adapters on top of the existing shipment drafts/state machine when a delivery partner is selected.
+5. Add courier webhooks/status polling and provider-specific retry tools after live RedX/Steadfast credentials are rotated and verified.
 6. Add vendor payout statement export from the reconciliation tab if finance wants a single CSV for orders, returns, COD, and payout movement.
 7. Add Playwright/Cypress browser runs against the new admin and vendor test ids once an E2E runner is selected.
 8. Add a diagram update checklist to every future phase so docs and workflow stay synced with implementation.

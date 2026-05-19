@@ -91,6 +91,7 @@ const navigation = [
       { name: 'All Orders', path: '/admin/orders', exact: true, alertKey: 'orders' },
       { name: 'Returns', path: '/admin/returns', exact: true, alertKey: 'returns' },
       { name: 'Logistics', path: '/admin/logistics', exact: true },
+      { name: 'Parcel Assignment', path: '/admin/logistics?tab=parcels', exact: true },
       { name: 'Support Tickets', path: '/admin/support', exact: true, alertKey: 'support' },
     ],
   },

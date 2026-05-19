@@ -7,6 +7,8 @@ const {
   downloadPackingSlip,
   downloadWaybill,
   generateLabel,
+  assignVendorCourier,
+  listVendorCourierOptions,
   listReverseLogistics,
   listVendorManifests,
   listVendorShipments,
@@ -22,8 +24,10 @@ router.use(verifyToken);
 router.use(requireApprovedVendor);
 
 router.get("/shipments", requireVendorPermission("orders:view"), listVendorShipments);
+router.get("/courier-options", requireVendorPermission("orders:view"), listVendorCourierOptions);
 router.post("/orders/:orderId/pack", requireVendorPermission("orders:manage"), markOrderPacked);
 router.post("/orders/:orderId/pickup-ready", requireVendorPermission("orders:manage"), markPickupReady);
+router.post("/shipments/:id/assign-courier", requireVendorPermission("orders:manage"), assignVendorCourier);
 router.post("/shipments/:id/generate-label", requireVendorPermission("orders:manage"), generateLabel);
 router.get("/shipments/:id/label", requireVendorPermission("orders:view"), downloadLabel);
 router.get("/shipments/:id/packing-slip", requireVendorPermission("orders:view"), downloadPackingSlip);

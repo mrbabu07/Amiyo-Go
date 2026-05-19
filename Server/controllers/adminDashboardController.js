@@ -813,8 +813,8 @@ const buildIntegrationReadiness = ({ failedNotificationDeliveries = 0, failedPay
     {
       key: "courier",
       label: "Courier adapters",
-      configured: hasEnv("PATHAO_API_KEY", "REDX_API_KEY", "STEADFAST_API_KEY", "COURIER_API_KEY"),
-      status: hasEnv("PATHAO_API_KEY", "REDX_API_KEY", "STEADFAST_API_KEY", "COURIER_API_KEY") ? "ready" : "manual",
+      configured: hasEnv("PATHAO_API_KEY", "REDX_API_KEY", "REDX_API_TOKEN", "STEADFAST_API_KEY", "COURIER_API_KEY"),
+      status: hasEnv("PATHAO_API_KEY", "REDX_API_KEY", "REDX_API_TOKEN", "STEADFAST_API_KEY", "COURIER_API_KEY") ? "ready" : "manual",
       detail: "Manual logistics state machine is active until a courier API is configured.",
     },
     {

@@ -329,6 +329,7 @@ jest.mock("../controllers/adminLogisticsController", () => ({
       name: req.body.name,
     }),
   listCourierPartners: (req, res) => res.json({ route: "admin-logistics:couriers" }),
+  getCourierProviderReadiness: (req, res) => res.json({ route: "admin-logistics:courier-provider-status" }),
   upsertCourierPartner: (req, res) =>
     res.status(req.params.courierId ? 200 : 201).json({
       route: "admin-logistics:save-courier",
@@ -1351,6 +1352,16 @@ describe("Black-box API tests", () => {
         courierId: null,
         name: "Pathao",
       });
+    });
+
+    test("GET /api/admin/logistics/courier-provider-status returns provider readiness", async () => {
+      const response = await request(app)
+        .get("/api/admin/logistics/courier-provider-status")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "admin-logistics:courier-provider-status" });
     });
 
     test("GET /api/admin/logistics/dispatch-manifest returns daily manifest route", async () => {

@@ -181,6 +181,11 @@ describe("Shipment model", () => {
     await model.assignCourier(shipment._id, {
       courierCode: "REDX",
       courierName: "RedX",
+      courierProvider: "redx",
+      courierBookingStatus: "booked",
+      courierConsignmentId: "parcel-100",
+      courierTrackingUrl: "https://redx.example/track/RX-100",
+      courierBooking: { attempted: true, provider: "redx", status: "booked", consignmentId: "parcel-100" },
       trackingNumber: "RX-100",
     }, { role: "admin", id: "admin-1" });
     await model.recordDeliveryAttempt(shipment._id, { outcome: "failed", reason: "Customer unreachable" });
@@ -190,6 +195,9 @@ describe("Shipment model", () => {
     expect(updated.shipmentState).toBe("return_to_origin");
     expect(updated.codState).toBe("cod_failed");
     expect(updated.deliveryAttempts).toHaveLength(3);
+    expect(updated.courierProvider).toBe("redx");
+    expect(updated.courierBookingStatus).toBe("booked");
+    expect(updated.courierConsignmentId).toBe("parcel-100");
   });
 
   test("runs reverse logistics from return request to restock decision", async () => {

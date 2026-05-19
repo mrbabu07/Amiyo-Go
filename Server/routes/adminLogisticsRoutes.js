@@ -3,6 +3,7 @@ const { verifyToken, verifyAdmin } = require("../middleware/auth");
 const {
   downloadDispatchManifestCsv,
   getCodFloatTracker,
+  getCourierProviderReadiness,
   getDispatchManifest,
   getLogisticsAuditLog,
   getLogisticsOverview,
@@ -72,6 +73,7 @@ router.get("/delivery-zones", verifyToken, verifyAdmin, listDeliveryZones);
 router.post("/delivery-zones", verifyToken, verifyAdmin, upsertDeliveryZone);
 router.patch("/delivery-zones/:zoneId", verifyToken, verifyAdmin, upsertDeliveryZone);
 
+router.get("/courier-provider-status", verifyToken, verifyAdmin, getCourierProviderReadiness);
 router.get("/courier-partners", verifyToken, verifyAdmin, listCourierPartners);
 router.post("/courier-partners", verifyToken, verifyAdmin, upsertCourierPartner);
 router.patch("/courier-partners/:courierId", verifyToken, verifyAdmin, upsertCourierPartner);

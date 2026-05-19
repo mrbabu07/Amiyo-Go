@@ -54,6 +54,10 @@ function getServiceConfigStatus(env = process.env) {
     (hasValue(env.SMTP_USER) && hasValue(env.SMTP_PASS));
   const pushConfigured = hasValue(env.VAPID_PUBLIC_KEY) && hasValue(env.VAPID_PRIVATE_KEY);
   const sessionConfigured = hasValue(env.JWT_SECRET) || hasValue(env.SESSION_SECRET);
+  const redxConfigured = hasValue(env.REDX_API_TOKEN) || hasValue(env.REDX_API_KEY);
+  const steadfastConfigured =
+    hasValue(env.STEADFAST_API_KEY) && (hasValue(env.STEADFAST_SECRET_KEY) || hasValue(env.STEADFAST_API_SECRET));
+  const courierConfigured = redxConfigured || steadfastConfigured || hasValue(env.COURIER_API_KEY);
 
   return {
     mongodb: serviceStatus("mongodb", hasValue(env.MONGO_URI), true, {
@@ -81,6 +85,14 @@ function getServiceConfigStatus(env = process.env) {
     }),
     session: serviceStatus("session", sessionConfigured, env.SESSION_REQUIRED === "true", {
       mode: sessionConfigured ? "configured" : "firebase_only",
+    }),
+    courier: serviceStatus("courier", courierConfigured, env.COURIER_REQUIRED === "true", {
+      mode: courierConfigured ? env.COURIER_API_MODE || "live" : "manual",
+      providers: {
+        redx: redxConfigured,
+        steadfast: steadfastConfigured,
+        generic: hasValue(env.COURIER_API_KEY),
+      },
     }),
   };
 }

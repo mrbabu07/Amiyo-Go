@@ -158,6 +158,11 @@ class Shipment {
       courierId: data.courierId || null,
       courierCode: data.courierCode || null,
       courierName: data.courierName || null,
+      courierProvider: data.courierProvider || data.provider || null,
+      courierBookingStatus: data.courierBookingStatus || "draft",
+      courierConsignmentId: data.courierConsignmentId || null,
+      courierTrackingUrl: data.courierTrackingUrl || null,
+      courierBooking: data.courierBooking || null,
       trackingNumber,
       waybillNumber: data.waybillNumber || null,
       shipmentType: "forward",
@@ -303,10 +308,16 @@ class Shipment {
   }
 
   async assignCourier(id, data = {}, actor = {}) {
+    const booking = data.courierBooking || data.booking || null;
     const set = {
       courierId: data.courierId || null,
       courierCode: data.courierCode || data.courier_code || null,
       courierName: data.courierName || data.name || "Manual courier",
+      courierProvider: data.courierProvider || data.provider || null,
+      courierBookingStatus: data.courierBookingStatus || booking?.status || "manual_dispatch",
+      courierConsignmentId: data.courierConsignmentId || booking?.consignmentId || null,
+      courierTrackingUrl: data.courierTrackingUrl || booking?.trackingUrl || "",
+      courierBooking: booking,
       trackingNumber: data.trackingNumber || shipmentNumber(data.courierCode || "TRK", id),
       estimatedDeliveryDate: data.estimatedDeliveryDate ? new Date(data.estimatedDeliveryDate) : null,
     };

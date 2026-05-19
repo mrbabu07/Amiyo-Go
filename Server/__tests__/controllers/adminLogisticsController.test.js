@@ -1,6 +1,8 @@
 const { ObjectId } = require("mongodb");
 const {
   _logisticsTestUtils,
+  getCourierProviderReadiness,
+  listCourierPartners,
   recordCodRemittance,
   scheduleFailedDeliveryReattempt,
   upsertCourierPartner,
@@ -221,6 +223,9 @@ describe("adminLogisticsController", () => {
         db,
         body: {
           name: "Redx",
+          provider: "redx",
+          bookingMode: "live",
+          coverageType: "outside_district",
           serviceZones: ["dhaka", "sylhet"],
           baseDeliveryCost: 90,
           codCollectionFee: 12,
@@ -234,11 +239,69 @@ describe("adminLogisticsController", () => {
     expect(db.collection("courier_partners").docs[0]).toEqual(
       expect.objectContaining({
         name: "Redx",
+        provider: "redx",
+        bookingMode: "live",
+        coverageType: "outside_district",
         baseDeliveryCost: 90,
         codCollectionFee: 12,
+        credentialStatus: expect.any(String),
         slaByZone: [expect.objectContaining({ zoneCode: "dhaka", processingHours: 12 })],
       }),
     );
+  });
+
+  test("lists courier partners with provider credential readiness and no secret values", async () => {
+    const originalRedx = process.env.REDX_API_TOKEN;
+    try {
+      process.env.REDX_API_TOKEN = "server-only-redx-token";
+      const db = buildDb({
+        courier_partners: [
+          {
+            _id: "courier-redx",
+            name: "RedX Outside",
+            code: "redx",
+            provider: "redx",
+            bookingMode: "live",
+            serviceZones: ["outside"],
+          },
+        ],
+      });
+      const res = createRes();
+
+      await listCourierPartners(buildReq({ db }), res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: [
+          expect.objectContaining({
+            _id: "courier-redx",
+            provider: "redx",
+            credentialsConfigured: true,
+            credentialStatus: "ready",
+          }),
+        ],
+      });
+      expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain("server-only-redx-token");
+    } finally {
+      if (originalRedx === undefined) delete process.env.REDX_API_TOKEN;
+      else process.env.REDX_API_TOKEN = originalRedx;
+    }
+  });
+
+  test("returns courier provider readiness for the admin logistics UI", () => {
+    const res = createRes();
+
+    getCourierProviderReadiness(buildReq({ db: buildDb() }), res);
+
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: expect.objectContaining({
+        providers: expect.objectContaining({
+          redx: expect.objectContaining({ provider: "redx" }),
+          steadfast: expect.objectContaining({ provider: "steadfast" }),
+        }),
+      }),
+    });
   });
 
   test("saves delivery fee rules for weight, zone, and free shipping logic", async () => {
