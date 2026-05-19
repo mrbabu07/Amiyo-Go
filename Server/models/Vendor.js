@@ -16,7 +16,7 @@ class Vendor {
   async createIndexes() {
     try {
       await this.collection.createIndex({ ownerUserId: 1 }, { unique: true });
-      await this.collection.createIndex({ slug: 1 }, { unique: true, sparse: true });
+      await this.collection.createIndex({ slug: 1 }, { unique: true });
       await this.collection.createIndex({ status: 1 });
       await this.collection.createIndex({ createdAt: -1 });
     } catch (error) {

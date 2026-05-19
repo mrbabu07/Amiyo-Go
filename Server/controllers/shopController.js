@@ -4,8 +4,12 @@ const { geocodeAddress, reverseGeocode } = require("../utils/geocoding");
 
 const normalizeId = (value) => {
   if (!value) return "";
-  if (typeof value === "object" && value._id) return normalizeId(value._id);
-  if (typeof value === "object" && value.$oid) return value.$oid;
+  if (typeof value === "object" && typeof value.toHexString === "function") return value.toHexString();
+  if (typeof value === "object" && value.$oid) return String(value.$oid);
+  if (typeof value === "object" && Object.prototype.hasOwnProperty.call(value, "_id")) {
+    const nestedId = value._id;
+    if (nestedId && nestedId !== value) return normalizeId(nestedId);
+  }
   return value.toString();
 };
 
