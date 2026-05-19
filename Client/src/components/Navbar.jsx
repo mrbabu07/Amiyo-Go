@@ -6,6 +6,7 @@ import useAuth from "../hooks/useAuth";
 import useCart from "../hooks/useCart";
 import useWishlist from "../hooks/useWishlist";
 import { useComparison } from "../context/ComparisonContext";
+import { usePlatformConfig } from "../context/PlatformConfigContext";
 import { getCategories, getMyLoyalty, getSearchNavigation } from "../services/api";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
@@ -20,6 +21,7 @@ export default function Navbar() {
   const { cartCount } = useCart();
   const { wishlistCount } = useWishlist();
   const { compareCount } = useComparison();
+  const { isShopDirectoryVisible } = usePlatformConfig();
   const navigate = useNavigate();
   const loyaltyUserKey = user?.uid || user?.email || "";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -116,7 +118,7 @@ export default function Navbar() {
   const navLinks = [
     { name: t("navbar.home"), path: "/" },
     { name: t("navbar.products"), path: "/products" },
-    { name: "Shops", path: "/shops" },
+    ...(isShopDirectoryVisible ? [{ name: "Shops", path: "/shops" }] : []),
     { name: t("navbar.flashSales"), path: "/flash-sales" },
     { name: t("navbar.support"), path: "/support" },
   ];

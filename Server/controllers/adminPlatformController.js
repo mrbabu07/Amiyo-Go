@@ -143,6 +143,7 @@ const DEFAULT_PLATFORM_CONFIG = {
   featureFlags: {
     guestCheckout: true,
     vendorSignups: true,
+    shopDirectory: true,
     cod: true,
     reviews: true,
     referrals: true,
@@ -837,6 +838,47 @@ const getPlatformConfig = async (req, res) => {
   }
 };
 
+const getPublicPlatformConfig = async (req, res) => {
+  try {
+    const saved = await req.app.locals.db
+      .collection("platform_settings")
+      .findOne({ _id: "platform_control" });
+    const config = mergeConfig(saved);
+    const featureFlags = config.featureFlags || {};
+
+    res.json({
+      success: true,
+      data: {
+        featureFlags: {
+          guestCheckout: featureFlags.guestCheckout !== false,
+          vendorSignups: featureFlags.vendorSignups !== false,
+          shopDirectory: featureFlags.shopDirectory !== false,
+          cod: featureFlags.cod !== false,
+          reviews: featureFlags.reviews !== false,
+          referrals: featureFlags.referrals !== false,
+        },
+        storefront: {
+          shopsVisible: featureFlags.shopDirectory !== false,
+        },
+        maintenanceMode: {
+          enabled: Boolean(config.maintenanceMode?.enabled),
+          message: config.maintenanceMode?.message || DEFAULT_PLATFORM_CONFIG.maintenanceMode.message,
+        },
+        seo: {
+          defaultMetaTitle: config.seo?.defaultMetaTitle || DEFAULT_PLATFORM_CONFIG.seo.defaultMetaTitle,
+          defaultMetaDescription:
+            config.seo?.defaultMetaDescription || DEFAULT_PLATFORM_CONFIG.seo.defaultMetaDescription,
+          ogImage: config.seo?.ogImage || "",
+        },
+        updatedAt: config.updatedAt || null,
+      },
+    });
+  } catch (error) {
+    console.error("Error in getPublicPlatformConfig:", error);
+    res.status(500).json({ success: false, error: "Failed to load platform config" });
+  }
+};
+
 const updatePlatformConfig = async (req, res) => {
   try {
     const db = req.app.locals.db;
@@ -1294,6 +1336,7 @@ module.exports = {
   listAnnouncements,
   upsertAnnouncement,
   getPlatformConfig,
+  getPublicPlatformConfig,
   updatePlatformConfig,
   upsertCategoryNode,
   upsertCategoryAttributes,

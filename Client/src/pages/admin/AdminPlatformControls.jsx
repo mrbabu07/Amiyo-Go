@@ -13,6 +13,7 @@ import {
   Settings,
   ShieldCheck,
   SlidersHorizontal,
+  Store,
   TreePine,
   UserPlus,
   Users,
@@ -95,6 +96,18 @@ const defaultStaff = {
   phone: "",
   role: "support_agent",
 };
+
+const featureFlagLabels = {
+  guestCheckout: "Guest checkout",
+  vendorSignups: "Vendor signups",
+  shopDirectory: "Show Shops section",
+  cod: "Cash on delivery",
+  reviews: "Customer reviews",
+  referrals: "Referrals",
+};
+
+const formatFeatureFlagLabel = (key) =>
+  featureFlagLabels[key] || key.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase());
 
 const formatDate = (value) => {
   if (!value) return "N/A";
@@ -637,16 +650,33 @@ export default function AdminPlatformControls() {
               <Metric icon={TreePine} label="Categories" value={configuration.categories?.length || 0} />
               <Metric icon={Settings} label="Commission rules" value={configuration.commissionRules?.length || 0} />
               <Metric icon={CheckCircle2} label="Payment methods" value={Object.keys(configuration.paymentMethods || {}).length} />
-              <Metric icon={Flag} label="Feature flags" value={Object.keys(configuration.featureFlags || {}).length} />
+              <Metric icon={Store} label="Shops section" value={configuration.featureFlags?.shopDirectory === false ? "Hidden" : "Visible"} />
             </div>
 
             <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
               <Section title="Site-wide Feature Flags" icon={Flag}>
+                <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
+                  <Toggle
+                    label="Show Shops section in customer frontend"
+                    checked={configPatch.featureFlags?.shopDirectory !== false}
+                    onChange={(checked) =>
+                      setConfigPatch((form) => ({
+                        ...form,
+                        featureFlags: { ...form.featureFlags, shopDirectory: checked },
+                      }))
+                    }
+                  />
+                  <p className="mt-2 text-sm font-medium text-orange-800">
+                    Controls the public Shops navigation, shop listing page, shop detail page, and product-card shop links.
+                  </p>
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {Object.entries(configPatch.featureFlags || {}).map(([key, value]) => (
+                  {Object.entries(configPatch.featureFlags || {})
+                    .filter(([key]) => key !== "shopDirectory")
+                    .map(([key, value]) => (
                     <Toggle
                       key={key}
-                      label={key.replace(/([A-Z])/g, " $1")}
+                      label={formatFeatureFlagLabel(key)}
                       checked={value}
                       onChange={(checked) =>
                         setConfigPatch((form) => ({

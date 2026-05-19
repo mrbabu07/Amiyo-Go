@@ -9,11 +9,13 @@ import CompareButton from "./CompareButton";
 import ProductRatingDisplay from "./ProductRatingDisplay";
 import { formatViewCount } from "../utils/formatters";
 import { useCurrency } from "../hooks/useCurrency";
+import { usePlatformConfig } from "../context/PlatformConfigContext";
 
 export default function ProductCard({ product }) {
   const { t } = useTranslation();
   const { addToCart } = useCart();
   const { formatPrice } = useCurrency();
+  const { isShopDirectoryVisible } = usePlatformConfig();
   const navigate = useNavigate();
   const [isAdding, setIsAdding] = useState(false);
   const [showQuickView, setShowQuickView] = useState(false);
@@ -44,11 +46,13 @@ export default function ProductCard({ product }) {
     product.brand ||
     "";
   const vendorPath =
-    product.vendorSlug
-      ? `/shops/${product.vendorSlug}`
-      : product.vendorId
-        ? `/vendor/${product.vendorId}/products`
-        : "";
+    isShopDirectoryVisible
+      ? product.vendorSlug
+        ? `/shops/${product.vendorSlug}`
+        : product.vendorId
+          ? `/vendor/${product.vendorId}/products`
+          : ""
+      : "";
   const reviewCount = product.reviewCount || product.totalReviews || 0;
 
   const getStockStatus = () => {
@@ -311,7 +315,11 @@ export default function ProductCard({ product }) {
                 onKeyDown={(event) => {
                   if ((event.key === "Enter" || event.key === " ") && vendorPath) goToVendor(event);
                 }}
-                className="mt-2 flex min-w-0 cursor-pointer items-center gap-1.5 text-left text-xs font-semibold text-gray-500 transition hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-300"
+                className={`mt-2 flex min-w-0 items-center gap-1.5 text-left text-xs font-semibold text-gray-500 transition dark:text-gray-400 ${
+                  vendorPath
+                    ? "cursor-pointer hover:text-orange-600 dark:hover:text-orange-300"
+                    : "cursor-default"
+                }`}
               >
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
                   {product.vendorLogo ? (

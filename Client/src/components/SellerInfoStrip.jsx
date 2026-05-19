@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, MessageCircle, Star, Store, Users } from "lucide-react";
 import useAuth from "../hooks/useAuth";
+import { usePlatformConfig } from "../context/PlatformConfigContext";
 import {
   followVendor,
   getVendorFollowStatus,
@@ -20,6 +21,7 @@ const numberFormat = new Intl.NumberFormat("en-BD");
 
 export default function SellerInfoStrip({ seller, vendorId }) {
   const { user } = useAuth();
+  const { isShopDirectoryVisible } = usePlatformConfig();
   const [vendor, setVendor] = useState(seller || null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -121,14 +123,16 @@ export default function SellerInfoStrip({ seller, vendorId }) {
           </div>
         </div>
 
-        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[14rem] xl:min-w-0 xl:shrink-0">
-          <Link
-            to={storePath}
-            className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 px-3 text-xs font-bold text-gray-800 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800 sm:text-sm"
-          >
-            <Store className="h-4 w-4 shrink-0" />
-            <span className="truncate">Visit Store</span>
-          </Link>
+        <div className={`grid w-full gap-2 sm:w-auto sm:min-w-[14rem] xl:min-w-0 xl:shrink-0 ${isShopDirectoryVisible ? "grid-cols-2" : "grid-cols-1"}`}>
+          {isShopDirectoryVisible ? (
+            <Link
+              to={storePath}
+              className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 px-3 text-xs font-bold text-gray-800 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800 sm:text-sm"
+            >
+              <Store className="h-4 w-4 shrink-0" />
+              <span className="truncate">Visit Store</span>
+            </Link>
+          ) : null}
           <button
             type="button"
             onClick={handleFollow}

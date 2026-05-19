@@ -89,6 +89,7 @@ export const updateStockBulk = (updates) =>
 // Homepage discovery
 export const getHomepageDiscovery = (params = {}) =>
   api.get("/discovery/homepage", { params });
+export const getPublicPlatformConfig = () => api.get("/platform/config");
 export const getDailyCheckInStatus = () => api.get("/discovery/check-in/status");
 export const claimDailyCheckInReward = () => api.post("/discovery/check-in");
 

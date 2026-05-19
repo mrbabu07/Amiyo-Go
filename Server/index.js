@@ -167,6 +167,7 @@ const growthRoutes = require("./routes/growthRoutes");
 const trustSafetyRoutes = require("./routes/trustSafetyRoutes");
 const adminGrowthRoutes = require("./routes/adminGrowthRoutes");
 const vendorGrowthRoutes = require("./routes/vendorGrowthRoutes");
+const platformRoutes = require("./routes/platformRoutes");
 
 // Campaign Manager routes
 const campaignRoutes = require("./routes/campaignRoutes");
@@ -374,6 +375,7 @@ async function run() {
     app.use("/api/discovery", discoveryRoutes);
     app.use("/api/growth", growthRoutes);
     app.use("/api/trust-safety", trustSafetyRoutes);
+    app.use("/api/platform", platformRoutes);
     console.log("✅ Recommendations routes registered");
 
     app.use("/api/stock-alerts", stockAlertRoutes);

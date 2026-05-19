@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import useAuth from "../hooks/useAuth";
+import { usePlatformConfig } from "../context/PlatformConfigContext";
 import { followShop, getShops, unfollowShop } from "../services/api";
 
 const numberFormat = new Intl.NumberFormat("en-BD");
@@ -200,6 +201,7 @@ function ShopCard({ shop, onFollowToggle, busy }) {
 export default function ShopsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isShopDirectoryVisible, loading: platformConfigLoading } = usePlatformConfig();
   const [shops, setShops] = useState([]);
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, hasNext: false, totalCount: 0 });
   const [loading, setLoading] = useState(true);
@@ -237,6 +239,14 @@ export default function ShopsPage() {
   }, [searchInput]);
 
   useEffect(() => {
+    if (platformConfigLoading) return undefined;
+
+    if (!isShopDirectoryVisible) {
+      setLoading(false);
+      setShops([]);
+      return undefined;
+    }
+
     let cancelled = false;
     const loadShops = async () => {
       setLoading(true);
@@ -263,7 +273,7 @@ export default function ShopsPage() {
     return () => {
       cancelled = true;
     };
-  }, [query, selectedCategories]);
+  }, [query, selectedCategories, isShopDirectoryVisible, platformConfigLoading]);
 
   const clearFilters = () => {
     setSearchInput("");
@@ -400,6 +410,26 @@ export default function ShopsPage() {
       ) : null}
     </div>
   );
+
+  if (!platformConfigLoading && !isShopDirectoryVisible) {
+    return (
+      <div className="min-h-screen bg-slate-50 px-4 py-16 dark:bg-slate-950">
+        <div className="mx-auto max-w-2xl rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <Store className="mx-auto h-12 w-12 text-slate-400" />
+          <h1 className="mt-4 text-2xl font-black text-slate-950 dark:text-white">Shops are currently hidden</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
+            The marketplace shop directory is not visible right now.
+          </p>
+          <Link
+            to="/products"
+            className="mt-6 inline-flex h-11 items-center justify-center rounded-md bg-primary-600 px-5 text-sm font-extrabold text-white transition hover:bg-primary-700"
+          >
+            Browse products
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 py-6 dark:bg-slate-950 sm:py-8">

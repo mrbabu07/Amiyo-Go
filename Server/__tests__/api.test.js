@@ -459,6 +459,12 @@ jest.mock("../controllers/adminPlatformController", () => ({
       announcementId: req.params.announcementId || null,
       title: req.body.title,
     }),
+  getPublicPlatformConfig: (req, res) =>
+    res.json({
+      route: "platform:public-config",
+      featureFlags: { shopDirectory: true },
+      storefront: { shopsVisible: true },
+    }),
   getPlatformConfig: (req, res) => res.json({ route: "admin-platform:config" }),
   updatePlatformConfig: (req, res) =>
     res.json({ route: "admin-platform:update-config", guestCheckout: req.body.featureFlags?.guestCheckout }),
@@ -581,6 +587,7 @@ const buildApp = () => {
   app.use("/api/products", require("../routes/productRoutes"));
   app.use("/api/search", require("../routes/searchRoutes"));
   app.use("/api/discovery", require("../routes/discoveryRoutes"));
+  app.use("/api/platform", require("../routes/platformRoutes"));
   app.use("/api/orders", require("../routes/orderRoutes"));
   app.use("/api/vendors", require("../routes/vendorRoutes"));
   app.use("/api/vendor-chat", require("../routes/vendorChatRoutes"));
@@ -691,6 +698,19 @@ describe("Black-box API tests", () => {
 
       expect(status.body).toEqual({ route: "discovery:check-in-status" });
       expect(claim.body).toEqual({ route: "discovery:check-in-claim" });
+    });
+  });
+
+  describe("public platform config API behavior", () => {
+    test("GET /api/platform/config exposes public storefront feature flags", async () => {
+      const response = await request(app).get("/api/platform/config");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        route: "platform:public-config",
+        featureFlags: { shopDirectory: true },
+        storefront: { shopsVisible: true },
+      });
     });
   });
 

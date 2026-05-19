@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { MessageCircle, Store } from "lucide-react";
 import useAuth from "../hooks/useAuth";
+import { usePlatformConfig } from "../context/PlatformConfigContext";
 import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 export default function VendorInfo({ vendorId, productId }) {
   const { user } = useAuth();
+  const { isShopDirectoryVisible } = usePlatformConfig();
   const [vendor, setVendor] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showChatModal, setShowChatModal] = useState(false);
@@ -166,14 +168,16 @@ export default function VendorInfo({ vendorId, productId }) {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-          <Link
-            to={`/vendor/${vendorIdString}/products`}
-            className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-md bg-gray-100 px-3 text-center text-xs font-bold text-gray-900 transition hover:bg-gray-200 sm:min-w-[7rem] sm:text-sm"
-          >
-            <Store className="h-4 w-4 shrink-0" />
-            <span className="truncate">Visit Store</span>
-          </Link>
+        <div className={`${isShopDirectoryVisible ? "grid grid-cols-2 sm:flex" : "grid grid-cols-1 sm:flex"} gap-2 sm:justify-end`}>
+          {isShopDirectoryVisible ? (
+            <Link
+              to={`/vendor/${vendorIdString}/products`}
+              className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-md bg-gray-100 px-3 text-center text-xs font-bold text-gray-900 transition hover:bg-gray-200 sm:min-w-[7rem] sm:text-sm"
+            >
+              <Store className="h-4 w-4 shrink-0" />
+              <span className="truncate">Visit Store</span>
+            </Link>
+          ) : null}
           <button
             type="button"
             onClick={() => setShowChatModal(true)}

@@ -20,6 +20,7 @@ import {
 import toast from "react-hot-toast";
 import ProductCard from "../components/ProductCard";
 import { ShopLocationMap } from "../components/shops/ShopMaps";
+import { usePlatformConfig } from "../context/PlatformConfigContext";
 import useAuth from "../hooks/useAuth";
 import {
   followShop,
@@ -88,6 +89,7 @@ export default function ShopDetailPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isShopDirectoryVisible, loading: platformConfigLoading } = usePlatformConfig();
   const reviewsRef = useRef(null);
   const [shop, setShop] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -122,6 +124,11 @@ export default function ShopDetailPage() {
   const hasLocation = Number.isFinite(Number(shop?.location?.lat)) && Number.isFinite(Number(shop?.location?.lng));
 
   useEffect(() => {
+    if (platformConfigLoading || !isShopDirectoryVisible) {
+      if (!platformConfigLoading && !isShopDirectoryVisible) setLoading(false);
+      return undefined;
+    }
+
     let cancelled = false;
     const loadShop = async () => {
       setLoading(true);
@@ -140,9 +147,10 @@ export default function ShopDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, isShopDirectoryVisible, platformConfigLoading]);
 
   useEffect(() => {
+    if (!isShopDirectoryVisible) return undefined;
     if (!user || !slug) {
       setFollowing(false);
       return;
@@ -151,9 +159,14 @@ export default function ShopDetailPage() {
     getShopFollowStatus(slug)
       .then((response) => setFollowing(Boolean(response.data?.data?.following)))
       .catch(() => setFollowing(false));
-  }, [slug, user]);
+  }, [slug, user, isShopDirectoryVisible]);
 
   useEffect(() => {
+    if (platformConfigLoading || !isShopDirectoryVisible) {
+      setProductState((current) => ({ ...current, items: [], loading: false }));
+      return undefined;
+    }
+
     let cancelled = false;
     const loadProducts = async () => {
       setProductState((current) => ({ ...current, loading: true }));
@@ -178,9 +191,14 @@ export default function ShopDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug, productFilters]);
+  }, [slug, productFilters, isShopDirectoryVisible, platformConfigLoading]);
 
   useEffect(() => {
+    if (platformConfigLoading || !isShopDirectoryVisible) {
+      setReviews((current) => ({ ...current, rows: [], loading: false }));
+      return undefined;
+    }
+
     let cancelled = false;
     const loadReviews = async () => {
       setReviews((current) => ({ ...current, loading: true }));
@@ -207,7 +225,7 @@ export default function ShopDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug, reviewPage]);
+  }, [slug, reviewPage, isShopDirectoryVisible, platformConfigLoading]);
 
   const handleFollow = async () => {
     if (!user) {
@@ -238,13 +256,28 @@ export default function ShopDetailPage() {
     window.setTimeout(() => reviewsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   };
 
-  if (loading) {
+  if (platformConfigLoading || loading) {
     return (
       <div className="min-h-screen bg-slate-50 p-8 dark:bg-slate-950">
         <div className="mx-auto max-w-7xl animate-pulse">
           <div className="h-64 rounded-lg bg-slate-200 dark:bg-slate-800" />
           <div className="mt-6 h-24 rounded-lg bg-white dark:bg-slate-900" />
         </div>
+      </div>
+    );
+  }
+
+  if (!isShopDirectoryVisible) {
+    return (
+      <div className="min-h-screen bg-slate-50 px-4 py-16 text-center dark:bg-slate-950">
+        <Store className="mx-auto h-14 w-14 text-slate-400" />
+        <h1 className="mt-4 text-2xl font-black text-slate-950 dark:text-white">Shop pages are currently hidden</h1>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
+          The marketplace shop directory is not visible right now.
+        </p>
+        <Link to="/products" className="mt-6 inline-flex rounded-lg bg-primary-600 px-5 py-3 text-sm font-extrabold text-white">
+          Browse products
+        </Link>
       </div>
     );
   }

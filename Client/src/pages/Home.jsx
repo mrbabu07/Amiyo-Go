@@ -25,6 +25,7 @@ import {
 import { getHomepageDiscovery } from "../services/api";
 import ProductCard from "../components/ProductCard";
 import { ProductCardSkeleton } from "../components/Skeleton";
+import { usePlatformConfig } from "../context/PlatformConfigContext";
 import { useCurrency } from "../hooks/useCurrency";
 import { getCategoryIcon, getCategoryImageSource, getCategoryTheme } from "../utils/categoryVisuals";
 
@@ -864,6 +865,7 @@ export default function Home() {
   const [newArrivalCategory, setNewArrivalCategory] = useState("all");
   const [now, setNow] = useState(Date.now());
   const { formatPrice } = useCurrency();
+  const { isShopDirectoryVisible } = usePlatformConfig();
 
   useEffect(() => {
     let ignore = false;
@@ -997,7 +999,7 @@ export default function Home() {
       </section>
 
       <CuratedCollections collections={discovery.curatedCollections} t={t} />
-      <FollowedVendorUpdates feed={discovery.followedVendorUpdates} t={t} />
+      {isShopDirectoryVisible ? <FollowedVendorUpdates feed={discovery.followedVendorUpdates} t={t} /> : null}
     </div>
   );
 }

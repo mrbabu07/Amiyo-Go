@@ -7,6 +7,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { ToastProvider } from "./context/ToastContext";
 import { ComparisonProvider } from "./context/ComparisonContext";
+import { PlatformConfigProvider } from "./context/PlatformConfigContext";
 import OfferPopup from "./components/OfferPopup";
 import ToastContainer from "./components/Toast";
 import GlobalLoading from "./components/GlobalLoading";
@@ -26,9 +27,11 @@ function App() {
               <ComparisonProvider>
                 <CartProvider>
                   <WishlistProvider>
-                    <ErrorBoundary>
-                      <RouterProvider router={router} />
-                    </ErrorBoundary>
+                    <PlatformConfigProvider>
+                      <ErrorBoundary>
+                        <RouterProvider router={router} />
+                      </ErrorBoundary>
+                    </PlatformConfigProvider>
                     <OfferPopup />
                     <ToastContainer />
                     <GlobalLoading />
