@@ -195,7 +195,7 @@ export default function VendorShop() {
     [approvedVouchers, decoration.couponBanner?.voucherId],
   );
 
-  const shopUrl = profile.slug ? `${window.location.origin}/shop/${profile.slug}` : "";
+  const shopUrl = profile.slug ? `${window.location.origin}/shops/${profile.slug}` : "";
 
   const updateProfileField = (key, value) => {
     setProfile((prev) => ({ ...prev, [key]: value }));

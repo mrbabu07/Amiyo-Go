@@ -10,6 +10,7 @@ import {
   Home,
   LayoutDashboard,
   LogOut,
+  MapPin,
   Megaphone,
   Menu,
   MessageSquare,
@@ -79,6 +80,9 @@ const navGroups = [
     name: "Shop",
     icon: Store,
     children: [
+      { name: "Shop info", path: "/vendor/shop/settings", icon: Store, permission: "shop:manage" },
+      { name: "Media", path: "/vendor/shop/media", icon: Store, permission: "shop:manage" },
+      { name: "Location", path: "/vendor/shop/location", icon: MapPin, permission: "shop:manage" },
       { name: "Shop profile", path: "/vendor/shop/profile", icon: Store, permission: "shop:manage" },
       { name: "Decoration", path: "/vendor/shop/decoration", icon: Store, permission: "shop:manage" },
       { name: "Categories", path: "/vendor/shop/categories", icon: FileCheck2, permission: "shop:manage" },

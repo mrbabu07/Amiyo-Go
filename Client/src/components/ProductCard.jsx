@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Check, Eye, ShoppingCart } from "lucide-react";
+import { Check, Eye, ShoppingCart, Store } from "lucide-react";
 import useCart from "../hooks/useCart";
 import WishlistButton from "./WishlistButton";
 import QuickViewModal from "./QuickViewModal";
@@ -45,7 +45,7 @@ export default function ProductCard({ product }) {
     "";
   const vendorPath =
     product.vendorSlug
-      ? `/shop/${product.vendorSlug}`
+      ? `/shops/${product.vendorSlug}`
       : product.vendorId
         ? `/vendor/${product.vendorId}/products`
         : "";
@@ -311,9 +311,16 @@ export default function ProductCard({ product }) {
                 onKeyDown={(event) => {
                   if ((event.key === "Enter" || event.key === " ") && vendorPath) goToVendor(event);
                 }}
-                className="mt-2 line-clamp-1 cursor-pointer text-left text-xs font-semibold text-gray-500 transition hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-300"
+                className="mt-2 flex min-w-0 cursor-pointer items-center gap-1.5 text-left text-xs font-semibold text-gray-500 transition hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-300"
               >
-                {vendorName}
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                  {product.vendorLogo ? (
+                    <img src={product.vendorLogo} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  ) : (
+                    <Store className="h-3 w-3" />
+                  )}
+                </span>
+                <span className="line-clamp-1 min-w-0">{vendorName}</span>
               </span>
             ) : null}
 

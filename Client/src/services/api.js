@@ -933,6 +933,26 @@ export const getFollowedVendorFeed = (params = {}) =>
 export const getYouMayAlsoLike = (params = {}) =>
   api.get("/recommendations/you-may-also-like", { params });
 
+// Public shop storefronts
+export const getShops = (params = {}) => api.get("/shops", { params });
+export const getShopBySlug = (slug) => api.get(`/shops/${slug}`);
+export const getShopProducts = (slug, params = {}) =>
+  api.get(`/shops/${slug}/products`, { params });
+export const getShopReviews = (slug, params = {}) =>
+  api.get(`/shops/${slug}/reviews`, { params });
+export const followShop = (slug) => api.post(`/shops/${slug}/follow`);
+export const unfollowShop = (slug) => api.delete(`/shops/${slug}/follow`);
+export const getShopFollowStatus = (slug) => api.get(`/shops/${slug}/follow/status`);
+
+// Vendor shop editor
+export const getVendorShop = () => api.get("/vendor/shop");
+export const updateVendorShop = (data) => api.put("/vendor/shop", data);
+export const updateVendorShopLocation = (data) => api.put("/vendor/shop/location", data);
+export const updateVendorShopMedia = (formData) =>
+  api.put("/vendor/shop/media", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+
 export const getAdminVendorKycQueue = (params = {}) =>
   api.get("/vendors/kyc/admin/pending", { params });
 

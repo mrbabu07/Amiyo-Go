@@ -39,6 +39,8 @@ const Returns = lazy(() => import("../pages/Returns"));
 const Support = lazy(() => import("../pages/Support"));
 const Addresses = lazy(() => import("../pages/Addresses"));
 const FlashSales = lazy(() => import("../pages/FlashSales"));
+const ShopsPage = lazy(() => import("../pages/ShopsPage"));
+const ShopDetailPage = lazy(() => import("../pages/ShopDetailPage"));
 const MyAlerts = lazy(() => import("../pages/MyAlerts"));
 const Notifications = lazy(() => import("../pages/Notifications"));
 const LoyaltyDashboard = lazy(() => import("../pages/LoyaltyDashboard"));
@@ -62,6 +64,7 @@ const VendorBankSettings = lazy(() => import("../pages/vendor/VendorBankSettings
 const VendorMarketing = lazy(() => import("../pages/vendor/VendorMarketing"));
 const VendorReports = lazy(() => import("../pages/vendor/VendorReports"));
 const VendorShop = lazy(() => import("../pages/vendor/VendorShop"));
+const VendorShopSettings = lazy(() => import("../pages/vendor/VendorShopSettings"));
 const VendorMessages = lazy(() => import("../pages/vendor/VendorMessages"));
 const VendorReviews = lazy(() => import("../pages/vendor/VendorReviews"));
 const VendorQA = lazy(() => import("../pages/vendor/VendorQA"));
@@ -156,6 +159,8 @@ const router = createBrowserRouter([
       { path: "/products", element: lazyElement(Products) },
       { path: "/search", element: lazyElement(SearchResults) },
       { path: "/flash-sales", element: lazyElement(FlashSales) },
+      { path: "/shops", element: lazyElement(ShopsPage) },
+      { path: "/shops/:slug", element: lazyElement(ShopDetailPage) },
       { path: "/mens", element: lazyElement(CategoryPage) },
       { path: "/womens", element: lazyElement(CategoryPage) },
       { path: "/electronics", element: lazyElement(CategoryPage) },
@@ -228,6 +233,9 @@ const router = createBrowserRouter([
       { path: "shop/profile", element: vendorElement(VendorShop, "shop:manage") },
       { path: "shop/decoration", element: vendorElement(VendorShop, "shop:manage") },
       { path: "shop/categories", element: vendorElement(VendorShop, "shop:manage") },
+      { path: "shop/settings", element: vendorElement(VendorShopSettings, "shop:manage") },
+      { path: "shop/media", element: vendorElement(VendorShopSettings, "shop:manage") },
+      { path: "shop/location", element: vendorElement(VendorShopSettings, "shop:manage") },
       { path: "shop", element: vendorElement(VendorShop, "shop:manage") },
       { path: "messages", element: vendorElement(VendorMessages, "support:view") },
       { path: "reviews", element: vendorElement(VendorReviews, "reviews:view") },

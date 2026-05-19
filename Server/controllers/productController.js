@@ -479,6 +479,8 @@ const publicProductCard = (product = {}, reason = "") => ({
   categoryId: product.categoryId || product.category || null,
   vendorId: product.vendorId || null,
   vendorName: product.vendorShopName || product.vendorName || "",
+  vendorSlug: product.vendorSlug || product.vendor?.slug || "",
+  vendorLogo: product.vendorLogo || product.vendor?.logo || "",
   reason,
 });
 

@@ -48,7 +48,7 @@ export default function SellerInfoStrip({ seller, vendorId }) {
 
   if (!id || !vendor) return null;
 
-  const storePath = vendor.slug ? `/shop/${vendor.slug}` : `/products?vendorId=${id}`;
+  const storePath = vendor.slug ? `/shops/${vendor.slug}` : `/products?vendorId=${id}`;
   const rating = Number(vendor.rating || 0);
 
   const handleFollow = async () => {

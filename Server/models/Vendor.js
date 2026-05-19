@@ -1,5 +1,12 @@
 const { ObjectId } = require("mongodb");
 
+const normalizeShopSlug = (value = "") =>
+  String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
 class Vendor {
   constructor(db) {
     this.collection = db.collection("vendors");
@@ -9,7 +16,7 @@ class Vendor {
   async createIndexes() {
     try {
       await this.collection.createIndex({ ownerUserId: 1 }, { unique: true });
-      await this.collection.createIndex({ slug: 1 }, { unique: true });
+      await this.collection.createIndex({ slug: 1 }, { unique: true, sparse: true });
       await this.collection.createIndex({ status: 1 });
       await this.collection.createIndex({ createdAt: -1 });
     } catch (error) {
@@ -31,12 +38,64 @@ class Vendor {
     return await this.collection.findOne({ slug });
   }
 
+  async generateUniqueSlug(shopName, currentVendorId = null) {
+    const baseSlug = normalizeShopSlug(shopName) || `shop-${Date.now()}`;
+    let slug = baseSlug;
+    let counter = 1;
+
+    while (true) {
+      const existing = await this.findBySlug(slug);
+      if (!existing || (currentVendorId && existing._id.toString() === currentVendorId.toString())) {
+        return slug;
+      }
+      slug = `${baseSlug}-${counter}`;
+      counter += 1;
+    }
+  }
+
   async create(vendorData) {
+    const slug = normalizeShopSlug(vendorData.slug) || await this.generateUniqueSlug(vendorData.shopName);
     const vendor = {
       ...vendorData,
       ownerUserId: new ObjectId(vendorData.ownerUserId),
       allowedCategoryIds: vendorData.allowedCategoryIds.map(id => new ObjectId(id)),
+      slug,
       status: "pending",
+      tagline: vendorData.tagline || "",
+      description: vendorData.description || "",
+      logo: vendorData.logo || "",
+      banner: vendorData.banner || "",
+      categories: vendorData.categories || [],
+      address: vendorData.address || {
+        line1: "",
+        area: "",
+        city: "",
+        district: "",
+        country: "Bangladesh",
+      },
+      location: vendorData.location || {
+        lat: null,
+        lng: null,
+        formattedAddress: "",
+      },
+      returnPolicy: vendorData.returnPolicy || "",
+      shippingPolicy: vendorData.shippingPolicy || vendorData.shippingNotes || "",
+      workingHours: vendorData.workingHours || "",
+      email: vendorData.email || "",
+      website: vendorData.website || "",
+      socialLinks: vendorData.socialLinks || {
+        facebook: "",
+        instagram: "",
+        youtube: "",
+      },
+      isVerified: vendorData.isVerified === true,
+      isOfficialStore: vendorData.isOfficialStore === true,
+      followerCount: Number(vendorData.followerCount || 0),
+      productCount: Number(vendorData.productCount || 0),
+      rating: Number(vendorData.rating || 0),
+      reviewCount: Number(vendorData.reviewCount || 0),
+      joinedAt: vendorData.joinedAt || new Date(),
+      shopFollowers: Array.isArray(vendorData.shopFollowers) ? vendorData.shopFollowers : [],
       deliverySettings: vendorData.deliverySettings || {
         selfDeliveryEnabled: true,
         pickupEnabled: true,
@@ -65,6 +124,10 @@ class Vendor {
       safeData.allowedCategoryIds = safeData.allowedCategoryIds.map(id => 
         typeof id === 'string' ? new ObjectId(id) : id
       );
+    }
+
+    if (safeData.slug !== undefined) {
+      safeData.slug = normalizeShopSlug(safeData.slug);
     }
 
     return await this.collection.updateOne(

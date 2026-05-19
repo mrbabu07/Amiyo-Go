@@ -165,7 +165,30 @@ class Product {
 
     pipeline.push({
       $addFields: {
-        categoryName: { $arrayElemAt: ["$categoryInfo.name", 0] }
+        categoryName: { $arrayElemAt: ["$categoryInfo.name", 0] },
+        vendorName: {
+          $ifNull: [
+            "$vendorName",
+            {
+              $ifNull: [
+                { $arrayElemAt: ["$vendorInfo.shopName", 0] },
+                { $arrayElemAt: ["$vendorInfo.businessName", 0] },
+              ],
+            },
+          ],
+        },
+        vendorSlug: {
+          $ifNull: ["$vendorSlug", { $arrayElemAt: ["$vendorInfo.slug", 0] }],
+        },
+        vendorLogo: {
+          $ifNull: ["$vendorLogo", { $arrayElemAt: ["$vendorInfo.logo", 0] }],
+        },
+        vendorVerified: {
+          $ifNull: ["$vendorVerified", { $arrayElemAt: ["$vendorInfo.isVerified", 0] }],
+        },
+        officialStore: {
+          $ifNull: ["$officialStore", { $arrayElemAt: ["$vendorInfo.isOfficialStore", 0] }],
+        },
       }
     });
 

@@ -128,6 +128,8 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const questionRoutes = require("./routes/questionRoutes");
 const deliverySettingsRoutes = require("./routes/deliverySettingsRoutes");
 const vendorRoutes = require("./routes/vendorRoutes");
+const shopRoutes = require("./routes/shops");
+const vendorShopRoutes = require("./routes/vendorShopRoutes");
 const vendorProductRoutes = require("./routes/vendorProductRoutes");
 const vendorFinanceRoutes = require("./routes/vendorFinanceRoutes");
 const vendorOrderManagementRoutes = require("./routes/vendorOrderManagementRoutes");
@@ -392,6 +394,12 @@ async function run() {
     app.use("/api/vendors/staff", vendorStaffRoutes);
     app.use("/api/vendors", vendorRoutes);
     console.log("✅ Vendor routes registered");
+
+    app.use("/api/shops", shopRoutes);
+    console.log("✅ Shop storefront routes registered");
+
+    app.use("/api/vendor/shop", vendorShopRoutes);
+    console.log("✅ Vendor shop editor routes registered");
 
     app.use("/api/vendor/products", vendorProductRoutes);
     console.log("✅ Vendor Product routes registered");
