@@ -404,6 +404,8 @@ Admins can:
 - Manage staff accounts.
 - Use audit logs for sensitive actions.
 - Use global search and operational shortcuts where enabled.
+- Add section managers or staff accounts for operations, support, finance, moderation, marketing, logistics, or vendor management.
+- Keep delete actions and platform setting changes locked to Super Admin only.
 
 Example staff roles:
 

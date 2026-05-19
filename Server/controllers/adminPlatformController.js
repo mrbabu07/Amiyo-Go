@@ -17,6 +17,14 @@ const ADMIN_ROLE_DEFINITIONS = [
     requires2FA: true,
   },
   {
+    role: "manager",
+    label: "Operations Manager",
+    access: "Cross-section operations without delete or platform settings",
+    description: "Can coordinate orders, vendors, catalog, support, finance, and campaigns while destructive actions and settings remain locked to Super Admin.",
+    sessionTimeoutMinutes: 25,
+    requires2FA: true,
+  },
+  {
     role: "finance_manager",
     label: "Finance Manager",
     access: "Payouts, commissions, refund approvals, reports only",
@@ -449,6 +457,12 @@ const buildStaffAccessCenter = ({ users = [], roleSettings = {}, auditLogs = [] 
       twoFactorRequired: staff.filter((member) => member.requires2FA).length,
       roles: ADMIN_ROLE_DEFINITIONS.length,
       recentActions: auditLogs.length,
+    },
+    guardrails: {
+      destructiveActionsSuperAdminOnly: true,
+      platformSettingsSuperAdminOnly: true,
+      staffCanHandleAssignedSections: true,
+      deleteLockedForRoles: ADMIN_ROLE_DEFINITIONS.filter((role) => role.role !== "admin").map((role) => role.role),
     },
     roles: ADMIN_ROLE_DEFINITIONS.map((role) => ({
       ...role,

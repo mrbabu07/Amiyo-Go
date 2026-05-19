@@ -47,6 +47,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     chat: ["read", "create", "update"],
     tickets: ["read", "create", "update"],
     payments: ["read"],
+    communications: ["read"],
     system: ["read"],
   },
   support_agent: {
@@ -59,6 +60,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     chat: ["read", "create", "update"],
     tickets: ["read", "create", "update"],
     payments: ["read"],
+    communications: ["read"],
     system: ["read"],
   },
   moderator: {
@@ -68,11 +70,11 @@ const DEFAULT_ROLE_PERMISSIONS = {
     products: ["read", "create", "update"],
     inventory: ["read", "update"],
     categories: ["read", "create", "update"],
-    reviews: ["read", "update", "delete"],
+    reviews: ["read", "update"],
     returns: ["read", "update"],
-    support: ["read", "create", "update", "delete"],
-    chat: ["read", "create", "update", "delete"],
-    tickets: ["read", "create", "update", "delete"],
+    support: ["read", "create", "update"],
+    chat: ["read", "create", "update"],
+    tickets: ["read", "create", "update"],
     payments: ["read", "update"],
     system: ["read"],
   },
@@ -96,11 +98,13 @@ const DEFAULT_ROLE_PERMISSIONS = {
     system: ["read"],
   },
   campaign_manager: {
-    coupons: ["read", "create", "update", "delete"],
+    coupons: ["read", "create", "update"],
+    promotions: ["read", "create", "update"],
+    communications: ["read", "create", "update"],
     products: ["read"],
     categories: ["read"],
     analytics: ["read"],
-    system: ["read", "create", "update"],
+    system: ["read"],
   },
   logistics_manager: {
     orders: ["read", "update"],
@@ -108,21 +112,23 @@ const DEFAULT_ROLE_PERMISSIONS = {
     payments: ["read", "update"],
     returns: ["read", "update"],
     analytics: ["read"],
-    system: ["read", "create", "update"],
+    system: ["read"],
   },
   manager: {
-    orders: ["read", "create", "update", "delete"],
+    orders: ["read", "create", "update"],
     users: ["read", "create", "update"],
     vendors: ["read", "create", "update"],
-    products: ["read", "create", "update", "delete"],
-    inventory: ["read", "update"],
-    categories: ["read", "create", "update", "delete"],
-    coupons: ["read", "create", "update", "delete"],
-    reviews: ["read", "create", "update", "delete"],
-    returns: ["read", "create", "update", "delete"],
-    support: ["read", "create", "update", "delete"],
-    chat: ["read", "create", "update", "delete"],
-    tickets: ["read", "create", "update", "delete"],
+    products: ["read", "create", "update"],
+    inventory: ["read", "create", "update"],
+    categories: ["read", "create", "update"],
+    coupons: ["read", "create", "update"],
+    promotions: ["read", "create", "update"],
+    communications: ["read", "create", "update"],
+    reviews: ["read", "create", "update"],
+    returns: ["read", "create", "update"],
+    support: ["read", "create", "update"],
+    chat: ["read", "create", "update"],
+    tickets: ["read", "create", "update"],
     payments: ["read", "update"],
     finance: ["read", "create", "update"],
     analytics: ["read"],
@@ -143,6 +149,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     tickets: ["read", "create", "update", "delete"],
     payments: ["read", "create", "update", "delete"],
     finance: ["read", "create", "update", "delete"],
+    communications: ["read", "create", "update", "delete"],
     analytics: ["read", "create", "update", "delete"],
     audit_logs: ["read"],
     system: ["read", "create", "update", "delete"],
@@ -171,7 +178,8 @@ const RESOURCE_BY_PATH = [
   [/\/dispatch/, "orders"],
   [/\/analytics/, "analytics"],
   [/\/order/, "orders"],
-  [/\/campaign|\/offer|\/flash-sales|\/newsletter/, "system"],
+  [/\/broadcast|\/template|\/email-campaign|\/announcement/, "communications"],
+  [/\/campaign|\/offer|\/flash-sales|\/newsletter|\/promotion/, "promotions"],
   [/\/audit/, "audit_logs"],
 ];
 
@@ -208,6 +216,12 @@ const hasPermission = (permissions, resource, action) => {
 const roleCan = (user, resource, action, permissionDoc = null) => {
   if (!user) return false;
   if (user.role === "admin") return true;
+
+  // Marketplace staff can operate assigned sections, but destructive actions
+  // and platform settings remain super-admin only even if a stale/custom
+  // permission document accidentally grants them.
+  if (action === "delete") return false;
+  if (resource === "system" && action !== "read") return false;
 
   const effectivePermissions = getEffectivePermissions(user, permissionDoc);
   return hasPermission(effectivePermissions, resource, action);

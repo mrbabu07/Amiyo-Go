@@ -235,6 +235,8 @@ export function VendorStatusGuard({ children }) {
 
 function hasPermission(permissions = {}, resource, action) {
   if (!resource || !action) return true;
+  if (action === "delete") return false;
+  if (resource === "system" && action !== "read") return false;
   if (permissions.all === true || permissions["*"] === true) return true;
   const resourcePermission = permissions[resource];
   if (resourcePermission === true) return true;

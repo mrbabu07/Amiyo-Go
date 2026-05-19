@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   Bell,
   CheckCircle2,
   FileText,
@@ -36,6 +37,7 @@ import {
   updatePlatformStaffRole,
   verifyPlatformStaffTwoFactor,
 } from "../../services/api";
+import useAuth from "../../hooks/useAuth";
 
 const tabs = [
   { key: "communications", label: "Communications", icon: Megaphone },
@@ -45,6 +47,7 @@ const tabs = [
 
 const roleOptions = [
   ["admin", "Super Admin"],
+  ["manager", "Operations Manager"],
   ["finance_manager", "Finance Manager"],
   ["moderator", "Moderator"],
   ["support_agent", "Support Agent"],
@@ -174,6 +177,7 @@ function Section({ title, icon: Icon, children, action }) {
 }
 
 export default function AdminPlatformControls() {
+  const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState("communications");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
@@ -689,7 +693,7 @@ export default function AdminPlatformControls() {
                 </div>
                 <button
                   type="button"
-                  disabled={saving === "flags"}
+                  disabled={!isAdmin || saving === "flags"}
                   onClick={() => runAction("flags", () => updatePlatformConfig({ featureFlags: configPatch.featureFlags }))}
                   className="mt-4 inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
                 >
@@ -802,7 +806,7 @@ export default function AdminPlatformControls() {
                   />
                   <button
                     type="button"
-                    disabled={saving === "config"}
+                    disabled={!isAdmin || saving === "config"}
                     onClick={() => runAction("config", () => updatePlatformConfig(configPatch))}
                     className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
                   >
@@ -882,7 +886,7 @@ export default function AdminPlatformControls() {
                     <p className="mt-1 text-xs text-slate-500">Format: Name|categoryId|vendorTier|campaignType|commissionRate</p>
                     <button
                       type="button"
-                      disabled={saving === "commission"}
+                      disabled={!isAdmin || saving === "commission"}
                       onClick={() => runAction("commission", () => updatePlatformCommissionRules(parseCommissionRows()), "Commission rules saved")}
                       className="mt-2 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                     >
@@ -906,6 +910,23 @@ export default function AdminPlatformControls() {
               <Metric icon={FileText} label="Recent actions" value={accessControl.summary?.recentActions} />
             </div>
 
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-amber-700 ring-1 ring-amber-200">
+                    <AlertTriangle className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h2 className="text-base font-bold">Staff safety guardrails are active</h2>
+                    <p className="mt-1 text-sm text-amber-800">
+                      Managers and staff can handle assigned sections, but deleting records and changing platform settings are Super Admin only.
+                    </p>
+                  </div>
+                </div>
+                <Pill tone="border-amber-300 bg-white text-amber-800">No staff delete access</Pill>
+              </div>
+            </div>
+
             <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
               <Section title="Invite Staff Account" icon={UserPlus}>
                 <div className="grid gap-3">
@@ -917,7 +938,7 @@ export default function AdminPlatformControls() {
                   </select>
                   <button
                     type="button"
-                    disabled={saving === "staff"}
+                    disabled={!isAdmin || saving === "staff"}
                     onClick={() =>
                       runAction(
                         "staff",
@@ -971,7 +992,7 @@ export default function AdminPlatformControls() {
                   </select>
                   <button
                     type="button"
-                    disabled={!staffRoleForm.staffId || saving === "role"}
+                    disabled={!isAdmin || !staffRoleForm.staffId || saving === "role"}
                     onClick={() => runAction("role", () => updatePlatformStaffRole(staffRoleForm.staffId, staffRoleForm), "Staff role updated")}
                     className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
                   >
@@ -991,7 +1012,7 @@ export default function AdminPlatformControls() {
                   </select>
                   <button
                     type="button"
-                    disabled={!twoFactor.staffId || saving === "2fa-setup"}
+                    disabled={!isAdmin || !twoFactor.staffId || saving === "2fa-setup"}
                     onClick={() =>
                       runAction(
                         "2fa-setup",
@@ -1016,7 +1037,7 @@ export default function AdminPlatformControls() {
                   <input className="input-control" placeholder="6 digit code" value={twoFactor.token} onChange={(event) => setTwoFactor((form) => ({ ...form, token: event.target.value }))} />
                   <button
                     type="button"
-                    disabled={!twoFactor.staffId || !twoFactor.token || saving === "2fa-verify"}
+                    disabled={!isAdmin || !twoFactor.staffId || !twoFactor.token || saving === "2fa-verify"}
                     onClick={() => runAction("2fa-verify", () => verifyPlatformStaffTwoFactor(twoFactor.staffId, { token: twoFactor.token }), "2FA verified")}
                     className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
                   >
@@ -1034,7 +1055,7 @@ export default function AdminPlatformControls() {
                   <input className="input-control" type="number" min="5" max="240" value={sessionForm.sessionTimeoutMinutes} onChange={(event) => setSessionForm((form) => ({ ...form, sessionTimeoutMinutes: Number(event.target.value) }))} />
                   <button
                     type="button"
-                    disabled={saving === "session"}
+                    disabled={!isAdmin || saving === "session"}
                     onClick={() => runAction("session", () => updatePlatformRoleSessionPolicy(sessionForm.role, sessionForm), "Session policy updated")}
                     className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
                   >
