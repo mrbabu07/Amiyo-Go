@@ -85,6 +85,9 @@ export default defineConfig(({ mode }) => {
     },
     // PWA Configuration
     define: {
+      "globalThis.__AMIYO_API_URL__": JSON.stringify(
+        env.VITE_API_URL || "http://localhost:5000/api",
+      ),
       __PWA_VERSION__: JSON.stringify(
         process.env.npm_package_version || "1.0.0",
       ),

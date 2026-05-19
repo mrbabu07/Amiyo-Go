@@ -30,6 +30,8 @@ const getReportDays = (period = "week") => {
   return 7;
 };
 
+const normalizeStatus = (value) => String(value || "").trim().toLowerCase();
+
 const buildPeriodRange = (days) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -157,6 +159,18 @@ const isCancelledOrReturnedOrder = (order = {}) => {
   if (["cancelled", "returned"].includes(order.status)) return true;
   return (order.products || []).some((product) => ["cancelled", "returned"].includes(product.itemStatus));
 };
+
+const getPayoutAmount = (payout = {}) =>
+  Number(payout.amount ?? payout.requestedAmount ?? payout.netPayout ?? payout.totalAmount ?? 0);
+
+const getReturnAmount = (returnDoc = {}) =>
+  Number(returnDoc.adminRefund ?? returnDoc.refundAmount ?? returnDoc.amount ?? returnDoc.totalAmount ?? 0);
+
+const getVendorDeductionAmount = (returnDoc = {}) =>
+  Number(returnDoc.vendorDeduction ?? returnDoc.vendorDeductionAmount ?? returnDoc.deductionAmount ?? 0);
+
+const isCodOrder = (order = {}) =>
+  ["cod", "cash_on_delivery", "cash on delivery"].includes(normalizeStatus(order.paymentMethod || order.payment?.method || order.paymentType));
 
 const deriveVendorOrderStatus = (statuses = []) => {
   const normalized = statuses.map((status) => status || "pending");
@@ -568,6 +582,290 @@ const getVendorRatingStats = async (db, vendorId) => {
   };
 };
 
+const buildVendorFulfillmentCommand = ({ orderRows = [], now = new Date(), slaHours = 48 } = {}) => {
+  const activeStatuses = new Set(["pending", "processing", "packed", "ready_to_ship", "pickup_ready"]);
+  const byStatus = orderRows.reduce((acc, row) => {
+    acc[row.status] = (acc[row.status] || 0) + 1;
+    return acc;
+  }, {});
+  const activeRows = orderRows
+    .filter((row) => activeStatuses.has(row.status))
+    .map((row) => {
+      const deadline = new Date(row.createdAt.getTime() + slaHours * 60 * 60 * 1000);
+      const hoursRemaining = (deadline.getTime() - new Date(now).getTime()) / (60 * 60 * 1000);
+      return {
+        orderId: row.order?._id?.toString?.() || row.order?._id || "",
+        status: row.status,
+        amount: row.earnings,
+        createdAt: row.createdAt,
+        deadline,
+        hoursRemaining: round2(hoursRemaining),
+        breached: hoursRemaining < 0,
+      };
+    })
+    .sort((left, right) => left.hoursRemaining - right.hoursRemaining);
+
+  return {
+    pending: byStatus.pending || 0,
+    processing: byStatus.processing || 0,
+    packed: byStatus.packed || 0,
+    pickupReady: byStatus.pickup_ready || 0,
+    shipped: byStatus.shipped || 0,
+    delivered: byStatus.delivered || 0,
+    active: activeRows.length,
+    breached: activeRows.filter((row) => row.breached).length,
+    dueSoon: activeRows.filter((row) => row.hoursRemaining >= 0 && row.hoursRemaining <= 12).length,
+    nextDeadline: activeRows[0] || null,
+  };
+};
+
+const buildVendorFinanceCommand = ({ orderRows = [], returns = [], payouts = [] } = {}) => {
+  const codRows = orderRows.filter((row) => isCodOrder(row.order));
+  const codPending = codRows
+    .filter((row) => !row.products.every((product) => product.codCollected === true))
+    .reduce((sum, row) => sum + row.earnings, 0);
+  const codCollected = codRows
+    .filter((row) => row.products.every((product) => product.codCollected === true))
+    .reduce((sum, row) => sum + row.earnings, 0);
+  const pendingPayouts = payouts
+    .filter((payout) => ["pending", "approved", "processing"].includes(normalizeStatus(payout.status)))
+    .reduce((sum, payout) => sum + getPayoutAmount(payout), 0);
+  const paidPayouts = payouts
+    .filter((payout) => ["paid", "completed"].includes(normalizeStatus(payout.status)))
+    .reduce((sum, payout) => sum + getPayoutAmount(payout), 0);
+  const payoutHolds = payouts
+    .filter((payout) => ["hold", "held", "risk_hold", "blocked"].includes(normalizeStatus(payout.status)))
+    .reduce((sum, payout) => sum + getPayoutAmount(payout), 0);
+  const pendingRefundExposure = returns
+    .filter((returnDoc) => !["completed", "refunded", "rejected", "cancelled"].includes(normalizeStatus(returnDoc.status)))
+    .reduce((sum, returnDoc) => sum + getReturnAmount(returnDoc), 0);
+  const vendorDeductions = returns.reduce((sum, returnDoc) => sum + getVendorDeductionAmount(returnDoc), 0);
+  const deliveredEarnings = orderRows.reduce((sum, row) => sum + row.deliveredEarnings, 0);
+
+  return {
+    grossSales: round2(orderRows.reduce((sum, row) => sum + row.gross, 0)),
+    deliveredEarnings: round2(deliveredEarnings),
+    commission: round2(orderRows.reduce((sum, row) => sum + row.commission, 0)),
+    pendingOrderValue: round2(orderRows
+      .filter((row) => ["pending", "processing", "packed", "ready_to_ship", "pickup_ready", "shipped"].includes(row.status))
+      .reduce((sum, row) => sum + row.earnings, 0)),
+    codPending: round2(codPending),
+    codCollected: round2(codCollected),
+    pendingRefundExposure: round2(pendingRefundExposure),
+    vendorDeductions: round2(vendorDeductions),
+    pendingPayouts: round2(pendingPayouts),
+    paidPayouts: round2(paidPayouts),
+    payoutHolds: round2(payoutHolds),
+    availableEstimate: round2(Math.max(0, deliveredEarnings - vendorDeductions - pendingPayouts - payoutHolds)),
+  };
+};
+
+const buildVendorActionCenter = ({
+  vendor = {},
+  orderRows = [],
+  products = [],
+  returns = [],
+  payouts = [],
+  marketingItems = [],
+  categoryRequests = [],
+  fulfillment = {},
+} = {}) => {
+  const activeReturns = returns.filter((returnDoc) =>
+    ["pending", "requested", "approved", "processing", "disputed", "under_review"].includes(normalizeStatus(returnDoc.status)) ||
+    ["pending", "disputed"].includes(normalizeStatus(returnDoc.vendorResponse)),
+  );
+  const lowStock = products.filter((product) => getStock(product) > 0 && getStock(product) < 10);
+  const outOfStock = products.filter((product) => getStock(product) <= 0);
+  const rejectedProducts = products.filter((product) =>
+    ["rejected", "disabled"].includes(normalizeStatus(product.approvalStatus || product.moderationStatus || product.status)),
+  );
+  const pendingModeration = products.filter((product) =>
+    ["pending", "in_review", "under_review"].includes(normalizeStatus(product.approvalStatus || product.moderationStatus || product.status)),
+  );
+  const pendingPayouts = payouts.filter((payout) =>
+    ["pending", "approved", "processing", "hold", "held", "risk_hold"].includes(normalizeStatus(payout.status)),
+  );
+  const pendingCategoryRequests = categoryRequests.filter((request) => normalizeStatus(request.status) === "pending");
+  const activeMarketing = marketingItems.filter((item) =>
+    ["approved", "active"].includes(normalizeStatus(item.status)) &&
+    (!item.endDate || new Date(item.endDate) >= new Date()),
+  );
+  const missingPayout = !vendor.payoutMethod && !(vendor.payoutAccounts || []).length;
+  const kycStatus = normalizeStatus(vendor.kyc?.status || vendor.verificationStatus || vendor.status);
+
+  const items = [
+    fulfillment.breached > 0 && {
+      key: "late_shipments",
+      title: "Late fulfillment needs action",
+      detail: `${fulfillment.breached} order${fulfillment.breached === 1 ? "" : "s"} crossed the 48h shipping SLA.`,
+      count: fulfillment.breached,
+      priority: "critical",
+      workflow: "Fulfillment",
+      path: "/vendor/orders",
+      actionLabel: "Process orders",
+    },
+    fulfillment.dueSoon > 0 && {
+      key: "ship_due_soon",
+      title: "Ship due soon",
+      detail: `${fulfillment.dueSoon} order${fulfillment.dueSoon === 1 ? "" : "s"} should be packed or pickup-ready within 12h.`,
+      count: fulfillment.dueSoon,
+      priority: "high",
+      workflow: "Fulfillment",
+      path: "/vendor/orders",
+      actionLabel: "Open queue",
+    },
+    activeReturns.length > 0 && {
+      key: "return_responses",
+      title: "Return cases waiting",
+      detail: "Review customer evidence, respond, or upload counter-evidence.",
+      count: activeReturns.length,
+      priority: "high",
+      workflow: "Returns",
+      path: "/vendor/returns",
+      actionLabel: "Review returns",
+    },
+    rejectedProducts.length > 0 && {
+      key: "rejected_products",
+      title: "Fix rejected listings",
+      detail: "Use moderation feedback to edit and resubmit products.",
+      count: rejectedProducts.length,
+      priority: "high",
+      workflow: "Catalog",
+      path: "/vendor/products",
+      actionLabel: "Fix listings",
+    },
+    outOfStock.length > 0 && {
+      key: "out_of_stock",
+      title: "Restock unavailable products",
+      detail: "Products with no stock cannot convert.",
+      count: outOfStock.length,
+      priority: "medium",
+      workflow: "Inventory",
+      path: "/vendor/products",
+      actionLabel: "Restock",
+    },
+    lowStock.length > 0 && {
+      key: "low_stock",
+      title: "Low stock risk",
+      detail: "Replenish fast-moving products before campaigns.",
+      count: lowStock.length,
+      priority: "medium",
+      workflow: "Inventory",
+      path: "/vendor/products",
+      actionLabel: "Review stock",
+    },
+    pendingModeration.length > 0 && {
+      key: "pending_moderation",
+      title: "Products in moderation",
+      detail: "Track listings before promotion planning.",
+      count: pendingModeration.length,
+      priority: "medium",
+      workflow: "Catalog",
+      path: "/vendor/products",
+      actionLabel: "Track status",
+    },
+    pendingPayouts.length > 0 && {
+      key: "payouts",
+      title: "Payouts need visibility",
+      detail: "Review pending, held, or processing payout records.",
+      count: pendingPayouts.length,
+      priority: "medium",
+      workflow: "Finance",
+      path: "/vendor/finance/payouts",
+      actionLabel: "Open finance",
+      amount: round2(pendingPayouts.reduce((sum, payout) => sum + getPayoutAmount(payout), 0)),
+    },
+    pendingCategoryRequests.length > 0 && {
+      key: "category_requests",
+      title: "Category requests pending",
+      detail: "Admin approval controls where you can list products.",
+      count: pendingCategoryRequests.length,
+      priority: "low",
+      workflow: "Catalog access",
+      path: "/vendor/category-requests",
+      actionLabel: "View requests",
+    },
+    missingPayout && {
+      key: "missing_payout",
+      title: "Payout setup incomplete",
+      detail: "Add bank or mobile financial details before requesting payout.",
+      count: 1,
+      priority: "high",
+      workflow: "Finance",
+      path: "/vendor/settings",
+      actionLabel: "Add payout details",
+    },
+    !["approved", "verified", "active"].includes(kycStatus) && {
+      key: "kyc",
+      title: "KYC or seller status needs attention",
+      detail: `Current status: ${kycStatus || "missing"}. Resolve it to keep selling normally.`,
+      count: 1,
+      priority: "critical",
+      workflow: "Verification",
+      path: "/vendor/kyc",
+      actionLabel: "Open KYC",
+    },
+    activeMarketing.length === 0 && {
+      key: "marketing_opportunity",
+      title: "No active seller promotion",
+      detail: "Create a voucher or join a campaign to increase traffic.",
+      count: 1,
+      priority: "low",
+      workflow: "Marketing",
+      path: "/vendor/marketing",
+      actionLabel: "Start promotion",
+    },
+  ].filter(Boolean);
+
+  const priorityRank = { critical: 0, high: 1, medium: 2, low: 3 };
+  const sorted = items.sort((left, right) =>
+    (priorityRank[left.priority] ?? 9) - (priorityRank[right.priority] ?? 9) ||
+    Number(right.count || 0) - Number(left.count || 0),
+  );
+
+  return {
+    summary: {
+      total: sorted.length,
+      critical: sorted.filter((item) => item.priority === "critical").length,
+      high: sorted.filter((item) => item.priority === "high").length,
+      financeExposure: round2(sorted.reduce((sum, item) => sum + Number(item.amount || 0), 0)),
+    },
+    items: sorted.slice(0, 8),
+  };
+};
+
+const buildVendorReadiness = ({ vendor = {}, products = [], staff = [], marketingItems = [], fulfillment = {}, returns = [] } = {}) => {
+  const profileComplete = Boolean(
+    (vendor.shopName || vendor.businessName || vendor.name) &&
+    (vendor.phone || vendor.contactPhone || vendor.mobile) &&
+    (vendor.address || vendor.district || vendor.upazila || vendor.pickupAddress),
+  );
+  const payoutReady = Boolean(vendor.payoutMethod || (vendor.payoutAccounts || []).length);
+  const categoryReady = (vendor.allowedCategoryIds || []).length > 0;
+  const kycReady = ["approved", "verified", "active"].includes(normalizeStatus(vendor.kyc?.status || vendor.verificationStatus || vendor.status));
+  const checks = [
+    { key: "profile", label: "Shop profile", ready: profileComplete, required: true, path: "/vendor/shop/profile" },
+    { key: "kyc", label: "KYC verified", ready: kycReady, required: true, path: "/vendor/kyc" },
+    { key: "categories", label: "Category access", ready: categoryReady, required: true, path: "/vendor/category-requests" },
+    { key: "payout", label: "Payout method", ready: payoutReady, required: true, path: "/vendor/settings" },
+    { key: "catalog", label: "Product catalog", ready: products.length > 0, required: true, path: "/vendor/products/add" },
+    { key: "fulfillment", label: "Fulfillment SLA", ready: Number(fulfillment.breached || 0) === 0, required: false, path: "/vendor/orders" },
+    { key: "returns", label: "Return response", ready: returns.filter((item) => ["pending", "requested", "disputed", "under_review"].includes(normalizeStatus(item.status))).length === 0, required: false, path: "/vendor/returns" },
+    { key: "marketing", label: "Growth tools", ready: marketingItems.length > 0, required: false, path: "/vendor/marketing" },
+    { key: "staff", label: "Team access", ready: staff.filter((member) => normalizeStatus(member.status) === "active").length > 0, required: false, path: "/vendor/settings" },
+  ];
+  const requiredMissing = checks.filter((item) => item.required && !item.ready).length;
+  const optionalMissing = checks.filter((item) => !item.required && !item.ready).length;
+
+  return {
+    score: Math.round((checks.filter((item) => item.ready).length / checks.length) * 100),
+    status: requiredMissing > 0 ? "blocking" : optionalMissing > 0 ? "watch" : "ready",
+    requiredMissing,
+    optionalMissing,
+    checks,
+  };
+};
+
 // Get vendor dashboard statistics
 exports.getDashboardStats = async (req, res) => {
   try {
@@ -582,21 +880,29 @@ exports.getDashboardStats = async (req, res) => {
     }
 
     const db = req.app.locals.db;
-    const productsCollection = db.collection("products");
-
-    // Get total products
-    const totalProducts = await productsCollection.countDocuments({
-      vendorId: vendor._id.toString(),
-    });
-
-    // Get low stock products
-    const lowStockProducts = await productsCollection.countDocuments({
-      vendorId: vendor._id.toString(),
-      stock: { $lt: 10 },
-    });
-
     const vendorId = vendor._id.toString();
-    const orderRows = await getVendorOrderRows(db, vendorId);
+    const vendorIds = getIdVariants(vendorId);
+
+    const [
+      productDocs,
+      orderRows,
+      returns,
+      payouts,
+      marketingItems,
+      categoryRequests,
+      staffMembers,
+    ] = await Promise.all([
+      findDocuments(db, "products", { vendorId: { $in: vendorIds } }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 1000 }),
+      getVendorOrderRows(db, vendorId),
+      findDocuments(db, "returns", { vendorId: { $in: vendorIds } }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 300 }),
+      findDocuments(db, "vendor_payouts", { vendorId: { $in: vendorIds } }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 300 }),
+      findDocuments(db, "vendorMarketingItems", { vendorId: { $in: vendorIds } }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 200 }),
+      findDocuments(db, "category_requests", { vendorId: { $in: vendorIds } }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 100 }),
+      findDocuments(db, "vendor_staff", { vendorId: { $in: vendorIds } }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 50 }),
+    ]);
+
+    const totalProducts = productDocs.length;
+    const lowStockProducts = productDocs.filter((product) => getStock(product) < 10).length;
     
     const totalOrders = orderRows.length;
     const pendingOrders = orderRows.filter((row) => row.status === "pending").length;
@@ -625,6 +931,26 @@ exports.getDashboardStats = async (req, res) => {
       data: dailySales.map((day) => day.amount),
       orders: dailySales.map((day) => day.orders),
     };
+    const fulfillmentCommand = buildVendorFulfillmentCommand({ orderRows, now });
+    const financeCommand = buildVendorFinanceCommand({ orderRows, returns, payouts });
+    const actionCenter = buildVendorActionCenter({
+      vendor,
+      orderRows,
+      products: productDocs,
+      returns,
+      payouts,
+      marketingItems,
+      categoryRequests,
+      fulfillment: fulfillmentCommand,
+    });
+    const readiness = buildVendorReadiness({
+      vendor,
+      products: productDocs,
+      staff: staffMembers,
+      marketingItems,
+      fulfillment: fulfillmentCommand,
+      returns,
+    });
 
     const stats = {
       totalRevenue: round2(totalRevenue),
@@ -636,6 +962,10 @@ exports.getDashboardStats = async (req, res) => {
       avgRating,
       totalReviews,
       salesChart,
+      actionCenter,
+      fulfillmentCommand,
+      financeCommand,
+      readiness,
     };
 
     res.json({ success: true, stats });
@@ -1439,6 +1769,15 @@ exports.deliverVendorItems = async (req, res) => {
     console.error("Error in deliverVendorItems:", error);
     res.status(500).json({ error: "Failed to mark items as delivered" });
   }
+};
+
+exports._private = {
+  buildVendorActionCenter,
+  buildVendorFinanceCommand,
+  buildVendorFulfillmentCommand,
+  buildVendorReadiness,
+  deriveVendorOrderStatus,
+  getStock,
 };
 
 module.exports = exports;

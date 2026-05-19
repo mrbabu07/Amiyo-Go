@@ -31,7 +31,7 @@ import {
 } from "../../services/api";
 import { buildVendorWorkflow } from "../../utils/roleWorkflowCenter";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = globalThis.__AMIYO_API_URL__ || "http://localhost:5000/api";
 const SHIP_SLA_HOURS = 48;
 const LOW_VIEW_THRESHOLD = 5;
 const LOW_STOCK_THRESHOLD = 10;
@@ -166,6 +166,191 @@ const HealthMetric = ({ label, value, detail, tone }) => (
     <p className="mt-1 text-xs opacity-80">{detail}</p>
   </div>
 );
+
+const actionPriorityTone = {
+  critical: "border-red-200 bg-red-50 text-red-800",
+  high: "border-orange-200 bg-orange-50 text-orange-800",
+  medium: "border-yellow-200 bg-yellow-50 text-yellow-800",
+  low: "border-blue-200 bg-blue-50 text-blue-800",
+};
+
+const SellerActionCenter = ({ actionCenter, formatPrice }) => {
+  const summary = actionCenter?.summary || { total: 0, critical: 0, high: 0, financeExposure: 0 };
+  const items = actionCenter?.items || [];
+
+  return (
+    <section data-testid="vendor-action-center" className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="border-b border-gray-100 p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-bold text-orange-600">
+              <AlertTriangle className="h-4 w-4" />
+              Seller action center
+            </div>
+            <h2 className="mt-2 text-xl font-bold text-gray-950">What needs work now</h2>
+            <p className="mt-1 max-w-3xl text-sm text-gray-500">
+              Fulfillment, returns, listings, finance, category access, and marketing actions are grouped here so your team can work from one queue.
+            </p>
+          </div>
+          <div className="grid min-w-full gap-2 sm:grid-cols-4 lg:min-w-[520px]">
+            <div className="rounded-lg bg-gray-50 px-3 py-2">
+              <p className="text-xs font-bold uppercase text-gray-500">Open</p>
+              <p className="text-xl font-black text-gray-950">{summary.total}</p>
+            </div>
+            <div className="rounded-lg bg-red-50 px-3 py-2">
+              <p className="text-xs font-bold uppercase text-red-600">Critical</p>
+              <p className="text-xl font-black text-red-700">{summary.critical}</p>
+            </div>
+            <div className="rounded-lg bg-orange-50 px-3 py-2">
+              <p className="text-xs font-bold uppercase text-orange-600">High</p>
+              <p className="text-xl font-black text-orange-700">{summary.high}</p>
+            </div>
+            <div className="rounded-lg bg-green-50 px-3 py-2">
+              <p className="text-xs font-bold uppercase text-green-600">Exposure</p>
+              <p className="truncate text-xl font-black text-green-700">{formatPrice(summary.financeExposure)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 p-4">
+        {items.length ? items.map((item) => (
+          <article key={item.key} className="grid gap-3 rounded-lg border border-gray-100 p-4 transition hover:border-orange-200 hover:bg-orange-50/40 lg:grid-cols-[minmax(0,1fr)_180px_auto] lg:items-center">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-black text-gray-950">{item.title}</h3>
+                <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold capitalize ${actionPriorityTone[item.priority] || actionPriorityTone.low}`}>
+                  {item.priority}
+                </span>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-bold text-gray-600">
+                  {item.workflow}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-gray-600">{item.detail}</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm">
+              <p className="font-bold text-gray-950">{item.count} item{Number(item.count) === 1 ? "" : "s"}</p>
+              {item.amount ? <p className="text-xs font-semibold text-gray-500">{formatPrice(item.amount)}</p> : null}
+            </div>
+            <Link
+              to={item.path}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-bold text-white transition hover:bg-orange-700"
+            >
+              {item.actionLabel}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </article>
+        )) : (
+          <div className="flex min-h-32 flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 px-4 py-8 text-center">
+            <CheckCircle2 className="h-10 w-10 text-green-600" />
+            <p className="mt-3 text-sm font-bold text-gray-950">No urgent seller actions</p>
+            <p className="mt-1 text-sm text-gray-500">Keep stock, fulfillment, returns, and campaigns healthy.</p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};
+
+const VendorCommandPanels = ({ stats, formatPrice }) => {
+  const finance = stats?.financeCommand || {};
+  const fulfillment = stats?.fulfillmentCommand || {};
+  const readiness = stats?.readiness || { checks: [], score: 0, status: "watch" };
+  const readinessTone = readiness.status === "blocking"
+    ? "border-red-200 bg-red-50 text-red-800"
+    : readiness.status === "watch"
+      ? "border-yellow-200 bg-yellow-50 text-yellow-800"
+      : "border-green-200 bg-green-50 text-green-800";
+
+  return (
+    <section data-testid="vendor-command-panels" className="grid gap-5 xl:grid-cols-3">
+      <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Finance control</p>
+            <h2 className="mt-1 text-lg font-black text-gray-950">Payout and COD</h2>
+          </div>
+          <Wallet className="h-5 w-5 text-green-600" />
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-lg bg-gray-50 p-3">
+            <p className="text-xs font-bold text-gray-500">Available estimate</p>
+            <p className="text-base font-black text-gray-950">{formatPrice(finance.availableEstimate)}</p>
+          </div>
+          <div className="rounded-lg bg-gray-50 p-3">
+            <p className="text-xs font-bold text-gray-500">Pending payout</p>
+            <p className="text-base font-black text-gray-950">{formatPrice(finance.pendingPayouts)}</p>
+          </div>
+          <div className="rounded-lg bg-gray-50 p-3">
+            <p className="text-xs font-bold text-gray-500">COD pending</p>
+            <p className="text-base font-black text-gray-950">{formatPrice(finance.codPending)}</p>
+          </div>
+          <div className="rounded-lg bg-gray-50 p-3">
+            <p className="text-xs font-bold text-gray-500">Deductions</p>
+            <p className="text-base font-black text-gray-950">{formatPrice(finance.vendorDeductions)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Fulfillment control</p>
+            <h2 className="mt-1 text-lg font-black text-gray-950">Packing and pickup</h2>
+          </div>
+          <Truck className="h-5 w-5 text-orange-600" />
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="rounded-lg bg-orange-50 p-3 text-orange-800">
+            <p className="text-xs font-bold">Active</p>
+            <p className="text-xl font-black">{fulfillment.active || 0}</p>
+          </div>
+          <div className="rounded-lg bg-red-50 p-3 text-red-800">
+            <p className="text-xs font-bold">Late</p>
+            <p className="text-xl font-black">{fulfillment.breached || 0}</p>
+          </div>
+          <div className="rounded-lg bg-yellow-50 p-3 text-yellow-800">
+            <p className="text-xs font-bold">Due soon</p>
+            <p className="text-xl font-black">{fulfillment.dueSoon || 0}</p>
+          </div>
+        </div>
+        {fulfillment.nextDeadline ? (
+          <Link to={`/vendor/orders/${fulfillment.nextDeadline.orderId}`} className="mt-4 block rounded-lg border border-orange-100 bg-orange-50 p-3 text-sm transition hover:bg-orange-100">
+            <p className="font-bold text-gray-950">Next deadline</p>
+            <p className="mt-1 text-gray-600">
+              Order #{String(fulfillment.nextDeadline.orderId).slice(-8)} / {fulfillment.nextDeadline.hoursRemaining < 0 ? "late" : `${fulfillment.nextDeadline.hoursRemaining}h left`}
+            </p>
+          </Link>
+        ) : (
+          <EmptyInline text="No active packing or pickup deadlines." />
+        )}
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Seller readiness</p>
+            <h2 className="mt-1 text-lg font-black text-gray-950">Business setup</h2>
+          </div>
+          <ShieldCheck className="h-5 w-5 text-blue-600" />
+        </div>
+        <div className={`mt-4 rounded-lg border px-3 py-2 text-sm font-bold capitalize ${readinessTone}`}>
+          {readiness.status} / {readiness.score || 0}% ready
+        </div>
+        <div className="mt-4 grid gap-2">
+          {(readiness.checks || []).slice(0, 6).map((check) => (
+            <Link key={check.key} to={check.path} className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 text-sm transition hover:border-orange-200 hover:bg-orange-50">
+              <span className="font-semibold text-gray-800">{check.label}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${check.ready ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
+                {check.ready ? "Ready" : check.required ? "Required" : "Improve"}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
 
 const ChecklistRow = ({ done, title, text, to }) => (
   <Link
@@ -516,6 +701,10 @@ const VendorHome = () => {
         </div>
 
         <RoleWorkflowPanel workflow={vendorWorkflow} />
+
+        <SellerActionCenter actionCenter={stats?.actionCenter} formatPrice={formatPrice} />
+
+        <VendorCommandPanels stats={stats} formatPrice={formatPrice} />
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
           <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm xl:col-span-2">
