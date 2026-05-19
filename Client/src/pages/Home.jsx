@@ -12,7 +12,6 @@ import {
   Gift,
   HeartHandshake,
   PackageCheck,
-  Search,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
@@ -169,7 +168,7 @@ function HeroActionPanel({ discovery, now, formatPrice, t }) {
                 {t("home.exploreFastText")}
               </p>
             </div>
-            <Search className="h-5 w-5 text-gray-400" />
+            <ShoppingBag className="h-5 w-5 text-gray-400" />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {quickCategories.map((category) => (
@@ -223,18 +222,18 @@ function MarketplacePulse({ discovery, t }) {
   ];
 
   return (
-    <div className="grid gap-2 rounded-lg bg-gray-950/80 p-2 ring-1 ring-white/10 backdrop-blur sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-2 rounded-lg bg-white p-2 shadow-sm ring-1 ring-slate-200 dark:bg-gray-900 dark:ring-gray-800 sm:grid-cols-2 lg:grid-cols-4">
       {stats.map((stat) => {
         const StatIcon = stat.Icon;
 
         return (
-          <div key={stat.label} className="flex items-center gap-3 rounded-lg bg-white/10 px-3 py-3 text-white ring-1 ring-white/10 backdrop-blur">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-primary-700">
+          <div key={stat.label} className="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-3 text-slate-950 ring-1 ring-slate-100 dark:bg-gray-950 dark:text-white dark:ring-gray-800">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-primary-700 shadow-sm ring-1 ring-slate-200 dark:bg-gray-900 dark:ring-gray-800">
               <StatIcon className="h-5 w-5" />
             </span>
             <span>
               <span className="block text-lg font-black leading-none">{stat.value}</span>
-              <span className="mt-1 block text-xs font-bold text-white/70">{stat.label}</span>
+              <span className="mt-1 block text-xs font-bold text-slate-500 dark:text-gray-400">{stat.label}</span>
             </span>
           </div>
         );
@@ -245,9 +244,8 @@ function MarketplacePulse({ discovery, t }) {
 
 function HomepageHero({ discovery, activeHero, setActiveHero, now, formatPrice, t }) {
   return (
-    <section className="relative overflow-hidden bg-slate-950 pb-7 pt-4 text-white md:pb-9 md:pt-6">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-      <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(14,116,144,0.35),rgba(15,23,42,0.9)_46%,rgba(234,88,12,0.16))]" />
+    <section className="relative overflow-hidden border-b border-slate-200 bg-white pb-6 pt-4 text-slate-950 dark:border-gray-800 dark:bg-gray-950 md:pb-8 md:pt-6">
+      <div className="absolute inset-x-0 top-0 h-28 bg-[linear-gradient(120deg,rgba(255,237,213,0.78),rgba(240,249,255,0.74),rgba(236,253,245,0.58))] dark:bg-[linear-gradient(120deg,rgba(15,23,42,0.88),rgba(17,24,39,0.92),rgba(6,78,59,0.28))]" />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="relative grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-4">
@@ -260,6 +258,66 @@ function HomepageHero({ discovery, activeHero, setActiveHero, now, formatPrice, 
             <MarketplacePulse discovery={discovery} t={t} />
           </div>
           <HeroActionPanel discovery={discovery} now={now} formatPrice={formatPrice} t={t} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function QuickShoppingDock({ discovery, isShopDirectoryVisible, t }) {
+  const shortcuts = [
+    {
+      title: t("home.shortcutFlash", "Flash deals"),
+      text: t("home.shortcutFlashText", "Limited-time prices"),
+      to: "/products?deal=flash",
+      Icon: Flame,
+      tone: "text-red-600 bg-red-50 ring-red-100 dark:bg-red-950/30 dark:text-red-200 dark:ring-red-900/60",
+    },
+    {
+      title: t("home.shortcutVouchers", "Vouchers"),
+      text: t("home.shortcutVouchersText", "Apply active savings"),
+      to: "/cart",
+      Icon: Gift,
+      tone: "text-emerald-700 bg-emerald-50 ring-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-200 dark:ring-emerald-900/60",
+    },
+    {
+      title: t("home.shortcutCategories", "Categories"),
+      text: t("home.shortcutCategoriesText", `${discovery.categories?.length || 0} departments`),
+      to: "/categories",
+      Icon: ShoppingBag,
+      tone: "text-sky-700 bg-sky-50 ring-sky-100 dark:bg-sky-950/30 dark:text-sky-200 dark:ring-sky-900/60",
+    },
+    {
+      title: t("home.shortcutShops", "Shops"),
+      text: t("home.shortcutShopsText", "Follow trusted sellers"),
+      to: isShopDirectoryVisible ? "/shops" : "/products",
+      Icon: Store,
+      tone: "text-violet-700 bg-violet-50 ring-violet-100 dark:bg-violet-950/30 dark:text-violet-200 dark:ring-violet-900/60",
+    },
+  ];
+
+  return (
+    <section className="bg-white py-4 dark:bg-gray-950">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {shortcuts.map(({ title, text, to, Icon, tone }) => (
+            <Link
+              key={title}
+              to={to}
+              className="group flex min-h-20 items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md dark:border-gray-800 dark:bg-gray-900 dark:hover:border-primary-900"
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ring-1 ${tone}`}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-black text-slate-950 dark:text-white">{title}</span>
+                  <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500 dark:text-gray-400">{text}</span>
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-primary-600" />
+            </Link>
+          ))}
         </div>
       </div>
     </section>
@@ -317,16 +375,16 @@ function MarketplacePromiseStrip({ t }) {
   ];
 
   return (
-    <section className="bg-slate-50 pb-4 pt-4 dark:bg-gray-950">
+    <section className="bg-white pb-4 pt-2 dark:bg-gray-950">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-2 rounded-lg border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 border-y border-gray-200 bg-white py-3 dark:border-gray-800 dark:bg-gray-950 sm:grid-cols-2 lg:grid-cols-4">
           {promises.map((item) => {
             const PromiseIcon = item.Icon;
 
             return (
               <div
                 key={item.title}
-                className="group flex items-center gap-3 rounded-lg px-3 py-3 transition hover:bg-primary-50 dark:hover:bg-gray-800"
+                className="group flex items-center gap-3 rounded-lg px-3 py-3 transition hover:bg-primary-50 dark:hover:bg-gray-900"
               >
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 ring-1 ring-primary-100 transition group-hover:scale-105 dark:bg-primary-950/40 dark:text-primary-200 dark:ring-primary-900/60">
                   <PromiseIcon className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
@@ -353,9 +411,9 @@ function TopCategorySection({ categories, t }) {
   const visibleCategories = categories.slice(0, 14);
 
   return (
-    <section className="sticky top-20 z-[120] border-b border-gray-200 bg-slate-50/95 py-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-950/95">
+    <section className="border-y border-gray-200 bg-slate-50 py-4 dark:border-gray-800 dark:bg-gray-950">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600 ring-1 ring-orange-100 dark:bg-orange-950/40 dark:text-orange-200 dark:ring-orange-900/60">
@@ -385,7 +443,7 @@ function TopCategorySection({ categories, t }) {
                 <Link
                   key={category._id}
                   to={`/category/${category.slug || category._id}`}
-                  className="group flex min-h-[6rem] w-24 shrink-0 snap-start flex-col items-center gap-2 rounded-lg border border-gray-100 bg-white p-2 text-center transition duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-900/70 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900 lg:w-20 xl:w-[5.75rem]"
+                  className="group flex min-h-[6rem] w-24 shrink-0 snap-start flex-col items-center gap-2 rounded-lg border border-gray-100 bg-white p-2 text-center transition duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-900/70 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900 sm:w-28 lg:w-24 xl:w-[6.25rem]"
                 >
                   <span className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg ring-1 transition group-hover:scale-105 group-hover:bg-white group-hover:text-orange-700 dark:group-hover:bg-gray-900 dark:group-hover:text-orange-200 ${theme}`}>
                     {imageSource ? (
@@ -978,6 +1036,11 @@ export default function Home() {
         t={t}
       />
       <MarketplacePromiseStrip t={t} />
+      <QuickShoppingDock
+        discovery={discovery}
+        isShopDirectoryVisible={isShopDirectoryVisible}
+        t={t}
+      />
 
       <TopCategorySection categories={discovery.categories} t={t} />
       <FlashSaleStrip flashSales={discovery.flashSales} now={now} formatPrice={formatPrice} t={t} />
