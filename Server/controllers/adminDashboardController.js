@@ -599,6 +599,7 @@ const buildAdminExceptionInbox = (issues = [], { now = new Date(), limit = 10 } 
 
     return {
       ...issue,
+      caseKey: issue.caseKey || `${issue.type}:${normalizeId(issue.meta?.id || issue.id || issue.title)}`,
       priority,
       workflow: issueWorkflowMap[issue.type] || "Operations",
       nextAction: issueNextActionMap[issue.type] || "Open queue and review",
@@ -643,6 +644,200 @@ const buildAdminExceptionInbox = (issues = [], { now = new Date(), limit = 10 } 
     },
     items: sorted.slice(0, limit),
   };
+};
+
+const getActorSnapshot = (req = {}) => ({
+  id: normalizeId(req.user?._id || req.user?.uid || req.dbUser?._id || "system"),
+  email: req.user?.email || req.dbUser?.email || "",
+  name: req.dbUser?.name || req.dbUser?.displayName || req.user?.name || req.user?.email || "Admin",
+  role: req.user?.role || req.dbUser?.role || "admin",
+});
+
+const normalizeCaseStatus = (value) => {
+  const status = normalizeStatus(value || "open");
+  return ["open", "in_progress", "waiting", "resolved", "escalated"].includes(status) ? status : "open";
+};
+
+const normalizeCasePriority = (value) => {
+  const priority = normalizeStatus(value || "medium");
+  return ["critical", "high", "medium", "low"].includes(priority) ? priority : "medium";
+};
+
+const normalizeCaseDueAt = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const publicCaseAssignment = (doc = {}) => ({
+  caseKey: doc.caseKey,
+  caseType: doc.caseType,
+  resourceId: doc.resourceId,
+  title: doc.title,
+  workflow: doc.workflow,
+  owner: doc.owner,
+  assignedTo: doc.assignedTo || "",
+  status: doc.status || "open",
+  priority: doc.priority || "medium",
+  dueAt: doc.dueAt || null,
+  noteCount: (doc.notes || []).length,
+  notes: (doc.notes || []).slice(-20),
+  history: (doc.history || []).slice(-30),
+  updatedAt: doc.updatedAt || doc.createdAt || null,
+  createdAt: doc.createdAt || null,
+  updatedBy: doc.updatedBy || null,
+});
+
+const mergeCaseAssignmentsIntoInbox = (inbox = {}, assignments = []) => {
+  const assignmentByKey = new Map(assignments.map((assignment) => [assignment.caseKey, assignment]));
+
+  return {
+    ...inbox,
+    items: (inbox.items || []).map((issue) => {
+      const assignment = assignmentByKey.get(issue.caseKey);
+      if (!assignment) {
+        return {
+          ...issue,
+          case: {
+            assignedTo: "",
+            status: "open",
+            priority: issue.priority || "medium",
+            dueAt: null,
+            noteCount: 0,
+          },
+        };
+      }
+
+      return {
+        ...issue,
+        case: publicCaseAssignment(assignment),
+      };
+    }),
+  };
+};
+
+const logAdminCaseAudit = async (db, req, action, payload = {}) => {
+  try {
+    await safeCollection(db, "audit_logs")?.insertOne({
+      module: "admin_cases",
+      action,
+      actor: getActorSnapshot(req),
+      target: {
+        type: "admin_case",
+        id: payload.caseKey,
+        title: payload.title || payload.caseKey,
+      },
+      diff: payload.diff || {},
+      metadata: payload.metadata || {},
+      createdAt: new Date(),
+    });
+  } catch {
+    // Audit logging must never block the operational workflow.
+  }
+};
+
+const getAdminCaseAssignment = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const caseKey = decodeURIComponent(req.params.caseKey || "");
+    if (!caseKey) {
+      return res.status(400).json({ success: false, error: "caseKey is required" });
+    }
+
+    const assignment = await safeCollection(db, "admin_case_assignments")?.findOne?.({ caseKey });
+    return res.json({
+      success: true,
+      data: assignment ? publicCaseAssignment(assignment) : null,
+    });
+  } catch (error) {
+    console.error("Error loading admin case assignment:", error);
+    return res.status(500).json({ success: false, error: "Failed to load admin case assignment" });
+  }
+};
+
+const updateAdminCaseAssignment = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const collection = safeCollection(db, "admin_case_assignments");
+    const caseKey = decodeURIComponent(req.params.caseKey || "");
+    if (!caseKey || !collection?.updateOne) {
+      return res.status(400).json({ success: false, error: "caseKey is required" });
+    }
+
+    const now = new Date();
+    const actor = getActorSnapshot(req);
+    const existing = await collection.findOne?.({ caseKey });
+    const assignedTo = String(req.body.assignedTo || "").trim();
+    const status = normalizeCaseStatus(req.body.status);
+    const priority = normalizeCasePriority(req.body.priority);
+    const dueAt = normalizeCaseDueAt(req.body.dueAt);
+    const note = String(req.body.note || "").trim();
+    const issue = req.body.issue || {};
+    const resourceId = normalizeId(req.body.resourceId || issue.meta?.id || issue.resourceId || caseKey.split(":").slice(1).join(":"));
+
+    const history = [];
+    [
+      ["assignedTo", existing?.assignedTo || "", assignedTo],
+      ["status", existing?.status || "open", status],
+      ["priority", existing?.priority || "medium", priority],
+      ["dueAt", existing?.dueAt || null, dueAt],
+    ].forEach(([field, from, to]) => {
+      const fromValue = from instanceof Date ? from.toISOString() : from || "";
+      const toValue = to instanceof Date ? to.toISOString() : to || "";
+      if (String(fromValue) !== String(toValue)) {
+        history.push({ action: `${field}_changed`, field, from: fromValue, to: toValue, at: now, actor });
+      }
+    });
+
+    if (note) {
+      history.push({ action: "note_added", field: "note", from: "", to: note, at: now, actor });
+    }
+
+    const update = {
+      $set: {
+        caseKey,
+        caseType: req.body.caseType || issue.type || caseKey.split(":")[0],
+        resourceId,
+        title: req.body.title || issue.title || existing?.title || caseKey,
+        workflow: req.body.workflow || issue.workflow || existing?.workflow || "Operations",
+        owner: req.body.owner || issue.owner || existing?.owner || "Operations",
+        assignedTo,
+        status,
+        priority,
+        dueAt,
+        updatedAt: now,
+        updatedBy: actor,
+      },
+      $setOnInsert: {
+        createdAt: now,
+        createdBy: actor,
+      },
+    };
+
+    if (note) {
+      update.$push = {
+        notes: { text: note, at: now, actor },
+        history: { $each: history },
+      };
+    } else if (history.length) {
+      update.$push = { history: { $each: history } };
+    }
+
+    await collection.updateOne({ caseKey }, update, { upsert: true });
+    const saved = await collection.findOne({ caseKey });
+
+    await logAdminCaseAudit(db, req, existing ? "admin_case.updated" : "admin_case.created", {
+      caseKey,
+      title: saved?.title || caseKey,
+      diff: { assignedTo, status, priority, dueAt },
+      metadata: { caseType: saved?.caseType, resourceId },
+    });
+
+    return res.json({ success: true, data: publicCaseAssignment(saved) });
+  } catch (error) {
+    console.error("Error updating admin case assignment:", error);
+    return res.status(500).json({ success: false, error: "Failed to update admin case assignment" });
+  }
 };
 
 const summarizeOperationsHealth = (metrics = {}) => {
@@ -1094,6 +1289,7 @@ exports.getAdminDashboardOverview = async (req, res) => {
     const notificationDeliveriesCollection = safeCollection(db, "notification_deliveries");
     const bulkJobsCollection = safeCollection(db, "bulk_upload_jobs");
     const analyticsSummaryCollection = safeCollection(db, "analytics_summaries");
+    const adminCaseAssignmentsCollection = safeCollection(db, "admin_case_assignments");
 
     const [
       ordersInRange,
@@ -1237,7 +1433,13 @@ exports.getAdminDashboardOverview = async (req, res) => {
       limitPerGroup: 5,
       totalLimit: 24,
     });
-    const exceptionInbox = buildAdminExceptionInbox(exceptionIssues, { now, limit: 10 });
+    const exceptionInboxBase = buildAdminExceptionInbox(exceptionIssues, { now, limit: 10 });
+    const exceptionCaseAssignments = exceptionInboxBase.items.length
+      ? await safeFind(adminCaseAssignmentsCollection, {
+        caseKey: { $in: exceptionInboxBase.items.map((issue) => issue.caseKey) },
+      }, { sort: { updatedAt: -1 } })
+      : [];
+    const exceptionInbox = mergeCaseAssignmentsIntoInbox(exceptionInboxBase, exceptionCaseAssignments);
 
     res.json({
       success: true,
@@ -1530,6 +1732,9 @@ exports.getAdminOperationsOverview = async (req, res) => {
   }
 };
 
+exports.getAdminCaseAssignment = getAdminCaseAssignment;
+exports.updateAdminCaseAssignment = updateAdminCaseAssignment;
+
 exports._private = {
   buildAdminExceptionInbox,
   buildAdminQueueWorkload,
@@ -1541,6 +1746,10 @@ exports._private = {
   buildTopVendors,
   getIssueAgeHours,
   getQueueItemAgeHours,
+  mergeCaseAssignmentsIntoInbox,
+  normalizeCasePriority,
+  normalizeCaseStatus,
+  publicCaseAssignment,
   resolveDateRange,
   summarizeOperationsHealth,
   toOperationIssue,

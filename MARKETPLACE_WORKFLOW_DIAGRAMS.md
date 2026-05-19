@@ -332,6 +332,7 @@ flowchart TB
 
     DASH --> GLOBAL_SEARCH[Global search and detail drawer]
     DASH --> EXCEPTION_INBOX[Unified exception inbox]
+    EXCEPTION_INBOX --> CASE_DRAWER[Universal case drawer and assignment]
     DASH --> VENDOR_QUEUE[Vendor approval and KYC queue]
     DASH --> PRODUCT_QUEUE[Product moderation queue]
     DASH --> ORDER_QUEUE[Orders control queue]
@@ -356,6 +357,13 @@ flowchart TB
     EXCEPTION_INBOX --> PAYOUT_QUEUE
     EXCEPTION_INBOX --> SUPPORT_QUEUE
     EXCEPTION_INBOX --> TRUST_QUEUE
+    CASE_DRAWER --> VENDOR_QUEUE
+    CASE_DRAWER --> PRODUCT_QUEUE
+    CASE_DRAWER --> ORDER_QUEUE
+    CASE_DRAWER --> RETURN_QUEUE
+    CASE_DRAWER --> PAYOUT_QUEUE
+    CASE_DRAWER --> SUPPORT_QUEUE
+    CASE_DRAWER --> AUDIT_LOGS
     VENDOR_QUEUE --> AUDIT_LOGS
     PRODUCT_QUEUE --> AUDIT_LOGS
     ORDER_QUEUE --> AUDIT_LOGS
@@ -502,6 +510,7 @@ sequenceDiagram
 | Auto shipment draft at order placement | Present | Order creation now creates shipment drafts for each vendor/platform group; vendor logistics actions continue the state machine. |
 | Admin global search | Present | Admin header can search orders, vendors, products, customers, returns, and support tickets with a detail drawer. |
 | Admin exception inbox | Present | Admin dashboard now consolidates vendor, catalog, finance, support, trust, notification, and job exceptions with priority, SLA, owner, next action, and workspace links. |
+| Admin universal case workflow | Present | Exception inbox items can be opened in a shared case drawer with assignment, priority, status, due date, notes, history, audit logging, and workspace handoff links. |
 | Admin queue operations | Present/partial | Vendors, products, orders, returns, payouts, support, trust, logistics, analytics pages exist. Depth varies by workflow. |
 | Analytics event taxonomy and warehouse | Present/partial | Event ingestion, taxonomy, and intelligence services exist; dashboard completeness depends on events being emitted consistently. |
 

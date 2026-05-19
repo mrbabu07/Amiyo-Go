@@ -6,8 +6,10 @@ import {
   Banknote,
   BellRing,
   Box,
+  CalendarClock,
   CheckCircle2,
   CircleDollarSign,
+  ClipboardList,
   Clock3,
   CreditCard,
   FileCheck2,
@@ -24,6 +26,7 @@ import {
   TrendingDown,
   TrendingUp,
   Users,
+  X,
 } from "lucide-react";
 import {
   Area,
@@ -39,7 +42,7 @@ import {
 } from "recharts";
 import useAuth from "../../hooks/useAuth";
 import { useCurrency } from "../../hooks/useCurrency";
-import { getAdminDashboardOverview } from "../../services/api";
+import { getAdminCaseAssignment, getAdminDashboardOverview, updateAdminCaseAssignment } from "../../services/api";
 
 const rangeOptions = [
   { value: "today", label: "Today" },
@@ -213,12 +216,40 @@ const formatDateTime = (value) => {
   });
 };
 
+const toDateTimeInputValue = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
+  return offsetDate.toISOString().slice(0, 16);
+};
+
 const formatAgeHours = (value) => {
   const hours = Number(value || 0);
   if (hours < 1) return "Just now";
   if (hours < 24) return `${Math.round(hours)}h open`;
   return `${(hours / 24).toFixed(hours >= 48 ? 0 : 1)}d open`;
 };
+
+const formatCaseStatus = (value) =>
+  String(value || "open")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const caseStatusOptions = [
+  { value: "open", label: "Open" },
+  { value: "in_progress", label: "In progress" },
+  { value: "waiting", label: "Waiting" },
+  { value: "escalated", label: "Escalated" },
+  { value: "resolved", label: "Resolved" },
+];
+
+const casePriorityOptions = [
+  { value: "critical", label: "Critical" },
+  { value: "high", label: "High" },
+  { value: "medium", label: "Medium" },
+  { value: "low", label: "Low" },
+];
 
 const getExceptionIcon = (type) => {
   if (type === "vendor_approval" || type === "kyc_review") return Store;
@@ -419,7 +450,7 @@ function SortButton({ active, children, onClick }) {
   );
 }
 
-function ExceptionInbox({ inbox, filter, onFilterChange, formatPrice, loading }) {
+function ExceptionInbox({ inbox, filter, onFilterChange, onOpenCase, formatPrice, loading }) {
   const summary = inbox?.summary || emptyDashboard.exceptionInbox.summary;
   const items = inbox?.items || [];
   const visibleItems = items.filter((issue) => matchesExceptionFilter(issue, filter));
@@ -561,19 +592,39 @@ function ExceptionInbox({ inbox, filter, onFilterChange, formatPrice, loading })
                       <span>{issue.owner}</span>
                       <span className="text-slate-300 dark:text-slate-700">/</span>
                       <span className="capitalize">{String(issue.status || "needs attention").replaceAll("_", " ")}</span>
+                      {issue.case?.assignedTo ? (
+                        <>
+                          <span className="text-slate-300 dark:text-slate-700">/</span>
+                          <span>Assigned to {issue.case.assignedTo}</span>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 </div>
 
                 <div className="rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-950/70">
                   <p className="font-bold text-slate-950 dark:text-white">{issue.nextAction}</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  <div className="mt-2 grid gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 sm:grid-cols-2">
                     <span>{formatAgeHours(issue.ageHours)}</span>
-                    <span className="text-right">Due {formatDateTime(issue.dueAt)}</span>
+                    <span className="sm:text-right">SLA {formatDateTime(issue.dueAt)}</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      Case: {formatCaseStatus(issue.case?.status)}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300 sm:text-right">
+                      Due: {issue.case?.dueAt ? formatDateTime(issue.case.dueAt) : "Not set"}
+                    </span>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => onOpenCase(issue)}
+                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 sm:flex-none"
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    Case
+                  </button>
                   {primaryAction ? (
                     <Link
                       to={primaryAction.path}
@@ -608,6 +659,263 @@ function ExceptionInbox({ inbox, filter, onFilterChange, formatPrice, loading })
   );
 }
 
+function AdminCaseDrawer({
+  open,
+  issue,
+  caseRecord,
+  form,
+  onChange,
+  onClose,
+  onSave,
+  saving,
+  loading,
+  error,
+}) {
+  if (!open || !issue) return null;
+
+  const primaryAction = issue.actions?.[0];
+  const history = caseRecord?.history || [];
+  const notes = caseRecord?.notes || [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40">
+      <button
+        type="button"
+        className="hidden flex-1 cursor-default lg:block"
+        onClick={onClose}
+        aria-label="Close admin case"
+      />
+      <aside className="flex h-full w-full flex-col bg-white shadow-2xl dark:bg-slate-950 sm:max-w-2xl" aria-label="Admin case drawer">
+        <div className="border-b border-slate-200 p-5 dark:border-slate-800">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-300">
+                Admin Case
+              </p>
+              <h2 className="mt-1 text-xl font-black text-slate-950 dark:text-white">{issue.title}</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                {issue.workflow} / {issue.owner} / {issue.caseKey}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:hover:bg-slate-900 dark:hover:text-white"
+              aria-label="Close admin case"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className={`rounded-full border px-2.5 py-1 text-xs font-bold capitalize ${priorityBadgeTone[issue.priority] || priorityBadgeTone.normal}`}>
+              Queue {issue.priority}
+            </span>
+            {issue.breached ? (
+              <span className="rounded-full bg-rose-600 px-2.5 py-1 text-xs font-bold text-white">SLA breached</span>
+            ) : null}
+            <span className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              {formatCaseStatus(caseRecord?.status || form.status)}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {error ? (
+            <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
+              {error}
+            </div>
+          ) : null}
+
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="h-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                <h3 className="text-sm font-black text-slate-950 dark:text-white">Issue Snapshot</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{issue.detail}</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+                    <p className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Opened</p>
+                    <p className="mt-1 text-sm font-bold text-slate-950 dark:text-white">{formatAgeHours(issue.ageHours)}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+                    <p className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">SLA due</p>
+                    <p className="mt-1 text-sm font-bold text-slate-950 dark:text-white">{formatDateTime(issue.dueAt)}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+                    <p className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Source status</p>
+                    <p className="mt-1 text-sm font-bold capitalize text-slate-950 dark:text-white">
+                      {String(issue.status || "needs attention").replaceAll("_", " ")}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+                    <p className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Next action</p>
+                    <p className="mt-1 text-sm font-bold text-slate-950 dark:text-white">{issue.nextAction}</p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                <h3 className="text-sm font-black text-slate-950 dark:text-white">Assignment Workflow</h3>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Assigned to
+                    </span>
+                    <input
+                      type="text"
+                      value={form.assignedTo}
+                      onChange={(event) => onChange("assignedTo", event.target.value)}
+                      placeholder="Staff name or email"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Status
+                    </span>
+                    <select
+                      value={form.status}
+                      onChange={(event) => onChange("status", event.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                    >
+                      {caseStatusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Priority
+                    </span>
+                    <select
+                      value={form.priority}
+                      onChange={(event) => onChange("priority", event.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                    >
+                      {casePriorityOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Case due date
+                    </span>
+                    <input
+                      type="datetime-local"
+                      value={form.dueAt}
+                      onChange={(event) => onChange("dueAt", event.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                    />
+                  </label>
+                </div>
+                <label className="mt-4 block">
+                  <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Add note
+                  </span>
+                  <textarea
+                    value={form.note}
+                    onChange={(event) => onChange("note", event.target.value)}
+                    rows={4}
+                    placeholder="Decision, follow-up, or handoff context"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                  />
+                </label>
+              </section>
+
+              <section className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <h3 className="flex items-center gap-2 text-sm font-black text-slate-950 dark:text-white">
+                    <CalendarClock className="h-4 w-4 text-orange-600 dark:text-orange-300" />
+                    Recent Notes
+                  </h3>
+                  <div className="mt-3 space-y-3">
+                    {notes.length ? notes.slice().reverse().map((note) => (
+                      <div key={`${note.at}-${note.text}`} className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+                        <p className="text-sm text-slate-700 dark:text-slate-200">{note.text}</p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                          {note.actor?.name || note.actor?.email || "Admin"} / {formatDateTime(note.at)}
+                        </p>
+                      </div>
+                    )) : (
+                      <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                        No case notes yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <h3 className="flex items-center gap-2 text-sm font-black text-slate-950 dark:text-white">
+                    <ClipboardList className="h-4 w-4 text-orange-600 dark:text-orange-300" />
+                    Case History
+                  </h3>
+                  <div className="mt-3 space-y-3">
+                    {history.length ? history.slice().reverse().map((event) => (
+                      <div key={`${event.at}-${event.action}-${event.field}`} className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+                        <p className="text-sm font-bold capitalize text-slate-900 dark:text-white">
+                          {String(event.action || "updated").replaceAll("_", " ")}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {event.from || "empty"} to {event.to || "empty"}
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                          {event.actor?.name || event.actor?.email || "Admin"} / {formatDateTime(event.at)}
+                        </p>
+                      </div>
+                    )) : (
+                      <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                        No assignment history yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            {primaryAction ? (
+              <Link
+                to={primaryAction.path}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Open workspace
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving || loading}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-bold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+              Save case
+            </button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+const buildCaseForm = (issue = {}, record = null) => ({
+  assignedTo: record?.assignedTo || issue.case?.assignedTo || "",
+  status: record?.status || issue.case?.status || "open",
+  priority: record?.priority || issue.case?.priority || issue.priority || "medium",
+  dueAt: toDateTimeInputValue(record?.dueAt || issue.case?.dueAt || issue.dueAt),
+  note: "",
+});
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
@@ -621,6 +929,12 @@ export default function AdminDashboard() {
   const [vendorSort, setVendorSort] = useState("gmv");
   const [vendorFilter, setVendorFilter] = useState("");
   const [exceptionFilter, setExceptionFilter] = useState("all");
+  const [caseDrawerIssue, setCaseDrawerIssue] = useState(null);
+  const [caseRecord, setCaseRecord] = useState(null);
+  const [caseForm, setCaseForm] = useState(buildCaseForm());
+  const [caseLoading, setCaseLoading] = useState(false);
+  const [caseSaving, setCaseSaving] = useState(false);
+  const [caseError, setCaseError] = useState("");
 
   const loadDashboard = useCallback(
     async ({ silent = false } = {}) => {
@@ -657,6 +971,84 @@ export default function AdminDashboard() {
     const interval = setInterval(() => loadDashboard({ silent: true }), 30000);
     return () => clearInterval(interval);
   }, [loadDashboard]);
+
+  const syncCaseRecordIntoDashboard = useCallback((record) => {
+    if (!record?.caseKey) return;
+    setDashboard((current) => ({
+      ...current,
+      exceptionInbox: {
+        ...(current.exceptionInbox || emptyDashboard.exceptionInbox),
+        items: (current.exceptionInbox?.items || []).map((item) =>
+          item.caseKey === record.caseKey ? { ...item, case: record } : item,
+        ),
+      },
+    }));
+  }, []);
+
+  const openAdminCase = useCallback(async (issue) => {
+    if (!issue?.caseKey) return;
+    setCaseDrawerIssue(issue);
+    setCaseRecord(null);
+    setCaseForm(buildCaseForm(issue));
+    setCaseError("");
+    setCaseLoading(true);
+
+    try {
+      const response = await getAdminCaseAssignment(issue.caseKey);
+      const record = response.data.data || null;
+      setCaseRecord(record);
+      setCaseForm(buildCaseForm(issue, record));
+      if (record) syncCaseRecordIntoDashboard(record);
+    } catch (fetchError) {
+      console.error("Failed to load admin case:", fetchError);
+      setCaseError(fetchError?.response?.data?.error || "Failed to load admin case");
+    } finally {
+      setCaseLoading(false);
+    }
+  }, [syncCaseRecordIntoDashboard]);
+
+  const closeAdminCase = useCallback(() => {
+    setCaseDrawerIssue(null);
+    setCaseRecord(null);
+    setCaseForm(buildCaseForm());
+    setCaseError("");
+  }, []);
+
+  const updateCaseForm = useCallback((field, value) => {
+    setCaseForm((current) => ({ ...current, [field]: value }));
+  }, []);
+
+  const saveAdminCase = useCallback(async () => {
+    if (!caseDrawerIssue?.caseKey) return;
+    setCaseSaving(true);
+    setCaseError("");
+
+    try {
+      const response = await updateAdminCaseAssignment(caseDrawerIssue.caseKey, {
+        assignedTo: caseForm.assignedTo,
+        status: caseForm.status,
+        priority: caseForm.priority,
+        dueAt: caseForm.dueAt || null,
+        note: caseForm.note,
+        issue: {
+          type: caseDrawerIssue.type,
+          title: caseDrawerIssue.title,
+          workflow: caseDrawerIssue.workflow,
+          owner: caseDrawerIssue.owner,
+          meta: caseDrawerIssue.meta,
+        },
+      });
+      const saved = response.data.data;
+      setCaseRecord(saved);
+      setCaseForm(buildCaseForm(caseDrawerIssue, saved));
+      syncCaseRecordIntoDashboard(saved);
+    } catch (saveError) {
+      console.error("Failed to save admin case:", saveError);
+      setCaseError(saveError?.response?.data?.error || "Failed to save admin case");
+    } finally {
+      setCaseSaving(false);
+    }
+  }, [caseDrawerIssue, caseForm, syncCaseRecordIntoDashboard]);
 
   const kpis = dashboard.kpis || emptyDashboard.kpis;
   const pendingActions = dashboard.pendingActions || emptyDashboard.pendingActions;
@@ -860,6 +1252,7 @@ export default function AdminDashboard() {
           inbox={exceptionInbox}
           filter={exceptionFilter}
           onFilterChange={setExceptionFilter}
+          onOpenCase={openAdminCase}
           formatPrice={formatPrice}
           loading={loading}
         />
@@ -1209,6 +1602,18 @@ export default function AdminDashboard() {
             Loading admin dashboard
           </div>
         )}
+        <AdminCaseDrawer
+          open={Boolean(caseDrawerIssue)}
+          issue={caseDrawerIssue}
+          caseRecord={caseRecord}
+          form={caseForm}
+          onChange={updateCaseForm}
+          onClose={closeAdminCase}
+          onSave={saveAdminCase}
+          saving={caseSaving}
+          loading={caseLoading}
+          error={caseError}
+        />
       </div>
     </div>
   );

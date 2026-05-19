@@ -495,6 +495,10 @@ export const getAdminDashboardOverview = (params = {}) =>
   api.get("/admin/dashboard/overview", { params });
 export const getAdminOperationsOverview = (params = {}) =>
   api.get("/admin/dashboard/operations", { params });
+export const getAdminCaseAssignment = (caseKey) =>
+  api.get(`/admin/dashboard/cases/${encodeURIComponent(caseKey)}`);
+export const updateAdminCaseAssignment = (caseKey, data) =>
+  api.patch(`/admin/dashboard/cases/${encodeURIComponent(caseKey)}`, data);
 export const getAdminAuditLogs = (params = {}) =>
   api.get("/admin/audit-logs", { params });
 export const searchAdminResources = (params = {}) =>

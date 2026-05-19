@@ -6,5 +6,7 @@ const router = express.Router();
 
 router.get("/overview", verifyToken, verifyAdmin, adminDashboardController.getAdminDashboardOverview);
 router.get("/operations", verifyToken, verifyAdmin, adminDashboardController.getAdminOperationsOverview);
+router.get("/cases/:caseKey", verifyToken, verifyAdmin, adminDashboardController.getAdminCaseAssignment);
+router.patch("/cases/:caseKey", verifyToken, verifyAdmin, adminDashboardController.updateAdminCaseAssignment);
 
 module.exports = router;

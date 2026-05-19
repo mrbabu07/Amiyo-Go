@@ -196,4 +196,37 @@ describe("adminDashboardController operations overview helpers", () => {
       }),
     ]));
   });
+
+  test("merges admin case assignment state into exception inbox items", () => {
+    const now = new Date("2026-05-18T12:00:00.000Z");
+    const issues = _private.buildOperationIssues({
+      openSupportTickets: [{
+        _id: "ticket-1",
+        subject: "Customer waiting",
+        status: "open",
+        priority: "high",
+        createdAt: new Date("2026-05-18T10:00:00.000Z"),
+      }],
+    });
+    const inbox = _private.buildAdminExceptionInbox(issues, { now, limit: 5 });
+    const merged = _private.mergeCaseAssignmentsIntoInbox(inbox, [{
+      caseKey: inbox.items[0].caseKey,
+      assignedTo: "support-lead@amiyo.test",
+      status: "in_progress",
+      priority: "high",
+      dueAt: new Date("2026-05-18T18:00:00.000Z"),
+      notes: [{ text: "Checking order evidence" }],
+      history: [{ action: "status_changed" }],
+    }]);
+
+    expect(merged.items[0]).toEqual(expect.objectContaining({
+      caseKey: expect.stringContaining("support:"),
+      case: expect.objectContaining({
+        assignedTo: "support-lead@amiyo.test",
+        status: "in_progress",
+        priority: "high",
+        noteCount: 1,
+      }),
+    }));
+  });
 });
