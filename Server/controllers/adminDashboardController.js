@@ -1,4 +1,5 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MarketplaceEventBus = require("../services/marketplaceEventBus");
 
 const round2 = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
@@ -716,6 +717,146 @@ const mergeCaseAssignmentsIntoInbox = (inbox = {}, assignments = []) => {
   };
 };
 
+const buildStaffWorkload = (assignments = [], now = new Date()) => {
+  const activeAssignments = assignments.filter((item) => !["resolved", "closed"].includes(normalizeStatus(item.status)));
+  const grouped = new Map();
+
+  activeAssignments.forEach((item) => {
+    const assignee = item.assignedTo || "Unassigned";
+    const current = grouped.get(assignee) || {
+      assignee,
+      open: 0,
+      critical: 0,
+      overdue: 0,
+      dueSoon: 0,
+      waiting: 0,
+      workflows: {},
+    };
+    const dueAt = item.dueAt ? new Date(item.dueAt) : null;
+    const hoursToDue = dueAt && !Number.isNaN(dueAt.getTime())
+      ? (dueAt.getTime() - new Date(now).getTime()) / (60 * 60 * 1000)
+      : null;
+
+    current.open += 1;
+    if (normalizeStatus(item.priority) === "critical") current.critical += 1;
+    if (normalizeStatus(item.status) === "waiting") current.waiting += 1;
+    if (hoursToDue !== null && hoursToDue < 0) current.overdue += 1;
+    if (hoursToDue !== null && hoursToDue >= 0 && hoursToDue <= 24) current.dueSoon += 1;
+    current.workflows[item.workflow || item.caseType || "Operations"] =
+      (current.workflows[item.workflow || item.caseType || "Operations"] || 0) + 1;
+    grouped.set(assignee, current);
+  });
+
+  const staff = [...grouped.values()]
+    .map((item) => ({
+      ...item,
+      topWorkflow: Object.entries(item.workflows).sort((left, right) => right[1] - left[1])[0]?.[0] || "Operations",
+      loadScore: item.open + item.critical * 2 + item.overdue * 3 + item.dueSoon,
+    }))
+    .sort((left, right) => right.loadScore - left.loadScore);
+
+  return {
+    totalOpen: activeAssignments.length,
+    assigned: activeAssignments.filter((item) => item.assignedTo).length,
+    unassigned: activeAssignments.filter((item) => !item.assignedTo).length,
+    overdue: staff.reduce((sum, item) => sum + item.overdue, 0),
+    critical: staff.reduce((sum, item) => sum + item.critical, 0),
+    staff: staff.slice(0, 8),
+  };
+};
+
+const isCodOrder = (order = {}) =>
+  ["cod", "cash_on_delivery"].includes(normalizeStatus(order.paymentMethod || order.payment?.method || order.paymentType));
+
+const buildFinanceReconciliation = ({ orders = [], returns = [], payouts = [] } = {}) => {
+  const codOrders = orders.filter(isCodOrder);
+  const codOutstanding = codOrders
+    .filter((order) => !["cod_remitted", "cod_settled", "paid", "completed"].includes(normalizeStatus(order.codState || order.codStatus || order.paymentStatus)))
+    .reduce((sum, order) => sum + getOrderAmount(order), 0);
+  const refundExposure = returns
+    .filter((returnDoc) => !["completed", "refunded", "rejected", "cancelled"].includes(normalizeStatus(returnDoc.status)))
+    .reduce((sum, returnDoc) => sum + getRefundAmount(returnDoc), 0);
+  const payoutHolds = payouts
+    .filter((payout) => ["hold", "held", "risk_hold"].includes(normalizeStatus(payout.status)))
+    .reduce((sum, payout) => sum + getPayoutAmount(payout), 0);
+  const pendingPayoutExposure = payouts
+    .filter((payout) => ["pending", "approved", "processing", "hold", "held", "risk_hold"].includes(normalizeStatus(payout.status)))
+    .reduce((sum, payout) => sum + getPayoutAmount(payout), 0);
+  const vendorDeductions = returns.reduce((sum, returnDoc) =>
+    sum + Number(returnDoc.vendorDeductionAmount ?? returnDoc.vendorDeduction ?? returnDoc.deductionAmount ?? 0), 0);
+  const unresolved = [
+    codOutstanding > 0,
+    refundExposure > 0,
+    payoutHolds > 0,
+    vendorDeductions > 0,
+  ].filter(Boolean).length;
+
+  return {
+    codOutstanding: round2(codOutstanding),
+    codOrders: codOrders.length,
+    refundExposure: round2(refundExposure),
+    payoutHolds: round2(payoutHolds),
+    pendingPayoutExposure: round2(pendingPayoutExposure),
+    vendorDeductions: round2(vendorDeductions),
+    unresolvedBuckets: unresolved,
+    status: unresolved >= 3 ? "critical" : unresolved > 0 ? "watch" : "clear",
+  };
+};
+
+const hasEnv = (...keys) => keys.some((key) => Boolean(process.env[key]));
+
+const buildIntegrationReadiness = ({ failedNotificationDeliveries = 0, failedPayments24h = 0, latestAnalyticsSummary = null } = {}) => {
+  const analyticsUpdatedAt = latestAnalyticsSummary?.updatedAt || latestAnalyticsSummary?.createdAt || null;
+  const analyticsStale = !analyticsUpdatedAt ||
+    new Date().getTime() - new Date(analyticsUpdatedAt).getTime() > 2 * 60 * 60 * 1000;
+  const integrations = [
+    {
+      key: "courier",
+      label: "Courier adapters",
+      configured: hasEnv("PATHAO_API_KEY", "REDX_API_KEY", "STEADFAST_API_KEY", "COURIER_API_KEY"),
+      status: hasEnv("PATHAO_API_KEY", "REDX_API_KEY", "STEADFAST_API_KEY", "COURIER_API_KEY") ? "ready" : "manual",
+      detail: "Manual logistics state machine is active until a courier API is configured.",
+    },
+    {
+      key: "payments",
+      label: "Payment gateway",
+      configured: hasEnv("STRIPE_SECRET_KEY", "BKASH_USERNAME", "BKASH_APP_KEY", "PAYMENT_GATEWAY_KEY"),
+      status: failedPayments24h > 0 ? "watch" : hasEnv("STRIPE_SECRET_KEY", "BKASH_USERNAME", "BKASH_APP_KEY", "PAYMENT_GATEWAY_KEY") ? "ready" : "manual",
+      detail: failedPayments24h > 0 ? `${failedPayments24h} payment failures in 24h.` : "Manual/payment gateway flow is available.",
+    },
+    {
+      key: "messages",
+      label: "Email/push delivery",
+      configured: hasEnv("EMAIL_HOST", "SMTP_HOST", "SENDGRID_API_KEY", "VAPID_PUBLIC_KEY"),
+      status: failedNotificationDeliveries > 0 ? "watch" : hasEnv("EMAIL_HOST", "SMTP_HOST", "SENDGRID_API_KEY", "VAPID_PUBLIC_KEY") ? "ready" : "manual",
+      detail: failedNotificationDeliveries > 0 ? `${failedNotificationDeliveries} failed deliveries need retry.` : "Notification queue can deliver in-app and adapter-backed messages.",
+    },
+    {
+      key: "event_bus",
+      label: "Marketplace event bus",
+      configured: true,
+      status: process.env.MARKETPLACE_EVENT_USE_REDIS === "true" || process.env.REDIS_URL ? "ready" : "manual",
+      detail: process.env.MARKETPLACE_EVENT_USE_REDIS === "true" || process.env.REDIS_URL
+        ? "Redis/BullMQ event worker is configured."
+        : "Mongo outbox is active; Redis worker is optional.",
+    },
+    {
+      key: "analytics",
+      label: "Analytics jobs",
+      configured: true,
+      status: analyticsStale ? "watch" : "ready",
+      detail: analyticsStale ? "Analytics summary is stale or missing." : "Analytics summary refreshed recently.",
+    },
+  ];
+
+  return {
+    ready: integrations.filter((item) => item.status === "ready").length,
+    watch: integrations.filter((item) => item.status === "watch").length,
+    manual: integrations.filter((item) => item.status === "manual").length,
+    integrations,
+  };
+};
+
 const logAdminCaseAudit = async (db, req, action, payload = {}) => {
   try {
     await safeCollection(db, "audit_logs")?.insertOne({
@@ -833,10 +974,194 @@ const updateAdminCaseAssignment = async (req, res) => {
       metadata: { caseType: saved?.caseType, resourceId },
     });
 
+    try {
+      await MarketplaceEventBus.publish(req.app, "admin.case.updated", {
+        source: "admin_dashboard",
+        resourceType: "admin_case",
+        resourceId: caseKey,
+        caseKey,
+        status,
+        priority,
+        assignedTo,
+        actorId: actor.id,
+        actorRole: actor.role,
+      }, {
+        source: "admin_dashboard",
+        actorId: actor.id,
+        actorRole: actor.role,
+        subjectType: "admin_case",
+        subjectId: caseKey,
+        processInline: false,
+      });
+    } catch {
+      // Event publishing is best-effort for admin workflow hardening.
+    }
+
     return res.json({ success: true, data: publicCaseAssignment(saved) });
   } catch (error) {
     console.error("Error updating admin case assignment:", error);
     return res.status(500).json({ success: false, error: "Failed to update admin case assignment" });
+  }
+};
+
+const bulkUpdateAdminCaseAssignments = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const collection = safeCollection(db, "admin_case_assignments");
+    const caseKeys = [...new Set((req.body.caseKeys || []).map(String).filter(Boolean))];
+    if (!caseKeys.length || !collection?.updateOne) {
+      return res.status(400).json({ success: false, error: "caseKeys are required" });
+    }
+
+    const now = new Date();
+    const actor = getActorSnapshot(req);
+    const status = req.body.status ? normalizeCaseStatus(req.body.status) : null;
+    const priority = req.body.priority ? normalizeCasePriority(req.body.priority) : null;
+    const assignedTo = req.body.assignedTo !== undefined ? String(req.body.assignedTo || "").trim() : null;
+    const dueAt = req.body.dueAt !== undefined ? normalizeCaseDueAt(req.body.dueAt) : undefined;
+    const note = String(req.body.note || "").trim();
+
+    const saved = [];
+    for (const caseKey of caseKeys) {
+      const set = { updatedAt: now, updatedBy: actor };
+      if (status) set.status = status;
+      if (priority) set.priority = priority;
+      if (assignedTo !== null) set.assignedTo = assignedTo;
+      if (dueAt !== undefined) set.dueAt = dueAt;
+
+      const update = {
+        $set: {
+          caseKey,
+          caseType: caseKey.split(":")[0],
+          title: caseKey,
+          workflow: "Operations",
+          owner: "Operations",
+          ...set,
+        },
+        $setOnInsert: { createdAt: now, createdBy: actor },
+      };
+
+      const history = Object.entries(set)
+        .filter(([field]) => !["updatedAt", "updatedBy"].includes(field))
+        .map(([field, value]) => ({ action: `${field}_bulk_changed`, field, from: "", to: value instanceof Date ? value.toISOString() : value || "", at: now, actor }));
+      if (note) history.push({ action: "bulk_note_added", field: "note", from: "", to: note, at: now, actor });
+      if (note) {
+        update.$push = {
+          notes: { text: note, at: now, actor },
+          history: { $each: history },
+        };
+      } else if (history.length) {
+        update.$push = { history: { $each: history } };
+      }
+
+      await collection.updateOne({ caseKey }, update, { upsert: true });
+      const doc = await collection.findOne({ caseKey });
+      saved.push(publicCaseAssignment(doc));
+    }
+
+    await logAdminCaseAudit(db, req, "admin_case.bulk_updated", {
+      caseKey: `${caseKeys.length} cases`,
+      title: "Bulk admin case update",
+      diff: { status, priority, assignedTo, dueAt, count: caseKeys.length },
+      metadata: { caseKeys },
+    });
+
+    try {
+      await MarketplaceEventBus.publish(req.app, "admin.case.bulk_updated", {
+        source: "admin_dashboard",
+        resourceType: "admin_case",
+        resourceId: "bulk",
+        caseKeys,
+        count: caseKeys.length,
+        status,
+        priority,
+        assignedTo,
+        actorId: actor.id,
+        actorRole: actor.role,
+      }, {
+        source: "admin_dashboard",
+        actorId: actor.id,
+        actorRole: actor.role,
+        subjectType: "admin_case",
+        subjectId: "bulk",
+        processInline: false,
+      });
+    } catch {
+      // Best-effort event publishing.
+    }
+
+    return res.json({ success: true, data: saved });
+  } catch (error) {
+    console.error("Error bulk updating admin case assignments:", error);
+    return res.status(500).json({ success: false, error: "Failed to bulk update admin cases" });
+  }
+};
+
+const getAdminSavedViews = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const actor = getActorSnapshot(req);
+    const page = req.query.page || "admin_dashboard";
+    const views = await safeFind(safeCollection(db, "admin_saved_views"), {
+      userId: actor.id,
+      page,
+    }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 50 });
+    return res.json({ success: true, data: views });
+  } catch (error) {
+    console.error("Error loading admin saved views:", error);
+    return res.status(500).json({ success: false, error: "Failed to load saved views" });
+  }
+};
+
+const saveAdminSavedView = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const collection = safeCollection(db, "admin_saved_views");
+    const actor = getActorSnapshot(req);
+    const name = String(req.body.name || "").trim();
+    const page = req.body.page || "admin_dashboard";
+    if (!name || !collection?.updateOne) {
+      return res.status(400).json({ success: false, error: "Saved view name is required" });
+    }
+
+    const now = new Date();
+    const key = `${actor.id}:${page}:${name.toLowerCase()}`;
+    const doc = {
+      key,
+      userId: actor.id,
+      page,
+      name,
+      filters: req.body.filters || {},
+      columns: req.body.columns || [],
+      sort: req.body.sort || {},
+      createdBy: actor,
+      updatedBy: actor,
+      updatedAt: now,
+    };
+
+    await collection.updateOne({ key }, { $set: doc, $setOnInsert: { createdAt: now } }, { upsert: true });
+    const saved = await collection.findOne({ key });
+    return res.json({ success: true, data: saved });
+  } catch (error) {
+    console.error("Error saving admin view:", error);
+    return res.status(500).json({ success: false, error: "Failed to save admin view" });
+  }
+};
+
+const deleteAdminSavedView = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const collection = safeCollection(db, "admin_saved_views");
+    const actor = getActorSnapshot(req);
+    const key = decodeURIComponent(req.params.key || "");
+    if (!key || !collection?.deleteOne) {
+      return res.status(400).json({ success: false, error: "Saved view key is required" });
+    }
+    await collection.deleteOne({ key, userId: actor.id });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting admin view:", error);
+    return res.status(500).json({ success: false, error: "Failed to delete admin view" });
   }
 };
 
@@ -1328,6 +1653,7 @@ exports.getAdminDashboardOverview = async (req, res) => {
       failedNotificationItems,
       failedBulkJobItems,
       latestAnalyticsSummary,
+      workloadAssignments,
     ] = await Promise.all([
       safeFind(ordersCollection, { createdAt: { $gte: range.start, $lt: range.end } }, { sort: { createdAt: -1 }, limit: 5000 }),
       safeFind(ordersCollection, { createdAt: { $gte: previousStart, $lt: range.start } }, { sort: { createdAt: -1 }, limit: 5000 }),
@@ -1386,6 +1712,7 @@ exports.getAdminDashboardOverview = async (req, res) => {
       safeFind(notificationDeliveriesCollection, { status: failedStatusQuery }, { sort: { failedAt: -1, updatedAt: -1, createdAt: -1 }, limit: 8 }),
       safeFind(bulkJobsCollection, { status: { $in: ["failed", "error"] } }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 8 }),
       safeFind(analyticsSummaryCollection, {}, { sort: { updatedAt: -1, createdAt: -1 }, limit: 1 }),
+      safeFind(adminCaseAssignmentsCollection, {}, { sort: { updatedAt: -1, createdAt: -1 }, limit: 500 }),
     ]);
 
     const todayActiveOrders = todayOrders.filter((order) => order.status !== "cancelled");
@@ -1440,6 +1767,19 @@ exports.getAdminDashboardOverview = async (req, res) => {
       }, { sort: { updatedAt: -1 } })
       : [];
     const exceptionInbox = mergeCaseAssignmentsIntoInbox(exceptionInboxBase, exceptionCaseAssignments);
+    const adminHardening = {
+      staffWorkload: buildStaffWorkload(workloadAssignments, now),
+      financeReconciliation: buildFinanceReconciliation({
+        orders: ordersInRange,
+        returns: returnsInRange,
+        payouts: payoutQueue,
+      }),
+      integrationReadiness: buildIntegrationReadiness({
+        failedNotificationDeliveries,
+        failedPayments24h,
+        latestAnalyticsSummary: latestAnalyticsSummary[0],
+      }),
+    };
 
     res.json({
       success: true,
@@ -1498,6 +1838,7 @@ exports.getAdminDashboardOverview = async (req, res) => {
         }),
         healthAlerts: health.alerts,
         exceptionInbox,
+        adminHardening,
         topVendors: buildTopVendors(ordersInRange, vendors),
         topCategories: buildTopCategories(ordersInRange),
         topProductsToday: buildTopProducts(todayOrders, vendors),
@@ -1734,14 +2075,21 @@ exports.getAdminOperationsOverview = async (req, res) => {
 
 exports.getAdminCaseAssignment = getAdminCaseAssignment;
 exports.updateAdminCaseAssignment = updateAdminCaseAssignment;
+exports.bulkUpdateAdminCaseAssignments = bulkUpdateAdminCaseAssignments;
+exports.getAdminSavedViews = getAdminSavedViews;
+exports.saveAdminSavedView = saveAdminSavedView;
+exports.deleteAdminSavedView = deleteAdminSavedView;
 
 exports._private = {
   buildAdminExceptionInbox,
   buildAdminQueueWorkload,
+  buildFinanceReconciliation,
   buildFunnel,
+  buildIntegrationReadiness,
   buildOperationIssues,
   buildOperationsJobCards,
   buildRevenueSeries,
+  buildStaffWorkload,
   buildTopProducts,
   buildTopVendors,
   getIssueAgeHours,

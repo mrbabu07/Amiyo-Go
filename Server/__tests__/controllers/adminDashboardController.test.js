@@ -254,6 +254,17 @@ describe("adminDashboardController", () => {
       analytics_summaries: new FakeCollection([
         { _id: "summary-1", updatedAt: new Date("2026-06-15T09:30:00.000Z") },
       ]),
+      admin_case_assignments: new FakeCollection([
+        {
+          caseKey: "support:ticket-1",
+          assignedTo: "support-lead@amiyo.test",
+          status: "open",
+          priority: "critical",
+          workflow: "Support",
+          dueAt: new Date("2026-06-15T08:30:00.000Z"),
+          updatedAt: new Date("2026-06-15T09:00:00.000Z"),
+        },
+      ]),
     });
 
     const req = {
@@ -374,6 +385,25 @@ describe("adminDashboardController", () => {
         owner: "Finance",
       }),
     ]));
+    expect(payload.adminHardening).toEqual(expect.objectContaining({
+      staffWorkload: expect.objectContaining({
+        totalOpen: 1,
+        assigned: 1,
+        overdue: 1,
+      }),
+      financeReconciliation: expect.objectContaining({
+        refundExposure: 100,
+        pendingPayoutExposure: 1250,
+        vendorDeductions: 0,
+        status: "watch",
+      }),
+      integrationReadiness: expect.objectContaining({
+        watch: expect.any(Number),
+        integrations: expect.arrayContaining([
+          expect.objectContaining({ key: "analytics", status: "ready" }),
+        ]),
+      }),
+    }));
     expect(payload.activityFeed.map((item) => item.type)).toEqual(
       expect.arrayContaining(["order", "vendor", "product", "payment"]),
     );

@@ -179,6 +179,18 @@ jest.mock("../controllers/adminDashboardController", () => ({
     res.json({ route: "admin-dashboard:overview", range: req.query.range || "7d" }),
   getAdminOperationsOverview: (req, res) =>
     res.json({ route: "admin-dashboard:operations" }),
+  getAdminCaseAssignment: (req, res) =>
+    res.json({ route: "admin-dashboard:case", caseKey: req.params.caseKey }),
+  updateAdminCaseAssignment: (req, res) =>
+    res.json({ route: "admin-dashboard:update-case", caseKey: req.params.caseKey }),
+  bulkUpdateAdminCaseAssignments: (req, res) =>
+    res.json({ route: "admin-dashboard:bulk-cases" }),
+  getAdminSavedViews: (req, res) =>
+    res.json({ route: "admin-dashboard:saved-views" }),
+  saveAdminSavedView: (req, res) =>
+    res.json({ route: "admin-dashboard:save-view" }),
+  deleteAdminSavedView: (req, res) =>
+    res.json({ route: "admin-dashboard:delete-view", key: req.params.key }),
 }));
 
 jest.mock("../controllers/adminAnalyticsController", () => ({

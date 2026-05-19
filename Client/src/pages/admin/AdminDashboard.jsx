@@ -42,7 +42,15 @@ import {
 } from "recharts";
 import useAuth from "../../hooks/useAuth";
 import { useCurrency } from "../../hooks/useCurrency";
-import { getAdminCaseAssignment, getAdminDashboardOverview, updateAdminCaseAssignment } from "../../services/api";
+import {
+  bulkUpdateAdminCases,
+  deleteAdminSavedView,
+  getAdminCaseAssignment,
+  getAdminDashboardOverview,
+  getAdminSavedViews,
+  saveAdminSavedView,
+  updateAdminCaseAssignment,
+} from "../../services/api";
 
 const rangeOptions = [
   { value: "today", label: "Today" },
@@ -102,6 +110,32 @@ const emptyDashboard = {
       owners: [],
     },
     items: [],
+  },
+  adminHardening: {
+    staffWorkload: {
+      totalOpen: 0,
+      assigned: 0,
+      unassigned: 0,
+      overdue: 0,
+      critical: 0,
+      staff: [],
+    },
+    financeReconciliation: {
+      codOutstanding: 0,
+      codOrders: 0,
+      refundExposure: 0,
+      payoutHolds: 0,
+      pendingPayoutExposure: 0,
+      vendorDeductions: 0,
+      unresolvedBuckets: 0,
+      status: "clear",
+    },
+    integrationReadiness: {
+      ready: 0,
+      watch: 0,
+      manual: 0,
+      integrations: [],
+    },
   },
   topVendors: [],
   topCategories: [],
@@ -250,6 +284,14 @@ const casePriorityOptions = [
   { value: "medium", label: "Medium" },
   { value: "low", label: "Low" },
 ];
+
+const emptyBulkCaseForm = {
+  assignedTo: "",
+  status: "",
+  priority: "",
+  dueAt: "",
+  note: "",
+};
 
 const getExceptionIcon = (type) => {
   if (type === "vendor_approval" || type === "kyc_review") return Store;
@@ -450,16 +492,36 @@ function SortButton({ active, children, onClick }) {
   );
 }
 
-function ExceptionInbox({ inbox, filter, onFilterChange, onOpenCase, formatPrice, loading }) {
+function ExceptionInbox({
+  inbox,
+  filter,
+  onFilterChange,
+  onOpenCase,
+  formatPrice,
+  loading,
+  selectedCaseKeys,
+  onToggleCase,
+  onToggleAll,
+  bulkForm,
+  onBulkFormChange,
+  onBulkApply,
+  bulkSaving,
+}) {
   const summary = inbox?.summary || emptyDashboard.exceptionInbox.summary;
   const items = inbox?.items || [];
   const visibleItems = items.filter((issue) => matchesExceptionFilter(issue, filter));
   const nextIssue = visibleItems[0] || items[0];
   const nextAction = nextIssue?.actions?.[0];
   const ownerCounts = summary.owners || [];
+  const selectedCount = selectedCaseKeys.length;
+  const visibleCaseKeys = visibleItems.map((issue) => issue.caseKey).filter(Boolean);
+  const allVisibleSelected = visibleCaseKeys.length > 0 && visibleCaseKeys.every((caseKey) => selectedCaseKeys.includes(caseKey));
 
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <section
+      data-testid="admin-exception-inbox"
+      className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+    >
       <div className="border-b border-slate-100 p-5 dark:border-slate-800">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
@@ -520,6 +582,15 @@ function ExceptionInbox({ inbox, filter, onFilterChange, onOpenCase, formatPrice
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {visibleCaseKeys.length ? (
+              <button
+                type="button"
+                onClick={() => onToggleAll(visibleCaseKeys, !allVisibleSelected)}
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                {allVisibleSelected ? "Clear visible" : "Select visible"}
+              </button>
+            ) : null}
             {nextAction ? (
               <Link
                 to={nextAction.path}
@@ -552,6 +623,75 @@ function ExceptionInbox({ inbox, filter, onFilterChange, onOpenCase, formatPrice
         ) : null}
       </div>
 
+      {selectedCount ? (
+        <div
+          data-testid="admin-bulk-case-actions"
+          className="border-b border-orange-100 bg-orange-50/80 p-4 dark:border-orange-950 dark:bg-orange-950/20"
+        >
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <p className="text-sm font-black text-slate-950 dark:text-white">
+                {formatCount(selectedCount)} selected case{selectedCount === 1 ? "" : "s"}
+              </p>
+              <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                Apply assignment, priority, due date, and notes across the selected queue items.
+              </p>
+            </div>
+            <div className="grid flex-1 gap-2 sm:grid-cols-2 xl:max-w-5xl xl:grid-cols-[minmax(140px,1fr)_150px_140px_180px_minmax(180px,1.2fr)_auto]">
+              <input
+                type="text"
+                value={bulkForm.assignedTo}
+                onChange={(event) => onBulkFormChange("assignedTo", event.target.value)}
+                placeholder="Assign to"
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              />
+              <select
+                value={bulkForm.status}
+                onChange={(event) => onBulkFormChange("status", event.target.value)}
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              >
+                <option value="">Status</option>
+                {caseStatusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <select
+                value={bulkForm.priority}
+                onChange={(event) => onBulkFormChange("priority", event.target.value)}
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              >
+                <option value="">Priority</option>
+                {casePriorityOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <input
+                type="datetime-local"
+                value={bulkForm.dueAt}
+                onChange={(event) => onBulkFormChange("dueAt", event.target.value)}
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              />
+              <input
+                type="text"
+                value={bulkForm.note}
+                onChange={(event) => onBulkFormChange("note", event.target.value)}
+                placeholder="Bulk note"
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              />
+              <button
+                type="button"
+                onClick={onBulkApply}
+                disabled={bulkSaving}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {bulkSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid gap-3 p-4">
         {loading ? (
           Array.from({ length: 4 }).map((_, index) => (
@@ -567,8 +707,16 @@ function ExceptionInbox({ inbox, filter, onFilterChange, onOpenCase, formatPrice
             return (
               <article
                 key={issue.id}
-                className={`grid gap-3 rounded-lg border p-4 transition hover:border-orange-300 hover:shadow-sm dark:hover:border-orange-800 ${tone.card} xl:grid-cols-[minmax(0,1fr)_260px_190px] xl:items-center`}
+                className={`grid gap-3 rounded-lg border p-4 transition hover:border-orange-300 hover:shadow-sm dark:hover:border-orange-800 ${tone.card} xl:grid-cols-[auto_minmax(0,1fr)_260px_190px] xl:items-center`}
               >
+                <label className="flex items-start pt-2 xl:pt-0" aria-label={`Select ${issue.title}`}>
+                  <input
+                    type="checkbox"
+                    checked={selectedCaseKeys.includes(issue.caseKey)}
+                    onChange={(event) => onToggleCase(issue.caseKey, event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                  />
+                </label>
                 <div className="flex min-w-0 gap-3">
                   <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${tone.icon}`}>
                     <Icon className="h-5 w-5" />
@@ -678,7 +826,7 @@ function AdminCaseDrawer({
   const notes = caseRecord?.notes || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40">
+    <div data-testid="admin-case-drawer" className="fixed inset-0 z-50 flex justify-end bg-slate-950/40">
       <button
         type="button"
         className="hidden flex-1 cursor-default lg:block"
@@ -908,6 +1056,139 @@ function AdminCaseDrawer({
   );
 }
 
+function AdminHardeningPanels({ hardening, formatPrice }) {
+  const staffWorkload = hardening?.staffWorkload || emptyDashboard.adminHardening.staffWorkload;
+  const finance = hardening?.financeReconciliation || emptyDashboard.adminHardening.financeReconciliation;
+  const readiness = hardening?.integrationReadiness || emptyDashboard.adminHardening.integrationReadiness;
+  const financeTone = finance.status === "critical"
+    ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200"
+    : finance.status === "watch"
+      ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+      : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200";
+
+  return (
+    <section data-testid="admin-hardening-panels" className="grid gap-4 xl:grid-cols-3">
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Staff workload</p>
+            <h2 className="mt-1 text-lg font-black text-slate-950 dark:text-white">Queue ownership</h2>
+          </div>
+          <Users className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Open</p>
+            <p className="text-xl font-black text-slate-950 dark:text-white">{formatCount(staffWorkload.totalOpen)}</p>
+          </div>
+          <div className="rounded-lg bg-rose-50 p-3 dark:bg-rose-950/30">
+            <p className="text-xs font-bold text-rose-600 dark:text-rose-300">Overdue</p>
+            <p className="text-xl font-black text-rose-700 dark:text-rose-200">{formatCount(staffWorkload.overdue)}</p>
+          </div>
+          <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/30">
+            <p className="text-xs font-bold text-amber-600 dark:text-amber-300">Unassigned</p>
+            <p className="text-xl font-black text-amber-700 dark:text-amber-200">{formatCount(staffWorkload.unassigned)}</p>
+          </div>
+        </div>
+        <div className="mt-4 space-y-2">
+          {(staffWorkload.staff || []).length ? (staffWorkload.staff || []).slice(0, 5).map((staff) => (
+            <div key={staff.assignee} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2 text-sm dark:border-slate-800">
+              <div className="min-w-0">
+                <p className="truncate font-bold text-slate-950 dark:text-white">{staff.assignee}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{staff.topWorkflow}</p>
+              </div>
+              <div className="text-right text-xs font-bold text-slate-600 dark:text-slate-300">
+                <p>{formatCount(staff.open)} open</p>
+                <p>{formatCount(staff.critical)} critical</p>
+              </div>
+            </div>
+          )) : (
+            <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              No active assigned admin cases.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Finance reconciliation</p>
+            <h2 className="mt-1 text-lg font-black text-slate-950 dark:text-white">COD, refunds, holds</h2>
+          </div>
+          <Banknote className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+        </div>
+        <div className={`mt-4 rounded-lg border px-3 py-2 text-sm font-bold capitalize ${financeTone}`}>
+          {finance.status} / {formatCount(finance.unresolvedBuckets)} unresolved bucket{Number(finance.unresolvedBuckets) === 1 ? "" : "s"}
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">COD outstanding</p>
+            <p className="text-base font-black text-slate-950 dark:text-white">{formatPrice(finance.codOutstanding)}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{formatCount(finance.codOrders)} COD orders</p>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Refund exposure</p>
+            <p className="text-base font-black text-slate-950 dark:text-white">{formatPrice(finance.refundExposure)}</p>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Payout holds</p>
+            <p className="text-base font-black text-slate-950 dark:text-white">{formatPrice(finance.payoutHolds)}</p>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Vendor deductions</p>
+            <p className="text-base font-black text-slate-950 dark:text-white">{formatPrice(finance.vendorDeductions)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Integration readiness</p>
+            <h2 className="mt-1 text-lg font-black text-slate-950 dark:text-white">Adapters and retries</h2>
+          </div>
+          <BellRing className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/30">
+            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-300">Ready</p>
+            <p className="text-xl font-black text-emerald-700 dark:text-emerald-200">{formatCount(readiness.ready)}</p>
+          </div>
+          <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/30">
+            <p className="text-xs font-bold text-amber-600 dark:text-amber-300">Watch</p>
+            <p className="text-xl font-black text-amber-700 dark:text-amber-200">{formatCount(readiness.watch)}</p>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Manual</p>
+            <p className="text-xl font-black text-slate-950 dark:text-white">{formatCount(readiness.manual)}</p>
+          </div>
+        </div>
+        <div className="mt-4 space-y-2">
+          {(readiness.integrations || []).map((item) => (
+            <div key={item.key} className="rounded-lg border border-slate-100 px-3 py-2 dark:border-slate-800">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-bold text-slate-950 dark:text-white">{item.label}</p>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold capitalize ${
+                  item.status === "ready"
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
+                    : item.status === "watch"
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                      : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                }`}
+                >
+                  {item.status}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.detail}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 const buildCaseForm = (issue = {}, record = null) => ({
   assignedTo: record?.assignedTo || issue.case?.assignedTo || "",
   status: record?.status || issue.case?.status || "open",
@@ -935,6 +1216,12 @@ export default function AdminDashboard() {
   const [caseLoading, setCaseLoading] = useState(false);
   const [caseSaving, setCaseSaving] = useState(false);
   const [caseError, setCaseError] = useState("");
+  const [savedViews, setSavedViews] = useState([]);
+  const [savedViewName, setSavedViewName] = useState("");
+  const [savedViewsLoading, setSavedViewsLoading] = useState(false);
+  const [selectedCaseKeys, setSelectedCaseKeys] = useState([]);
+  const [bulkCaseForm, setBulkCaseForm] = useState(emptyBulkCaseForm);
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   const loadDashboard = useCallback(
     async ({ silent = false } = {}) => {
@@ -966,11 +1253,74 @@ export default function AdminDashboard() {
     [customEnd, customStart, range, user],
   );
 
+  const loadSavedViews = useCallback(async () => {
+    if (!user) return;
+    setSavedViewsLoading(true);
+    try {
+      const response = await getAdminSavedViews({ page: "admin_dashboard" });
+      setSavedViews(response.data.data || []);
+    } catch (fetchError) {
+      console.error("Failed to load admin saved views:", fetchError);
+    } finally {
+      setSavedViewsLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     loadDashboard();
+    loadSavedViews();
     const interval = setInterval(() => loadDashboard({ silent: true }), 30000);
     return () => clearInterval(interval);
-  }, [loadDashboard]);
+  }, [loadDashboard, loadSavedViews]);
+
+  const saveCurrentView = useCallback(async () => {
+    const name = savedViewName.trim();
+    if (!name) return;
+    setSavedViewsLoading(true);
+    try {
+      await saveAdminSavedView({
+        page: "admin_dashboard",
+        name,
+        filters: {
+          range,
+          customStart,
+          customEnd,
+          vendorSort,
+          vendorFilter,
+          exceptionFilter,
+        },
+      });
+      setSavedViewName("");
+      await loadSavedViews();
+    } catch (saveError) {
+      console.error("Failed to save admin view:", saveError);
+    } finally {
+      setSavedViewsLoading(false);
+    }
+  }, [customEnd, customStart, exceptionFilter, loadSavedViews, range, savedViewName, vendorFilter, vendorSort]);
+
+  const applySavedView = useCallback((view) => {
+    const filters = view?.filters || {};
+    if (filters.range) setRange(filters.range);
+    setCustomStart(filters.customStart || "");
+    setCustomEnd(filters.customEnd || "");
+    if (filters.vendorSort) setVendorSort(filters.vendorSort);
+    setVendorFilter(filters.vendorFilter || "");
+    setExceptionFilter(filters.exceptionFilter || "all");
+  }, []);
+
+  const removeSavedView = useCallback(async (view) => {
+    if (!view?.key) return;
+    setSavedViewsLoading(true);
+    try {
+      await deleteAdminSavedView(view.key);
+      await loadSavedViews();
+    } catch (deleteError) {
+      console.error("Failed to delete admin view:", deleteError);
+    } finally {
+      setSavedViewsLoading(false);
+    }
+  }, [loadSavedViews]);
 
   const syncCaseRecordIntoDashboard = useCallback((record) => {
     if (!record?.caseKey) return;
@@ -1050,11 +1400,66 @@ export default function AdminDashboard() {
     }
   }, [caseDrawerIssue, caseForm, syncCaseRecordIntoDashboard]);
 
+  const toggleCaseSelection = useCallback((caseKey, checked) => {
+    if (!caseKey) return;
+    setSelectedCaseKeys((current) => {
+      const set = new Set(current);
+      if (checked) {
+        set.add(caseKey);
+      } else {
+        set.delete(caseKey);
+      }
+      return [...set];
+    });
+  }, []);
+
+  const toggleVisibleCases = useCallback((caseKeys, checked) => {
+    setSelectedCaseKeys((current) => {
+      const set = new Set(current);
+      caseKeys.forEach((caseKey) => {
+        if (!caseKey) return;
+        if (checked) {
+          set.add(caseKey);
+        } else {
+          set.delete(caseKey);
+        }
+      });
+      return [...set];
+    });
+  }, []);
+
+  const updateBulkCaseForm = useCallback((field, value) => {
+    setBulkCaseForm((current) => ({ ...current, [field]: value }));
+  }, []);
+
+  const applyBulkCaseUpdate = useCallback(async () => {
+    if (!selectedCaseKeys.length) return;
+    const payload = { caseKeys: selectedCaseKeys };
+    if (bulkCaseForm.assignedTo.trim()) payload.assignedTo = bulkCaseForm.assignedTo.trim();
+    if (bulkCaseForm.status) payload.status = bulkCaseForm.status;
+    if (bulkCaseForm.priority) payload.priority = bulkCaseForm.priority;
+    if (bulkCaseForm.dueAt) payload.dueAt = bulkCaseForm.dueAt;
+    if (bulkCaseForm.note.trim()) payload.note = bulkCaseForm.note.trim();
+
+    setBulkSaving(true);
+    try {
+      await bulkUpdateAdminCases(payload);
+      setSelectedCaseKeys([]);
+      setBulkCaseForm(emptyBulkCaseForm);
+      await loadDashboard({ silent: true });
+    } catch (bulkError) {
+      console.error("Failed to bulk update admin cases:", bulkError);
+    } finally {
+      setBulkSaving(false);
+    }
+  }, [bulkCaseForm, loadDashboard, selectedCaseKeys]);
+
   const kpis = dashboard.kpis || emptyDashboard.kpis;
   const pendingActions = dashboard.pendingActions || emptyDashboard.pendingActions;
   const comparison = dashboard.comparison || emptyDashboard.comparison;
   const opsSummary = dashboard.opsSummary || emptyDashboard.opsSummary;
   const exceptionInbox = dashboard.exceptionInbox || emptyDashboard.exceptionInbox;
+  const adminHardening = dashboard.adminHardening || emptyDashboard.adminHardening;
   const totalPendingActions = Object.values(pendingActions).reduce((sum, value) => sum + Number(value || 0), 0);
 
   const sortedVendors = useMemo(() => {
@@ -1130,6 +1535,52 @@ export default function AdminDashboard() {
                   />
                 </div>
               )}
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="text"
+                    value={savedViewName}
+                    onChange={(event) => setSavedViewName(event.target.value)}
+                    placeholder="Save this admin view"
+                    className="min-h-10 flex-1 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveCurrentView}
+                    disabled={!savedViewName.trim() || savedViewsLoading}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {savedViewsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}
+                    Save view
+                  </button>
+                </div>
+                {savedViews.length ? (
+                  <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                    {savedViews.map((view) => (
+                      <span
+                        key={view.key}
+                        className="inline-flex min-h-9 shrink-0 items-center overflow-hidden rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => applySavedView(view)}
+                          className="min-h-9 px-3 hover:bg-orange-50 hover:text-orange-700"
+                        >
+                          {view.name}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeSavedView(view)}
+                          className="inline-flex min-h-9 w-9 items-center justify-center border-l border-slate-200 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                          aria-label={`Delete saved view ${view.name}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -1255,7 +1706,16 @@ export default function AdminDashboard() {
           onOpenCase={openAdminCase}
           formatPrice={formatPrice}
           loading={loading}
+          selectedCaseKeys={selectedCaseKeys}
+          onToggleCase={toggleCaseSelection}
+          onToggleAll={toggleVisibleCases}
+          bulkForm={bulkCaseForm}
+          onBulkFormChange={updateBulkCaseForm}
+          onBulkApply={applyBulkCaseUpdate}
+          bulkSaving={bulkSaving}
         />
+
+        <AdminHardeningPanels hardening={adminHardening} formatPrice={formatPrice} />
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.55fr)]">
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

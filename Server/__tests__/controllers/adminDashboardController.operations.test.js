@@ -229,4 +229,106 @@ describe("adminDashboardController operations overview helpers", () => {
       }),
     }));
   });
+
+  test("summarizes staff workload for assigned admin cases", () => {
+    const now = new Date("2026-05-18T12:00:00.000Z");
+    const workload = _private.buildStaffWorkload([
+      {
+        caseKey: "support:1",
+        assignedTo: "ops@amiyo.test",
+        status: "open",
+        priority: "critical",
+        workflow: "Support",
+        dueAt: new Date("2026-05-18T10:00:00.000Z"),
+      },
+      {
+        caseKey: "finance:1",
+        assignedTo: "",
+        status: "waiting",
+        priority: "medium",
+        workflow: "Finance",
+        dueAt: new Date("2026-05-18T20:00:00.000Z"),
+      },
+      {
+        caseKey: "catalog:1",
+        assignedTo: "ops@amiyo.test",
+        status: "resolved",
+        priority: "high",
+        workflow: "Catalog",
+      },
+    ], now);
+
+    expect(workload).toEqual(expect.objectContaining({
+      totalOpen: 2,
+      assigned: 1,
+      unassigned: 1,
+      overdue: 1,
+      critical: 1,
+    }));
+    expect(workload.staff[0]).toEqual(expect.objectContaining({
+      assignee: "ops@amiyo.test",
+      open: 1,
+      overdue: 1,
+      topWorkflow: "Support",
+    }));
+  });
+
+  test("calculates finance reconciliation exposure across COD, returns, and payouts", () => {
+    const summary = _private.buildFinanceReconciliation({
+      orders: [
+        { paymentMethod: "cod", paymentStatus: "pending", total: 1000 },
+        { paymentMethod: "cod", codState: "cod_remitted", total: 500 },
+        { paymentMethod: "bkash", total: 300 },
+      ],
+      returns: [
+        { status: "pending", refundAmount: 250, vendorDeductionAmount: 200 },
+        { status: "completed", refundAmount: 100, vendorDeductionAmount: 100 },
+      ],
+      payouts: [
+        { status: "hold", amount: 400 },
+        { status: "processing", amount: 600 },
+      ],
+    });
+
+    expect(summary).toEqual(expect.objectContaining({
+      codOrders: 2,
+      codOutstanding: 1000,
+      refundExposure: 250,
+      payoutHolds: 400,
+      pendingPayoutExposure: 1000,
+      vendorDeductions: 300,
+      unresolvedBuckets: 4,
+      status: "critical",
+    }));
+  });
+
+  test("reports integration readiness from environment and failure signals", () => {
+    const originalRedis = process.env.REDIS_URL;
+    const originalCourier = process.env.PATHAO_API_KEY;
+    process.env.REDIS_URL = "redis://localhost:6379";
+    delete process.env.PATHAO_API_KEY;
+
+    const readiness = _private.buildIntegrationReadiness({
+      failedNotificationDeliveries: 2,
+      failedPayments24h: 1,
+      latestAnalyticsSummary: { updatedAt: new Date() },
+    });
+
+    expect(readiness.integrations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: "courier", status: "manual" }),
+      expect.objectContaining({ key: "payments", status: "watch" }),
+      expect.objectContaining({ key: "messages", status: "watch" }),
+      expect.objectContaining({ key: "event_bus", status: "ready" }),
+      expect.objectContaining({ key: "analytics", status: "ready" }),
+    ]));
+
+    if (originalRedis === undefined) {
+      delete process.env.REDIS_URL;
+    } else {
+      process.env.REDIS_URL = originalRedis;
+    }
+    if (originalCourier !== undefined) {
+      process.env.PATHAO_API_KEY = originalCourier;
+    }
+  });
 });

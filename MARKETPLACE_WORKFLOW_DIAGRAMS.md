@@ -511,14 +511,21 @@ sequenceDiagram
 | Admin global search | Present | Admin header can search orders, vendors, products, customers, returns, and support tickets with a detail drawer. |
 | Admin exception inbox | Present | Admin dashboard now consolidates vendor, catalog, finance, support, trust, notification, and job exceptions with priority, SLA, owner, next action, and workspace links. |
 | Admin universal case workflow | Present | Exception inbox items can be opened in a shared case drawer with assignment, priority, status, due date, notes, history, audit logging, and workspace handoff links. |
+| Admin bulk queue actions | Present | Exception inbox items can be selected and updated in bulk with assignment, status, priority, due date, and notes. |
+| Saved admin filters/views | Present | Dashboard views are persisted per admin user in `admin_saved_views` and restore date, vendor, and exception filters. |
+| Staff workload dashboard | Present | Admin dashboard shows active ownership, overdue work, unassigned work, critical load, and top workflow per staff member. |
+| Finance reconciliation command view | Present | Admin dashboard summarizes COD outstanding, refund exposure, payout holds, pending payout exposure, and vendor deductions. |
+| Integration readiness monitor | Present | Admin dashboard reports courier, payment, notification, event-bus, and analytics readiness from env and failure signals. |
 | Admin queue operations | Present/partial | Vendors, products, orders, returns, payouts, support, trust, logistics, analytics pages exist. Depth varies by workflow. |
 | Analytics event taxonomy and warehouse | Present/partial | Event ingestion, taxonomy, and intelligence services exist; dashboard completeness depends on events being emitted consistently. |
+| Admin E2E UI hooks | Present | Dashboard exception inbox, case drawer, bulk action bar, and hardening panels expose stable test ids for browser automation. |
 
 ## Recommended Next Hardening Steps
 
 1. Decide whether PostgreSQL is a real migration target. If yes, add a separate migration plan instead of mixing it into current architecture diagrams.
 2. Add a server-side cart collection only if cross-device cart persistence is required.
-3. Expand event-bus publishers to every remaining payment-updated, shipment-updated, return-updated, and support-replied path.
+3. Continue expanding event-bus publishers to every remaining payment-updated, shipment-updated, return-updated, and support-replied path.
 4. Add a search adapter boundary so Mongo search can later be replaced by Typesense without changing page code.
 5. Add courier API adapters on top of the existing shipment drafts/state machine when a delivery partner is selected.
-6. Add a diagram update checklist to every future phase so docs and workflow stay synced with implementation.
+6. Add Playwright/Cypress browser runs against the new admin test ids once an E2E runner is selected.
+7. Add a diagram update checklist to every future phase so docs and workflow stay synced with implementation.

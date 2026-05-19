@@ -499,6 +499,14 @@ export const getAdminCaseAssignment = (caseKey) =>
   api.get(`/admin/dashboard/cases/${encodeURIComponent(caseKey)}`);
 export const updateAdminCaseAssignment = (caseKey, data) =>
   api.patch(`/admin/dashboard/cases/${encodeURIComponent(caseKey)}`, data);
+export const bulkUpdateAdminCases = (data) =>
+  api.patch("/admin/dashboard/cases/bulk", data);
+export const getAdminSavedViews = (params = {}) =>
+  api.get("/admin/dashboard/views", { params });
+export const saveAdminSavedView = (data) =>
+  api.post("/admin/dashboard/views", data);
+export const deleteAdminSavedView = (key) =>
+  api.delete(`/admin/dashboard/views/${encodeURIComponent(key)}`);
 export const getAdminAuditLogs = (params = {}) =>
   api.get("/admin/audit-logs", { params });
 export const searchAdminResources = (params = {}) =>
