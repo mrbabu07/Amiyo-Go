@@ -97,6 +97,7 @@ jest.mock("../controllers/orderController", () => ({
 jest.mock("../controllers/vendor/vendorFinanceController", () => ({
   getFinanceSummary: (req, res) => res.json({ route: "vendor-finance:summary" }),
   getTransactions: (req, res) => res.json({ route: "vendor-finance:transactions" }),
+  getReconciliation: (req, res) => res.json({ route: "vendor-finance:reconciliation" }),
   getCommissionRates: (req, res) => res.json({ route: "vendor-finance:commission-rates" }),
   downloadStatement: (req, res) =>
     res.json({

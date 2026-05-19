@@ -168,6 +168,12 @@ jest.mock("../controllers/vendorDashboardController", () => ({
   getVendorOrders: (req, res) => res.json({ route: "vendor-dashboard:orders" }),
   getVendorOrderDetail: (req, res) => res.json({ route: "vendor-dashboard:order-detail", id: req.params.orderId }),
   updateOrderStatus: (req, res) => res.json({ route: "vendor-dashboard:update-order-status", id: req.params.orderId }),
+  bulkUpdateVendorOrders: (req, res) =>
+    res.json({
+      route: "vendor-dashboard:bulk-update-order-status",
+      orderIds: req.body.orderIds || [],
+      status: req.body.status,
+    }),
   packVendorItems: (req, res) => res.json({ route: "vendor-dashboard:pack", id: req.params.orderId }),
   shipVendorItems: (req, res) => res.json({ route: "vendor-dashboard:ship", id: req.params.orderId }),
   deliverVendorItems: (req, res) => res.json({ route: "vendor-dashboard:deliver", id: req.params.orderId }),
