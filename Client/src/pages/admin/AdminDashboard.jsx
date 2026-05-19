@@ -90,6 +90,16 @@ const emptyDashboard = {
   orderFunnel: [],
   activityFeed: [],
   healthAlerts: [],
+  exceptionInbox: {
+    summary: {
+      total: 0,
+      critical: 0,
+      breached: 0,
+      financeExposure: 0,
+      owners: [],
+    },
+    items: [],
+  },
   topVendors: [],
   topCategories: [],
   topProductsToday: [],
@@ -156,6 +166,18 @@ const pendingActionLinks = [
   },
 ];
 
+const exceptionFilters = [
+  { value: "all", label: "All" },
+  { value: "critical", label: "Critical" },
+  { value: "breached", label: "SLA breach" },
+  { value: "vendor", label: "Vendor" },
+  { value: "catalog", label: "Catalog" },
+  { value: "finance", label: "Finance" },
+  { value: "support", label: "Support" },
+  { value: "trust", label: "Trust" },
+  { value: "ops", label: "Ops" },
+];
+
 const activityStyles = {
   order: "bg-sky-50 text-sky-700",
   vendor: "bg-emerald-50 text-emerald-700",
@@ -189,6 +211,60 @@ const formatDateTime = (value) => {
     hour: "numeric",
     minute: "2-digit",
   });
+};
+
+const formatAgeHours = (value) => {
+  const hours = Number(value || 0);
+  if (hours < 1) return "Just now";
+  if (hours < 24) return `${Math.round(hours)}h open`;
+  return `${(hours / 24).toFixed(hours >= 48 ? 0 : 1)}d open`;
+};
+
+const getExceptionIcon = (type) => {
+  if (type === "vendor_approval" || type === "kyc_review") return Store;
+  if (type === "product_moderation" || type === "bulk_upload") return PackageSearch;
+  if (type === "review_moderation" || type === "return_dispute") return ShieldAlert;
+  if (type === "payment" || type === "payout") return CreditCard;
+  if (type === "support") return Headphones;
+  if (type === "notification" || type === "newsletter") return BellRing;
+  return AlertTriangle;
+};
+
+const getExceptionTone = (issue = {}) => {
+  if (issue.priority === "critical" || issue.breached) return "rose";
+  if (issue.priority === "high") return "amber";
+  return "sky";
+};
+
+const exceptionToneClasses = {
+  amber: {
+    card: "border-amber-200 bg-amber-50/50",
+    icon: "bg-amber-100 text-amber-700",
+    pill: "bg-amber-100 text-amber-700",
+  },
+  rose: {
+    card: "border-rose-200 bg-rose-50/60",
+    icon: "bg-rose-100 text-rose-700",
+    pill: "bg-rose-100 text-rose-700",
+  },
+  sky: {
+    card: "border-sky-100 bg-white",
+    icon: "bg-sky-50 text-sky-700",
+    pill: "bg-sky-50 text-sky-700",
+  },
+};
+
+const matchesExceptionFilter = (issue = {}, filter = "all") => {
+  if (filter === "all") return true;
+  if (filter === "critical") return issue.priority === "critical";
+  if (filter === "breached") return Boolean(issue.breached);
+  if (filter === "vendor") return issue.owner === "Vendor Ops";
+  if (filter === "catalog") return issue.owner === "Catalog";
+  if (filter === "finance") return issue.owner === "Finance";
+  if (filter === "support") return issue.owner === "Support";
+  if (filter === "trust") return issue.owner === "Trust & Safety";
+  if (filter === "ops") return ["Engineering", "Comms", "Marketing"].includes(issue.owner);
+  return true;
 };
 
 const getHealthTone = (severity) => {
@@ -249,7 +325,8 @@ function ChangePill({ label, value }) {
   );
 }
 
-function WorkflowCard({ to, icon: Icon, label, value, detail, tone = "sky" }) {
+function WorkflowCard({ to, icon, label, value, detail, tone = "sky" }) {
+  const IconComponent = icon;
   const tones = {
     sky: "bg-sky-50 text-sky-700 border-sky-100",
     emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
@@ -270,7 +347,7 @@ function WorkflowCard({ to, icon: Icon, label, value, detail, tone = "sky" }) {
           <p className="mt-1 text-xs text-slate-500">{detail}</p>
         </div>
         <div className={`rounded-lg border p-2.5 ${tones[tone]}`}>
-          <Icon className="h-5 w-5" />
+          <IconComponent className="h-5 w-5" />
         </div>
       </div>
     </Link>
@@ -333,6 +410,136 @@ function SortButton({ active, children, onClick }) {
   );
 }
 
+function ExceptionInbox({ inbox, filter, onFilterChange, formatPrice, loading }) {
+  const summary = inbox?.summary || emptyDashboard.exceptionInbox.summary;
+  const items = inbox?.items || [];
+  const visibleItems = items.filter((issue) => matchesExceptionFilter(issue, filter));
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-bold text-rose-600">
+            <ShieldAlert className="h-4 w-4" />
+            Admin command center
+          </div>
+          <h2 className="mt-2 text-xl font-bold text-slate-950">Unified Exception Inbox</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">
+            Critical queue items from vendor ops, catalog, finance, support, trust, and system delivery. Work oldest SLA risks first.
+          </p>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-4 xl:min-w-[520px]">
+          <div className="rounded-lg bg-slate-50 px-3 py-2">
+            <p className="text-xs font-bold uppercase text-slate-500">Open</p>
+            <p className="text-xl font-black text-slate-950">{formatCount(summary.total)}</p>
+          </div>
+          <div className="rounded-lg bg-rose-50 px-3 py-2">
+            <p className="text-xs font-bold uppercase text-rose-600">Critical</p>
+            <p className="text-xl font-black text-rose-700">{formatCount(summary.critical)}</p>
+          </div>
+          <div className="rounded-lg bg-amber-50 px-3 py-2">
+            <p className="text-xs font-bold uppercase text-amber-600">SLA</p>
+            <p className="text-xl font-black text-amber-700">{formatCount(summary.breached)}</p>
+          </div>
+          <div className="rounded-lg bg-emerald-50 px-3 py-2">
+            <p className="text-xs font-bold uppercase text-emerald-600">Exposure</p>
+            <p className="truncate text-xl font-black text-emerald-700">{formatPrice(summary.financeExposure)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+        {exceptionFilters.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => onFilterChange(item.value)}
+            className={`min-h-9 shrink-0 rounded-full border px-3 text-sm font-bold transition ${
+              filter === item.value
+                ? "border-slate-950 bg-slate-950 text-white"
+                : "border-slate-200 text-slate-600 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        {loading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-24 animate-pulse rounded-lg bg-slate-100" />
+          ))
+        ) : visibleItems.length ? (
+          visibleItems.map((issue) => {
+            const Icon = getExceptionIcon(issue.type);
+            const tone = exceptionToneClasses[getExceptionTone(issue)] || exceptionToneClasses.sky;
+
+            return (
+              <div key={issue.id} className={`grid gap-3 rounded-lg border p-4 ${tone.card} lg:grid-cols-[minmax(0,1fr)_220px_150px] lg:items-center`}>
+                <div className="flex min-w-0 gap-3">
+                  <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${tone.icon}`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate text-sm font-black text-slate-950">{issue.title}</h3>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold capitalize ${tone.pill}`}>
+                        {issue.priority}
+                      </span>
+                      {issue.breached ? (
+                        <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                          SLA breached
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-sm text-slate-600">{issue.detail}</p>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
+                      <span>{issue.workflow}</span>
+                      <span>{issue.owner}</span>
+                      <span className="capitalize">{String(issue.status || "needs attention").replaceAll("_", " ")}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-white/70 px-3 py-2 text-sm lg:bg-white">
+                  <p className="font-bold text-slate-950">{issue.nextAction}</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    {formatAgeHours(issue.ageHours)} - due {formatDateTime(issue.dueAt)}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-2">
+                  {(issue.actions || []).slice(0, 2).map((action) => (
+                    <Link
+                      key={`${issue.id}-${action.label}`}
+                      to={action.path}
+                      className={`inline-flex min-h-10 items-center justify-center rounded-lg px-3 text-sm font-bold transition ${
+                        action.variant === "primary"
+                          ? "bg-orange-600 text-white hover:bg-orange-700"
+                          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {action.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="flex min-h-36 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center">
+            <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+            <p className="mt-3 text-sm font-bold text-slate-900">No exceptions in this filter</p>
+            <p className="mt-1 text-sm text-slate-500">The selected admin queue group is clear.</p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
@@ -345,6 +552,7 @@ export default function AdminDashboard() {
   const [customEnd, setCustomEnd] = useState("");
   const [vendorSort, setVendorSort] = useState("gmv");
   const [vendorFilter, setVendorFilter] = useState("");
+  const [exceptionFilter, setExceptionFilter] = useState("all");
 
   const loadDashboard = useCallback(
     async ({ silent = false } = {}) => {
@@ -386,6 +594,7 @@ export default function AdminDashboard() {
   const pendingActions = dashboard.pendingActions || emptyDashboard.pendingActions;
   const comparison = dashboard.comparison || emptyDashboard.comparison;
   const opsSummary = dashboard.opsSummary || emptyDashboard.opsSummary;
+  const exceptionInbox = dashboard.exceptionInbox || emptyDashboard.exceptionInbox;
   const totalPendingActions = Object.values(pendingActions).reduce((sum, value) => sum + Number(value || 0), 0);
 
   const sortedVendors = useMemo(() => {
@@ -578,6 +787,14 @@ export default function AdminDashboard() {
             tone={opsSummary.analyticsCronStatus === "running" ? "emerald" : "amber"}
           />
         </section>
+
+        <ExceptionInbox
+          inbox={exceptionInbox}
+          filter={exceptionFilter}
+          onFilterChange={setExceptionFilter}
+          formatPrice={formatPrice}
+          loading={loading}
+        />
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.55fr)]">
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

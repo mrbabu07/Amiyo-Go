@@ -149,4 +149,51 @@ describe("adminDashboardController operations overview helpers", () => {
     }));
     expect(issue.id).toContain("support-ticket-1");
   });
+
+  test("builds a prioritized dashboard exception inbox with SLA context", () => {
+    const now = new Date("2026-05-18T12:00:00.000Z");
+    const issues = _private.buildOperationIssues({
+      failedPayments: [{
+        _id: "payment-1",
+        status: "failed",
+        amount: 450,
+        failedAt: new Date("2026-05-18T11:30:00.000Z"),
+      }],
+      openSupportTickets: [{
+        _id: "ticket-1",
+        subject: "Customer waiting",
+        status: "open",
+        priority: "high",
+        createdAt: new Date("2026-05-16T10:00:00.000Z"),
+      }],
+      payoutQueue: [{
+        _id: "payout-1",
+        status: "pending",
+        amount: 12500,
+        createdAt: new Date("2026-05-18T10:00:00.000Z"),
+      }],
+    });
+
+    const inbox = _private.buildAdminExceptionInbox(issues, { now, limit: 5 });
+
+    expect(inbox.summary).toEqual(expect.objectContaining({
+      total: 3,
+      critical: 2,
+      breached: 1,
+      financeExposure: 12950,
+    }));
+    expect(inbox.items[0]).toEqual(expect.objectContaining({
+      priority: "critical",
+      actions: expect.arrayContaining([
+        expect.objectContaining({ label: expect.any(String), path: expect.any(String) }),
+      ]),
+    }));
+    expect(inbox.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "support",
+        breached: true,
+        nextAction: "Assign, reply, resolve, or escalate",
+      }),
+    ]));
+  });
 });

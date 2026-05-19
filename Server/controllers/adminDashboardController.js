@@ -347,6 +347,304 @@ const buildAdminQueueWorkload = ({
   ];
 };
 
+const issueWorkflowMap = {
+  vendor_approval: "Vendor onboarding",
+  kyc_review: "Vendor verification",
+  product_moderation: "Catalog moderation",
+  review_moderation: "Review moderation",
+  payment: "Payment recovery",
+  webhook: "Payment integration",
+  notification: "Message delivery",
+  newsletter: "Marketing delivery",
+  bulk_upload: "Catalog import",
+  server_error: "System reliability",
+  support: "Customer support",
+  return_dispute: "Returns arbitration",
+  payout: "Finance control",
+};
+
+const issueSlaHoursMap = {
+  vendor_approval: 48,
+  kyc_review: 48,
+  product_moderation: 24,
+  review_moderation: 24,
+  payment: 2,
+  webhook: 1,
+  notification: 6,
+  newsletter: 12,
+  bulk_upload: 4,
+  server_error: 1,
+  support: 24,
+  return_dispute: 48,
+  payout: 24,
+};
+
+const issueNextActionMap = {
+  vendor_approval: "Approve, reject, or request more info",
+  kyc_review: "Review documents and decide verification",
+  product_moderation: "Approve, reject, disable, or request edits",
+  review_moderation: "Approve, hide, spam-mark, or remove",
+  payment: "Check gateway/manual payment evidence",
+  webhook: "Inspect webhook error and retry source flow",
+  notification: "Retry delivery or fix recipient/channel",
+  newsletter: "Retry failed recipients or pause campaign",
+  bulk_upload: "Open validation report and notify vendor",
+  server_error: "Inspect audit log and server trace",
+  support: "Assign, reply, resolve, or escalate",
+  return_dispute: "Review evidence and decide refund",
+  payout: "Approve, hold, reject, or mark processing",
+};
+
+const issueActionLabelMap = {
+  vendor_approval: "Review vendor",
+  kyc_review: "Review KYC",
+  product_moderation: "Moderate listing",
+  review_moderation: "Moderate review",
+  payment: "Open finance",
+  webhook: "Open ops",
+  notification: "Open messages",
+  newsletter: "Open newsletter",
+  bulk_upload: "Open catalog",
+  server_error: "Open ops",
+  support: "Open ticket queue",
+  return_dispute: "Open return case",
+  payout: "Open payout queue",
+};
+
+const getIssueAgeHours = (at, now = new Date()) => {
+  if (!at) return 0;
+  const time = new Date(at).getTime();
+  if (Number.isNaN(time)) return 0;
+  return Math.max(0, (new Date(now).getTime() - time) / (60 * 60 * 1000));
+};
+
+const buildOperationIssues = ({
+  vendorApprovalQueue = [],
+  kycReviewQueue = [],
+  productModerationQueue = [],
+  reviewModerationQueue = [],
+  failedPayments = [],
+  webhookAuditFailures = [],
+  failedNotificationDeliveries = [],
+  failedNewsletterRecipients = [],
+  failedBulkJobs = [],
+  auditServerErrors = [],
+  openSupportTickets = [],
+  returnDisputes = [],
+  payoutQueue = [],
+  limitPerGroup = 8,
+  totalLimit = 40,
+} = {}) =>
+  [
+    ...vendorApprovalQueue.slice(0, limitPerGroup).map((vendor) => toOperationIssue({
+      type: "vendor_approval",
+      title: vendor.shopName || vendor.name || vendor.email || "Vendor application",
+      detail: vendor.email || vendor.phone || "Vendor is waiting for approval.",
+      status: vendor.status || "pending",
+      severity: (vendor.policyFlags || []).length ? "medium" : "low",
+      at: vendor.updatedAt || vendor.createdAt,
+      owner: "Vendor Ops",
+      path: "/admin/vendor-requests",
+      meta: { id: vendor._id, vendorId: vendor._id },
+    })),
+    ...kycReviewQueue.slice(0, limitPerGroup).map((vendor) => toOperationIssue({
+      type: "kyc_review",
+      title: `KYC review: ${vendor.shopName || vendor.name || vendor.email || "Vendor"}`,
+      detail: vendor.kyc?.notes || vendor.kyc?.reviewReason || "Submitted verification documents need review.",
+      status: vendor.kyc?.status || "pending",
+      severity: normalizeStatus(vendor.kyc?.status) === "under_review" ? "medium" : "low",
+      at: vendor.kyc?.submittedAt || vendor.updatedAt || vendor.createdAt,
+      owner: "Vendor Ops",
+      path: "/admin/vendor-kyc",
+      meta: { id: vendor._id, vendorId: vendor._id },
+    })),
+    ...productModerationQueue.slice(0, limitPerGroup).map((product) => toOperationIssue({
+      type: "product_moderation",
+      title: product.name || product.title || product.sku || "Product listing",
+      detail: (product.moderationFlags || [])[0]?.message || product.rejectionReason || "Listing requires moderation.",
+      status: product.approvalStatus || product.status || "pending",
+      severity: (product.moderationFlags || []).length ? "medium" : "low",
+      at: product.submittedForReviewAt || product.updatedAt || product.createdAt,
+      owner: "Catalog",
+      path: "/admin/products",
+      meta: { id: product._id, vendorId: product.vendorId, sku: product.sku },
+    })),
+    ...reviewModerationQueue.slice(0, limitPerGroup).map((review) => toOperationIssue({
+      type: "review_moderation",
+      title: review.title || review.comment || review.content || "Review needs moderation",
+      detail: review.flagReason || review.reason || `${Number(review.rating || 0)} star review`,
+      status: review.moderationStatus || review.status || "flagged",
+      severity: Number(review.reportCount || review.reportsCount || 0) > 0 ? "medium" : "low",
+      at: review.updatedAt || review.createdAt,
+      owner: "Trust & Safety",
+      path: "/admin/reviews",
+      meta: { id: review._id, productId: review.productId, vendorId: review.vendorId },
+    })),
+    ...failedPayments.slice(0, limitPerGroup).map((payment) => toOperationIssue({
+      type: "payment",
+      title: `Payment failed ${normalizeId(payment._id).slice(-6)}`,
+      detail: payment.error || payment.failureReason || payment.gatewayMessage || payment.paymentMethod || "Payment failure recorded.",
+      status: payment.status,
+      severity: "critical",
+      at: getEventDate(payment),
+      owner: "Finance",
+      path: "/admin/payment-verifications",
+      meta: { id: payment._id, amount: payment.amount, method: payment.paymentMethod || payment.gateway },
+    })),
+    ...webhookAuditFailures.slice(0, limitPerGroup).map((log) => toOperationIssue({
+      type: "webhook",
+      title: "Webhook/API failure",
+      detail: log.target?.path || log.action || "Payment webhook returned an error status.",
+      status: log.diff?.statusCode ? String(log.diff.statusCode) : "failed",
+      severity: Number(log.diff?.statusCode || 0) >= 500 ? "critical" : "medium",
+      at: log.createdAt,
+      owner: "Engineering",
+      path: "/admin/operations",
+      meta: { id: log._id, action: log.action },
+    })),
+    ...failedNotificationDeliveries.slice(0, limitPerGroup).map((delivery) => toOperationIssue({
+      type: "notification",
+      title: `Notification failed ${normalizeId(delivery._id).slice(-6)}`,
+      detail: delivery.error || delivery.reason || delivery.channel || "Notification delivery failed.",
+      status: delivery.status,
+      severity: "medium",
+      at: getEventDate(delivery),
+      owner: "Comms",
+      path: "/admin/platform",
+      meta: { id: delivery._id, channel: delivery.channel, userId: delivery.userId },
+    })),
+    ...failedNewsletterRecipients.slice(0, limitPerGroup).map((recipient) => toOperationIssue({
+      type: "newsletter",
+      title: `Newsletter recipient failed ${recipient.email || normalizeId(recipient._id).slice(-6)}`,
+      detail: recipient.error || "Newsletter recipient delivery failed.",
+      status: recipient.status,
+      severity: "medium",
+      at: getEventDate(recipient),
+      owner: "Marketing",
+      path: "/admin/newsletter",
+      meta: { id: recipient._id, email: recipient.email },
+    })),
+    ...failedBulkJobs.slice(0, limitPerGroup).map((job) => toOperationIssue({
+      type: "bulk_upload",
+      title: `Bulk upload failed ${normalizeId(job._id).slice(-6)}`,
+      detail: job.error || job.errorMessage || job.reportSummary || "Vendor product bulk upload failed.",
+      status: job.status,
+      severity: "critical",
+      at: getEventDate(job),
+      owner: "Catalog",
+      path: "/admin/products",
+      meta: { id: job._id, vendorId: job.vendorId, rows: job.totalRows },
+    })),
+    ...auditServerErrors.slice(0, limitPerGroup).map((log) => toOperationIssue({
+      type: "server_error",
+      title: `API ${log.diff?.statusCode || 500} error`,
+      detail: log.target?.path || log.action || "Sensitive operation returned a server error.",
+      status: String(log.diff?.statusCode || 500),
+      severity: "critical",
+      at: log.createdAt,
+      owner: "Engineering",
+      path: "/admin/operations",
+      meta: { id: log._id, actor: log.actor?.email },
+    })),
+    ...openSupportTickets.slice(0, limitPerGroup).map((ticket) => toOperationIssue({
+      type: "support",
+      title: ticket.subject || ticket.ticketId || "Open support ticket",
+      detail: ticket.customerInfo?.email || ticket.category || "Customer support is waiting.",
+      status: ticket.status,
+      severity: ticket.priority === "urgent" ? "critical" : ticket.priority === "high" ? "medium" : "low",
+      at: ticket.updatedAt || ticket.createdAt,
+      owner: "Support",
+      path: "/admin/support",
+      meta: { id: ticket._id, ticketId: ticket.ticketId, priority: ticket.priority },
+    })),
+    ...returnDisputes.slice(0, limitPerGroup).map((returnDoc) => toOperationIssue({
+      type: "return_dispute",
+      title: returnDoc.productTitle || returnDoc.productName || `Return ${normalizeId(returnDoc._id).slice(-6)}`,
+      detail: returnDoc.disputeReason || returnDoc.vendorResponseNotes || returnDoc.reason || "Return dispute requires admin arbitration.",
+      status: returnDoc.status || returnDoc.vendorResponse,
+      severity: "medium",
+      at: returnDoc.updatedAt || returnDoc.createdAt,
+      owner: "Trust & Safety",
+      path: "/admin/returns",
+      meta: { id: returnDoc._id, orderId: returnDoc.orderId, refundAmount: getRefundAmount(returnDoc) },
+    })),
+    ...payoutQueue.slice(0, limitPerGroup).map((payout) => toOperationIssue({
+      type: "payout",
+      title: `Payout ${normalizeId(payout._id).slice(-6)}`,
+      detail: `${payout.vendorName || payout.vendorId || "Vendor"} - ${round2(getPayoutAmount(payout))} pending finance action.`,
+      status: payout.status || "pending",
+      severity: getPayoutAmount(payout) >= 10000 ? "medium" : "low",
+      at: payout.requestedAt || payout.updatedAt || payout.createdAt,
+      owner: "Finance",
+      path: payout.type === "vendor_requested" ? "/admin/payout-requests" : "/admin/payouts",
+      meta: { id: payout._id, vendorId: payout.vendorId, amount: getPayoutAmount(payout) },
+    })),
+  ]
+    .filter((issue) => issue.at)
+    .sort((a, b) => new Date(b.at) - new Date(a.at))
+    .slice(0, totalLimit);
+
+const buildAdminExceptionInbox = (issues = [], { now = new Date(), limit = 10 } = {}) => {
+  const priorityRank = { critical: 4, high: 3, medium: 2, low: 1 };
+  const enriched = issues.map((issue) => {
+    const slaHours = issueSlaHoursMap[issue.type] || 24;
+    const ageHours = round2(getIssueAgeHours(issue.at, now));
+    const dueAt = issue.at ? new Date(new Date(issue.at).getTime() + slaHours * 60 * 60 * 1000) : null;
+    const breached = ageHours >= slaHours;
+    const priority = issue.severity === "critical" || breached
+      ? "critical"
+      : issue.severity === "medium"
+        ? "high"
+        : "medium";
+
+    return {
+      ...issue,
+      priority,
+      workflow: issueWorkflowMap[issue.type] || "Operations",
+      nextAction: issueNextActionMap[issue.type] || "Open queue and review",
+      actionLabel: issueActionLabelMap[issue.type] || "Open",
+      slaHours,
+      ageHours,
+      dueAt,
+      breached,
+      actions: [
+        issue.path ? { label: issueActionLabelMap[issue.type] || "Open", path: issue.path, variant: "primary" } : null,
+        { label: "Operations center", path: "/admin/operations", variant: "secondary" },
+      ].filter(Boolean),
+    };
+  });
+
+  const sorted = enriched.sort((left, right) => {
+    if (priorityRank[right.priority] !== priorityRank[left.priority]) {
+      return priorityRank[right.priority] - priorityRank[left.priority];
+    }
+    if (Number(right.breached) !== Number(left.breached)) {
+      return Number(right.breached) - Number(left.breached);
+    }
+    if (left.breached && right.breached) {
+      return new Date(left.dueAt) - new Date(right.dueAt);
+    }
+    return new Date(right.at) - new Date(left.at);
+  });
+
+  const ownerCounts = sorted.reduce((counts, issue) => {
+    counts[issue.owner] = (counts[issue.owner] || 0) + 1;
+    return counts;
+  }, {});
+
+  return {
+    updatedAt: now,
+    summary: {
+      total: sorted.length,
+      critical: sorted.filter((issue) => issue.priority === "critical").length,
+      breached: sorted.filter((issue) => issue.breached).length,
+      financeExposure: round2(sorted.reduce((sum, issue) => sum + Number(issue.meta?.amount || issue.meta?.refundAmount || 0), 0)),
+      owners: Object.entries(ownerCounts).map(([owner, count]) => ({ owner, count })),
+    },
+    items: sorted.slice(0, limit),
+  };
+};
+
 const summarizeOperationsHealth = (metrics = {}) => {
   const critical =
     Number(metrics.webhookFailures || 0) +
@@ -827,6 +1125,12 @@ exports.getAdminDashboardOverview = async (req, res) => {
       failedNotificationDeliveries,
       failedBulkJobs,
       payoutQueue,
+      kycReviewItems,
+      openSupportTicketItems,
+      reviewModerationItems,
+      returnDisputeItems,
+      failedNotificationItems,
+      failedBulkJobItems,
       latestAnalyticsSummary,
     ] = await Promise.all([
       safeFind(ordersCollection, { createdAt: { $gte: range.start, $lt: range.end } }, { sort: { createdAt: -1 }, limit: 5000 }),
@@ -867,6 +1171,24 @@ exports.getAdminDashboardOverview = async (req, res) => {
       safeFind(payoutsCollection, {
         status: { $in: ["pending", "approved", "processing", "hold", "held"] },
       }, { sort: { requestedAt: -1, updatedAt: -1, createdAt: -1 }, limit: 500 }),
+      safeFind(vendorsCollection, { "kyc.status": { $in: ["pending", "submitted", "under_review"] } }, { sort: { "kyc.submittedAt": -1, updatedAt: -1, createdAt: -1 }, limit: 8 }),
+      safeFind(supportTicketsCollection, { status: { $in: ["open", "in_progress"] } }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 8 }),
+      safeFind(reviewsCollection, {
+        $or: [
+          { moderationStatus: { $in: ["flagged", "pending_review"] } },
+          { status: { $in: ["flagged", "pending_review"] } },
+          { flagged: true },
+          { reportCount: { $gt: 0 } },
+        ],
+      }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 8 }),
+      safeFind(returnsCollection, {
+        $or: [
+          { vendorResponse: "disputed" },
+          { status: { $in: ["disputed", "under_review"] } },
+        ],
+      }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 8 }),
+      safeFind(notificationDeliveriesCollection, { status: failedStatusQuery }, { sort: { failedAt: -1, updatedAt: -1, createdAt: -1 }, limit: 8 }),
+      safeFind(bulkJobsCollection, { status: { $in: ["failed", "error"] } }, { sort: { updatedAt: -1, createdAt: -1 }, limit: 8 }),
       safeFind(analyticsSummaryCollection, {}, { sort: { updatedAt: -1, createdAt: -1 }, limit: 1 }),
     ]);
 
@@ -901,6 +1223,21 @@ exports.getAdminDashboardOverview = async (req, res) => {
     const analyticsUpdatedAt = latestAnalyticsSummary[0]?.updatedAt || latestAnalyticsSummary[0]?.createdAt || null;
     const analyticsFresh =
       analyticsUpdatedAt && now.getTime() - new Date(analyticsUpdatedAt).getTime() <= 2 * 60 * 60 * 1000;
+    const exceptionIssues = buildOperationIssues({
+      vendorApprovalQueue: pendingVendors,
+      kycReviewQueue: kycReviewItems,
+      productModerationQueue: pendingProducts,
+      reviewModerationQueue: reviewModerationItems,
+      failedPayments,
+      failedNotificationDeliveries: failedNotificationItems,
+      failedBulkJobs: failedBulkJobItems,
+      openSupportTickets: openSupportTicketItems,
+      returnDisputes: returnDisputeItems,
+      payoutQueue,
+      limitPerGroup: 5,
+      totalLimit: 24,
+    });
+    const exceptionInbox = buildAdminExceptionInbox(exceptionIssues, { now, limit: 10 });
 
     res.json({
       success: true,
@@ -958,6 +1295,7 @@ exports.getAdminDashboardOverview = async (req, res) => {
           payments: failedPayments,
         }),
         healthAlerts: health.alerts,
+        exceptionInbox,
         topVendors: buildTopVendors(ordersInRange, vendors),
         topCategories: buildTopCategories(ordersInRange),
         topProductsToday: buildTopProducts(todayOrders, vendors),
@@ -1126,154 +1464,21 @@ exports.getAdminOperationsOverview = async (req, res) => {
       payoutExposure: sumPayoutExposure(payoutQueue),
     };
 
-    const issues = [
-      ...vendorApprovalQueue.slice(0, 8).map((vendor) => toOperationIssue({
-        type: "vendor_approval",
-        title: vendor.shopName || vendor.name || vendor.email || "Vendor application",
-        detail: vendor.email || vendor.phone || "Vendor is waiting for approval.",
-        status: vendor.status || "pending",
-        severity: (vendor.policyFlags || []).length ? "medium" : "low",
-        at: vendor.updatedAt || vendor.createdAt,
-        owner: "Vendor Ops",
-        path: "/admin/vendor-requests",
-        meta: { id: vendor._id, vendorId: vendor._id },
-      })),
-      ...kycReviewQueue.slice(0, 8).map((vendor) => toOperationIssue({
-        type: "kyc_review",
-        title: `KYC review: ${vendor.shopName || vendor.name || vendor.email || "Vendor"}`,
-        detail: vendor.kyc?.notes || vendor.kyc?.reviewReason || "Submitted verification documents need review.",
-        status: vendor.kyc?.status || "pending",
-        severity: normalizeStatus(vendor.kyc?.status) === "under_review" ? "medium" : "low",
-        at: vendor.kyc?.submittedAt || vendor.updatedAt || vendor.createdAt,
-        owner: "Vendor Ops",
-        path: "/admin/vendor-kyc",
-        meta: { id: vendor._id, vendorId: vendor._id },
-      })),
-      ...productModerationQueue.slice(0, 8).map((product) => toOperationIssue({
-        type: "product_moderation",
-        title: product.name || product.title || product.sku || "Product listing",
-        detail: (product.moderationFlags || [])[0]?.message || product.rejectionReason || "Listing requires moderation.",
-        status: product.approvalStatus || product.status || "pending",
-        severity: (product.moderationFlags || []).length ? "medium" : "low",
-        at: product.submittedForReviewAt || product.updatedAt || product.createdAt,
-        owner: "Catalog",
-        path: "/admin/products",
-        meta: { id: product._id, vendorId: product.vendorId, sku: product.sku },
-      })),
-      ...reviewModerationQueue.slice(0, 8).map((review) => toOperationIssue({
-        type: "review_moderation",
-        title: review.title || review.comment || review.content || "Review needs moderation",
-        detail: review.flagReason || review.reason || `${Number(review.rating || 0)} star review`,
-        status: review.moderationStatus || review.status || "flagged",
-        severity: Number(review.reportCount || review.reportsCount || 0) > 0 ? "medium" : "low",
-        at: review.updatedAt || review.createdAt,
-        owner: "Trust & Safety",
-        path: "/admin/reviews",
-        meta: { id: review._id, productId: review.productId, vendorId: review.vendorId },
-      })),
-      ...failedPayments.map((payment) => toOperationIssue({
-        type: "payment",
-        title: `Payment failed ${normalizeId(payment._id).slice(-6)}`,
-        detail: payment.error || payment.failureReason || payment.gatewayMessage || payment.paymentMethod || "Payment failure recorded.",
-        status: payment.status,
-        severity: "critical",
-        at: getEventDate(payment),
-        owner: "Finance",
-        path: "/admin/payment-verifications",
-        meta: { id: payment._id, amount: payment.amount, method: payment.paymentMethod || payment.gateway },
-      })),
-      ...webhookAuditFailures.map((log) => toOperationIssue({
-        type: "webhook",
-        title: "Webhook/API failure",
-        detail: log.target?.path || log.action || "Payment webhook returned an error status.",
-        status: log.diff?.statusCode ? String(log.diff.statusCode) : "failed",
-        severity: Number(log.diff?.statusCode || 0) >= 500 ? "critical" : "medium",
-        at: log.createdAt,
-        owner: "Engineering",
-        path: "/admin/operations",
-        meta: { id: log._id, action: log.action },
-      })),
-      ...failedNotificationDeliveries.map((delivery) => toOperationIssue({
-        type: "notification",
-        title: `Notification failed ${normalizeId(delivery._id).slice(-6)}`,
-        detail: delivery.error || delivery.reason || delivery.channel || "Notification delivery failed.",
-        status: delivery.status,
-        severity: "medium",
-        at: getEventDate(delivery),
-        owner: "Comms",
-        path: "/admin/platform",
-        meta: { id: delivery._id, channel: delivery.channel, userId: delivery.userId },
-      })),
-      ...failedNewsletterRecipients.map((recipient) => toOperationIssue({
-        type: "newsletter",
-        title: `Newsletter recipient failed ${recipient.email || normalizeId(recipient._id).slice(-6)}`,
-        detail: recipient.error || "Newsletter recipient delivery failed.",
-        status: recipient.status,
-        severity: "medium",
-        at: getEventDate(recipient),
-        owner: "Marketing",
-        path: "/admin/newsletter",
-        meta: { id: recipient._id, email: recipient.email },
-      })),
-      ...failedBulkJobs.map((job) => toOperationIssue({
-        type: "bulk_upload",
-        title: `Bulk upload failed ${normalizeId(job._id).slice(-6)}`,
-        detail: job.error || job.errorMessage || job.reportSummary || "Vendor product bulk upload failed.",
-        status: job.status,
-        severity: "critical",
-        at: getEventDate(job),
-        owner: "Catalog",
-        path: "/admin/products",
-        meta: { id: job._id, vendorId: job.vendorId, rows: job.totalRows },
-      })),
-      ...auditServerErrors.map((log) => toOperationIssue({
-        type: "server_error",
-        title: `API ${log.diff?.statusCode || 500} error`,
-        detail: log.target?.path || log.action || "Sensitive operation returned a server error.",
-        status: String(log.diff?.statusCode || 500),
-        severity: "critical",
-        at: log.createdAt,
-        owner: "Engineering",
-        path: "/admin/operations",
-        meta: { id: log._id, actor: log.actor?.email },
-      })),
-      ...openSupportTickets.slice(0, 8).map((ticket) => toOperationIssue({
-        type: "support",
-        title: ticket.subject || ticket.ticketId || "Open support ticket",
-        detail: ticket.customerInfo?.email || ticket.category || "Customer support is waiting.",
-        status: ticket.status,
-        severity: ticket.priority === "urgent" ? "critical" : ticket.priority === "high" ? "medium" : "low",
-        at: ticket.updatedAt || ticket.createdAt,
-        owner: "Support",
-        path: "/admin/support",
-        meta: { id: ticket._id, ticketId: ticket.ticketId, priority: ticket.priority },
-      })),
-      ...returnDisputes.slice(0, 8).map((returnDoc) => toOperationIssue({
-        type: "return_dispute",
-        title: returnDoc.productTitle || `Return ${normalizeId(returnDoc._id).slice(-6)}`,
-        detail: returnDoc.disputeReason || returnDoc.vendorResponseNotes || returnDoc.reason || "Return dispute requires admin arbitration.",
-        status: returnDoc.status || returnDoc.vendorResponse,
-        severity: "medium",
-        at: returnDoc.updatedAt || returnDoc.createdAt,
-        owner: "Trust & Safety",
-        path: "/admin/returns",
-        meta: { id: returnDoc._id, orderId: returnDoc.orderId, refundAmount: returnDoc.refundAmount },
-      })),
-      ...payoutQueue.slice(0, 8).map((payout) => toOperationIssue({
-        type: "payout",
-        title: `Payout ${normalizeId(payout._id).slice(-6)}`,
-        detail: `${payout.vendorName || payout.vendorId || "Vendor"} - ${round2(getPayoutAmount(payout))} pending finance action.`,
-        status: payout.status || "pending",
-        severity: getPayoutAmount(payout) >= 10000 ? "medium" : "low",
-        at: payout.requestedAt || payout.updatedAt || payout.createdAt,
-        owner: "Finance",
-        path: payout.type === "vendor_requested" ? "/admin/payout-requests" : "/admin/payouts",
-        meta: { id: payout._id, vendorId: payout.vendorId, amount: getPayoutAmount(payout) },
-      })),
-    ]
-      .filter((issue) => issue.at)
-      .sort((a, b) => new Date(b.at) - new Date(a.at))
-      .slice(0, 40);
+    const issues = buildOperationIssues({
+      vendorApprovalQueue,
+      kycReviewQueue,
+      productModerationQueue,
+      reviewModerationQueue,
+      failedPayments,
+      webhookAuditFailures,
+      failedNotificationDeliveries,
+      failedNewsletterRecipients,
+      failedBulkJobs,
+      auditServerErrors,
+      openSupportTickets,
+      returnDisputes,
+      payoutQueue,
+    });
 
     const operationsHealth = summarizeOperationsHealth(metrics);
 
@@ -1326,12 +1531,15 @@ exports.getAdminOperationsOverview = async (req, res) => {
 };
 
 exports._private = {
+  buildAdminExceptionInbox,
   buildAdminQueueWorkload,
   buildFunnel,
+  buildOperationIssues,
   buildOperationsJobCards,
   buildRevenueSeries,
   buildTopProducts,
   buildTopVendors,
+  getIssueAgeHours,
   getQueueItemAgeHours,
   resolveDateRange,
   summarizeOperationsHealth,

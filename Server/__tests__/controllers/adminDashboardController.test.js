@@ -351,6 +351,29 @@ describe("adminDashboardController", () => {
       reviewModeration: 1,
       failedNotifications: 1,
     });
+    expect(payload.exceptionInbox.summary).toEqual(expect.objectContaining({
+      total: 12,
+      critical: expect.any(Number),
+      breached: expect.any(Number),
+      financeExposure: 1850,
+    }));
+    expect(payload.exceptionInbox.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "payment",
+        priority: "critical",
+        workflow: "Payment recovery",
+        nextAction: "Check gateway/manual payment evidence",
+      }),
+      expect.objectContaining({
+        type: "support",
+        owner: "Support",
+        actionLabel: "Open ticket queue",
+      }),
+      expect.objectContaining({
+        type: "payout",
+        owner: "Finance",
+      }),
+    ]));
     expect(payload.activityFeed.map((item) => item.type)).toEqual(
       expect.arrayContaining(["order", "vendor", "product", "payment"]),
     );

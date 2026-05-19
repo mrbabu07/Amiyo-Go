@@ -331,6 +331,7 @@ flowchart TB
     RBAC --> DASH[Admin dashboard and operations center]
 
     DASH --> GLOBAL_SEARCH[Global search and detail drawer]
+    DASH --> EXCEPTION_INBOX[Unified exception inbox]
     DASH --> VENDOR_QUEUE[Vendor approval and KYC queue]
     DASH --> PRODUCT_QUEUE[Product moderation queue]
     DASH --> ORDER_QUEUE[Orders control queue]
@@ -349,6 +350,12 @@ flowchart TB
     GLOBAL_SEARCH --> PRODUCT_QUEUE
     GLOBAL_SEARCH --> RETURN_QUEUE
     GLOBAL_SEARCH --> SUPPORT_QUEUE
+    EXCEPTION_INBOX --> VENDOR_QUEUE
+    EXCEPTION_INBOX --> PRODUCT_QUEUE
+    EXCEPTION_INBOX --> RETURN_QUEUE
+    EXCEPTION_INBOX --> PAYOUT_QUEUE
+    EXCEPTION_INBOX --> SUPPORT_QUEUE
+    EXCEPTION_INBOX --> TRUST_QUEUE
     VENDOR_QUEUE --> AUDIT_LOGS
     PRODUCT_QUEUE --> AUDIT_LOGS
     ORDER_QUEUE --> AUDIT_LOGS
@@ -494,6 +501,7 @@ sequenceDiagram
 | Logistics state machine | Present | Forward, reverse, and COD state machines exist. |
 | Auto shipment draft at order placement | Present | Order creation now creates shipment drafts for each vendor/platform group; vendor logistics actions continue the state machine. |
 | Admin global search | Present | Admin header can search orders, vendors, products, customers, returns, and support tickets with a detail drawer. |
+| Admin exception inbox | Present | Admin dashboard now consolidates vendor, catalog, finance, support, trust, notification, and job exceptions with priority, SLA, owner, next action, and workspace links. |
 | Admin queue operations | Present/partial | Vendors, products, orders, returns, payouts, support, trust, logistics, analytics pages exist. Depth varies by workflow. |
 | Analytics event taxonomy and warehouse | Present/partial | Event ingestion, taxonomy, and intelligence services exist; dashboard completeness depends on events being emitted consistently. |
 
