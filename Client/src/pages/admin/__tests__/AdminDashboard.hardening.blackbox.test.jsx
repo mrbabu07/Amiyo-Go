@@ -1,6 +1,5 @@
 import { describe, expect, jest, test, beforeEach } from "@jest/globals";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import useAuth from "../../../hooks/useAuth";
 import { useCurrency } from "../../../hooks/useCurrency";
@@ -184,8 +183,6 @@ describe("AdminDashboard hardening workflow", () => {
   });
 
   test("supports saved admin views, bulk case actions, hardening panels, and E2E hooks", async () => {
-    const user = userEvent.setup();
-
     render(
       <MemoryRouter>
         <AdminDashboard />
@@ -196,11 +193,15 @@ describe("AdminDashboard hardening workflow", () => {
     expect(screen.getByTestId("admin-hardening-panels")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "High Risk" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Select visible" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select visible" }));
     const bulkBar = screen.getByTestId("admin-bulk-case-actions");
-    await user.type(within(bulkBar).getByPlaceholderText("Assign to"), "ops@amiyo.test");
-    await user.selectOptions(within(bulkBar).getByDisplayValue("Status"), "in_progress");
-    await user.click(within(bulkBar).getByRole("button", { name: /apply/i }));
+    fireEvent.change(within(bulkBar).getByPlaceholderText("Assign to"), {
+      target: { value: "ops@amiyo.test" },
+    });
+    fireEvent.change(within(bulkBar).getByDisplayValue("Status"), {
+      target: { value: "in_progress" },
+    });
+    fireEvent.click(within(bulkBar).getByRole("button", { name: /apply/i }));
 
     await waitFor(() => {
       expect(bulkUpdateAdminCases).toHaveBeenCalledWith(expect.objectContaining({

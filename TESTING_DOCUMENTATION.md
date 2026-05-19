@@ -1,6 +1,6 @@
 # Amiyo-Go Testing Documentation
 
-Last verified: May 18, 2026
+Last verified: May 20, 2026
 
 ## Scope
 
@@ -12,6 +12,18 @@ Amiyo-Go has two Jest workspaces:
 The project now includes explicit black-box and white-box coverage examples on both sides of the app. Black-box tests assert user-facing or API-facing behavior without relying on internal implementation details. White-box tests cover internal helper branches, calculations, state mapping, and edge cases that are easier to validate directly.
 
 ## Test Commands
+
+Run the full local release check from the repository root on Windows/PowerShell:
+
+```powershell
+.\scripts\verify-project.ps1
+```
+
+Skip the production build when you only need the automated test suites:
+
+```powershell
+.\scripts\verify-project.ps1 -SkipBuild
+```
 
 Run frontend checks:
 
@@ -183,36 +195,24 @@ Before pushing frontend or backend changes:
 5. Keep black-box tests focused on public behavior.
 6. Keep white-box tests focused on branching logic and edge cases.
 
+## Full Project Verification Process
+
+Use this process before a production deploy or before pushing major marketplace workflow changes:
+
+1. Check for uncommitted work with `git status --short`.
+2. Run `.\scripts\verify-project.ps1` from the repository root.
+3. If a test fails, rerun only that failing test file first.
+4. Fix the underlying issue, then rerun the focused test.
+5. After the focused test passes, rerun the full workspace suite.
+6. Finish with the full verification script again so server tests, client tests, and the frontend build are all green together.
+
 ## Latest Local Verification
 
-The latest completed full-project verification:
+The latest completed full-project verification on May 20, 2026:
 
-- `Client`: `npm test` passed, 34 suites / 125 tests.
-- `Client`: latest focused cross-role workflow helper tests passed, 2 suites / 7 tests.
-- `Client`: latest focused Phase 5 hardening helper tests passed, 4 suites / 12 tests.
-- `Client`: focused admin resource search tests passed, 2 suites / 7 tests.
-- `Client`: Phase 5 admin audit-log helper tests remain covered, 2 suites / 5 tests.
+- `Server`: `npm test` passed, 85 suites / 491 tests.
+- `Client`: `npm test` passed, 36 suites / 132 tests.
 - `Client`: `npm run lint -- --quiet` passed.
 - `Client`: `npm run build` passed.
-- `Server`: `npm test -- --runInBand --silent` passed, 68 suites / 415 tests.
-- `Server`: latest focused stock-alert workflow tests passed, 1 suite / 3 tests.
-- `Server`: latest focused Phase 5 admin audit-log controller tests passed, 1 suite / 4 tests.
-- `Server`: focused admin order search/management tests passed, 2 suites / 6 tests.
-- `Server`: focused admin dashboard workflow tests passed, 2 suites / 7 tests.
-- `Server`: Phase 5 admin operations helper tests remain covered, 1 suite / 6 tests.
-- Focused backend rate limiter analytics/defaults test passed, 1 suite / 7 tests.
-- Focused backend Phase 1 reliability/security tests passed, 5 suites / 13 tests.
-- Focused backend black-box and white-box support tests remain covered by the full backend run.
-- Focused frontend customer order journey tests passed, 2 suites / 7 tests.
-- Focused frontend customer notification center tests passed, 2 suites / 8 tests.
-- Focused frontend vendor seller-center tests passed, 2 suites / 7 tests.
-- Focused frontend vendor bulk order workflow tests passed, 2 suites / 4 tests.
-- Focused frontend vendor product detail tests passed, 2 suites / 7 tests.
-- Focused frontend vendor return dispute tests passed, 2 suites / 9 tests.
-- Focused frontend vendor order detail tests passed, 2 suites / 8 tests.
-- Focused frontend vendor staff permission tests and route guard tests passed, 5 suites / 20 tests.
-- Focused frontend vendor staff permission matrix tests passed, 2 suites / 8 tests.
-- Focused backend vendor staff audit, bulk upload report snapshot, and vendor settings delivery tests passed, 3 suites / 7 tests.
-- Focused backend vendor return detail test passed, 1 suite / 3 tests.
-- Focused backend vendor product edit-history tests passed, 1 suite / 2 tests.
-- Focused backend API routing hardening tests passed, 3 suites / 124 tests.
+- Root verification process: `.\scripts\verify-project.ps1` passed.
+- Fixed during this verification: the admin dashboard hardening UI test timed out under the default Jest timeout because it used slower high-level user typing/select helpers against a large dashboard DOM. It now uses direct DOM events for deterministic bulk-action form input and passes as a focused test and in the full client suite.
