@@ -13,6 +13,7 @@ import {
   Percent,
   ReceiptText,
   RefreshCcw,
+  Scale,
   ShieldAlert,
   TrendingUp,
   WalletCards,
@@ -24,6 +25,7 @@ import {
   downloadVendorFinanceStatement,
   downloadVendorTaxInvoice,
   getVendorCommissionRates,
+  getVendorFinanceReconciliation,
   getVendorFinanceSummary,
   getVendorFinanceTransactions,
   getVendorPayouts,
@@ -34,6 +36,7 @@ import { hasVendorPermission } from "../../utils/vendorStaffPermissions";
 
 const tabs = [
   { id: "overview", label: "Overview", path: "/vendor/finance", icon: WalletCards },
+  { id: "reconciliation", label: "Reconciliation", path: "/vendor/finance/reconciliation", icon: Scale },
   { id: "transactions", label: "Transactions", path: "/vendor/finance/transactions", icon: ReceiptText },
   { id: "statements", label: "Statements", path: "/vendor/finance/statements", icon: FileSpreadsheet },
   { id: "commissions", label: "Commissions", path: "/vendor/finance/commissions", icon: Percent },
@@ -47,8 +50,14 @@ const statusStyles = {
   refund_deducted: "bg-rose-50 text-rose-700 border-rose-200",
   void: "bg-slate-100 text-slate-600 border-slate-200",
   paid: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
   pending: "bg-amber-50 text-amber-700 border-amber-200",
+  processing: "bg-sky-50 text-sky-700 border-sky-200",
   approved: "bg-sky-50 text-sky-700 border-sky-200",
+  hold: "bg-rose-50 text-rose-700 border-rose-200",
+  held: "bg-rose-50 text-rose-700 border-rose-200",
+  risk_hold: "bg-rose-50 text-rose-700 border-rose-200",
+  blocked: "bg-rose-50 text-rose-700 border-rose-200",
   cancelled: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
@@ -121,6 +130,7 @@ export default function VendorFinance() {
   const [stats, setStats] = useState(null);
   const [payouts, setPayouts] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [reconciliation, setReconciliation] = useState(null);
   const [commissionRates, setCommissionRates] = useState([]);
   const [statementRows, setStatementRows] = useState([]);
   const [statementMonth, setStatementMonth] = useState(currentMonthValue());
@@ -134,17 +144,19 @@ export default function VendorFinance() {
 
     setLoading(true);
     try {
-      const [summaryRes, txRes, payoutsRes, rateRes] = await Promise.all([
+      const [summaryRes, txRes, payoutsRes, rateRes, reconciliationRes] = await Promise.all([
         getVendorFinanceSummary(),
         getVendorFinanceTransactions({ limit: 50 }),
         getVendorPayouts({ limit: 20 }),
         getVendorCommissionRates(),
+        getVendorFinanceReconciliation(),
       ]);
 
       setStats(summaryRes.data?.data || null);
       setTransactions(txRes.data?.data || []);
       setPayouts(payoutsRes.data?.data || []);
       setCommissionRates(rateRes.data?.data || []);
+      setReconciliation(reconciliationRes.data?.data || null);
     } catch (error) {
       console.error("Failed to fetch finance data:", error);
       toast.error("Failed to load finance data");
@@ -343,6 +355,10 @@ export default function VendorFinance() {
             />
           )}
 
+          {activeTab === "reconciliation" && (
+            <ReconciliationTab reconciliation={reconciliation} formatPrice={formatPrice} />
+          )}
+
           {activeTab === "transactions" && (
             <TransactionsTab transactions={transactions} formatPrice={formatPrice} />
           )}
@@ -423,6 +439,151 @@ function OverviewTab({ stats, refundImpact, transactions, formatPrice }) {
           <TransactionTable rows={latestRows} formatPrice={formatPrice} compact />
         </div>
       </Panel>
+    </div>
+  );
+}
+
+function ReconciliationTab({ reconciliation, formatPrice }) {
+  const summary = reconciliation?.summary || {};
+  const cod = reconciliation?.cod || {};
+  const orderStatus = reconciliation?.orderStatus || {};
+  const buckets = reconciliation?.buckets || [];
+  const payoutRows = reconciliation?.payoutRows || [];
+  const returnRows = reconciliation?.returnRows || [];
+
+  return (
+    <div className="space-y-4" data-testid="vendor-finance-reconciliation">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          icon={WalletCards}
+          label="Available balance"
+          value={formatPrice(summary.availableBalance || 0)}
+          note="Released net minus paid, pending, and held payouts"
+          tone="emerald"
+        />
+        <MetricCard
+          icon={Scale}
+          label="Released net"
+          value={formatPrice(summary.releasedNet || 0)}
+          note={`${orderStatus.released || 0} released order(s)`}
+          tone="sky"
+        />
+        <MetricCard
+          icon={Clock3}
+          label="Payout exposure"
+          value={formatPrice((summary.pendingPayouts || 0) + (summary.payoutHolds || 0))}
+          note={`${formatPrice(summary.pendingPayouts || 0)} pending, ${formatPrice(summary.payoutHolds || 0)} held`}
+          tone="amber"
+        />
+        <MetricCard
+          icon={ShieldAlert}
+          label="Return deductions"
+          value={formatPrice(summary.returnDeduction || 0)}
+          note={`${orderStatus.refundDeducted || 0} order(s) affected`}
+          tone="rose"
+        />
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Panel className="xl:col-span-2">
+          <PanelTitle icon={Scale} title="Reconciliation Buckets" />
+          <div className="mt-4 divide-y divide-slate-100">
+            {buckets.map((bucket) => (
+              <div
+                key={bucket.key}
+                className="flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between"
+                data-testid={`vendor-reconciliation-bucket-${bucket.key}`}
+              >
+                <div>
+                  <p className="font-semibold text-slate-950">{bucket.label}</p>
+                  <p className="mt-1 text-sm text-slate-500">{bucket.description}</p>
+                </div>
+                <div className="flex items-center gap-3 md:text-right">
+                  <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${bucketTone(bucket.type)}`}>
+                    {normalizeStatus(bucket.type)}
+                  </span>
+                  <p className={`min-w-28 text-lg font-bold ${bucket.type === "debit" ? "text-rose-700" : bucket.type === "hold" ? "text-amber-700" : "text-slate-950"}`}>
+                    {bucket.type === "debit" ? "-" : ""}
+                    {formatPrice(bucket.amount || 0)}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {buckets.length === 0 && (
+              <div className="rounded-lg border border-slate-200 p-8 text-center text-sm text-slate-500">
+                Reconciliation data will appear after orders, returns, or payouts are recorded.
+              </div>
+            )}
+          </div>
+        </Panel>
+
+        <Panel>
+          <PanelTitle icon={Banknote} title="COD Exposure" />
+          <div className="mt-4 space-y-3">
+            <BreakdownRow label="COD orders" value={cod.orders || 0} />
+            <BreakdownRow label="Pending COD exposure" value={formatPrice(cod.pendingExposure || 0)} />
+            <BreakdownRow label="Released COD exposure" value={formatPrice(cod.releasedExposure || 0)} />
+            <div className="border-t border-slate-200 pt-3">
+              <BreakdownRow label="Gross sales" value={formatPrice(summary.grossSales || 0)} strong />
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <Panel>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <PanelTitle icon={ShieldAlert} title="Recent Return Deductions" />
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+              {returnRows.length} rows
+            </span>
+          </div>
+          <div className="mt-4 space-y-3">
+            {returnRows.slice(0, 6).map((item) => (
+              <div key={item._id || item.returnId || `${item.orderId}-${item.productTitle}`} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-900">{item.productTitle || item.productName || "Returned item"}</p>
+                  <p className="mt-1 text-xs text-slate-500">{formatDate(item.approvedAt || item.updatedAt)} - {normalizeStatus(item.status || "deducted")}</p>
+                </div>
+                <p className="font-bold text-rose-700">-{formatPrice(item.vendorDeduction ?? item.deduction ?? 0)}</p>
+              </div>
+            ))}
+            {returnRows.length === 0 && (
+              <div className="rounded-lg border border-slate-200 p-8 text-center text-sm text-slate-500">
+                No return deductions in this view.
+              </div>
+            )}
+          </div>
+        </Panel>
+
+        <Panel>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <PanelTitle icon={Landmark} title="Recent Payout Movement" />
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+              {payoutRows.length} rows
+            </span>
+          </div>
+          <div className="mt-4 space-y-3">
+            {payoutRows.slice(0, 6).map((payout) => (
+              <div key={payout._id || payout.transactionId || payout.createdAt} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-900">{payout.note || payout.transactionId || "Payout request"}</p>
+                  <p className="mt-1 text-xs text-slate-500">Requested {formatDate(payout.createdAt)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-slate-950">{formatPrice(payout.amount || 0)}</p>
+                  <StatusBadge status={payout.status} />
+                </div>
+              </div>
+            ))}
+            {payoutRows.length === 0 && (
+              <div className="rounded-lg border border-slate-200 p-8 text-center text-sm text-slate-500">
+                No payout movement yet.
+              </div>
+            )}
+          </div>
+        </Panel>
+      </div>
     </div>
   );
 }
@@ -692,6 +853,16 @@ function TransactionTable({ rows, formatPrice, compact = false }) {
       </table>
     </>
   );
+}
+
+function bucketTone(type) {
+  const tones = {
+    credit: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    debit: "border-rose-200 bg-rose-50 text-rose-700",
+    hold: "border-amber-200 bg-amber-50 text-amber-700",
+    paid: "border-sky-200 bg-sky-50 text-sky-700",
+  };
+  return tones[type] || "border-slate-200 bg-slate-100 text-slate-600";
 }
 
 function MiniLedger({ label, value, danger = false, success = false, warning = false, strong = false }) {

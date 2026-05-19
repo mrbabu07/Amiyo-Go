@@ -172,6 +172,53 @@ const getVendorDeductionAmount = (returnDoc = {}) =>
 const isCodOrder = (order = {}) =>
   ["cod", "cash_on_delivery", "cash on delivery"].includes(normalizeStatus(order.paymentMethod || order.payment?.method || order.paymentType));
 
+const VENDOR_ORDER_STATUS_TRANSITIONS = ["pending", "processing", "packed", "ready_to_ship", "pickup_ready", "shipped", "delivered", "cancelled"];
+
+const getOrderIdFilter = (orderId) => {
+  const objectId = toObjectId(orderId);
+  return objectId ? { _id: objectId } : { _id: orderId };
+};
+
+const getVendorArrayFilter = (vendor) => ({
+  $or: [
+    { "elem.vendorId": vendor._id?.toString?.() || vendor._id },
+    { "elem.vendorId": vendor._id },
+  ],
+});
+
+const getVendorProductsFromOrder = (order = {}, vendorId) =>
+  (order.products || []).filter((product) => product.vendorId && product.vendorId.toString() === vendorId.toString());
+
+const getVendorStatusTimestampFields = (status, now, reason = "", note = "") => ({
+  ...(status === "processing" ? { "products.$[elem].processingAt": now } : {}),
+  ...(status === "packed" ? { "products.$[elem].packedAt": now } : {}),
+  ...(status === "ready_to_ship" ? { "products.$[elem].readyToShipAt": now } : {}),
+  ...(status === "pickup_ready" ? { "products.$[elem].pickupReadyAt": now } : {}),
+  ...(status === "shipped" ? { "products.$[elem].shippedAt": now } : {}),
+  ...(status === "delivered" ? { "products.$[elem].deliveredAt": now } : {}),
+  ...(status === "cancelled" ? {
+    "products.$[elem].cancelledAt": now,
+    "products.$[elem].rejectionReason": reason || "Vendor cancelled",
+    "products.$[elem].rejectionNotes": note || null,
+  } : {}),
+});
+
+const getVendorOrderSnapshotFields = (status, now, reason = "", note = "") => ({
+  ...(status === "processing" ? { processingAt: now } : {}),
+  ...(status === "packed" ? { packedAt: now } : {}),
+  ...(status === "ready_to_ship" ? { readyToShipAt: now, courierPickupStatus: "pending" } : {}),
+  ...(status === "pickup_ready" ? { pickupReadyAt: now, courierPickupStatus: "ready" } : {}),
+  ...(status === "shipped" ? { shippedAt: now } : {}),
+  ...(status === "delivered" ? { deliveredAt: now } : {}),
+  ...(status === "cancelled" ? {
+    cancelledAt: now,
+    cancellationSource: "vendor",
+    cancellationMessage: reason || "Vendor cancelled",
+    rejectionReason: reason || "Vendor cancelled",
+    rejectionNotes: note || null,
+  } : {}),
+});
+
 const deriveVendorOrderStatus = (statuses = []) => {
   const normalized = statuses.map((status) => status || "pending");
   if (normalized.length === 0) return "pending";
@@ -1180,9 +1227,8 @@ exports.updateOrderStatus = async (req, res) => {
     const User = req.app.locals.models.User;
     const db = req.app.locals.db;
 
-    const validStatuses = ["pending", "processing", "packed", "ready_to_ship", "pickup_ready", "shipped", "delivered", "cancelled"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ error: `Status must be one of: ${validStatuses.join(", ")}` });
+    if (!VENDOR_ORDER_STATUS_TRANSITIONS.includes(status)) {
+      return res.status(400).json({ error: `Status must be one of: ${VENDOR_ORDER_STATUS_TRANSITIONS.join(", ")}` });
     }
 
     const user = req.dbUser || await User.findByFirebaseUid(req.user.uid);
@@ -1204,9 +1250,7 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     // Check if vendor has items in this order
-    const vendorItems = (order.products || []).filter(
-      p => p.vendorId === vendorId || (p.vendorId && p.vendorId.toString() === vendorId)
-    );
+    const vendorItems = getVendorProductsFromOrder(order, vendorId);
 
     if (vendorItems.length === 0) {
       return res.status(403).json({ error: "No items for this vendor in order" });
@@ -1215,22 +1259,10 @@ exports.updateOrderStatus = async (req, res) => {
     // Update item statuses for vendor's products
     const ordersCollection = db.collection("orders");
     const now = new Date();
-    const timestampFields = {
-      ...(status === "processing" ? { "products.$[elem].processingAt": now } : {}),
-      ...(status === "packed" ? { "products.$[elem].packedAt": now } : {}),
-      ...(status === "ready_to_ship" ? { "products.$[elem].readyToShipAt": now } : {}),
-      ...(status === "pickup_ready" ? { "products.$[elem].pickupReadyAt": now } : {}),
-      ...(status === "shipped" ? { "products.$[elem].shippedAt": now } : {}),
-      ...(status === "delivered" ? { "products.$[elem].deliveredAt": now } : {}),
-      ...(status === "cancelled" ? {
-        "products.$[elem].cancelledAt": now,
-        "products.$[elem].rejectionReason": reason || "Vendor cancelled",
-        "products.$[elem].rejectionNotes": note || null,
-      } : {}),
-    };
+    const timestampFields = getVendorStatusTimestampFields(status, now, reason, note);
 
     await ordersCollection.updateOne(
-      { _id: typeof orderId === 'string' ? new ObjectId(orderId) : orderId },
+      getOrderIdFilter(orderId),
       {
         $set: {
           "products.$[elem].itemStatus": status,
@@ -1239,38 +1271,19 @@ exports.updateOrderStatus = async (req, res) => {
         }
       },
       {
-        arrayFilters: [{ 
-          $or: [
-            { "elem.vendorId": vendorId },
-            { "elem.vendorId": vendor._id }
-          ]
-        }]
+        arrayFilters: [getVendorArrayFilter(vendor)]
       }
     );
 
     const updatedOrder = await Order.findById(orderId);
-    const updatedVendorProducts = (updatedOrder?.products || []).filter(
-      (p) => p.vendorId && p.vendorId.toString() === vendorId,
-    );
+    const updatedVendorProducts = getVendorProductsFromOrder(updatedOrder || {}, vendorId);
     const vendorOrder = (await VendorOrder.findByParentOrderId(orderId)).find(
       (vo) => vo.vendorId === vendorId,
     );
     if (vendorOrder) {
       await VendorOrder.updateStatus(vendorOrder._id.toString(), status, {
         products: updatedVendorProducts,
-        ...(status === "processing" ? { processingAt: now } : {}),
-        ...(status === "packed" ? { packedAt: now } : {}),
-        ...(status === "ready_to_ship" ? { readyToShipAt: now, courierPickupStatus: "pending" } : {}),
-        ...(status === "pickup_ready" ? { pickupReadyAt: now, courierPickupStatus: "ready" } : {}),
-        ...(status === "shipped" ? { shippedAt: now } : {}),
-        ...(status === "delivered" ? { deliveredAt: now } : {}),
-        ...(status === "cancelled" ? {
-          cancelledAt: now,
-          cancellationSource: "vendor",
-          cancellationMessage: reason || "Vendor cancelled",
-          rejectionReason: reason || "Vendor cancelled",
-          rejectionNotes: note || null,
-        } : {}),
+        ...getVendorOrderSnapshotFields(status, now, reason, note),
       });
     }
 
@@ -1292,6 +1305,113 @@ exports.updateOrderStatus = async (req, res) => {
   } catch (error) {
     console.error("Error updating order status:", error);
     res.status(500).json({ error: "Failed to update order status" });
+  }
+};
+
+exports.bulkUpdateVendorOrders = async (req, res) => {
+  try {
+    if (!vendorStaffCan(req, "orders:manage")) {
+      return rejectVendorStaffPermission(res, "orders:manage");
+    }
+
+    const { orderIds = [], status, reason = "", note = "" } = req.body || {};
+    const uniqueOrderIds = [...new Set((Array.isArray(orderIds) ? orderIds : [])
+      .map((id) => String(id || "").trim())
+      .filter(Boolean))]
+      .slice(0, 100);
+
+    if (!uniqueOrderIds.length) {
+      return res.status(400).json({ error: "Select at least one order" });
+    }
+
+    if (!VENDOR_ORDER_STATUS_TRANSITIONS.includes(status)) {
+      return res.status(400).json({ error: `Status must be one of: ${VENDOR_ORDER_STATUS_TRANSITIONS.join(", ")}` });
+    }
+
+    const { vendor, error } = await getVendorForRequest(req);
+    if (error) return res.status(404).json({ error });
+
+    const db = req.app.locals.db;
+    const Order = req.app.locals.models.Order;
+    const VendorOrder = req.app.locals.models.VendorOrder;
+    const vendorId = vendor._id.toString();
+    const now = new Date();
+    const results = [];
+
+    for (const orderId of uniqueOrderIds) {
+      try {
+        const order = await Order.findById(orderId);
+        if (!order) {
+          results.push({ orderId, success: false, error: "Order not found" });
+          continue;
+        }
+
+        const vendorItems = getVendorProductsFromOrder(order, vendorId);
+        if (vendorItems.length === 0) {
+          results.push({ orderId, success: false, error: "No vendor items in order" });
+          continue;
+        }
+
+        await db.collection("orders").updateOne(
+          getOrderIdFilter(orderId),
+          {
+            $set: {
+              "products.$[elem].itemStatus": status,
+              "products.$[elem].statusUpdatedAt": now,
+              ...getVendorStatusTimestampFields(status, now, reason, note),
+            },
+          },
+          { arrayFilters: [getVendorArrayFilter(vendor)] },
+        );
+
+        const updatedOrder = await Order.findById(orderId);
+        const updatedVendorProducts = getVendorProductsFromOrder(updatedOrder || {}, vendorId);
+        const vendorOrder = (await VendorOrder.findByParentOrderId(orderId)).find(
+          (vo) => vo.vendorId === vendorId,
+        );
+
+        if (vendorOrder) {
+          await VendorOrder.updateStatus(vendorOrder._id.toString(), status, {
+            products: updatedVendorProducts,
+            ...getVendorOrderSnapshotFields(status, now, reason, note),
+          });
+        }
+
+        await Order.syncOrderStatus(orderId);
+        await appendOrderEvent({
+          app: req.app,
+          orderId,
+          vendorId,
+          status,
+          label: `Bulk marked ${status.replace(/_/g, " ")}`,
+          actorId: req.user?.uid,
+          actorRole: req.vendorStaff ? "vendor_staff" : "vendor",
+          note: note || reason || "",
+          metadata: { bulk: true },
+        });
+
+        results.push({ orderId, success: true, status });
+      } catch (itemError) {
+        results.push({ orderId, success: false, error: itemError.message || "Update failed" });
+      }
+    }
+
+    const successful = results.filter((item) => item.success);
+    const failed = results.filter((item) => !item.success);
+
+    res.json({
+      success: failed.length === 0,
+      message: `${successful.length} order${successful.length === 1 ? "" : "s"} updated${failed.length ? `, ${failed.length} failed` : ""}`,
+      summary: {
+        requested: uniqueOrderIds.length,
+        updated: successful.length,
+        failed: failed.length,
+      },
+      results,
+    });
+  } catch (error) {
+    console.error("Error bulk updating vendor orders:", error);
+    res.status(500).json({ error: "Failed to bulk update orders" });
   }
 };
 

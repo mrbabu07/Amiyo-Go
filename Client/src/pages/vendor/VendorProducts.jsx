@@ -21,6 +21,7 @@ import {
 import useAuth from "../../hooks/useAuth";
 import useCurrency from "../../hooks/useCurrency";
 import { hasVendorPermission } from "../../utils/vendorStaffPermissions";
+import { bulkUpdateVendorProducts } from "../../services/api";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -59,6 +60,34 @@ const normalizeProductsPayload = (payload) => payload?.products || payload?.data
 const getSku = (product) => product.sku || product.attributes?.sku || product.variants?.[0]?.sku || "No SKU";
 
 const getLowStockThreshold = (product) => Number(product.lowStockThreshold ?? 5);
+
+const exportProductsCsv = (products, categoryMap, moneyFormatter) => {
+  const headers = ["Product ID", "Title", "SKU", "Category", "Status", "Price", "Stock", "Low Stock Alert", "Variants"];
+  const rows = products.map((product) => [
+    product._id,
+    product.title || "",
+    getSku(product),
+    categoryMap[getCategoryId(product)]?.name || "",
+    getProductStatus(product),
+    moneyFormatter(product.price || 0),
+    Number(product.stock || 0),
+    getLowStockThreshold(product),
+    product.variants?.length || 0,
+  ]);
+  const csv = [headers, ...rows]
+    .map((line) => line.map((value) => {
+      const text = value === null || value === undefined ? "" : String(value);
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    }).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `vendor-products-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 
 export default function VendorProducts() {
   const { user, dbUser, role, permissions, isAdmin } = useAuth();
@@ -254,31 +283,19 @@ export default function VendorProducts() {
 
     setSavingBulk(true);
     try {
-      const token = await user.getIdToken();
-      await Promise.all(
-        targetRows.map((row) =>
-          fetch(`${API_URL}/vendor/products/${row.id}`, {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              price: Number(row.price || 0),
-              stock: Number(row.stock || 0),
-              status: row.status,
-              lowStockThreshold: Number(row.lowStockThreshold || 0),
-            }),
-          }).then(async (response) => {
-            if (!response.ok) {
-              const data = await response.json();
-              throw new Error(data.error || "Bulk edit failed");
-            }
-          }),
-        ),
-      );
+      const response = await bulkUpdateVendorProducts({
+        action: "update_fields",
+        updates: targetRows.map((row) => ({
+          productId: row.id,
+          price: Number(row.price || 0),
+          stock: Number(row.stock || 0),
+          status: row.status,
+          lowStockThreshold: Number(row.lowStockThreshold || 0),
+        })),
+      });
+      const summary = response.data?.summary || { updated: targetRows.length, failed: 0 };
 
-      toast.success(`${targetRows.length} products updated`);
+      toast.success(`${summary.updated} products updated${summary.failed ? `, ${summary.failed} failed` : ""}`);
       await fetchData();
     } catch (bulkError) {
       toast.error(bulkError.message || "Bulk edit failed");
@@ -387,7 +404,14 @@ export default function VendorProducts() {
       return;
     }
 
-    await Promise.all(targetIds.map((id) => submitForApproval(id)));
+    try {
+      const response = await bulkUpdateVendorProducts({ action: "submit", productIds: targetIds });
+      const summary = response.data?.summary || { updated: targetIds.length, failed: 0 };
+      toast.success(`${summary.updated} products submitted${summary.failed ? `, ${summary.failed} failed` : ""}`);
+      await fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Bulk submit failed");
+    }
     setSelectedIds(new Set());
   };
 
@@ -408,8 +432,27 @@ export default function VendorProducts() {
 
     if (!confirm(`Delist ${targetIds.length} selected product(s)?`)) return;
 
-    await Promise.all(targetIds.map((id) => archiveProduct(id)));
+    try {
+      const response = await bulkUpdateVendorProducts({ action: "archive", productIds: targetIds });
+      const summary = response.data?.summary || { updated: targetIds.length, failed: 0 };
+      toast.success(`${summary.updated} products delisted${summary.failed ? `, ${summary.failed} failed` : ""}`);
+      await fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Bulk delist failed");
+    }
     setSelectedIds(new Set());
+  };
+
+  const exportSelectedProducts = () => {
+    const targetProducts = selectedIds.size > 0
+      ? filteredProducts.filter((product) => selectedIds.has(product._id))
+      : filteredProducts;
+    if (targetProducts.length === 0) {
+      toast.error("No products to export");
+      return;
+    }
+    exportProductsCsv(targetProducts, categories, formatPrice);
+    toast.success(`${targetProducts.length} products exported`);
   };
 
   const copyUrl = async (url) => {
@@ -665,6 +708,15 @@ export default function VendorProducts() {
                   </option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={exportSelectedProducts}
+                disabled={filteredProducts.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                Export
+              </button>
               </div>
               {canManageProducts && selectedIds.size > 0 && (
                 <div className="mt-4 flex flex-col gap-3 rounded-lg border border-orange-200 bg-orange-50 p-3 md:flex-row md:items-center md:justify-between">
@@ -687,6 +739,14 @@ export default function VendorProducts() {
                     >
                       <Package className="h-4 w-4" />
                       Delist
+                    </button>
+                    <button
+                      type="button"
+                      onClick={exportSelectedProducts}
+                      className="inline-flex items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2 text-sm font-bold text-orange-800 hover:bg-orange-100"
+                    >
+                      <Download className="h-4 w-4" />
+                      Export CSV
                     </button>
                     <button
                       type="button"

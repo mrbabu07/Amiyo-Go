@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Clock,
   Copy,
+  Download,
   Eye,
   FileText,
   Inbox,
@@ -35,13 +36,13 @@ import {
   getVendorOrders,
   getVendorOrderTimeline,
   getVendorReturns,
-  markOrderPickupReady,
   markVendorCodCollected,
   rejectVendorOrder,
   scheduleVendorPickup,
   sendVendorBuyerMessage,
   updateVendorOrderStatus,
   vendorRespondToReturn,
+  bulkUpdateVendorOrders,
 } from "../../services/api";
 import { getVendorOrderBulkWorkflow } from "../../utils/vendorOrderBulkActions";
 
@@ -192,6 +193,34 @@ const orderProductsTotal = (order) =>
     (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
     0,
   );
+
+const exportOrdersCsv = (orders, moneyFormatter) => {
+  const headers = ["Order ID", "Date", "Customer", "Phone", "Status", "Payment", "COD", "Items", "Total"];
+  const rows = orders.map((order) => [
+    getOrderId(order),
+    formatDateTime(order.createdAt),
+    order.shippingInfo?.name || "",
+    order.shippingInfo?.phone || "",
+    order.status || "",
+    order.paymentMethod || "",
+    isCodOrder(order) ? (order.codCollected ? "Collected" : "Pending") : "N/A",
+    (order.products || []).map((item) => `${item.title || item.productDetails?.title || item.name || "Product"} x${item.quantity || 1}`).join(" | "),
+    moneyFormatter(order.vendorSubtotal || order.totalAmount || orderProductsTotal(order)),
+  ]);
+  const csv = [headers, ...rows]
+    .map((line) => line.map((value) => {
+      const text = value === null || value === undefined ? "" : String(value);
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    }).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `vendor-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 
 const getReturnStatusLabel = (returnItem) =>
   (returnItem?.status || "pending").replace(/_/g, " ");
@@ -517,7 +546,7 @@ export default function VendorOrders() {
     }
   };
 
-  const handleBatchStatusUpdate = async ({ orders: targetOrders, label, request }) => {
+  const handleBatchStatusUpdate = async ({ orders: targetOrders, label, status }) => {
     if (!canManageOrders) {
       toast.error("Your staff access can view orders, but cannot update them.");
       return;
@@ -530,8 +559,13 @@ export default function VendorOrders() {
 
     const loadingToast = toast.loading(`Marking selected orders ${label.toLowerCase()}...`);
     try {
-      await Promise.all(targetOrders.map((order) => request(getOrderId(order))));
-      toast.success(`${targetOrders.length} orders marked ${label.toLowerCase()}`, { id: loadingToast });
+      const response = await bulkUpdateVendorOrders({
+        orderIds: targetOrders.map(getOrderId),
+        status,
+        note: `Bulk marked ${label.toLowerCase()} from seller center`,
+      });
+      const summary = response.data?.summary || { updated: targetOrders.length, failed: 0 };
+      toast.success(`${summary.updated} orders marked ${label.toLowerCase()}${summary.failed ? `, ${summary.failed} failed` : ""}`, { id: loadingToast });
       clearSelection();
       await loadData();
     } catch (error) {
@@ -543,22 +577,32 @@ export default function VendorOrders() {
     handleBatchStatusUpdate({
       orders: bulkWorkflow.packableOrders,
       label: "Packed",
-      request: (orderId) => updateVendorOrderStatus(orderId, "packed"),
+      status: "packed",
     });
 
   const handleBatchReadyToShip = () =>
     handleBatchStatusUpdate({
       orders: bulkWorkflow.readyToShipOrders,
       label: "Ready to Ship",
-      request: (orderId) => updateVendorOrderStatus(orderId, "ready_to_ship"),
+      status: "ready_to_ship",
     });
 
   const handleBatchPickupReady = () =>
     handleBatchStatusUpdate({
       orders: bulkWorkflow.pickupReadyOrders,
       label: "Pickup Ready",
-      request: (orderId) => markOrderPickupReady(orderId),
+      status: "pickup_ready",
     });
+
+  const exportSelectedOrders = () => {
+    const targetOrders = selectedOrders.length > 0 ? selectedOrders : filteredOrders;
+    if (targetOrders.length === 0) {
+      toast.error("No orders to export");
+      return;
+    }
+    exportOrdersCsv(targetOrders, formatPrice);
+    toast.success(`${targetOrders.length} orders exported`);
+  };
 
   const openPdfBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob);
@@ -954,6 +998,15 @@ export default function VendorOrders() {
                 >
                   <Printer className="h-4 w-4" />
                   Print Slips
+                </button>
+                <button
+                  type="button"
+                  onClick={exportSelectedOrders}
+                  disabled={filteredOrders.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Download className="h-4 w-4" />
+                  Export CSV
                 </button>
                 <button
                   type="button"

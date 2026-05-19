@@ -132,4 +132,69 @@ describe("vendorProductController edit history", () => {
       requiresReapproval: false,
     });
   });
+
+  test("bulkProductAction updates selected products and requeues critical approved edits", async () => {
+    const productId = new ObjectId("665000000000000000000003");
+    const vendorId = new ObjectId("665000000000000000000099");
+    const product = {
+      _id: productId,
+      vendorId,
+      title: "Live bulk product",
+      price: 100,
+      stock: 5,
+      approvalStatus: "approved",
+      editHistory: [],
+    };
+    let savedUpdate = null;
+    const Product = {
+      findById: jest.fn().mockResolvedValue(product),
+      update: jest.fn((id, update) => {
+        savedUpdate = update;
+        return Promise.resolve({ modifiedCount: 1 });
+      }),
+    };
+    const req = {
+      body: {
+        action: "update_fields",
+        updates: [
+          {
+            productId: productId.toString(),
+            price: 120,
+            stock: 8,
+            lowStockThreshold: 3,
+          },
+        ],
+      },
+      user: { uid: "seller-firebase-1" },
+      vendor: { _id: vendorId, shopName: "Seller Shop" },
+      vendorStaff: { _id: "staff-2", email: "ops@example.com" },
+      app: { locals: { models: { Product } } },
+    };
+    const res = createResponse();
+
+    await vendorProductController.bulkProductAction(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(Product.update).toHaveBeenCalledWith(productId.toString(), expect.objectContaining({
+      price: 120,
+      stock: 8,
+      lowStockThreshold: 3,
+      approvalStatus: "pending",
+      approvedAt: null,
+      approvedBy: null,
+      rejectionReason: null,
+    }));
+    expect(savedUpdate.editHistory[0]).toMatchObject({
+      action: "vendor_bulk_edit",
+      actorRole: "vendor_staff",
+      staffEmail: "ops@example.com",
+      changedFields: ["price", "stock", "lowStockThreshold"],
+      criticalFields: ["price"],
+      requiresReapproval: true,
+    });
+    expect(res.body).toEqual(expect.objectContaining({
+      success: true,
+      summary: expect.objectContaining({ requested: 1, updated: 1, failed: 0 }),
+    }));
+  });
 });

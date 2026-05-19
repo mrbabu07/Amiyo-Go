@@ -95,6 +95,7 @@ router.get("/bulk-jobs/:jobId/report", async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to download report" });
   }
 });
+router.patch("/bulk", vendorProductController.bulkProductAction);
 router.post(
   "/upload-images",
   imageUpload.array("images", 5),

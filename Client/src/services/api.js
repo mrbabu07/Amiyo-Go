@@ -751,6 +751,9 @@ export const getVendorOrderDetail = (orderId) =>
 export const updateVendorOrderStatus = (orderId, status, data = {}) =>
   api.patch(`/vendors/orders/${orderId}/status`, { ...data, status });
 
+export const bulkUpdateVendorOrders = (data) =>
+  api.patch("/vendors/orders/bulk-status", data);
+
 // ── Admin: Category commission ────────────────────────────────
 export const updateCategoryCommission = (id, rates) =>
   api.patch(
@@ -868,6 +871,9 @@ export const getVendorFinanceSummary = () =>
 export const getVendorFinanceTransactions = (params = {}) =>
   api.get("/vendors/finance/transactions", { params });
 
+export const getVendorFinanceReconciliation = (params = {}) =>
+  api.get("/vendors/finance/reconciliation", { params });
+
 export const getVendorCommissionRates = () =>
   api.get("/vendors/finance/commission-rates");
 
@@ -908,6 +914,9 @@ export const getMyCampaignJoins = () =>
 
 export const getVendorCatalogProducts = (params = {}) =>
   api.get("/vendor/products", { params });
+
+export const bulkUpdateVendorProducts = (data) =>
+  api.patch("/vendor/products/bulk", data);
 
 export const getPublicVendorMarketingItems = (vendorId, params = {}) =>
   api.get(`/vendors/${vendorId}/public-marketing`, { params });

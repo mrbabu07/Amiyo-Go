@@ -128,6 +128,7 @@ export const VENDOR_ROUTE_PERMISSIONS = [
   { prefix: "/vendor/category-requests", permission: "products:manage" },
   { prefix: "/vendor/orders", permission: "orders:view" },
   { prefix: "/vendor/returns", permission: "returns:view" },
+  { prefix: "/vendor/finance/reconciliation", permission: "finance:view" },
   { prefix: "/vendor/finance/statements", permission: "finance:view" },
   { prefix: "/vendor/finance/transactions", permission: "finance:view" },
   { prefix: "/vendor/finance/payouts", permission: "finance:view" },

@@ -210,6 +210,7 @@ const router = createBrowserRouter([
       { path: "orders", element: vendorElement(VendorOrders, "orders:view") },
       { path: "orders/:orderId", element: vendorElement(VendorOrderDetail, "orders:view") },
       { path: "finance", element: vendorElement(VendorFinance, "finance:view") },
+      { path: "finance/reconciliation", element: vendorElement(VendorFinance, "finance:view") },
       { path: "finance/payouts", element: vendorElement(VendorFinance, "finance:view") },
       { path: "finance/transactions", element: vendorElement(VendorFinance, "finance:view") },
       { path: "finance/statements", element: vendorElement(VendorFinance, "finance:view") },

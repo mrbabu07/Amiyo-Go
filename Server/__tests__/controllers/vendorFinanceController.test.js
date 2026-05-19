@@ -3,6 +3,7 @@ const {
   downloadStatement,
   getCommissionRates,
   getFinanceSummary,
+  getReconciliation,
   getTransactions,
 } = require("../../controllers/vendor/vendorFinanceController");
 
@@ -227,6 +228,103 @@ describe("vendor finance controller", () => {
       total: 1,
       page: 1,
       pages: 1,
+    });
+  });
+
+  test("getReconciliation exposes COD exposure, payout holds, and available balance", async () => {
+    const vendorId = new ObjectId();
+    const deliveredOrderId = new ObjectId();
+    const pendingOrderId = new ObjectId();
+    const req = buildFinanceReq({
+      vendorId,
+      orders: [
+        {
+          _id: deliveredOrderId,
+          createdAt: new Date("2026-05-08T10:00:00.000Z"),
+          paymentMethod: "cod",
+          deliveryBreakdown: [
+            {
+              vendorId: vendorId.toString(),
+              deliveryMethod: "vendor_delivery",
+              deliveryFee: 50,
+            },
+          ],
+          products: [
+            {
+              vendorId: vendorId.toString(),
+              title: "Laptop bag",
+              price: 1000,
+              quantity: 1,
+              itemStatus: "delivered",
+              adminCommissionAmount: 100,
+              vendorEarningAmount: 900,
+            },
+          ],
+        },
+        {
+          _id: pendingOrderId,
+          createdAt: new Date("2026-05-09T10:00:00.000Z"),
+          paymentMethod: "cod",
+          products: [
+            {
+              vendorId: vendorId.toString(),
+              title: "Mouse",
+              price: 500,
+              quantity: 1,
+              itemStatus: "processing",
+              adminCommissionAmount: 50,
+              vendorEarningAmount: 450,
+            },
+          ],
+        },
+      ],
+      returns: [
+        {
+          _id: new ObjectId(),
+          orderId: deliveredOrderId,
+          status: "completed",
+          productTitle: "Laptop bag",
+          vendorDeduction: 200,
+          approvedAt: new Date("2026-05-10T10:00:00.000Z"),
+        },
+      ],
+      payouts: [
+        { _id: new ObjectId(), vendorId, status: "paid", amount: 300 },
+        { _id: new ObjectId(), vendorId, status: "processing", amount: 100 },
+        { _id: new ObjectId(), vendorId, status: "risk_hold", amount: 50 },
+      ],
+    });
+    const res = createRes();
+
+    await getReconciliation(req, res);
+
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: expect.objectContaining({
+        summary: expect.objectContaining({
+          grossSales: 1500,
+          returnDeduction: 200,
+          releasedNet: 750,
+          pendingPayouts: 100,
+          payoutHolds: 50,
+          paidPayouts: 300,
+          availableBalance: 300,
+        }),
+        cod: expect.objectContaining({
+          orders: 2,
+          pendingExposure: 450,
+          releasedExposure: 750,
+        }),
+        orderStatus: expect.objectContaining({
+          released: 1,
+          pending: 1,
+          refundDeducted: 1,
+        }),
+        buckets: expect.arrayContaining([
+          expect.objectContaining({ key: "payout_holds", amount: 50, type: "hold" }),
+          expect.objectContaining({ key: "return_deductions", amount: 200, type: "debit" }),
+        ]),
+      }),
     });
   });
 

@@ -100,6 +100,21 @@ const sanitizeVariants = (variants = []) => {
   }));
 };
 
+const getBulkProductIds = (productIds = []) =>
+  [...new Set((Array.isArray(productIds) ? productIds : [])
+    .map((id) => String(id || "").trim())
+    .filter((id) => ObjectId.isValid(id)))]
+    .slice(0, 200);
+
+const sanitizeBulkProductUpdateRow = (row = {}) => ({
+  productId: String(row.productId || row.id || "").trim(),
+  ...(row.price !== undefined ? { price: parseFloat(row.price) || 0 } : {}),
+  ...(row.stock !== undefined ? { stock: parseInt(row.stock, 10) || 0 } : {}),
+  ...(row.status !== undefined ? { status: String(row.status || "active").trim() } : {}),
+  ...(row.lowStockThreshold !== undefined ? { lowStockThreshold: parseInt(row.lowStockThreshold, 10) || 0 } : {}),
+  ...(row.variants !== undefined ? { variants: sanitizeVariants(row.variants) } : {}),
+});
+
 const normalizeComparableValue = (value) => {
   if (value === undefined) return "__undefined__";
   if (value === null) return null;
@@ -152,6 +167,51 @@ const buildVendorEditHistoryEntry = (product = {}, updateData = {}, req, { requi
     summary: `Updated ${fieldSummary}`,
     at: new Date(),
   };
+};
+
+const buildBulkProductUpdateData = (product = {}, row = {}, req) => {
+  const updateData = {};
+  if (row.price !== undefined) updateData.price = row.price;
+  if (row.stock !== undefined) updateData.stock = row.stock;
+  if (row.variants !== undefined) updateData.variants = row.variants;
+  if (row.lowStockThreshold !== undefined) updateData.lowStockThreshold = Math.max(0, Number(row.lowStockThreshold) || 0);
+  if (row.status !== undefined) {
+    Object.assign(updateData, getListingState(row.status));
+    if (row.status === "active" && ["draft", "rejected"].includes(product.approvalStatus)) {
+      updateData.approvalStatus = "pending";
+      updateData.lastSubmittedAt = new Date();
+      updateData.approvedAt = null;
+      updateData.approvedBy = null;
+      updateData.rejectionReason = null;
+    }
+  }
+
+  let criticalChanged = false;
+  if (product.approvalStatus === "approved" && updateData.approvalStatus !== "draft") {
+    criticalChanged = CRITICAL_FIELDS.some((field) => updateData[field] !== undefined && valuesDiffer(product[field], updateData[field]));
+    if (criticalChanged) {
+      updateData.approvalStatus = "pending";
+      updateData.approvedAt = null;
+      updateData.approvedBy = null;
+      updateData.lastSubmittedAt = new Date();
+      updateData.lastModeratedAt = null;
+      updateData.rejectionReason = null;
+    }
+  }
+
+  const editHistoryEntry = buildVendorEditHistoryEntry(product, updateData, req, {
+    requiresReapproval: criticalChanged,
+  });
+  if (editHistoryEntry) {
+    editHistoryEntry.action = "vendor_bulk_edit";
+    editHistoryEntry.summary = `Bulk updated ${editHistoryEntry.changedFields.join(", ") || "listing status"}`;
+    updateData.editHistory = [
+      editHistoryEntry,
+      ...(Array.isArray(product.editHistory) ? product.editHistory : []),
+    ].slice(0, EDIT_HISTORY_LIMIT);
+  }
+
+  return updateData;
 };
 
 const getListingState = (status) => {
@@ -239,6 +299,121 @@ exports.getVendorProducts = async (req, res) => {
   } catch (error) {
     console.error("Error fetching vendor products:", error);
     res.status(500).json({ error: "Failed to fetch products" });
+  }
+};
+
+exports.bulkProductAction = async (req, res) => {
+  try {
+    const Product = req.app.locals.models.Product;
+    const action = String(req.body?.action || "").trim();
+    const vendorId = req.vendor._id.toString();
+    const results = [];
+
+    if (!["update_fields", "submit", "archive", "delete"].includes(action)) {
+      return res.status(400).json({ success: false, error: "Unsupported bulk product action" });
+    }
+
+    if (action === "update_fields") {
+      const updateRows = (Array.isArray(req.body?.updates) ? req.body.updates : [])
+        .map(sanitizeBulkProductUpdateRow)
+        .filter((row) => ObjectId.isValid(row.productId))
+        .slice(0, 200);
+
+      if (!updateRows.length) {
+        return res.status(400).json({ success: false, error: "No product updates supplied" });
+      }
+
+      for (const row of updateRows) {
+        try {
+          const product = await Product.findById(row.productId);
+          if (!product) {
+            results.push({ productId: row.productId, success: false, error: "Product not found" });
+            continue;
+          }
+          if (product.vendorId.toString() !== vendorId) {
+            results.push({ productId: row.productId, success: false, error: "Not authorized" });
+            continue;
+          }
+
+          const updateData = buildBulkProductUpdateData(product, row, req);
+          if (Object.keys(updateData).length === 0) {
+            results.push({ productId: row.productId, success: true, skipped: true });
+            continue;
+          }
+
+          await Product.update(row.productId, updateData);
+          results.push({
+            productId: row.productId,
+            success: true,
+            requiresReapproval: updateData.approvalStatus === "pending",
+          });
+        } catch (rowError) {
+          results.push({ productId: row.productId, success: false, error: rowError.message || "Update failed" });
+        }
+      }
+    } else {
+      const productIds = getBulkProductIds(req.body?.productIds);
+      if (!productIds.length) {
+        return res.status(400).json({ success: false, error: "No products selected" });
+      }
+
+      for (const productId of productIds) {
+        try {
+          const product = await Product.findById(productId);
+          if (!product) {
+            results.push({ productId, success: false, error: "Product not found" });
+            continue;
+          }
+          if (product.vendorId.toString() !== vendorId) {
+            results.push({ productId, success: false, error: "Not authorized" });
+            continue;
+          }
+
+          if (action === "submit") {
+            if (product.approvalStatus === "approved") {
+              results.push({ productId, success: false, error: "Already approved" });
+              continue;
+            }
+            await Product.update(productId, {
+              status: "active",
+              isActive: true,
+              approvalStatus: "pending",
+              rejectionReason: null,
+              lastSubmittedAt: new Date(),
+            });
+          }
+
+          if (action === "archive") {
+            await Product.update(productId, { isActive: false, status: "inactive" });
+          }
+
+          if (action === "delete") {
+            await Product.delete(productId);
+          }
+
+          results.push({ productId, success: true, action });
+        } catch (itemError) {
+          results.push({ productId, success: false, error: itemError.message || "Bulk action failed" });
+        }
+      }
+    }
+
+    const updated = results.filter((item) => item.success).length;
+    const failed = results.length - updated;
+
+    res.json({
+      success: failed === 0,
+      message: `${updated} product${updated === 1 ? "" : "s"} processed${failed ? `, ${failed} failed` : ""}`,
+      summary: {
+        requested: results.length,
+        updated,
+        failed,
+      },
+      results,
+    });
+  } catch (error) {
+    console.error("Error applying vendor bulk product action:", error);
+    res.status(500).json({ success: false, error: "Failed to apply bulk product action" });
   }
 };
 

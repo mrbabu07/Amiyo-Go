@@ -130,6 +130,7 @@ router.get(
 );
 router.get("/orders/stats",    verifyToken, vendorDashboardController.getVendorOrderStats);
 router.get("/orders",          verifyToken, vendorDashboardController.getVendorOrders);
+router.patch("/orders/bulk-status", verifyToken, requireApprovedVendor, vendorDashboardController.bulkUpdateVendorOrders);
 router.get("/orders/:orderId", verifyToken, vendorDashboardController.getVendorOrderDetail);
 router.patch("/orders/:orderId/status",  verifyToken, vendorDashboardController.updateOrderStatus);
 

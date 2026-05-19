@@ -300,6 +300,118 @@ const summarizeLedger = ({ ledgerRows = [], payouts = [], returnDeductions = {},
   };
 };
 
+const getPayoutStatus = (payout = {}) => String(payout.status || "").toLowerCase();
+
+const buildFinanceReconciliation = ({ ledgerRows = [], payouts = [], returnDeductions = {} } = {}) => {
+  const paidPayouts = payouts.filter((payout) => ["paid", "completed"].includes(getPayoutStatus(payout)));
+  const pendingPayouts = payouts.filter((payout) => ["pending", "approved", "processing"].includes(getPayoutStatus(payout)));
+  const heldPayouts = payouts.filter((payout) => ["hold", "held", "risk_hold", "blocked"].includes(getPayoutStatus(payout)));
+  const codRows = ledgerRows.filter((row) =>
+    ["cod", "cash_on_delivery", "cash on delivery"].includes(String(row.paymentMethod || "").toLowerCase()),
+  );
+  const releasedRows = ledgerRows.filter((row) => row.itemStatus === "released");
+  const pendingRows = ledgerRows.filter((row) => ["pending_clearance", "shipping"].includes(row.itemStatus));
+  const refundRows = ledgerRows.filter((row) => Number(row.refundDeducted || 0) > 0);
+  const shippingCredit = ledgerRows.reduce((sum, row) => sum + Number(row.shippingFeeCredited || 0), 0);
+  const shippingDebit = ledgerRows.reduce((sum, row) => sum + Number(row.shippingFeeDebited || 0), 0);
+  const grossSales = ledgerRows.reduce((sum, row) => sum + Number(row.saleAmount || 0), 0);
+  const commission = ledgerRows.reduce((sum, row) => sum + Number(row.platformCommissionAmount || 0), 0);
+  const vendorEarnings = ledgerRows.reduce((sum, row) => sum + Number(row.vendorEarning || 0), 0);
+  const returnDeduction = Number(returnDeductions.totalDeduction || 0);
+  const paidAmount = paidPayouts.reduce((sum, payout) => sum + Number(payout.amount || 0), 0);
+  const pendingPayoutAmount = pendingPayouts.reduce((sum, payout) => sum + Number(payout.amount || 0), 0);
+  const heldPayoutAmount = heldPayouts.reduce((sum, payout) => sum + Number(payout.amount || 0), 0);
+  const releasedNet = releasedRows.reduce((sum, row) => sum + Number(row.netPayout || 0), 0);
+  const available = Math.max(0, releasedNet - paidAmount - pendingPayoutAmount - heldPayoutAmount);
+
+  const buckets = [
+    {
+      key: "gross_sales",
+      label: "Gross order sales",
+      amount: round2(grossSales),
+      type: "credit",
+      description: "Vendor item sales before commission, shipping, returns, and payout movement.",
+    },
+    {
+      key: "commission",
+      label: "Platform commission",
+      amount: round2(commission),
+      type: "debit",
+      description: "Marketplace commission deducted from vendor sales.",
+    },
+    {
+      key: "shipping_adjustment",
+      label: "Shipping adjustment",
+      amount: round2(Math.abs(shippingCredit - shippingDebit)),
+      type: shippingCredit >= shippingDebit ? "credit" : "debit",
+      description: "Vendor delivery credits minus platform delivery debits.",
+    },
+    {
+      key: "return_deductions",
+      label: "Return/refund deductions",
+      amount: round2(returnDeduction),
+      type: "debit",
+      description: "Approved return deductions already applied to seller earnings.",
+    },
+    {
+      key: "pending_payouts",
+      label: "Pending payout requests",
+      amount: round2(pendingPayoutAmount),
+      type: "hold",
+      description: "Money requested but not marked paid by admin yet.",
+    },
+    {
+      key: "payout_holds",
+      label: "Payout holds",
+      amount: round2(heldPayoutAmount),
+      type: "hold",
+      description: "Funds held for risk, dispute, COD, or finance review.",
+    },
+    {
+      key: "paid_payouts",
+      label: "Paid payouts",
+      amount: round2(paidAmount),
+      type: "paid",
+      description: "Transfers already marked paid by finance.",
+    },
+  ];
+
+  return {
+    summary: {
+      grossSales: round2(grossSales),
+      vendorEarnings: round2(vendorEarnings),
+      commission: round2(commission),
+      shippingCredit: round2(shippingCredit),
+      shippingDebit: round2(shippingDebit),
+      returnDeduction: round2(returnDeduction),
+      releasedNet: round2(releasedNet),
+      pendingPayouts: round2(pendingPayoutAmount),
+      payoutHolds: round2(heldPayoutAmount),
+      paidPayouts: round2(paidAmount),
+      availableBalance: round2(available),
+    },
+    cod: {
+      orders: codRows.length,
+      pendingExposure: round2(codRows
+        .filter((row) => row.itemStatus !== "released")
+        .reduce((sum, row) => sum + Number(row.netPayout || 0), 0)),
+      releasedExposure: round2(codRows
+        .filter((row) => row.itemStatus === "released")
+        .reduce((sum, row) => sum + Number(row.netPayout || 0), 0)),
+    },
+    orderStatus: {
+      released: releasedRows.length,
+      pending: pendingRows.length,
+      refundDeducted: refundRows.length,
+      void: ledgerRows.filter((row) => row.itemStatus === "void").length,
+    },
+    buckets,
+    orderRows: ledgerRows.slice(0, 100),
+    returnRows: (returnDeductions.returns || []).slice(0, 50),
+    payoutRows: payouts.slice(0, 50),
+  };
+};
+
 const loadVendorFinanceData = async (req, { range = null, status = null, limit = 1000, page = 1 } = {}) => {
   const vendorId = req.user.vendorId;
   const { Order, VendorPayout, Return } = req.app.locals.models;
@@ -318,7 +430,10 @@ const loadVendorFinanceData = async (req, { range = null, status = null, limit =
     ordersCursor.skip(skip).limit(limitNumber).toArray(),
     Order.collection.countDocuments(query),
     VendorPayout.collection
-      .find({ vendorId: getObjectId(vendorId), status: { $in: ["paid", "pending", "approved"] } })
+      .find({
+        vendorId: getObjectId(vendorId),
+        status: { $in: ["paid", "completed", "pending", "approved", "processing", "hold", "held", "risk_hold", "blocked"] },
+      })
       .sort({ createdAt: -1 })
       .toArray(),
     Return.getVendorDeductions(vendorId, range?.start || null, range?.end || null),
@@ -473,6 +588,26 @@ exports.getTransactions = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching vendor transactions:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.getReconciliation = async (req, res) => {
+  try {
+    if (!requireVendor(req, res)) return;
+
+    const { month } = req.query;
+    const range = month ? getMonthRange(month) : null;
+    const financeData = await loadVendorFinanceData(req, { range, limit: 1000 });
+    const reconciliation = buildFinanceReconciliation({
+      ledgerRows: financeData.ledgerRows,
+      payouts: financeData.payouts,
+      returnDeductions: financeData.returnDeductions,
+    });
+
+    res.json({ success: true, data: reconciliation });
+  } catch (error) {
+    console.error("Error fetching vendor finance reconciliation:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -776,4 +911,10 @@ exports.getAvailableBalance = async (req, res) => {
     console.error("Error fetching available balance:", error);
     res.status(500).json({ success: false, error: error.message });
   }
+};
+
+exports._private = {
+  buildFinanceReconciliation,
+  buildLedgerRows,
+  summarizeLedger,
 };

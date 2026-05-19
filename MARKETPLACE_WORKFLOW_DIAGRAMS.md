@@ -509,7 +509,9 @@ sequenceDiagram
 | Logistics state machine | Present | Forward, reverse, and COD state machines exist. |
 | Auto shipment draft at order placement | Present | Order creation now creates shipment drafts for each vendor/platform group; vendor logistics actions continue the state machine. |
 | Vendor seller action center | Present | Vendor dashboard groups late fulfillment, return responses, rejected listings, stock risk, payout holds, category requests, KYC, payout setup, and marketing gaps into one prioritized seller queue. |
+| Vendor bulk operations | Present | Seller center supports server-side bulk order status transitions, product bulk field edits, bulk submit/delist/delete actions, and CSV exports for selected/filtered rows. |
 | Vendor finance command view | Present | Vendor dashboard summarizes available payout estimate, pending payout exposure, COD pending/collected, return deductions, payout holds, delivered earnings, and refund exposure. |
+| Vendor finance reconciliation | Present | Vendor finance center reconciles gross sales, commission, shipping adjustments, returns, COD exposure, pending/held/paid payouts, and available balance. |
 | Vendor fulfillment command view | Present | Vendor dashboard shows active packing/pickup work, late SLA breaches, due-soon orders, and the next fulfillment deadline. |
 | Vendor readiness checks | Present | Vendor dashboard scores KYC, shop profile, category access, payout setup, catalog readiness, fulfillment health, returns, marketing, and team access. |
 | Admin global search | Present | Admin header can search orders, vendors, products, customers, returns, and support tickets with a detail drawer. |
@@ -532,6 +534,6 @@ sequenceDiagram
 3. Continue expanding event-bus publishers to every remaining payment-updated, shipment-updated, return-updated, and support-replied path.
 4. Add a search adapter boundary so Mongo search can later be replaced by Typesense without changing page code.
 5. Add courier API adapters on top of the existing shipment drafts/state machine when a delivery partner is selected.
-6. Add vendor bulk actions for order processing, stock updates, product moderation fixes, and payout exports on top of the seller action center.
+6. Add vendor payout statement export from the reconciliation tab if finance wants a single CSV for orders, returns, COD, and payout movement.
 7. Add Playwright/Cypress browser runs against the new admin and vendor test ids once an E2E runner is selected.
 8. Add a diagram update checklist to every future phase so docs and workflow stay synced with implementation.

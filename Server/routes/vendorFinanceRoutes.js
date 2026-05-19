@@ -14,6 +14,7 @@ router.use(verifyToken, requireApprovedVendor);
 
 router.get("/summary", requireVendorPermission("finance:view"), vendorFinanceController.getFinanceSummary);
 router.get("/transactions", requireVendorPermission("finance:view"), vendorFinanceController.getTransactions);
+router.get("/reconciliation", requireVendorPermission("finance:view"), vendorFinanceController.getReconciliation);
 router.get("/commission-rates", requireVendorPermission("finance:view"), vendorFinanceController.getCommissionRates);
 router.get("/statement/:format", requireVendorPermission("finance:view"), vendorFinanceController.downloadStatement);
 router.get("/tax-invoice", requireVendorPermission("finance:view"), vendorFinanceController.downloadTaxInvoice);

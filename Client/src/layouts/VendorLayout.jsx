@@ -59,6 +59,7 @@ const navGroups = [
     icon: CreditCard,
     children: [
       { name: "Overview", path: "/vendor/finance", icon: CreditCard, permission: "finance:view" },
+      { name: "Reconciliation", path: "/vendor/finance/reconciliation", icon: FileCheck2, permission: "finance:view" },
       { name: "Payouts", path: "/vendor/finance/payouts", icon: CreditCard, permission: "finance:view" },
       { name: "Transactions", path: "/vendor/finance/transactions", icon: BarChart3, permission: "finance:view" },
       { name: "Statements", path: "/vendor/finance/statements", icon: FileCheck2, permission: "finance:view" },
