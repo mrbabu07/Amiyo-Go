@@ -126,7 +126,18 @@
     "securePayment": "Easy & Secured Payment",
     "securePaymentText": "bKash, Nagad, card, and COD",
     "fastDelivery": "Fast Delivery",
-    "fastDeliveryText": "Reliable delivery across Bangladesh"
+    "fastDeliveryText": "Reliable delivery across Bangladesh",
+    "flashDealSpotlight": "Deal spotlight",
+    "shopDeal": "Shop deal",
+    "activeVoucher": "Active voucher",
+    "activeVoucherFallback": "Savings ready",
+    "voucherReady": "Voucher ready",
+    "exploreFast": "Explore faster",
+    "exploreFastText": "Jump into popular departments and fresh marketplace picks.",
+    "activeDepartments": "Departments",
+    "liveDeals": "Live deals",
+    "newToday": "New arrivals",
+    "sellerNetwork": "Seller signals"
   },
   "productCard": {
     "backorder": "Backorder",

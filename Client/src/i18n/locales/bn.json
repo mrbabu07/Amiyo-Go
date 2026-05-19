@@ -126,7 +126,18 @@
     "securePayment": "সহজ ও নিরাপদ পেমেন্ট",
     "securePaymentText": "বিকাশ, নগদ, কার্ড ও COD",
     "fastDelivery": "দ্রুত ডেলিভারি",
-    "fastDeliveryText": "বাংলাদেশজুড়ে নির্ভরযোগ্য ডেলিভারি"
+    "fastDeliveryText": "বাংলাদেশজুড়ে নির্ভরযোগ্য ডেলিভারি",
+    "flashDealSpotlight": "ডিল স্পটলাইট",
+    "shopDeal": "ডিল দেখুন",
+    "activeVoucher": "অ্যাকটিভ ভাউচার",
+    "activeVoucherFallback": "সেভিংস প্রস্তুত",
+    "voucherReady": "ভাউচার প্রস্তুত",
+    "exploreFast": "দ্রুত এক্সপ্লোর",
+    "exploreFastText": "জনপ্রিয় বিভাগ ও নতুন মার্কেটপ্লেস পিকসে দ্রুত যান।",
+    "activeDepartments": "ডিপার্টমেন্ট",
+    "liveDeals": "লাইভ ডিল",
+    "newToday": "নতুন পণ্য",
+    "sellerNetwork": "সেলার সিগন্যাল"
   },
   "productCard": {
     "backorder": "ব্যাকঅর্ডার",
