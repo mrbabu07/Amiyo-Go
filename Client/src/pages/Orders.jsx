@@ -51,6 +51,7 @@ export default function Orders() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancellingOrder, setCancellingOrder] = useState(false);
   const [downloadingInvoice, setDownloadingInvoice] = useState({});
+  const [expandedOrders, setExpandedOrders] = useState({});
 
   // Review modal states
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -83,53 +84,63 @@ export default function Orders() {
   const statusConfig = {
     pending: {
       color:
-        "bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800 border-yellow-200",
+        "border-accent-200 bg-accent-50 text-accent-800",
       icon: "⏳",
       description: "Order received and being processed",
     },
     processing: {
       color:
-        "bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 border-blue-200",
+        "border-primary-200 bg-primary-50 text-primary-700",
       icon: "🔄",
       description: "Order is being prepared",
     },
     shipped: {
       color:
-        "bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800 border-purple-200",
+        "border-secondary-200 bg-secondary-50 text-secondary-700",
       icon: "📦",
       description: "Order has been shipped",
     },
     delivered: {
       color:
-        "bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-green-200",
+        "border-success-200 bg-success-50 text-success-700",
       icon: "✅",
       description: "Order delivered successfully",
     },
     return: {
       color:
-        "bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 border-orange-200",
+        "border-accent-200 bg-accent-50 text-accent-800",
       icon: "Return",
       description: "Return or refund is in progress",
     },
     returned: {
       color:
-        "bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 border-orange-200",
+        "border-accent-200 bg-accent-50 text-accent-800",
       icon: "Return",
       description: "Order returned",
     },
     partially_returned: {
       color:
-        "bg-gradient-to-r from-orange-100 to-amber-100 text-orange-800 border-orange-200",
+        "border-accent-200 bg-accent-50 text-accent-800",
       icon: "Return",
       description: "Some items were returned",
     },
     cancelled: {
       color:
-        "bg-gradient-to-r from-red-100 to-pink-100 text-red-800 border-red-200",
+        "bg-red-50 text-red-800 border-red-200",
       icon: "❌",
       description: "Order has been cancelled",
     },
   };
+
+  const filterTabs = [
+    "all",
+    "pending",
+    "processing",
+    "shipped",
+    "delivered",
+    "cancelled",
+    "return",
+  ];
 
   const getOrderStatusGroup = (order) => {
     if (order.customerExperience?.hasReturn) return "return";
@@ -445,7 +456,7 @@ export default function Orders() {
       lineDiscount: pricing.discountShare || 0,
       payableLineTotal: pricing.payableLineTotal ?? (item.price || 0) * (item.quantity || 0),
       payableUnitPrice: pricing.payableUnitPrice ?? item.price,
-      vendorName: item.vendorName || item.shopName || "HnilaBazar",
+      vendorName: item.vendorName || item.shopName || "Amiyo-Go",
       courierName: item.courierName || order.customerExperience?.tracking?.courierName || "Internal courier",
       paymentMethod: order.paymentMethod,
       trackingNumber: item.trackingNumber || order.customerExperience?.tracking?.trackingNumber || "",
@@ -580,22 +591,39 @@ export default function Orders() {
     statusConfig[getOrderStatusGroup(order)] ||
     statusConfig.pending;
 
+  const getStatusDotClass = (order) => {
+    const group = getOrderStatusGroup(order);
+    if (["delivered"].includes(order.status || group)) return "bg-success-500";
+    if (["cancelled"].includes(order.status || group)) return "bg-red-500";
+    if (["return", "returned", "partially_returned"].includes(group)) return "bg-accent-500";
+    if (["shipped"].includes(order.status || group)) return "bg-secondary-500";
+    if (["processing"].includes(order.status || group)) return "bg-primary-500";
+    return "bg-accent-500";
+  };
+
   const formatStatusText = (value) =>
     String(value || "pending")
       .replace(/_/g, " ")
       .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
+  const toggleOrderExpanded = (orderId) => {
+    setExpandedOrders((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
+
   if (loading) return <Loading />;
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-900">
       {/* Back Button */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <div className="max-w-5xl mx-auto px-4 pt-4 sm:px-6 lg:px-8 sm:pt-8">
         <BackButton />
       </div>
 
       {/* Success Message */}
       {showSuccess && (
-        <div className="fixed top-4 right-4 z-50 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-4 rounded-xl shadow-lg animate-slide-up">
+        <div className="fixed top-4 right-4 z-50 rounded-xl bg-success-500 px-6 py-4 text-white shadow-lg animate-slide-up">
           <div className="flex items-center gap-3">
             <svg
               className="w-6 h-6"
@@ -621,17 +649,17 @@ export default function Orders() {
       )}
 
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-5xl mx-auto px-4 py-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-5xl mx-auto px-4 py-5 sm:py-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 sm:gap-4">
               <Link
                 to="/"
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="shrink-0 rounded-lg border border-primary-200 bg-primary-50 p-2 text-primary-700 transition hover:bg-primary-100"
                 title="Back to Home"
               >
                 <svg
-                  className="w-6 h-6 text-gray-600"
+                  className="w-5 h-5 sm:w-6 sm:h-6"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -644,19 +672,19 @@ export default function Orders() {
                   />
                 </svg>
               </Link>
-              <div className={returnWizardStep === 2 ? "space-y-2" : "hidden"}>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
+              <div>
+                <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">
                   My Orders
                 </h1>
-                <p className="text-gray-600 mt-1">
+                <p className="mt-1 text-sm font-medium text-gray-500 sm:text-base">
                   Track and manage your orders
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
               <Link
                 to="/returns"
-                className="px-4 py-2 text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50 transition-colors flex items-center gap-2"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm font-bold text-primary-700 transition hover:bg-primary-50 sm:px-4"
               >
                 <svg
                   className="w-4 h-4"
@@ -673,7 +701,7 @@ export default function Orders() {
                 </svg>
                 My Returns
               </Link>
-              <Link to="/" className="btn-primary flex items-center gap-2">
+              <Link to="/" className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-primary-700 sm:px-4">
                 <svg
                   className="w-5 h-5"
                   fill="none"
@@ -694,41 +722,39 @@ export default function Orders() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      <div className="max-w-5xl mx-auto px-4 py-5 sm:py-8">
         {/* Filter Tabs */}
-        <div className="bg-white rounded-2xl shadow-sm border p-2 mb-8 flex flex-wrap gap-2">
-          {[
-            "all",
-            "pending",
-            "processing",
-            "shipped",
-            "delivered",
-            "cancelled",
-            "return",
-          ].map((status) => (
+        <div className="-mx-4 mb-5 overflow-x-auto px-4 sm:mx-0 sm:mb-8 sm:overflow-visible sm:px-0">
+          <div className="flex min-w-max gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-sm sm:min-w-0 sm:flex-wrap">
+          {filterTabs.map((status) => (
             <button
               key={status}
               onClick={() => setFilter(status)}
-              className={`px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
+              className={`inline-flex min-h-11 items-center rounded-xl px-4 py-2.5 text-sm font-bold transition-all sm:px-5 ${
                 filter === status
-                  ? "bg-gradient-to-r from-primary-500 to-secondary-500 text-white shadow-lg"
+                  ? "bg-primary-600 text-white shadow-sm"
                   : "text-gray-600 hover:bg-gray-100"
               }`}
             >
-              {status.charAt(0).toUpperCase() + status.slice(1)}
+              <span>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
               {status !== "all" && (
-                <span className="ml-2 text-xs opacity-75">
-                  ({orders.filter((o) => getOrderStatusGroup(o) === status).length})
+                <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+                  filter === status
+                    ? "bg-white text-primary-700"
+                    : "bg-primary-50 text-primary-700"
+                }`}>
+                  {orders.filter((o) => getOrderStatusGroup(o) === status).length}
                 </span>
               )}
             </button>
           ))}
+          </div>
         </div>
 
         {/* Orders List */}
         {filteredOrders.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm border p-12 text-center">
-            <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm sm:p-12">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gray-100 sm:h-24 sm:w-24">
               <svg
                 className="w-12 h-12 text-gray-400"
                 fill="none"
@@ -751,34 +777,37 @@ export default function Orders() {
                 ? "Start shopping to see your orders here"
                 : "Try selecting a different filter"}
             </p>
-            <Link to="/" className="btn-primary inline-block">
+            <Link to="/" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary-600 px-5 py-2.5 font-bold text-white transition hover:bg-primary-700">
               Start Shopping
             </Link>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {filteredOrders.map((order) => {
               const summary = getCustomerOrderSummary(order);
               const couponCode = order.couponApplied?.code || order.couponCode;
+              const isExpanded = Boolean(expandedOrders[order._id]);
+              const previewItems = order.products.slice(0, 3);
+              const hiddenItemCount = Math.max(order.products.length - previewItems.length, 0);
 
               return (
               <div
                 key={order._id}
-                className="bg-white rounded-2xl shadow-sm border hover:shadow-md transition-all overflow-hidden"
+                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all hover:shadow-md"
               >
                 {/* Order Header */}
-                <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex flex-wrap items-center gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-500">Order ID:</span>
-                        <span className="font-mono font-bold text-gray-900 bg-white px-3 py-1 rounded-lg">
+                <div className="border-b border-gray-200 bg-slate-50 px-4 py-4 sm:px-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 space-y-2 text-sm sm:space-y-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-gray-500">Order ID</span>
+                        <span className="rounded-lg bg-white px-3 py-1 font-mono font-black text-gray-900 ring-1 ring-gray-200">
                           #{order._id.slice(-8).toUpperCase()}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-500">Date:</span>
-                        <span className="font-semibold text-gray-900">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-gray-500">Date</span>
+                        <span className="font-bold text-gray-900">
                           {new Date(order.createdAt).toLocaleDateString(
                             "en-US",
                             {
@@ -792,36 +821,124 @@ export default function Orders() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
                       <span
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border ${getStatusMeta(order).color}`}
+                        className={`col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold sm:col-span-1 sm:px-4 ${getStatusMeta(order).color}`}
                       >
-                        <span className="text-lg">
-                          {getStatusMeta(order).icon}
-                        </span>
+                        <span className={`h-2 w-2 rounded-full ${getStatusDotClass(order)}`} />
                         {formatStatusText(order.status)}
                       </span>
                       <Link
                         to={`/orders/${order._id}/track`}
-                        className="inline-flex rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-700 transition hover:bg-sky-100"
+                        className="inline-flex min-h-10 items-center justify-center rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-bold text-primary-700 transition hover:bg-primary-100"
                       >
                         Track
                       </Link>
                       <Link
                         to={`/orders/${order._id}`}
-                        className="inline-flex rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-primary-300 hover:text-primary-700"
+                        className="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-primary-300 hover:text-primary-700"
                       >
                         Details
                       </Link>
                     </div>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => toggleOrderExpanded(order._id)}
+                  aria-expanded={isExpanded}
+                  className={`flex w-full flex-col gap-3 border-b px-4 py-4 text-left transition sm:flex-row sm:items-center sm:justify-between sm:px-6 ${
+                    isExpanded
+                      ? "border-primary-200 bg-primary-50"
+                      : "border-gray-200 bg-white hover:bg-primary-50"
+                  }`}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex shrink-0 -space-x-2">
+                      {previewItems.map((item, index) => {
+                        const receiptItem = getReceiptItem(order, index, item);
+                        const previewImage = receiptItem.thumbnail || item.image;
+
+                        return (
+                          <span
+                            key={`${order._id}-preview-${index}`}
+                            className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border-2 border-white bg-gray-100 shadow-sm"
+                          >
+                            {previewImage ? (
+                              <img
+                                src={previewImage}
+                                alt={receiptItem.title}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <svg
+                                className="h-5 w-5 text-gray-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                                />
+                              </svg>
+                            )}
+                          </span>
+                        );
+                      })}
+                      {hiddenItemCount > 0 && (
+                        <span className="flex h-11 w-11 items-center justify-center rounded-xl border-2 border-white bg-primary-900 text-xs font-black text-white shadow-sm">
+                          +{hiddenItemCount}
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-950 sm:text-base">
+                        {summary.itemCount}{" "}
+                        {summary.itemCount === 1 ? "item" : "items"} /{" "}
+                        {formatPrice(summary.total)}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-gray-500 sm:text-sm">
+                        {isExpanded
+                          ? "Tap to collapse order details"
+                          : "Tap to view products, delivery, payment and invoice"}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-black sm:min-w-32 ${
+                    isExpanded
+                      ? "border-primary-600 bg-primary-600 text-white"
+                      : "border-primary-200 bg-white text-primary-700"
+                  }`}>
+                    {isExpanded ? "Collapse" : "Expand"}
+                    <svg
+                      className={`h-4 w-4 transition-transform ${
+                        isExpanded ? "rotate-180" : ""
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </span>
+                </button>
+
                 {/* Order Content */}
-                <div className="p-6">
+                <div className={`${isExpanded ? "block" : "hidden"} p-4 sm:p-6`}>
                   {/* Status Description */}
-                  <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
-                    <p className="text-sm text-blue-800 font-medium">
-                      📋 {statusConfig[order.status]?.description}
+                  <div className="mb-4 rounded-xl border border-primary-200 bg-primary-50 p-4 sm:mb-6">
+                    <p className="text-sm font-semibold text-slate-950">
+                      {getStatusMeta(order).description}
                     </p>
                   </div>
 
@@ -837,7 +954,7 @@ export default function Orders() {
                   </div>
 
                   {order.customerExperience?.tracking?.reschedule && (
-                    <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                    <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-gray-700">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="font-semibold text-gray-900">
@@ -852,7 +969,7 @@ export default function Orders() {
                             href={order.customerExperience.tracking.reschedule.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="rounded-lg bg-primary-600 px-4 py-2 text-center font-semibold text-white hover:bg-primary-700"
+                            className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-600 px-4 py-2 text-center font-bold text-white transition hover:bg-primary-700"
                           >
                             Choose slot
                           </a>
@@ -882,11 +999,11 @@ export default function Orders() {
                   )}
 
                   {order.customerExperience?.reviewPrompt?.due && (
-                    <div className="mb-6 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
-                      <p className="font-semibold text-yellow-900">
+                    <div className="mb-6 rounded-xl border border-accent-200 bg-accent-50 p-4">
+                      <p className="font-semibold text-slate-950">
                         Ready to rate your delivered items?
                       </p>
-                      <p className="mt-1 text-sm text-yellow-800">
+                      <p className="mt-1 text-sm text-accent-800">
                         The review prompt is due from{" "}
                         {order.customerExperience.reviewPrompt.promptAtLabel}; use the Review
                         button beside each item for one-tap star rating.
@@ -895,16 +1012,16 @@ export default function Orders() {
                   )}
 
                   {/* Order Items */}
-                  <div className="space-y-4 mb-6">
+                  <div className="mb-6 space-y-3 sm:space-y-4">
                     {order.products.map((item, index) => {
                       const receiptItem = getReceiptItem(order, index, item);
                       const itemHasDiscount = Number(receiptItem.lineDiscount || 0) > 0;
                       return (
                       <div
                         key={index}
-                        className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl"
+                        className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[64px_1fr_auto] sm:items-center sm:gap-4 sm:p-4"
                       >
-                        <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                        <div className="h-20 w-20 overflow-hidden rounded-lg bg-gray-200 sm:h-16 sm:w-16">
                           {receiptItem.thumbnail || item.image ? (
                             <img
                               src={receiptItem.thumbnail || item.image}
@@ -927,11 +1044,11 @@ export default function Orders() {
                             </svg>
                           )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-gray-900 truncate">
+                        <div className="min-w-0">
+                          <h4 className="line-clamp-2 font-bold text-gray-900 sm:truncate">
                             {receiptItem.title}
                           </h4>
-                          <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
                             <span>Qty: {item.quantity}</span>
                             {item.selectedSize && (
                               <span>Size: {item.selectedSize}</span>
@@ -943,13 +1060,13 @@ export default function Orders() {
                             )}
                             <span>{formatPrice(receiptItem.unitPrice || item.price)} each</span>
                             {itemHasDiscount && (
-                              <span className="font-semibold text-emerald-700">
+                              <span className="font-semibold text-success-600">
                                 {formatPrice(receiptItem.payableUnitPrice)} after discount
                               </span>
                             )}
                           </div>
                           {itemHasDiscount && (
-                            <div className="mt-1 text-xs font-semibold text-emerald-700">
+                            <div className="mt-1 text-xs font-semibold text-success-600">
                               Discount share -{formatPrice(receiptItem.lineDiscount)}
                             </div>
                           )}
@@ -967,16 +1084,16 @@ export default function Orders() {
                             )}
                           </div>
                         </div>
-                        <div className="text-right flex flex-col items-end gap-2">
+                        <div className="flex flex-col gap-2 border-t border-gray-200 pt-3 text-left sm:items-end sm:border-t-0 sm:pt-0 sm:text-right">
                           {itemHasDiscount ? (
-                            <div>
+                            <div className="sm:text-right">
                               <p className="text-xs font-semibold text-gray-400 line-through">
                                 {formatPrice(receiptItem.grossLineTotal || receiptItem.lineTotal)}
                               </p>
                               <p className="font-bold text-gray-900">
                                 {formatPrice(receiptItem.payableLineTotal)}
                               </p>
-                              <p className="text-xs font-semibold text-emerald-700">
+                              <p className="text-xs font-semibold text-success-600">
                                 -{formatPrice(receiptItem.lineDiscount)}
                               </p>
                             </div>
@@ -994,7 +1111,7 @@ export default function Orders() {
                                 `${order._id}-${item.productId || item._id}`
                               ]
                             }
-                            className="px-3 py-1 text-xs font-medium text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {reorderingItems[
                               `${order._id}-${item.productId || item._id}`
@@ -1037,14 +1154,14 @@ export default function Orders() {
 
                           {/* Action Buttons for Delivered Orders */}
                           {order.status === "delivered" && (
-                            <div className="flex gap-2">
+                            <div className="grid grid-cols-2 gap-2 sm:flex">
                               {/* Return Button */}
                               {isReturnEligible(order) && (
                                 <button
                                   onClick={() =>
                                     handleReturnRequest(order, item)
                                   }
-                                  className="px-3 py-1 text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors flex items-center gap-1"
+                                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg border border-accent-200 bg-accent-50 px-3 py-1.5 text-xs font-bold text-accent-800 transition-colors hover:bg-accent-100"
                                 >
                                   <svg
                                     className="w-3 h-3"
@@ -1065,7 +1182,7 @@ export default function Orders() {
                               {/* Review Button */}
                               <button
                                 onClick={() => handleReviewRequest(order, item)}
-                                className="px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1"
+                                className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 transition-colors hover:bg-primary-100"
                               >
                                 <svg
                                   className="w-3 h-3"
@@ -1097,10 +1214,10 @@ export default function Orders() {
                   </div>
 
                   {/* Payment & Delivery Info */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-6">
                     {/* Payment Method */}
-                    <div className="p-4 bg-green-50 rounded-xl border border-green-200">
-                      <h4 className="font-semibold text-green-800 mb-2 flex items-center gap-2">
+                    <div className="rounded-xl border border-success-200 bg-success-50 p-4">
+                      <h4 className="mb-2 flex items-center gap-2 font-bold text-success-700">
                         <svg
                           className="w-5 h-5"
                           fill="none"
@@ -1116,7 +1233,7 @@ export default function Orders() {
                         </svg>
                         Payment Method
                       </h4>
-                      <p className="text-sm text-green-700 capitalize">
+                      <p className="text-sm font-medium capitalize text-success-700">
                         {order.paymentMethod === "cod"
                           ? "Cash on Delivery"
                           : order.paymentMethod}
@@ -1125,8 +1242,8 @@ export default function Orders() {
 
                     {/* Delivery Address */}
                     {order.shippingInfo && (
-                      <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
-                        <h4 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <h4 className="mb-2 flex items-center gap-2 font-bold text-slate-950">
                           <svg
                             className="w-5 h-5"
                             fill="none"
@@ -1142,7 +1259,7 @@ export default function Orders() {
                           </svg>
                           Delivery Address
                         </h4>
-                        <div className="text-sm text-blue-700 space-y-1">
+                        <div className="space-y-1 text-sm text-gray-700">
                           <p className="font-medium">
                             {order.shippingInfo.name}
                           </p>
@@ -1158,8 +1275,8 @@ export default function Orders() {
 
                   {/* Special Instructions */}
                   {order.specialInstructions && (
-                    <div className="mb-6 p-4 bg-purple-50 rounded-xl border border-purple-200">
-                      <h4 className="font-semibold text-purple-800 mb-2 flex items-center gap-2">
+                    <div className="mb-6 rounded-xl border border-primary-200 bg-primary-50 p-4">
+                      <h4 className="mb-2 flex items-center gap-2 font-semibold text-slate-950">
                         <svg
                           className="w-5 h-5"
                           fill="none"
@@ -1175,7 +1292,7 @@ export default function Orders() {
                         </svg>
                         Special Instructions
                       </h4>
-                      <p className="text-sm text-purple-700">
+                      <p className="text-sm text-primary-700">
                         {order.specialInstructions}
                       </p>
                     </div>
@@ -1183,7 +1300,7 @@ export default function Orders() {
 
                   {/* Order Total */}
                   <div className="border-t pt-6">
-                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 space-y-3">
+                    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                       <div className="flex justify-between text-gray-600">
                         <span>
                           Subtotal ({summary.itemCount}{" "}
@@ -1198,7 +1315,7 @@ export default function Orders() {
                         <span
                           className={
                             summary.deliveryFee === 0
-                              ? "text-green-600 font-medium"
+                              ? "text-success-600 font-medium"
                               : ""
                           }
                         >
@@ -1208,7 +1325,7 @@ export default function Orders() {
                         </span>
                       </div>
                       {summary.discount > 0 && (
-                        <div className="flex justify-between text-emerald-700">
+                        <div className="flex justify-between text-success-600">
                           <span>
                             Discount{couponCode ? ` (${couponCode})` : ""}
                           </span>
@@ -1217,9 +1334,9 @@ export default function Orders() {
                           </span>
                         </div>
                       )}
-                      <div className="border-t pt-3 flex justify-between text-xl font-bold">
+                      <div className="flex justify-between border-t pt-3 text-lg font-black sm:text-xl">
                         <span>Total Paid</span>
-                        <span className="text-primary-600">
+                        <span className="text-primary-700">
                           {formatPrice(summary.total)}
                         </span>
                       </div>
@@ -1230,7 +1347,7 @@ export default function Orders() {
                         {canCancelOrder(order) && (
                           <button
                             onClick={() => openCancelModal(order)}
-                            className="w-full py-2 px-4 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-all flex items-center justify-center gap-2"
+                          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 font-bold text-white transition-all hover:bg-red-600"
                           >
                             <svg
                               className="w-5 h-5"
@@ -1253,7 +1370,7 @@ export default function Orders() {
                           type="button"
                           onClick={() => handleDownloadInvoice(order)}
                           disabled={downloadingInvoice[order._id]}
-                          className="w-full py-2 px-4 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 font-bold text-gray-700 transition-all hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {downloadingInvoice[order._id]
                             ? "Preparing invoice..."
@@ -1263,7 +1380,7 @@ export default function Orders() {
                         <button
                           onClick={() => handleReorderEntireOrder(order)}
                           disabled={reorderingItems[order._id]}
-                          className="w-full py-3 px-4 bg-gradient-to-r from-primary-500 to-secondary-500 text-white font-semibold rounded-lg hover:from-primary-600 hover:to-secondary-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-3 font-bold text-white transition-all hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {reorderingItems[order._id] ? (
                             <>
@@ -1371,7 +1488,7 @@ export default function Orders() {
               </div>
             </div>
 
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
               {returnWizardSteps.map((step, index) => {
                 const number = index + 1;
                 const active = number === returnWizardStep;
@@ -1385,7 +1502,7 @@ export default function Orders() {
                       active
                         ? "border-primary-500 bg-primary-50 text-primary-700"
                         : complete
-                          ? "border-green-200 bg-green-50 text-green-700"
+                          ? "border-success-200 bg-success-50 text-success-700"
                           : "border-gray-200 bg-gray-50 text-gray-400"
                     }`}
                   >
@@ -1456,7 +1573,7 @@ export default function Orders() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Refund Method *
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <label
                         className={`flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${
                           returnFormData.refundMethod === "bkash"
@@ -1610,10 +1727,10 @@ export default function Orders() {
                     </p>
                   </div>
 
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <div className="rounded-lg border border-accent-200 bg-accent-50 p-3">
                     <div className="flex items-start gap-2">
                       <svg
-                        className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+                        className="w-5 h-5 text-accent-600 flex-shrink-0 mt-0.5"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -1626,10 +1743,10 @@ export default function Orders() {
                         />
                       </svg>
                       <div>
-                        <p className="text-sm font-medium text-amber-800">
+                        <p className="text-sm font-medium text-slate-950">
                           Important
                         </p>
-                        <p className="text-xs text-amber-700 mt-1">
+                        <p className="text-xs text-accent-800 mt-1">
                           Please ensure the account number is correct. Refunds
                           will be processed to this account once your return is
                           approved.
@@ -1745,8 +1862,8 @@ export default function Orders() {
                 </div>
               )}
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-700">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-sm text-gray-700">
                   <strong>Return Policy:</strong> Items can be returned within 7
                   days of delivery. Products must be in original condition with
                   tags attached.
@@ -2042,8 +2159,8 @@ export default function Orders() {
                 )}
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-700">
+              <div className="rounded-lg border border-primary-200 bg-primary-50 p-3">
+                <p className="text-sm text-primary-700">
                   💡 Your review will help other customers make informed
                   decisions. Please be honest and constructive.
                 </p>

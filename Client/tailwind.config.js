@@ -67,9 +67,9 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', '"Noto Sans Bengali"', "Inter", "system-ui", "sans-serif"],
-        display: ['"Plus Jakarta Sans"', '"Noto Sans Bengali"', "Inter", "system-ui", "sans-serif"],
-        bengali: ["Noto Sans Bengali", "system-ui", "sans-serif"],
+        sans: ["Inter", '"Noto Sans Bengali"', '"Plus Jakarta Sans"', "system-ui", "sans-serif"],
+        display: ['"Plus Jakarta Sans"', "Inter", '"Noto Sans Bengali"', "system-ui", "sans-serif"],
+        bengali: ['"Noto Sans Bengali"', "Inter", "system-ui", "sans-serif"],
       },
       fontSize: {
         xs: ["0.75rem", { lineHeight: "1rem" }],

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 export default function ProductRatingDisplay({
   productId,
   showCount = true,
+  showValue = true,
   size = "sm",
   className = "",
 }) {
@@ -144,11 +145,13 @@ export default function ProductRatingDisplay({
   return (
     <div className={`flex items-center gap-1 ${className}`}>
       <div className="flex gap-1">{renderStars()}</div>
-      <span
-        className={`text-gray-600 ${size === "lg" ? "text-sm" : "text-xs"}`}
-      >
-        {rating.averageRating.toFixed(1)}
-      </span>
+      {showValue && (
+        <span
+          className={`text-gray-600 ${size === "lg" ? "text-sm" : "text-xs"}`}
+        >
+          {rating.averageRating.toFixed(1)}
+        </span>
+      )}
       {showCount && (
         <span
           className={`text-gray-500 ${size === "lg" ? "text-sm" : "text-xs"}`}

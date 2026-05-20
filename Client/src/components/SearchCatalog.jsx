@@ -175,13 +175,13 @@ const CategoryTile = ({ category, index = 0, active = false }) => {
   return (
     <Link
       to={`/products?category=${category._id}`}
-      className={`group grid min-h-16 grid-cols-[3rem_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-lg border bg-white p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#F57224] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F57224] dark:bg-gray-900 ${
+      className={`group grid min-h-16 grid-cols-[3rem_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-lg border bg-white p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:bg-gray-900 ${
         active
-          ? "border-[#F57224] ring-1 ring-orange-100 dark:border-orange-500 dark:ring-orange-900/40"
+          ? "border-primary-500 ring-1 ring-primary-100 dark:border-primary-500 dark:ring-primary-900/40"
           : "border-gray-200 dark:border-gray-800"
       }`}
     >
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#EEEEEE] text-[#1A1A2E] ring-1 ring-gray-100 dark:bg-gray-800 dark:text-white dark:ring-gray-700">
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100 text-slate-950 ring-1 ring-gray-100 dark:bg-gray-800 dark:text-white dark:ring-gray-700">
         {imageSource ? (
           <>
             <img
@@ -191,7 +191,7 @@ const CategoryTile = ({ category, index = 0, active = false }) => {
               loading="lazy"
               decoding="async"
             />
-            <span className="absolute bottom-1 left-1 flex h-5 w-5 items-center justify-center rounded bg-white text-[#F57224] shadow-sm dark:bg-gray-950">
+            <span className="absolute bottom-1 left-1 flex h-5 w-5 items-center justify-center rounded bg-white text-primary-600 shadow-sm dark:bg-gray-950">
               <Icon className="h-3 w-3" />
             </span>
           </>
@@ -202,7 +202,7 @@ const CategoryTile = ({ category, index = 0, active = false }) => {
         )}
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-extrabold text-[#1A1A2E] transition group-hover:text-[#F57224] dark:text-white dark:group-hover:text-orange-300">
+        <p className="truncate text-sm font-semibold text-slate-950 transition group-hover:text-primary-600 dark:text-white dark:group-hover:text-primary-300">
           {category.name}
         </p>
         {category.productCount !== undefined && (
@@ -211,7 +211,7 @@ const CategoryTile = ({ category, index = 0, active = false }) => {
           </p>
         )}
       </div>
-      <span className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition group-hover:bg-orange-50 group-hover:text-[#F57224] dark:group-hover:bg-orange-950/30 dark:group-hover:text-orange-300">
+      <span className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition group-hover:bg-primary-50 group-hover:text-primary-600 dark:group-hover:bg-primary-950/30 dark:group-hover:text-primary-300">
         <ChevronRight className="h-4 w-4" />
       </span>
     </Link>
@@ -233,14 +233,14 @@ const CategoryBrowsePanel = ({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-orange-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#F57224] dark:hover:bg-orange-950/20"
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-primary-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 dark:hover:bg-primary-950/20"
       >
         <span className="flex min-w-0 items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-orange-50 text-[#F57224] ring-1 ring-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:ring-orange-900/50">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-600 ring-1 ring-primary-100 dark:bg-primary-950/30 dark:text-primary-200 dark:ring-primary-900/50">
             <Grid2X2 className="h-5 w-5" />
           </span>
           <span className="min-w-0">
-            <span className="block text-base font-black text-[#1A1A2E] dark:text-white">
+            <span className="block text-base font-semibold text-slate-950 dark:text-white">
               Shop by Category
             </span>
             <span className="mt-0.5 block text-xs font-semibold text-gray-500 dark:text-gray-400">
@@ -249,7 +249,7 @@ const CategoryBrowsePanel = ({
           </span>
         </span>
         <ChevronDown
-          className={`h-5 w-5 shrink-0 text-gray-400 transition ${open ? "rotate-180 text-[#F57224]" : ""}`}
+          className={`h-5 w-5 shrink-0 text-gray-400 transition ${open ? "rotate-180 text-primary-600" : ""}`}
         />
       </button>
 
@@ -270,7 +270,7 @@ const CategoryBrowsePanel = ({
           </div>
           <Link
             to="/categories"
-            className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-1 rounded-lg border border-orange-200 bg-white px-3 text-sm font-bold text-[#F57224] transition hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F57224] dark:border-orange-900/50 dark:bg-gray-900 dark:text-orange-200 dark:hover:bg-orange-950/20"
+            className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-1 rounded-lg border border-primary-200 bg-white px-3 text-sm font-semibold text-primary-700 transition hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-primary-900/50 dark:bg-gray-900 dark:text-primary-200 dark:hover:bg-primary-950/20"
           >
             View all categories
             <ChevronRight className="h-4 w-4" />
@@ -293,7 +293,7 @@ const DailyNeedTile = ({ item }) => {
         <Icon className="h-5 w-5" />
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-sm font-extrabold text-gray-900 transition group-hover:text-primary-600 dark:text-white dark:group-hover:text-primary-300">
+        <span className="block truncate text-sm font-semibold text-gray-900 transition group-hover:text-primary-600 dark:text-white dark:group-hover:text-primary-300">
           {item.label}
         </span>
         <span className="mt-0.5 block truncate text-xs font-semibold text-gray-500 dark:text-gray-400">
@@ -323,14 +323,14 @@ function ProductListRow({ product, formatPrice }) {
   const discount =
     originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
   const rating = Number(product.averageRating || product.rating || 0);
-  const reviewCount = product.reviewCount || product.totalReviews || 0;
+  const filledStars = Math.max(0, Math.min(5, Math.round(rating)));
 
   return (
     <Link
       to={`/product/${product._id}`}
-      className="group grid gap-4 rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md dark:border-gray-800 dark:bg-gray-900 sm:grid-cols-[148px_1fr_auto]"
+      className="group grid grid-cols-[5.25rem_minmax(0,1fr)] gap-2 rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md dark:border-gray-800 dark:bg-gray-900 sm:grid-cols-[148px_1fr_auto] sm:gap-4 sm:p-3"
     >
-      <div className="relative aspect-square overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 sm:h-36 sm:w-36">
+      <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 sm:h-36 sm:w-36">
         <img
           src={getProductImage(product)}
           alt={product.title}
@@ -339,27 +339,36 @@ function ProductListRow({ product, formatPrice }) {
           decoding="async"
         />
         {discount > 0 ? (
-          <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-1 text-xs font-extrabold text-white">
+          <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-1 text-xs font-semibold text-white">
             -{discount}%
           </span>
         ) : null}
       </div>
 
       <div className="min-w-0">
-        <p className="line-clamp-2 text-base font-extrabold leading-6 text-gray-950 transition group-hover:text-primary-600 dark:text-white">
+        <p className="line-clamp-2 text-sm font-semibold leading-5 text-gray-950 transition group-hover:text-primary-600 dark:text-white sm:text-base sm:leading-6">
           {product.title}
         </p>
         <p className="mt-1 truncate text-sm font-semibold text-gray-500 dark:text-gray-400">
           {getVendorName(product)}
         </p>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400">
-          {rating > 0 ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-              <Star className="h-3.5 w-3.5 fill-current" />
-              {rating.toFixed(1)} {reviewCount ? `(${reviewCount})` : ""}
-            </span>
-          ) : null}
+        <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] font-semibold text-gray-500 dark:text-gray-400 sm:mt-3 sm:gap-2 sm:text-xs">
+          <span
+            className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-500 dark:bg-amber-950/40 dark:text-amber-300 sm:px-2 sm:py-1"
+            aria-label={rating > 0 ? `Rating ${rating.toFixed(1)} out of 5` : "No rating yet"}
+          >
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Star
+                key={index}
+                className={`h-3 w-3 fill-current sm:h-3.5 sm:w-3.5 ${
+                  index < filledStars
+                    ? "text-amber-500 dark:text-amber-300"
+                    : "text-amber-200 dark:text-amber-900/60"
+                }`}
+              />
+            ))}
+          </span>
           {product.freeShipping !== false ? (
             <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
               Free shipping
@@ -377,9 +386,9 @@ function ProductListRow({ product, formatPrice }) {
         </div>
       </div>
 
-      <div className="flex items-end justify-between gap-4 sm:min-w-44 sm:flex-col sm:items-end">
+      <div className="col-span-2 flex items-end justify-between gap-2 border-t border-gray-100 pt-2 sm:col-span-1 sm:min-w-44 sm:flex-col sm:items-end sm:border-t-0 sm:pt-0">
         <div className="text-left sm:text-right">
-          <p className="text-xl font-extrabold text-orange-600 dark:text-orange-300">
+          <p className="text-lg font-bold text-primary-700 dark:text-primary-300 sm:text-xl">
             {formatPrice(price)}
           </p>
           {originalPrice > price ? (
@@ -388,7 +397,7 @@ function ProductListRow({ product, formatPrice }) {
             </p>
           ) : null}
         </div>
-        <span className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary-500 px-4 text-sm font-bold text-white transition group-hover:bg-primary-600">
+        <span className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-500 px-3 text-xs font-semibold text-white transition group-hover:bg-primary-600 sm:min-h-11 sm:px-4 sm:text-sm">
           View details
         </span>
       </div>
@@ -610,7 +619,7 @@ export default function SearchCatalog({ mode = "browse" }) {
     {
       label: "Results",
       value: loading ? "..." : totalCount.toLocaleString(),
-      tone: "bg-orange-50 text-[#F57224] ring-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:ring-orange-900/50",
+      tone: "bg-primary-50 text-primary-700 ring-primary-100 dark:bg-primary-950/30 dark:text-primary-200 dark:ring-primary-900/50",
     },
     {
       label: "Category",
@@ -620,7 +629,7 @@ export default function SearchCatalog({ mode = "browse" }) {
     {
       label: "Sorted by",
       value: SORT_OPTIONS.find((option) => option.value === sortValue)?.label || "Best Match",
-      tone: "bg-gray-100 text-[#1A1A2E] ring-gray-200 dark:bg-gray-800 dark:text-white dark:ring-gray-700",
+      tone: "bg-slate-100 text-slate-950 ring-slate-200 dark:bg-gray-800 dark:text-white dark:ring-gray-700",
     },
   ];
 
@@ -633,8 +642,8 @@ export default function SearchCatalog({ mode = "browse" }) {
   const lastResult = Math.min(page * LIMIT, totalCount);
   const productGridClass =
     viewMode === "grid2"
-      ? "grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2"
-      : "grid auto-rows-fr grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3";
+      ? "grid auto-rows-fr grid-cols-1 gap-2.5 min-[520px]:grid-cols-2 sm:gap-4"
+      : "grid auto-rows-fr grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3";
   const viewOptions = [
     { value: "grid3", label: "Compact grid", icon: LayoutGrid },
     { value: "grid2", label: "Large grid", icon: Grid2X2 },
@@ -649,7 +658,7 @@ export default function SearchCatalog({ mode = "browse" }) {
             <SlidersHorizontal className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="font-black text-gray-900 dark:text-white">Refine</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-white">Refine</h2>
             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
               {activeFiltersCount} active filter{activeFiltersCount === 1 ? "" : "s"}
             </p>
@@ -659,7 +668,7 @@ export default function SearchCatalog({ mode = "browse" }) {
           type="button"
           onClick={() => clearFilters()}
           disabled={activeFiltersCount === 0}
-          className="min-h-9 rounded-lg px-2 text-xs font-bold text-primary-600 transition hover:bg-primary-50 hover:text-primary-700 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-primary-300 dark:hover:bg-primary-950/40 dark:disabled:text-gray-600"
+          className="min-h-9 rounded-lg px-2 text-xs font-semibold text-primary-600 transition hover:bg-primary-50 hover:text-primary-700 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-primary-300 dark:hover:bg-primary-950/40 dark:disabled:text-gray-600"
         >
           Clear
         </button>
@@ -667,7 +676,7 @@ export default function SearchCatalog({ mode = "browse" }) {
 
       <div className="space-y-6">
         <div>
-          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
             <Tags className="h-4 w-4" />
             Price
           </div>
@@ -704,7 +713,7 @@ export default function SearchCatalog({ mode = "browse" }) {
         </div>
 
         <div>
-          <div className="mb-3 text-sm font-bold text-gray-900 dark:text-white">
+          <div className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
             Brand
           </div>
           <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
@@ -734,7 +743,7 @@ export default function SearchCatalog({ mode = "browse" }) {
         </div>
 
         <div>
-          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
             <Star className="h-4 w-4" />
             Rating
           </div>
@@ -752,7 +761,7 @@ export default function SearchCatalog({ mode = "browse" }) {
         </div>
 
         <div>
-          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
             <Truck className="h-4 w-4" />
             Delivery
           </div>
@@ -771,7 +780,7 @@ export default function SearchCatalog({ mode = "browse" }) {
         </div>
 
         <div>
-          <div className="mb-3 text-sm font-bold text-gray-900 dark:text-white">
+          <div className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
             Discount
           </div>
           <select
@@ -798,7 +807,7 @@ export default function SearchCatalog({ mode = "browse" }) {
         </label>
 
         <div>
-          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
             <MapPin className="h-4 w-4" />
             Location
           </div>
@@ -820,13 +829,13 @@ export default function SearchCatalog({ mode = "browse" }) {
   );
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5] text-[#1A1A2E] dark:bg-gray-950 dark:text-white">
-      <div className="border-b border-[#E0E0E0] bg-white dark:border-gray-800 dark:bg-gray-950">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <nav className="mb-5 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+    <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-gray-950 dark:text-white">
+      <div className="border-b border-slate-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+        <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+          <nav className="mb-4 flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 sm:mb-5 sm:text-sm">
             <Link
               to="/"
-              className="font-semibold hover:text-[#F57224] dark:hover:text-orange-300"
+              className="font-semibold hover:text-primary-600 dark:hover:text-primary-300"
             >
               Home
             </Link>
@@ -839,34 +848,34 @@ export default function SearchCatalog({ mode = "browse" }) {
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-start">
             <div className="min-w-0">
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="inline-flex min-h-8 items-center gap-2 rounded-full bg-orange-50 px-3 text-xs font-extrabold uppercase text-[#F57224] ring-1 ring-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:ring-orange-900/50">
+                <span className="inline-flex min-h-8 items-center gap-2 rounded-full bg-primary-50 px-3 text-xs font-semibold uppercase text-primary-700 ring-1 ring-primary-100 dark:bg-primary-950/30 dark:text-primary-200 dark:ring-primary-900/50">
                   <ShieldCheck className="h-3.5 w-3.5" />
                   Verified marketplace catalog
                 </span>
                 {selectedCategory ? (
-                  <span className="inline-flex min-h-8 items-center rounded-full bg-emerald-50 px-3 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900/50">
+                  <span className="inline-flex min-h-8 items-center rounded-full bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900/50">
                     {selectedCategory.name}
                   </span>
                 ) : null}
               </div>
 
-              <h1 className="max-w-3xl text-2xl font-black text-[#1A1A2E] dark:text-white sm:text-3xl">
+              <h1 className="max-w-3xl text-2xl font-bold text-slate-950 dark:text-white sm:text-3xl">
                 {query ? `Results for "${query}"` : "Browse Products"}
               </h1>
               <p className="mt-2 max-w-2xl text-sm font-medium text-gray-600 dark:text-gray-400">
                 {loading ? "Loading results..." : result?.summary || `${totalCount} results`}
               </p>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="mt-4 grid grid-cols-1 gap-2 min-[420px]:grid-cols-3 sm:mt-5 sm:gap-3">
                 {summaryMetrics.map((metric) => (
                   <div
                     key={metric.label}
                     className={`rounded-lg px-3 py-2 ring-1 ${metric.tone}`}
                   >
-                    <p className="text-[11px] font-extrabold uppercase leading-4 opacity-75">
+                    <p className="text-[11px] font-medium uppercase leading-4 opacity-75">
                       {metric.label}
                     </p>
-                    <p className="mt-0.5 truncate text-sm font-black">
+                    <p className="mt-0.5 truncate text-sm font-semibold">
                       {metric.value}
                     </p>
                   </div>
@@ -877,7 +886,7 @@ export default function SearchCatalog({ mode = "browse" }) {
                 <button
                   type="button"
                   onClick={() => updateParam("q", result.didYouMean)}
-                  className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 text-sm font-bold text-primary-700 transition hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-primary-900/60 dark:bg-primary-950/40 dark:text-primary-200"
+                  className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 text-sm font-semibold text-primary-700 transition hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-primary-900/60 dark:bg-primary-950/40 dark:text-primary-200"
                 >
                   <Search className="h-4 w-4" />
                   Search instead for "{result.didYouMean}"
@@ -885,7 +894,7 @@ export default function SearchCatalog({ mode = "browse" }) {
               )}
             </div>
 
-            <div className="rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
               <form onSubmit={submitCatalogSearch} className="flex flex-col gap-2 sm:flex-row">
                 <div className="relative min-w-0 flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -897,7 +906,7 @@ export default function SearchCatalog({ mode = "browse" }) {
                       setSearchDraftTouched(true);
                     }}
                     placeholder="Search products, brands, categories"
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-10 text-sm font-semibold text-gray-900 outline-none transition focus:border-[#F57224] focus:ring-2 focus:ring-orange-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-orange-900/30"
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-10 text-sm font-semibold text-gray-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-primary-900/30"
                   />
                   {query || searchInputValue ? (
                     <button
@@ -912,14 +921,14 @@ export default function SearchCatalog({ mode = "browse" }) {
                 </div>
                 <button
                   type="submit"
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#F57224] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F57224] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
                 >
                   Search
                 </button>
               </form>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="text-xs font-extrabold uppercase text-gray-500 dark:text-gray-400">
+              <div className="-mx-3 mt-3 flex items-center gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+                <span className="shrink-0 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
                   Quick filters
                 </span>
                 {quickFilters.map((filter) => (
@@ -927,10 +936,10 @@ export default function SearchCatalog({ mode = "browse" }) {
                     key={filter.label}
                     type="button"
                     onClick={filter.onClick}
-                    className={`inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+                    className={`inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
                       filter.active
-                        ? "border-[#F57224] bg-[#F57224] text-white shadow-sm"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-orange-300 hover:text-[#F57224] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:border-orange-700 dark:hover:text-orange-300"
+                        ? "border-primary-600 bg-primary-600 text-white shadow-sm"
+                        : "border-gray-200 bg-white text-gray-700 hover:border-primary-300 hover:text-primary-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:border-primary-700 dark:hover:text-primary-300"
                     }`}
                   >
                     {filter.label}
@@ -938,26 +947,26 @@ export default function SearchCatalog({ mode = "browse" }) {
                 ))}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 sm:flex sm:flex-wrap">
                 <button
                   type="button"
                   onClick={() => setFiltersOpen(true)}
-                  className="relative inline-flex min-h-11 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-bold text-gray-700 transition hover:border-primary-300 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 lg:hidden"
+                  className="relative inline-flex min-h-11 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 lg:hidden"
                 >
                   <SlidersHorizontal className="h-4 w-4" />
                   Filters
                   {activeFiltersCount > 0 ? (
-                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-500 px-1 text-[11px] font-extrabold leading-none text-white">
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-500 px-1 text-[11px] font-semibold leading-none text-white">
                       {activeFiltersCount}
                     </span>
                   ) : null}
                 </button>
-                <label className="flex min-h-11 flex-1 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 sm:flex-none">
+                <label className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 sm:flex-none">
                   <span className="text-gray-500 dark:text-gray-400">Sort</span>
                   <select
                     value={sortValue}
                     onChange={(event) => updateSort(event.target.value)}
-                    className="h-9 min-w-0 flex-1 rounded-md border-0 bg-transparent px-1 text-sm font-extrabold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:text-white sm:min-w-44"
+                    className="h-9 min-w-0 flex-1 rounded-md border-0 bg-transparent px-1 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:text-white sm:min-w-44"
                   >
                     {SORT_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -972,7 +981,7 @@ export default function SearchCatalog({ mode = "browse" }) {
 
           {appliedFilters.length > 0 && (
             <div className="mt-5 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
+              <span className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
                 Applied
               </span>
               {appliedFilters.map((filter) => (
@@ -980,7 +989,7 @@ export default function SearchCatalog({ mode = "browse" }) {
                   key={`${filter.key}-${filter.value}`}
                   type="button"
                   onClick={() => removeFilter(filter)}
-                  className="inline-flex min-h-9 items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 text-xs font-bold text-primary-700 transition hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-primary-900/60 dark:bg-primary-950/40 dark:text-primary-200"
+                  className="inline-flex min-h-9 items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-3 text-xs font-semibold text-primary-700 transition hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-primary-900/60 dark:bg-primary-950/40 dark:text-primary-200"
                 >
                   {filter.label}
                   <X className="h-3.5 w-3.5" />
@@ -989,7 +998,7 @@ export default function SearchCatalog({ mode = "browse" }) {
               <button
                 type="button"
                 onClick={() => clearFilters()}
-                className="min-h-9 rounded-full px-3 text-xs font-bold text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
+                className="min-h-9 rounded-full px-3 text-xs font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
               >
                 Clear filters
               </button>
@@ -1000,16 +1009,16 @@ export default function SearchCatalog({ mode = "browse" }) {
 
       {filtersOpen && (
         <div
-          className="fixed inset-0 z-[480] bg-gray-950/45 lg:hidden"
+          className="fixed inset-0 z-[480] bg-gray-950/50 lg:hidden"
           onClick={() => setFiltersOpen(false)}
         >
           <div
-            className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-xl bg-white p-5 shadow-2xl ring-1 ring-gray-200 dark:bg-gray-950 dark:ring-gray-800"
+            className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-2xl bg-white p-4 pb-0 shadow-2xl ring-1 ring-gray-200 dark:bg-gray-950 dark:ring-gray-800 sm:p-5 sm:pb-0"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <p className="text-xs font-extrabold uppercase text-primary-600 dark:text-primary-300">
+                <p className="text-xs font-semibold uppercase text-primary-600 dark:text-primary-300">
                   Refine results
                 </p>
                 <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">
@@ -1026,18 +1035,18 @@ export default function SearchCatalog({ mode = "browse" }) {
               </button>
             </div>
             {filterContent}
-            <div className="sticky bottom-0 -mx-5 mt-6 flex gap-3 border-t border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+            <div className="sticky bottom-0 -mx-4 mt-6 flex gap-3 border-t border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950 sm:-mx-5">
               <button
                 type="button"
                 onClick={() => clearFilters()}
-                className="min-h-11 flex-1 rounded-lg border border-gray-300 px-4 text-sm font-bold text-gray-700 transition hover:border-primary-300 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-700 dark:text-gray-200"
+                className="min-h-11 flex-1 rounded-lg border border-gray-300 px-4 text-sm font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-700 dark:text-gray-200"
               >
                 Clear
               </button>
               <button
                 type="button"
                 onClick={() => setFiltersOpen(false)}
-                className="min-h-11 flex-1 rounded-lg bg-primary-500 px-4 text-sm font-bold text-white transition hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950"
+                className="min-h-11 flex-1 rounded-lg bg-primary-500 px-4 text-sm font-semibold text-white transition hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950"
               >
                 Apply filters
               </button>
@@ -1046,16 +1055,16 @@ export default function SearchCatalog({ mode = "browse" }) {
         </div>
       )}
 
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
         {showDailyNeeds && (
-          <section className="mb-6">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <section className="mb-5 sm:mb-6">
+            <div className="mb-3 flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900/50">
                   <ShoppingBasket className="h-5 w-5" />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-black text-gray-900 dark:text-white">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                     Daily Needs
                   </h2>
                   <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
@@ -1065,15 +1074,17 @@ export default function SearchCatalog({ mode = "browse" }) {
               </div>
               <Link
                 to="/products?q=grocery"
-                className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm font-bold text-primary-600 transition hover:bg-primary-50 hover:text-primary-700 dark:text-primary-300 dark:hover:bg-primary-950/40"
+                className="hidden min-h-9 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 hover:text-primary-700 dark:text-primary-300 dark:hover:bg-primary-950/40 sm:inline-flex"
               >
                 Shop essentials
                 <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+            <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
               {dailyNeedShortcuts.map((item) => (
-                <DailyNeedTile key={item.label} item={item} />
+                <div key={item.label} className="w-40 shrink-0 sm:w-auto">
+                  <DailyNeedTile item={item} />
+                </div>
               ))}
             </div>
           </section>
@@ -1089,7 +1100,7 @@ export default function SearchCatalog({ mode = "browse" }) {
           />
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-[280px_1fr]">
           <aside className="hidden lg:block">
             <div className="sticky top-24 space-y-4">
               {showCategoryBrowse ? (
@@ -1107,10 +1118,10 @@ export default function SearchCatalog({ mode = "browse" }) {
           </aside>
 
           <main className="min-w-0">
-            <div className="mb-5 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div className="mb-4 rounded-lg border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:mb-5 sm:p-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
                     {loading
                       ? "Loading products..."
                       : totalCount > 0
@@ -1122,8 +1133,8 @@ export default function SearchCatalog({ mode = "browse" }) {
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-800 dark:bg-gray-950">
+                <div className="flex items-center gap-3 overflow-x-auto">
+                  <div className="inline-flex shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-gray-800 dark:bg-gray-950">
                     {viewOptions.map((option) => {
                       const Icon = option.icon;
                       const isActive = viewMode === option.value;
@@ -1132,7 +1143,7 @@ export default function SearchCatalog({ mode = "browse" }) {
                           key={option.value}
                           type="button"
                           onClick={() => setViewMode(option.value)}
-                          className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+                          className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
                             isActive
                               ? "bg-primary-500 text-white shadow-sm"
                               : "text-gray-600 hover:bg-white hover:text-primary-600 dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-primary-300"
@@ -1165,7 +1176,7 @@ export default function SearchCatalog({ mode = "browse" }) {
                 <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 text-primary-600 dark:bg-primary-950/40 dark:text-primary-200">
                   <PackageSearch className="h-8 w-8" />
                 </div>
-                <h2 className="text-xl font-black text-gray-900 dark:text-white">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   Nothing found{query ? ` for "${query}"` : ""}
                 </h2>
                 <p className="mx-auto mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-400">
@@ -1182,7 +1193,7 @@ export default function SearchCatalog({ mode = "browse" }) {
                             ? `/products?category=${suggestion.categoryId}`
                             : `/search?q=${encodeURIComponent(suggestion.query)}`
                         }
-                        className="inline-flex min-h-11 items-center rounded-lg border border-gray-200 px-3 text-sm font-bold text-gray-700 transition hover:border-primary-300 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-700 dark:text-gray-200"
+                        className="inline-flex min-h-11 items-center rounded-lg border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-700 dark:text-gray-200"
                       >
                         {suggestion.label}
                       </Link>
@@ -1202,14 +1213,14 @@ export default function SearchCatalog({ mode = "browse" }) {
                   <button
                     type="button"
                     onClick={() => clearFilters({ keepQuery: true })}
-                    className="min-h-11 rounded-lg border border-gray-300 px-4 text-sm font-bold text-gray-700 transition hover:border-primary-300 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-700 dark:text-gray-200"
+                    className="min-h-11 rounded-lg border border-gray-300 px-4 text-sm font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-700 dark:text-gray-200"
                   >
                     Clear filters
                   </button>
                   <button
                     type="button"
                     onClick={() => clearFilters({ keepQuery: false })}
-                    className="min-h-11 rounded-lg bg-primary-500 px-4 text-sm font-bold text-white transition hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950"
+                    className="min-h-11 rounded-lg bg-primary-500 px-4 text-sm font-semibold text-white transition hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950"
                   >
                     Browse all products
                   </button>
@@ -1250,7 +1261,7 @@ export default function SearchCatalog({ mode = "browse" }) {
                           key={pageNumber}
                           type="button"
                           onClick={() => updatePage(pageNumber)}
-                          className={`h-11 min-w-11 rounded-lg border px-3 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+                          className={`h-11 min-w-11 rounded-lg border px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
                             pageNumber === page
                               ? "border-primary-500 bg-primary-500 text-white"
                               : "border-gray-300 bg-white text-gray-700 hover:border-primary-300 hover:text-primary-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"

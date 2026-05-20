@@ -53,7 +53,6 @@ export default function ProductCard({ product }) {
           ? `/vendor/${product.vendorId}/products`
           : ""
       : "";
-  const reviewCount = product.reviewCount || product.totalReviews || 0;
   const soldCount =
     product.soldCount ||
     product.sold ||
@@ -80,21 +79,21 @@ export default function ProductCard({ product }) {
     if (product.stock <= 3)
       return {
         text: t("productCard.onlyLeft", { count: product.stock }),
-        color: "text-orange-600",
-        bgColor: "bg-orange-100",
+        color: "text-accent-700",
+        bgColor: "bg-accent-100",
         available: true,
       };
     if (product.stock <= 10)
       return {
         text: t("productCard.lowStock"),
-        color: "text-yellow-600",
-        bgColor: "bg-yellow-100",
+        color: "text-accent-700",
+        bgColor: "bg-accent-100",
         available: true,
       };
     return {
       text: t("productCard.inStock"),
-      color: "text-green-600",
-      bgColor: "bg-green-100",
+      color: "text-success-700",
+      bgColor: "bg-success-100",
       available: true,
     };
   };
@@ -134,13 +133,13 @@ export default function ProductCard({ product }) {
   return (
     <>
       <Link to={`/product/${product._id}`} className="block h-full">
-        <div className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-lg dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-900/60">
+        <div className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-lg dark:border-gray-800 dark:bg-gray-900 dark:hover:border-primary-900/60">
           {/* Image Container */}
           <div className="relative aspect-square overflow-hidden bg-gray-50 dark:bg-gray-700">
             {/* Discount Badge */}
             {discountPercentage > 0 && (
-              <div className="absolute left-2 top-2 z-20">
-                <span className="rounded bg-red-600 px-2 py-1 text-xs font-extrabold text-white shadow-sm">
+              <div className="absolute left-1.5 top-1.5 z-20 sm:left-2 sm:top-2">
+                <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white shadow-sm sm:px-2 sm:py-1 sm:text-xs">
                   -{discountPercentage}%
                 </span>
               </div>
@@ -148,14 +147,14 @@ export default function ProductCard({ product }) {
 
             {cardBadges.length ? (
               <div
-                className={`absolute left-2 z-20 flex max-w-[calc(100%-4rem)] flex-wrap gap-1 ${
-                  discountPercentage > 0 ? "top-10" : "top-2"
+                className={`absolute left-1.5 z-20 flex max-w-[calc(100%-3.25rem)] flex-wrap gap-1 sm:left-2 sm:max-w-[calc(100%-4rem)] ${
+                  discountPercentage > 0 ? "top-7 sm:top-10" : "top-1.5 sm:top-2"
                 }`}
               >
                 {cardBadges.map((badge) => (
                   <span
                     key={badge.label}
-                    className={`rounded px-2 py-1 text-[11px] font-extrabold leading-none shadow-sm ${badge.className}`}
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none shadow-sm sm:px-2 sm:py-1 sm:text-[11px] ${badge.className}`}
                   >
                     {badge.label}
                   </span>
@@ -196,7 +195,7 @@ export default function ProductCard({ product }) {
             </div>
 
             {/* Image action buttons */}
-            <div className="absolute right-2 top-2 z-30 flex flex-col gap-2 opacity-100 transition-all duration-300 md:translate-x-2 md:opacity-0 md:group-hover:translate-x-0 md:group-hover:opacity-100">
+            <div className="absolute right-1.5 top-1.5 z-30 flex flex-col gap-1.5 opacity-100 transition-all duration-300 sm:right-2 sm:top-2 sm:gap-2 md:translate-x-2 md:opacity-0 md:group-hover:translate-x-0 md:group-hover:opacity-100">
               <div onClick={(e) => e.preventDefault()}>
                 <WishlistButton product={product} size="sm" />
               </div>
@@ -207,7 +206,7 @@ export default function ProductCard({ product }) {
                   e.stopPropagation();
                   setShowQuickView(true);
                 }}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/95 text-gray-900 shadow-sm ring-1 ring-black/5 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:bg-gray-900/95 dark:text-gray-100 dark:ring-white/10 md:hidden"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-white/95 text-gray-900 shadow-sm ring-1 ring-black/5 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:bg-gray-900/95 dark:text-gray-100 dark:ring-white/10 sm:h-9 sm:w-9 md:hidden"
                 aria-label={t("productCard.quickView")}
                 title={t("productCard.quickView")}
               >
@@ -249,7 +248,7 @@ export default function ProductCard({ product }) {
                   type="button"
                   onClick={handleAddToCart}
                   disabled={!stockStatus.available || isAdding}
-                  className={`inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-bold shadow-sm transition-all sm:text-sm ${
+                  className={`inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold shadow-sm transition-all sm:text-sm ${
                     isAdding
                       ? "bg-green-500 text-white"
                       : !stockStatus.available
@@ -276,22 +275,23 @@ export default function ProductCard({ product }) {
           </div>
 
           {/* Product Info */}
-          <div className="flex flex-1 flex-col p-3 sm:p-4">
-            <h3 className="line-clamp-2 min-h-[2.6rem] text-sm font-bold leading-5 text-gray-900 transition-colors group-hover:text-orange-600 dark:text-white dark:group-hover:text-orange-300 sm:text-[15px]">
+          <div className="flex flex-1 flex-col p-2 sm:p-4">
+            <h3 className="line-clamp-2 min-h-8 text-[12px] font-semibold leading-4 text-gray-900 transition-colors group-hover:text-primary-600 dark:text-white dark:group-hover:text-primary-300 sm:min-h-[2.6rem] sm:text-[15px] sm:leading-5">
               {product.title}
             </h3>
 
             {/* Rating with colored stars */}
-            <div className="mt-2">
-              <div className="flex min-w-0 items-center justify-between gap-2">
+            <div className="mt-1.5 sm:mt-2">
+              <div className="flex min-w-0 items-center justify-between gap-1.5 sm:gap-2">
                 <ProductRatingDisplay
                   productId={product._id}
                   size="sm"
-                  showCount={true}
-                  className="min-w-0 text-xs"
+                  showCount={false}
+                  showValue={false}
+                  className="min-w-0 text-[11px] sm:text-xs"
                 />
                 {soldCount ? (
-                  <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-gray-500 dark:text-gray-400">
+                  <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-400 sm:gap-1 sm:text-xs">
                     <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
                     {formatViewCount(soldCount)} {t("productCard.sold", "sold")}
                   </span>
@@ -299,7 +299,7 @@ export default function ProductCard({ product }) {
               </div>
 
               {/* View Count */}
-              <div className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+              <div className="mt-1 hidden items-center gap-1 text-xs text-gray-500 dark:text-gray-400 min-[390px]:flex">
                 <svg
                   className="h-3 w-3"
                   fill="none"
@@ -331,17 +331,17 @@ export default function ProductCard({ product }) {
                 onKeyDown={(event) => {
                   if ((event.key === "Enter" || event.key === " ") && vendorPath) goToVendor(event);
                 }}
-                className={`mt-2 flex min-w-0 items-center gap-1.5 text-left text-xs font-semibold text-gray-500 transition dark:text-gray-400 ${
+                className={`mt-1.5 flex min-w-0 items-center gap-1 text-left text-[11px] font-semibold text-gray-500 transition dark:text-gray-400 sm:mt-2 sm:gap-1.5 sm:text-xs ${
                   vendorPath
-                    ? "cursor-pointer hover:text-orange-600 dark:hover:text-orange-300"
+                    ? "cursor-pointer hover:text-primary-600 dark:hover:text-primary-300"
                     : "cursor-default"
                 }`}
               >
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800 sm:h-5 sm:w-5">
                   {product.vendorLogo ? (
                     <img src={product.vendorLogo} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
                   ) : (
-                    <Store className="h-3 w-3" />
+                    <Store className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                   )}
                 </span>
                 <span className="line-clamp-1 min-w-0">{vendorName}</span>
@@ -349,36 +349,31 @@ export default function ProductCard({ product }) {
             ) : null}
 
             {/* Price and Stock Status */}
-            <div className="mt-auto pt-3">
-              <div className="flex min-h-[2rem] items-baseline gap-2">
-                <span className="text-lg font-extrabold text-orange-600 dark:text-orange-300 sm:text-xl">
+            <div className="mt-auto pt-2 sm:pt-3">
+              <div className="flex min-h-6 items-baseline gap-1.5 sm:min-h-[2rem] sm:gap-2">
+                <span className="text-[15px] font-bold leading-5 text-primary-700 dark:text-primary-300 sm:text-xl sm:leading-normal">
                   {formatPrice(product.price)}
                 </span>
                 {product.originalPrice &&
                   product.originalPrice > product.price && (
-                    <span className="text-xs font-semibold text-gray-400 line-through sm:text-sm">
+                    <span className="text-[11px] font-semibold text-gray-400 line-through sm:text-sm">
                       {formatPrice(product.originalPrice)}
                     </span>
                   )}
               </div>
 
-              <div className="mt-2 flex items-center justify-between gap-2">
+              <div className="mt-1.5 flex items-center justify-between gap-1.5 sm:mt-2 sm:gap-2">
                 <span
-                  className={`rounded-full px-2 py-1 text-xs font-bold ${stockStatus.bgColor} ${stockStatus.color}`}
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium sm:px-2 sm:py-1 sm:text-xs ${stockStatus.bgColor} ${stockStatus.color}`}
                 >
                   {stockStatus.text}
                 </span>
-                {reviewCount ? (
-                  <span className="text-xs font-medium text-gray-400">
-                    {t("productCard.reviews", { count: reviewCount })}
-                  </span>
-                ) : null}
               </div>
             </div>
 
             {/* Size and Color Indicators */}
             {(product.sizes?.length > 0 || product.colors?.length > 0) && (
-              <div className="flex items-center gap-4 mb-3 text-xs">
+              <div className="mb-3 hidden items-center gap-4 text-xs sm:flex">
                 {product.sizes?.length > 0 && (
                   <div className="flex items-center gap-1">
                     <span className="text-gray-500 dark:text-gray-400">
@@ -416,7 +411,7 @@ export default function ProductCard({ product }) {
 
             {/* Category */}
             {product.category && (
-              <div className="mb-3">
+              <div className="mb-3 hidden sm:block">
                 <span className="inline-block bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs px-2 py-1 rounded-full">
                   {product.category}
                 </span>
@@ -424,13 +419,13 @@ export default function ProductCard({ product }) {
             )}
 
             {/* Mobile cart action */}
-            <div className="mt-3 md:hidden">
+            <div className="mt-2 md:hidden">
               <button
                 type="button"
                 onClick={handleAddToCart}
                 disabled={!stockStatus.available || isAdding}
                 aria-label={t("productCard.addToCart")}
-                className={`inline-flex h-10 w-full min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-extrabold leading-none transition-colors ${
+                className={`inline-flex h-9 w-full min-w-0 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-semibold leading-none transition-colors sm:h-10 sm:gap-1.5 sm:text-xs ${
                   isAdding
                     ? "bg-green-500 text-white"
                     : !stockStatus.available
