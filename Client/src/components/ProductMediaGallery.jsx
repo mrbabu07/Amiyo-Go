@@ -73,9 +73,12 @@ export default function ProductMediaGallery({
   }, [product, selectedVariant]);
 
   useEffect(() => {
-    if (!selectedImage) return;
+    if (!selectedImage) return undefined;
     const index = media.findIndex((item) => item.type === "image" && item.url === selectedImage);
-    if (index >= 0) setActiveIndex(index);
+    if (index < 0) return undefined;
+
+    const timeoutId = setTimeout(() => setActiveIndex(index), 0);
+    return () => clearTimeout(timeoutId);
   }, [media, selectedImage]);
 
   const activeMedia = media[activeIndex] || media[0];
@@ -155,6 +158,9 @@ export default function ProductMediaGallery({
               }`}
               onLoad={() => setImageLoaded(true)}
               onClick={() => setShowModal(true)}
+              loading="eager"
+              fetchPriority="high"
+              decoding="sync"
             />
           </>
         )}
@@ -207,7 +213,7 @@ export default function ProductMediaGallery({
             {item.type === "video" ? (
               <div className="flex h-full w-full items-center justify-center bg-gray-950 text-white">
                 {item.thumbnail ? (
-                  <img src={item.thumbnail} alt={item.title} className="h-full w-full object-cover opacity-70" />
+                  <img src={item.thumbnail} alt={item.title} className="h-full w-full object-cover opacity-70" loading="lazy" decoding="async" />
                 ) : null}
                 <PlayCircle className="absolute h-7 w-7" />
               </div>
@@ -217,6 +223,8 @@ export default function ProductMediaGallery({
                 alt={item.title}
                 style={{ objectPosition: getImageFocus(item.url) }}
                 className="h-full w-full object-contain p-1"
+                loading="lazy"
+                decoding="async"
               />
             )}
           </button>
@@ -280,6 +288,8 @@ export default function ProductMediaGallery({
             className="max-h-full max-w-full object-contain transition-transform"
             style={{ transform: `scale(${zoom})` }}
             onClick={(event) => event.stopPropagation()}
+            loading="eager"
+            decoding="async"
             onWheel={(event) => {
               event.preventDefault();
               const direction = event.deltaY < 0 ? 0.15 : -0.15;

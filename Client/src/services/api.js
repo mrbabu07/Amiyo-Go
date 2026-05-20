@@ -919,6 +919,14 @@ export const reviewAdminVendorMarketingItem = (id, data) =>
   api.patch(`/admin/vendor-marketing/${id}/review`, data);
 export const getCampaignVoucherAnalytics = (params = {}) =>
   api.get("/admin/vendor-marketing/analytics", { params });
+export const getCampaignById = (campaignId) =>
+  api.get(`/campaigns/${campaignId}`);
+export const getCampaignBySlug = (slug) =>
+  api.get(`/campaigns/slug/${slug}`);
+export const getCampaignProducts = (campaignId, params = {}) =>
+  api.get(`/campaigns/${campaignId}/products`, { params });
+export const recordCampaignView = (campaignId, data = {}) =>
+  api.post(`/campaigns/${campaignId}/view`, data);
 export const getVendorCampaigns = () =>
   api.get("/campaigns/vendor/available");
 export const joinPlatformCampaign = (campaignId) =>

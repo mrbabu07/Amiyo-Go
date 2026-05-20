@@ -130,7 +130,14 @@ export default function CategoryPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="relative h-64 md:h-80 overflow-hidden">
-        <img src={pageInfo.image} alt={pageInfo.name} className="w-full h-full object-cover" />
+        <img
+          src={pageInfo.image}
+          alt={pageInfo.name}
+          className="w-full h-full object-cover"
+          loading="eager"
+          fetchPriority="high"
+          decoding="sync"
+        />
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/30" />
         <div className="absolute inset-0 flex items-center">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
@@ -240,7 +247,13 @@ export default function CategoryPage() {
                 {sortedProducts.map((product) => (
                   <Link key={product._id} to={`/product/${product._id}`} className="flex bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition group">
                     <div className="w-48 h-48 flex-shrink-0 overflow-hidden">
-                      <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                      <img
+                        src={product.image}
+                        alt={product.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                        loading="lazy"
+                        decoding="async"
+                      />
                     </div>
                     <div className="flex-1 p-6 flex flex-col justify-between">
                       <div>

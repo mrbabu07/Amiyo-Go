@@ -11,6 +11,7 @@ export default function AutoSlideshow({
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
+  const [progress, setProgress] = useState(0);
   const intervalRef = useRef(null);
 
   // Auto-play functionality
@@ -27,6 +28,21 @@ export default function AutoSlideshow({
 
     return () => clearInterval(intervalRef.current);
   }, [isPlaying, images.length, interval]);
+
+  useEffect(() => {
+    if (!isPlaying || images.length <= 1) return undefined;
+
+    let animationFrameId;
+    const startedAt = performance.now();
+
+    const tick = (now) => {
+      setProgress(Math.min(100, ((now - startedAt) / interval) * 100));
+      animationFrameId = requestAnimationFrame(tick);
+    };
+
+    animationFrameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [currentIndex, images.length, interval, isPlaying]);
 
   // Pause on hover
   const handleMouseEnter = () => {
@@ -84,6 +100,8 @@ export default function AutoSlideshow({
           src={images[0]}
           alt="Product"
           className="w-full h-full object-cover"
+          loading="lazy"
+          decoding="async"
         />
       </div>
     );
@@ -101,6 +119,8 @@ export default function AutoSlideshow({
           src={images[currentIndex]}
           alt={`Slide ${currentIndex + 1}`}
           className="w-full h-full object-cover transition-opacity duration-500"
+          loading="lazy"
+          decoding="async"
         />
 
         {/* Image Counter */}
@@ -212,7 +232,7 @@ export default function AutoSlideshow({
           <div
             className="h-full bg-white transition-all duration-100 ease-linear"
             style={{
-              width: `${((Date.now() % interval) / interval) * 100}%`,
+              width: `${progress}%`,
             }}
           />
         </div>

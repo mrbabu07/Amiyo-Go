@@ -184,6 +184,7 @@ export default function ProductCard({ product }) {
                 }`}
                 onLoad={() => setImageLoaded(true)}
                 loading="lazy"
+                decoding="async"
               />
             </div>
 
@@ -323,7 +324,7 @@ export default function ProductCard({ product }) {
               >
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
                   {product.vendorLogo ? (
-                    <img src={product.vendorLogo} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    <img src={product.vendorLogo} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
                   ) : (
                     <Store className="h-3 w-3" />
                   )}

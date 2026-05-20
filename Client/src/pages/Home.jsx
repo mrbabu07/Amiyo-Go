@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createElement, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -105,6 +105,7 @@ function HeroActionPanel({ discovery, now, formatPrice, t }) {
           alt=""
           className="absolute inset-0 h-full w-full object-cover opacity-55 transition duration-500 group-hover:scale-105"
           loading="lazy"
+          decoding="async"
         />
         <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-gray-950/70 to-red-950/35" />
         <div className="relative flex min-h-[11rem] flex-col justify-between">
@@ -300,7 +301,7 @@ function QuickShoppingDock({ discovery, isShopDirectoryVisible, t }) {
     <section className="bg-white py-4 dark:bg-gray-950">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {shortcuts.map(({ title, text, to, Icon, tone }) => (
+          {shortcuts.map(({ title, text, to, Icon: ShortcutIcon, tone }) => (
             <Link
               key={title}
               to={to}
@@ -308,7 +309,7 @@ function QuickShoppingDock({ discovery, isShopDirectoryVisible, t }) {
             >
               <span className="flex min-w-0 items-center gap-3">
                 <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ring-1 ${tone}`}>
-                  <Icon className="h-5 w-5" />
+                  {createElement(ShortcutIcon, { className: "h-5 w-5" })}
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-black text-slate-950 dark:text-white">{title}</span>
@@ -452,6 +453,7 @@ function TopCategorySection({ categories, t }) {
                         alt=""
                         className="h-full w-full object-cover"
                         loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <Icon className="h-6 w-6" strokeWidth={1.9} aria-hidden="true" />
@@ -516,13 +518,22 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
             className={`h-full w-full object-cover transition-transform duration-[7000ms] ${
               index === activeHero % slides.length ? "scale-[1.06]" : "scale-100"
             }`}
+            loading={index === activeHero % slides.length ? "eager" : "lazy"}
+            fetchPriority={index === activeHero % slides.length ? "high" : "low"}
+            decoding={index === activeHero % slides.length ? "sync" : "async"}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-gray-950/90 via-gray-950/62 to-gray-950/10" />
           <div className="absolute inset-0 bg-gradient-to-t from-gray-950/85 via-transparent to-gray-950/15" />
         </div>
       ))}
 
-      <div className="relative flex min-h-[31rem] flex-col justify-between p-4 sm:min-h-[30rem] sm:p-6 md:p-8 lg:min-h-[34rem]">
+      <Link
+        to={currentSlide.link || "/products"}
+        aria-label={currentSlide.title ? `${t("home.shopNow")} ${currentSlide.title}` : t("home.shopNow")}
+        className="absolute inset-0 z-10 cursor-pointer focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-white/70"
+      />
+
+      <div className="pointer-events-none relative z-20 flex min-h-[31rem] flex-col justify-between p-4 sm:min-h-[30rem] sm:p-6 md:p-8 lg:min-h-[34rem]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white shadow-sm backdrop-blur">
             <Sparkles className="h-3.5 w-3.5" />
@@ -565,14 +576,14 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
             <div className="mt-6 flex flex-wrap gap-2">
               <Link
                 to={currentSlide.link || "/products"}
-                className="inline-flex h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-gray-950 shadow-sm transition hover:-translate-y-0.5 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-white/60"
+                className="pointer-events-auto inline-flex h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-gray-950 shadow-sm transition hover:-translate-y-0.5 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-white/60"
               >
                 {currentSlide.ctaText || t("home.shopNow")}
                 <ChevronRight className="h-4 w-4" />
               </Link>
               <Link
                 to="/products"
-                className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 text-sm font-bold text-white backdrop-blur transition hover:bg-white/18"
+                className="pointer-events-auto inline-flex h-11 items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 text-sm font-bold text-white backdrop-blur transition hover:bg-white/18"
               >
                 {t("common.viewAll", "View all")}
               </Link>
@@ -585,7 +596,7 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
                 key={slide.id || index}
                 type="button"
                 onClick={() => setActiveHero(index)}
-                className={`group grid w-full grid-cols-[4rem_minmax(0,1fr)] gap-3 rounded-xl border p-2 text-left transition ${
+                className={`pointer-events-auto group grid w-full grid-cols-[4rem_minmax(0,1fr)] gap-3 rounded-xl border p-2 text-left transition ${
                   index === activeHero % slides.length
                     ? "border-white/70 bg-white text-gray-950"
                     : "border-white/15 bg-white/10 text-white hover:bg-white/18"
@@ -596,6 +607,7 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
                   alt=""
                   className="h-14 w-16 rounded-lg object-cover"
                   loading="lazy"
+                  decoding="async"
                 />
                 <span className="min-w-0 self-center">
                   <span className="line-clamp-1 text-xs font-black">{slide.badge || t("home.featured")}</span>
@@ -615,7 +627,7 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
             type="button"
             aria-label={t("home.previousBanner")}
             onClick={() => setActiveHero((current) => (current - 1 + slides.length) % slides.length)}
-            className="absolute left-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl bg-white/85 text-gray-900 shadow-sm transition hover:bg-white md:flex"
+            className="pointer-events-auto absolute left-3 top-1/2 z-30 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl bg-white/85 text-gray-900 shadow-sm transition hover:bg-white md:flex"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -623,11 +635,11 @@ function HeroCarousel({ banners, activeHero, setActiveHero, t }) {
             type="button"
             aria-label={t("home.nextBanner")}
             onClick={() => setActiveHero((current) => (current + 1) % slides.length)}
-            className="absolute right-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl bg-white/85 text-gray-900 shadow-sm transition hover:bg-white md:flex"
+            className="pointer-events-auto absolute right-3 top-1/2 z-30 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl bg-white/85 text-gray-900 shadow-sm transition hover:bg-white md:flex"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
-          <div className="absolute bottom-4 right-4 flex gap-1 rounded-full bg-black/25 p-1 backdrop-blur">
+          <div className="pointer-events-auto absolute bottom-4 right-4 z-30 flex gap-1 rounded-full bg-black/25 p-1 backdrop-blur">
             {slides.map((slide, index) => (
               <button
                 key={slide.id || index}
@@ -795,6 +807,7 @@ function FlashSaleStrip({ flashSales, now, formatPrice, t }) {
                     alt=""
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                     loading="lazy"
+                    decoding="async"
                   />
                   {discount > 0 ? (
                     <span className="absolute left-2 top-2 rounded bg-red-600 px-2 py-1 text-xs font-extrabold text-white">
@@ -864,6 +877,7 @@ function CuratedCollections({ collections, t }) {
                 alt=""
                 className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
                 loading="lazy"
+                decoding="async"
               />
               <div className="absolute inset-0 bg-gray-950/50" />
               <div className="relative flex min-h-56 flex-col justify-between p-5">
@@ -884,6 +898,7 @@ function CuratedCollections({ collections, t }) {
                         alt=""
                         className="h-9 w-9 rounded-lg border-2 border-white object-cover"
                         loading="lazy"
+                        decoding="async"
                       />
                     ))}
                   </div>
@@ -957,6 +972,7 @@ function FollowedVendorUpdates({ feed, t }) {
                 alt=""
                 className="h-20 w-20 rounded-lg object-cover"
                 loading="lazy"
+                decoding="async"
               />
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-300">

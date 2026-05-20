@@ -177,6 +177,7 @@ const CategoryTile = ({ category }) => (
           alt=""
           className="h-full w-full object-cover"
           loading="lazy"
+          decoding="async"
         />
       ) : (
         category.name?.charAt(0) || "C"
@@ -253,6 +254,7 @@ function ProductListRow({ product, formatPrice }) {
           alt={product.title}
           className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
           loading="lazy"
+          decoding="async"
         />
         {discount > 0 ? (
           <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-1 text-xs font-extrabold text-white">

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   AlertTriangle,
@@ -15,20 +15,26 @@ import useCart from "../hooks/useCart";
 import { useCurrency } from "../hooks/useCurrency";
 import useProductView from "../hooks/useProductView";
 import { ProductDetailSkeleton } from "../components/Skeleton";
-import ReviewsSection from "../components/reviews/ReviewsSection";
-import ProductRecommendations from "../components/ProductRecommendations";
-import SizeGuide from "../components/SizeGuide";
 import BackButton from "../components/BackButton";
 import ProductVariantSelector from "../components/ProductVariantSelector";
-import ProductQA from "../components/ProductQA";
-import VendorInfo from "../components/VendorInfo";
 import ProductMediaGallery from "../components/ProductMediaGallery";
 import ProductTrustAndDelivery from "../components/ProductTrustAndDelivery";
 import SellerInfoStrip from "../components/SellerInfoStrip";
-import PriceHistorySparkline from "../components/PriceHistorySparkline";
 import ProductShareReportActions from "../components/ProductShareReportActions";
-import FrequentlyBoughtTogether from "../components/FrequentlyBoughtTogether";
 import SocialProofIndicators from "../components/SocialProofIndicators";
+import { lazyLoadWithRetry } from "../utils/lazyLoad";
+
+const ReviewsSection = lazyLoadWithRetry(() => import("../components/reviews/ReviewsSection"));
+const ProductRecommendations = lazyLoadWithRetry(() => import("../components/ProductRecommendations"));
+const SizeGuide = lazyLoadWithRetry(() => import("../components/SizeGuide"));
+const ProductQA = lazyLoadWithRetry(() => import("../components/ProductQA"));
+const VendorInfo = lazyLoadWithRetry(() => import("../components/VendorInfo"));
+const PriceHistorySparkline = lazyLoadWithRetry(() => import("../components/PriceHistorySparkline"));
+const FrequentlyBoughtTogether = lazyLoadWithRetry(() => import("../components/FrequentlyBoughtTogether"));
+
+const DeferredBlockFallback = ({ className = "min-h-32" }) => (
+  <div className={`${className} animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800`} />
+);
 
 const normalizeSpecRows = (value) => {
   if (!value) return [];
@@ -643,17 +649,21 @@ export default function ProductDetail() {
             </div>
 
             <ProductTrustAndDelivery product={product} stockStatus={stockStatus} />
-            <PriceHistorySparkline history={product.detail?.priceHistory || []} />
+            <Suspense fallback={<DeferredBlockFallback className="min-h-24" />}>
+              <PriceHistorySparkline history={product.detail?.priceHistory || []} />
+            </Suspense>
           </div>
         </section>
 
-        <FrequentlyBoughtTogether
-          product={product}
-          selectedVariant={selectedVariant}
-          selectedImage={selectedImage}
-          selectedSize={selectedSize}
-          selectedColor={selectedColor}
-        />
+        <Suspense fallback={<DeferredBlockFallback />}>
+          <FrequentlyBoughtTogether
+            product={product}
+            selectedVariant={selectedVariant}
+            selectedImage={selectedImage}
+            selectedSize={selectedSize}
+            selectedColor={selectedColor}
+          />
+        </Suspense>
 
         <section className="mt-8 rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <div className="sticky top-[57px] z-20 flex gap-1 overflow-x-auto border-b border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900">
@@ -680,7 +690,9 @@ export default function ProductDetail() {
                 <p>{product.description || "No detailed description has been added yet."}</p>
                 {product.vendorId ? (
                   <div className="not-prose mt-6">
-                    <VendorInfo vendorId={product.vendorId} productId={id} />
+                    <Suspense fallback={<DeferredBlockFallback className="min-h-28" />}>
+                      <VendorInfo vendorId={product.vendorId} productId={id} />
+                    </Suspense>
                   </div>
                 ) : null}
               </div>
@@ -715,29 +727,41 @@ export default function ProductDetail() {
               </div>
             )}
 
-            {activeTab === "reviews" && <ReviewsSection productId={id} />}
-            {activeTab === "qa" && <ProductQA productId={id} />}
+            {activeTab === "reviews" && (
+              <Suspense fallback={<DeferredBlockFallback />}>
+                <ReviewsSection productId={id} />
+              </Suspense>
+            )}
+            {activeTab === "qa" && (
+              <Suspense fallback={<DeferredBlockFallback />}>
+                <ProductQA productId={id} />
+              </Suspense>
+            )}
           </div>
         </section>
 
         <section className="mt-8 border-t border-gray-200 pt-8 dark:border-gray-800">
-          <ProductRecommendations
-            productId={id}
-            category={product?.categoryId || product?.category}
-            title="Similar Products"
-            limit={8}
-            initialProducts={product.detail?.similarProducts || []}
-            layout="carousel"
-          />
+          <Suspense fallback={<DeferredBlockFallback />}>
+            <ProductRecommendations
+              productId={id}
+              category={product?.categoryId || product?.category}
+              title="Similar Products"
+              limit={8}
+              initialProducts={product.detail?.similarProducts || []}
+              layout="carousel"
+            />
+          </Suspense>
         </section>
 
         <section className="mt-8">
-          <ProductRecommendations
-            productId={id}
-            type="trending"
-            title="You Might Also Like"
-            limit={4}
-          />
+          <Suspense fallback={<DeferredBlockFallback />}>
+            <ProductRecommendations
+              productId={id}
+              type="trending"
+              title="You Might Also Like"
+              limit={4}
+            />
+          </Suspense>
         </section>
       </main>
 
@@ -775,11 +799,15 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      <SizeGuide
-        product={product}
-        isOpen={showSizeGuide}
-        onClose={() => setShowSizeGuide(false)}
-      />
+      {showSizeGuide ? (
+        <Suspense fallback={null}>
+          <SizeGuide
+            product={product}
+            isOpen={showSizeGuide}
+            onClose={() => setShowSizeGuide(false)}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

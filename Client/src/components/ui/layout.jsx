@@ -2,7 +2,8 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import { AlertCircle, Ban, Clock3, Store } from "lucide-react";
 import useAuth from "../../hooks/useAuth";
 import { getVendorGateStatus } from "../../utils/vendorSellerCenter";
-import { Badge, Spinner } from "./foundation";
+import Loading from "../Loading";
+import { Badge } from "./foundation";
 import { cn } from "./utils";
 
 export function PageShell({
@@ -88,20 +89,8 @@ export function SplitLayout({ main, aside, className = "" }) {
   );
 }
 
-export function FullscreenLoader({ label = "Loading Amiyo-Go" }) {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
-      <div className="text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-xl bg-primary-600 text-xl font-extrabold text-white shadow-lg">
-          AG
-        </div>
-        <div className="mt-5 flex items-center justify-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
-          <Spinner />
-          {label}
-        </div>
-      </div>
-    </div>
-  );
+export function FullscreenLoader({ label = "Loading your workspace" }) {
+  return <Loading fullScreen text={label} />;
 }
 
 export function AuthGuard({ children, roles, fallback = "/login" }) {

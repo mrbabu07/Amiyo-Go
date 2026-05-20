@@ -1,43 +1,72 @@
 import { motion } from "framer-motion";
+import { PackageCheck, ShoppingBag } from "lucide-react";
+
+const brandGradient =
+  "bg-[linear-gradient(135deg,#1e7098_0%,#22c55e_52%,#f59e0b_100%)]";
+const MotionDiv = motion.div;
 
 export default function Loading({
-  text = "Loading...",
+  text = "Preparing your marketplace",
   size = "default",
   fullScreen = false,
   variant = "spinner",
 }) {
   const sizeClasses = {
-    sm: "w-4 h-4",
-    default: "w-8 h-8",
-    lg: "w-12 h-12",
-    xl: "w-16 h-16",
+    sm: "h-14 w-14",
+    default: "h-18 w-18",
+    lg: "h-20 w-20",
+    xl: "h-24 w-24",
+  };
+
+  const ringClasses = {
+    sm: "h-14 w-14",
+    default: "h-18 w-18",
+    lg: "h-20 w-20",
+    xl: "h-24 w-24",
   };
 
   const LoadingSpinner = () => (
-    <div className="relative">
-      <div
-        className={`${sizeClasses[size]} border-4 border-primary-200 rounded-full`}
-      ></div>
-      <div
-        className={`${sizeClasses[size]} border-4 border-primary-500 rounded-full border-t-transparent animate-spin absolute top-0 left-0`}
-      ></div>
+    <div className={`relative ${ringClasses[size] || ringClasses.default}`}>
+      <MotionDiv
+        className="absolute inset-0 rounded-[1.25rem] border border-primary-100 bg-white shadow-lg shadow-primary-900/10 dark:border-gray-800 dark:bg-gray-900 dark:shadow-black/30"
+        animate={{ scale: [0.96, 1, 0.96] }}
+        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <MotionDiv
+        className={`absolute inset-0 rounded-[1.25rem] p-0.5 ${brandGradient}`}
+        animate={{ rotate: 360 }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: "linear" }}
+      >
+        <div className="h-full w-full rounded-[1.1rem] bg-white dark:bg-gray-950" />
+      </MotionDiv>
+      <div className="absolute inset-2 flex items-center justify-center rounded-lg bg-primary-600 text-white shadow-sm">
+        <ShoppingBag className="h-7 w-7" strokeWidth={2.2} />
+      </div>
+      <MotionDiv
+        className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500 text-white shadow-md ring-2 ring-white dark:ring-gray-950"
+        animate={{ y: [0, -3, 0] }}
+        transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <PackageCheck className="h-4 w-4" strokeWidth={2.4} />
+      </MotionDiv>
     </div>
   );
 
   const LoadingDots = () => (
-    <div className="flex space-x-2">
+    <div className="flex h-8 items-end gap-1.5" aria-hidden="true">
       {[0, 1, 2].map((i) => (
-        <motion.div
+        <MotionDiv
           key={i}
-          className="w-3 h-3 bg-primary rounded-full"
+          className={`w-2.5 rounded-full ${i === 2 ? "bg-accent-500" : i === 1 ? "bg-success-500" : "bg-primary-600"}`}
           animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.7, 1, 0.7],
+            height: ["0.65rem", "1.55rem", "0.65rem"],
+            opacity: [0.65, 1, 0.65],
           }}
           transition={{
-            duration: 0.8,
+            duration: 0.85,
             repeat: Infinity,
-            delay: i * 0.2,
+            delay: i * 0.14,
+            ease: "easeInOut",
           }}
         />
       ))}
@@ -45,24 +74,28 @@ export default function Loading({
   );
 
   const LoadingPulse = () => (
-    <motion.div
-      className={`${sizeClasses[size]} bg-primary rounded-full`}
-      animate={{
-        scale: [1, 1.2, 1],
-        opacity: [0.7, 1, 0.7],
-      }}
-      transition={{
-        duration: 1.5,
-        repeat: Infinity,
-      }}
-    />
+    <div className={`relative ${sizeClasses[size] || sizeClasses.default}`}>
+      <MotionDiv
+        className="absolute inset-0 rounded-lg bg-primary-100 dark:bg-primary-950/40"
+        animate={{ scale: [1, 1.12, 1], opacity: [0.6, 0.9, 0.6] }}
+        transition={{ duration: 1.3, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <div className="absolute inset-2 flex items-center justify-center rounded-lg bg-primary-600 text-sm font-black text-white">
+        AG
+      </div>
+    </div>
   );
 
   const LoadingSkeleton = () => (
-    <div className="animate-pulse space-y-4">
-      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-      <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+    <div className="w-full max-w-md animate-pulse space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <div className="h-4 w-28 rounded bg-primary-100 dark:bg-primary-950/60" />
+      <div className="h-3 w-3/4 rounded bg-gray-200 dark:bg-gray-800" />
+      <div className="h-3 w-1/2 rounded bg-gray-200 dark:bg-gray-800" />
+      <div className="grid grid-cols-3 gap-2 pt-2">
+        <div className="h-14 rounded bg-gray-100 dark:bg-gray-800" />
+        <div className="h-14 rounded bg-gray-100 dark:bg-gray-800" />
+        <div className="h-14 rounded bg-gray-100 dark:bg-gray-800" />
+      </div>
     </div>
   );
 
@@ -80,36 +113,50 @@ export default function Loading({
   };
 
   const content = (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+    <MotionDiv
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      className="flex flex-col items-center justify-center space-y-4"
+      transition={{ duration: 0.25 }}
+      className="flex flex-col items-center justify-center text-center"
+      role={variant === "skeleton" ? undefined : "status"}
+      aria-live={variant === "skeleton" ? undefined : "polite"}
     >
       {renderVariant()}
       {text && variant !== "skeleton" && (
-        <motion.p
+        <MotionDiv
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="text-gray-600 font-medium text-center"
+          className="mt-5"
         >
-          {text}
-        </motion.p>
+          <p className="text-base font-black text-gray-950 dark:text-white">Amiyo-Go</p>
+          <p className="mt-1 text-sm font-semibold text-gray-500 dark:text-gray-400">{text}</p>
+          <div className="mt-4 h-1 w-44 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
+            <MotionDiv
+              className={`h-full w-1/2 rounded-full ${brandGradient}`}
+              animate={{ x: ["-100%", "220%"] }}
+              transition={{ duration: 1.25, repeat: Infinity, ease: "easeInOut" }}
+            />
+          </div>
+        </MotionDiv>
       )}
-    </motion.div>
+    </MotionDiv>
   );
 
   if (fullScreen) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="text-center">{content}</div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 text-gray-950 dark:bg-gray-950 dark:text-white">
+        <div className="relative">
+          <div className="absolute inset-x-8 top-1/2 h-px bg-gradient-to-r from-transparent via-primary-200 to-transparent dark:via-primary-900/70" />
+          {content}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[400px]">
+    <div className="flex min-h-[400px] flex-col items-center justify-center px-4">
       {content}
     </div>
   );
