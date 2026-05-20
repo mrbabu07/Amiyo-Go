@@ -31,12 +31,15 @@ const collectionToArray = async (db, name, query = {}, sort = {}, limit = 50000)
   }
 };
 
-const upsertOne = async (db, collectionName, query, doc) =>
-  db.collection(collectionName).updateOne(
-    query,
-    { $set: { ...doc, updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
-    { upsert: true },
-  );
+const upsertOne = async (db, collectionName, query, doc) => {
+  const now = new Date();
+  const update = { $set: { ...doc, updatedAt: now } };
+  if (!Object.prototype.hasOwnProperty.call(doc || {}, "createdAt")) {
+    update.$setOnInsert = { createdAt: now };
+  }
+
+  return db.collection(collectionName).updateOne(query, update, { upsert: true });
+};
 
 const eventCount = (events, name) => events.filter((event) => event.eventName === name || event.type === name).length;
 const unique = (items) => new Set(items.map(normalizeId).filter(Boolean));

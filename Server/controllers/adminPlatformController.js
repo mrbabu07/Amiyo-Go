@@ -209,7 +209,7 @@ const makeSlug = (value) =>
 const mergeConfig = (saved = {}) => {
   const merged = clone(DEFAULT_PLATFORM_CONFIG);
   Object.entries(saved || {}).forEach(([key, value]) => {
-    if (key === "_id") return;
+    if (key === "_id" || key === "createdAt") return;
     if (value && typeof value === "object" && !Array.isArray(value) && merged[key]) {
       merged[key] = { ...merged[key], ...value };
       return;

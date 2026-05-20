@@ -34,6 +34,15 @@ const matchesQuery = (doc, query = {}) => {
     .every(([key, expected]) => matchesValue(getByPath(doc, key), expected));
 };
 
+const assertNoMongoUpdatePathConflict = (update = {}) => {
+  const setPaths = new Set(Object.keys(update.$set || {}));
+  Object.keys(update.$setOnInsert || {}).forEach((path) => {
+    if (setPaths.has(path)) {
+      throw new Error(`Updating the path '${path}' would create a conflict at '${path}'`);
+    }
+  });
+};
+
 class FakeCursor {
   constructor(docs) {
     this.docs = [...docs];
@@ -85,6 +94,7 @@ class FakeCollection {
   }
 
   async updateOne(query, update, options = {}) {
+    assertNoMongoUpdatePathConflict(update);
     let doc = this.docs.find((item) => matchesQuery(item, query));
     if (!doc && options.upsert) {
       doc = { ...(query || {}), ...(update.$setOnInsert || {}), ...(update.$set || {}) };

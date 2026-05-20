@@ -38,6 +38,15 @@ const setByPath = (doc, path, value) => {
   target[parts[parts.length - 1]] = value;
 };
 
+const assertNoMongoUpdatePathConflict = (update = {}) => {
+  const setPaths = new Set(Object.keys(update.$set || {}));
+  Object.keys(update.$setOnInsert || {}).forEach((path) => {
+    if (setPaths.has(path)) {
+      throw new Error(`Updating the path '${path}' would create a conflict at '${path}'`);
+    }
+  });
+};
+
 const matchesValue = (actual, expected) => {
   if (expected instanceof RegExp) return expected.test(String(actual || ""));
   if (expected && typeof expected === "object" && !(expected instanceof ObjectId) && !Array.isArray(expected)) {
@@ -108,6 +117,7 @@ class FakeCollection {
   }
 
   async updateOne(query, update, options = {}) {
+    assertNoMongoUpdatePathConflict(update);
     let doc = this.docs.find((item) => matchesQuery(item, query));
     if (!doc && options.upsert) {
       doc = { ...(update.$setOnInsert || {}) };
@@ -230,6 +240,11 @@ describe("adminPlatformController", () => {
   test("updates platform config, category attributes, and commission table", async () => {
     const categoryId = new ObjectId();
     const db = buildDb({
+      platform_settings: [{
+        _id: "platform_control",
+        createdAt: new Date("2026-05-01T00:00:00.000Z"),
+        featureFlags: { guestCheckout: true, referrals: true },
+      }],
       categories: [{ _id: categoryId, name: "Electronics", slug: "electronics", parentId: null, attributes: [] }],
     });
 
@@ -248,6 +263,7 @@ describe("adminPlatformController", () => {
     );
     expect(configRes.json.mock.calls[0][0].data.featureFlags.guestCheckout).toBe(false);
     expect(configRes.json.mock.calls[0][0].data.seo.sitemapRegenerationRequestedAt).toBeInstanceOf(Date);
+    expect(db.collection("platform_settings").docs[0].createdAt).toEqual(new Date("2026-05-01T00:00:00.000Z"));
 
     const categoryRes = createRes();
     await upsertCategoryNode(
@@ -344,5 +360,30 @@ describe("adminPlatformController", () => {
       sessionTimeoutMinutes: 12,
     });
     expect(db.collection("platform_settings").docs[0].sessionTimeoutByRole.finance_manager).toBe(12);
+  });
+
+  test("updates session policy when platform config already has createdAt metadata", async () => {
+    const createdAt = new Date("2026-05-01T00:00:00.000Z");
+    const db = buildDb({
+      platform_settings: [{ _id: "platform_control", createdAt, sessionTimeoutByRole: { admin: 60 } }],
+    });
+    const res = createRes();
+
+    await updateRoleSessionPolicy(
+      buildReq({
+        db,
+        params: { role: "support" },
+        body: { sessionTimeoutMinutes: 20 },
+      }),
+      res,
+    );
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(db.collection("platform_settings").docs[0]).toEqual(
+      expect.objectContaining({
+        createdAt,
+        sessionTimeoutByRole: expect.objectContaining({ support: 20 }),
+      }),
+    );
   });
 });

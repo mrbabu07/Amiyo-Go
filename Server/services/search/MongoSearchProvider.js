@@ -33,6 +33,13 @@ class MongoSearchProvider {
       discountMin: query.discountMin !== undefined ? Number(query.discountMin) : undefined,
       inStock: query.inStock === "true",
       location: query.location || "",
+      divisionId: query.divisionId || "",
+      district: query.district || "",
+      districtId: query.districtId || "",
+      upazila: query.upazila || "",
+      upazilaId: query.upazilaId || "",
+      union: query.union || "",
+      unionId: query.unionId || "",
     };
 
     Object.keys(filters).forEach((key) => {

@@ -224,7 +224,7 @@ const flattenNavigation = (items = []) =>
 const AlertBadge = ({ count }) => {
   if (!count) return null;
   return (
-    <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold leading-none text-white">
+    <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 text-[10px] font-bold leading-none text-white">
       {count > 99 ? '99+' : count}
     </span>
   );
@@ -312,23 +312,23 @@ const AdminLayout = () => {
   const canAccessAdminPath = (path) => canAccessPath(path, access);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
-      <header className="fixed inset-x-0 top-0 z-30 h-16 border-b border-gray-200 bg-white/95 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
+    <div className="min-h-screen bg-[#F5F5F5] dark:bg-gray-950">
+      <header className="fixed inset-x-0 top-0 z-30 h-16 border-b border-[#E0E0E0] bg-white/95 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
         <div className="flex h-full items-center justify-between px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen((open) => !open)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:text-gray-200 dark:hover:bg-gray-800 lg:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-700 transition hover:bg-[#FFF3EC] hover:text-[#C64B11] focus:outline-none focus:ring-2 focus:ring-[#F57224]/30 dark:text-gray-200 dark:hover:bg-gray-800 lg:hidden"
               aria-label={sidebarOpen ? 'Close admin menu' : 'Open admin menu'}
             >
               {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
             <Link to="/admin" className="flex min-w-0 items-center gap-3" onClick={closeSidebarOnMobile}>
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-600 text-sm font-bold text-white shadow-sm">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F57224] text-sm font-bold text-white shadow-sm">
                 AG
               </span>
-              <span className="truncate text-lg font-bold text-gray-950 dark:text-white sm:text-xl">
+              <span className="truncate text-lg font-bold text-[#1A1A2E] dark:text-white sm:text-xl">
                 Amiyo-Go Admin
               </span>
             </Link>
@@ -347,7 +347,7 @@ const AdminLayout = () => {
                 <Link
                   key={item.name}
                   to={item.path}
-                  className="hidden h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:text-gray-300 dark:hover:bg-orange-900/20 dark:hover:text-orange-300 sm:inline-flex"
+                  className="hidden h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition hover:bg-[#FFF3EC] hover:text-[#C64B11] focus:outline-none focus:ring-2 focus:ring-[#F57224]/30 dark:text-gray-300 dark:hover:bg-orange-900/20 dark:hover:text-orange-300 sm:inline-flex"
                   title={item.name}
                   aria-label={item.name}
                 >
@@ -358,7 +358,7 @@ const AdminLayout = () => {
             <button
               type="button"
               onClick={toggleTheme}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:text-gray-300 dark:hover:bg-orange-900/20 dark:hover:text-orange-300"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition hover:bg-[#FFF3EC] hover:text-[#C64B11] focus:outline-none focus:ring-2 focus:ring-[#F57224]/30 dark:text-gray-300 dark:hover:bg-orange-900/20 dark:hover:text-orange-300"
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
@@ -400,13 +400,13 @@ const AdminLayout = () => {
       )}
 
       <aside
-        className={`fixed bottom-0 left-0 top-16 z-20 flex w-72 flex-col border-r border-gray-200 bg-white transition-transform duration-300 dark:border-gray-800 dark:bg-gray-900 ${
+        className={`fixed bottom-0 left-0 top-16 z-20 flex w-72 flex-col border-r border-[#E0E0E0] bg-white transition-transform duration-300 dark:border-gray-800 dark:bg-gray-900 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0`}
         aria-label="Admin navigation"
       >
-        <div className="border-b border-gray-100 px-4 py-4 dark:border-gray-800">
-          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-gray-800/80">
+        <div className="border-b border-[#E0E0E0] px-4 py-4 dark:border-gray-800">
+          <div className="flex items-center justify-between rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] px-3 py-2 dark:border-gray-800 dark:bg-gray-800/80">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-gray-950 dark:text-white">
                 Admin workspace
@@ -415,7 +415,7 @@ const AdminLayout = () => {
                 {role || 'staff'} access
               </p>
             </div>
-            <Bell className="h-5 w-5 shrink-0 text-orange-600 dark:text-orange-400" />
+            <Bell className="h-5 w-5 shrink-0 text-[#F57224] dark:text-orange-400" />
           </div>
         </div>
 
@@ -435,9 +435,9 @@ const AdminLayout = () => {
                   <button
                     type="button"
                     onClick={() => toggleSection(item.name)}
-                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-orange-500/25 ${
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#F57224]/25 ${
                       sectionActive
-                        ? 'bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-300'
+                        ? 'bg-[#FFF3EC] text-[#C64B11] dark:bg-orange-950/30 dark:text-orange-300'
                         : 'text-gray-700 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
                     }`}
                     aria-expanded={expanded}
@@ -461,15 +461,15 @@ const AdminLayout = () => {
                             to={child.path}
                             onClick={closeSidebarOnMobile}
                             aria-current={childActive ? 'page' : undefined}
-                            className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-orange-500/25 ${
+                            className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-[#F57224]/25 ${
                               childActive
-                                ? 'bg-orange-50 font-semibold text-orange-700 dark:bg-orange-950/30 dark:text-orange-300'
+                                ? 'bg-[#FFF3EC] font-semibold text-[#C64B11] dark:bg-orange-950/30 dark:text-orange-300'
                                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
                             }`}
                           >
                             <span
                               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                childActive ? 'bg-orange-600 dark:bg-orange-300' : 'bg-gray-300 dark:bg-gray-600'
+                                childActive ? 'bg-[#F57224] dark:bg-orange-300' : 'bg-gray-300 dark:bg-gray-600'
                               }`}
                             />
                             <span className="min-w-0 flex-1 truncate">{child.name}</span>
@@ -489,9 +489,9 @@ const AdminLayout = () => {
                 to={item.path}
                 onClick={closeSidebarOnMobile}
                 aria-current={sectionActive ? 'page' : undefined}
-                className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-orange-500/25 ${
+                className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#F57224]/25 ${
                   sectionActive
-                    ? 'bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-300'
+                    ? 'bg-[#FFF3EC] text-[#C64B11] dark:bg-orange-950/30 dark:text-orange-300'
                     : 'text-gray-700 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
                 }`}
               >
@@ -507,7 +507,7 @@ const AdminLayout = () => {
           <Link
             to="/"
             onClick={closeSidebarOnMobile}
-            className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-orange-50 hover:text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/25 dark:text-gray-300 dark:hover:bg-orange-950/30 dark:hover:text-orange-300"
+            className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-[#FFF3EC] hover:text-[#C64B11] focus:outline-none focus:ring-2 focus:ring-[#F57224]/25 dark:text-gray-300 dark:hover:bg-orange-950/30 dark:hover:text-orange-300"
           >
             <Home className="h-5 w-5 shrink-0" />
             <span className="min-w-0 flex-1 truncate">View storefront</span>

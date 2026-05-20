@@ -190,6 +190,9 @@ describe("AdminDashboard hardening workflow", () => {
     );
 
     expect(await screen.findByTestId("admin-exception-inbox")).toBeInTheDocument();
+    const controlHub = screen.getByTestId("admin-control-hub");
+    expect(controlHub).toBeInTheDocument();
+    expect(within(controlHub).getByRole("link", { name: /operations/i })).toHaveAttribute("href", "/admin/operations");
     expect(screen.getByTestId("admin-hardening-panels")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "High Risk" })).toBeInTheDocument();
 

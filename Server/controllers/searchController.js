@@ -52,6 +52,58 @@ const normalizeText = (value = "") =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
+const BD_DIVISION_LOCATION_LABELS = {
+  barishal: "Barishal",
+  chattogram: "Chattogram",
+  dhaka: "Dhaka",
+  khulna: "Khulna",
+  mymensingh: "Mymensingh",
+  rajshahi: "Rajshahi",
+  rangpur: "Rangpur",
+  sylhet: "Sylhet",
+};
+
+const BD_DIVISION_ID_LABELS = {
+  1: "Chattogram",
+  2: "Rajshahi",
+  3: "Khulna",
+  4: "Barishal",
+  5: "Sylhet",
+  6: "Dhaka",
+  7: "Rangpur",
+  8: "Mymensingh",
+};
+
+const DIVISION_LOCATION_ALIASES = [
+  { key: "barishal", aliases: ["barishal", "barisal"] },
+  { key: "chattogram", aliases: ["chattogram", "chattagram", "chittagong"] },
+  { key: "dhaka", aliases: ["dhaka"] },
+  { key: "khulna", aliases: ["khulna"] },
+  { key: "mymensingh", aliases: ["mymensingh"] },
+  { key: "rajshahi", aliases: ["rajshahi"] },
+  { key: "rangpur", aliases: ["rangpur"] },
+  { key: "sylhet", aliases: ["sylhet"] },
+];
+
+const normalizeLocationText = (value = "") => {
+  const normalized = normalizeText(value);
+  if (!normalized) return "";
+
+  const division = DIVISION_LOCATION_ALIASES.find((item) =>
+    item.aliases.some((alias) => normalized === alias || normalized.includes(alias)),
+  );
+
+  return division ? division.key : normalized;
+};
+
+const displayLocationValue = (value = "") => {
+  const normalized = normalizeLocationText(value);
+  return BD_DIVISION_LOCATION_LABELS[normalized] || String(value || "").trim();
+};
+
+const displayDivisionById = (value = "") =>
+  BD_DIVISION_ID_LABELS[String(value || "").trim()] || "";
+
 const tokenize = (value = "") =>
   normalizeText(value)
     .split(/\s+/)
@@ -154,11 +206,78 @@ const getDeliverySpeed = (product = {}, vendor = {}) => {
   return "standard";
 };
 
-const getLocation = (product = {}, vendor = {}) => {
-  const source = product.location || product.district || vendor.pickupAddress || vendor.address || vendor.businessAddress || {};
-  if (typeof source === "string") return source;
-  return source.district || source.city || source.area || source.division || vendor.district || vendor.city || "";
+const getDefaultPickupAddress = (vendor = {}) => {
+  if (!Array.isArray(vendor.pickupAddresses) || vendor.pickupAddresses.length === 0) return null;
+  return vendor.pickupAddresses.find((address) => address?.isDefault) || vendor.pickupAddresses[0];
 };
+
+const getLocationSources = (product = {}, vendor = {}) =>
+  [
+    product.location,
+    product.pickupAddress,
+    product.address,
+    getDefaultPickupAddress(vendor),
+    vendor.pickupAddress,
+    vendor.address,
+    vendor.businessAddress,
+    vendor.returnAddress,
+    product,
+    vendor,
+  ].filter((source) => source && typeof source === "object" && !Array.isArray(source));
+
+const firstLocationValue = (sources = [], keys = []) => {
+  for (const source of sources) {
+    for (const key of keys) {
+      const value = source?.[key];
+      if (value !== undefined && value !== null && String(value).trim()) {
+        return String(value).trim();
+      }
+    }
+  }
+  return "";
+};
+
+const getLocationParts = (product = {}, vendor = {}) => {
+  const sources = getLocationSources(product, vendor);
+  const divisionId = firstLocationValue(sources, ["divisionId"]);
+  const districtId = firstLocationValue(sources, ["districtId"]);
+  const upazilaId = firstLocationValue(sources, ["upazilaId", "thanaId"]);
+  const unionId = firstLocationValue(sources, ["unionId"]);
+  const division = firstLocationValue(sources, ["division"]) || displayDivisionById(divisionId);
+  const district = firstLocationValue(sources, ["district", "city", "state"]);
+  const upazila = firstLocationValue(sources, ["upazila", "thana"]);
+  const union = firstLocationValue(sources, ["union", "unionName"]);
+  const area = firstLocationValue(sources, ["area"]);
+
+  const stringSource = [
+    product.location,
+    product.district,
+    product.city,
+    product.area,
+    vendor.district,
+    vendor.city,
+    vendor.area,
+  ].find((source) => typeof source === "string" && source.trim());
+
+  const fallback = stringSource ? displayLocationValue(stringSource) : "";
+  const location = division
+    ? displayLocationValue(division)
+    : district || upazila || union || area || fallback;
+
+  return {
+    location,
+    division: division ? displayLocationValue(division) : "",
+    divisionId,
+    district,
+    districtId,
+    upazila: upazila || area,
+    upazilaId,
+    union,
+    unionId,
+  };
+};
+
+const getLocation = (product = {}, vendor = {}) => getLocationParts(product, vendor).location;
 
 const tagText = (tags) => {
   if (Array.isArray(tags)) return tags.join(" ");
@@ -202,6 +321,7 @@ const enrichProducts = ({ products = [], categories = [], vendors = [], reviews 
     const vendor = vendorMap.get(normalizeId(product.vendorId)) || {};
     const rating = reviewMap.get(normalizeId(product._id)) || { count: 0, ratingSum: 0 };
     const averageRating = rating.count ? Math.round((rating.ratingSum / rating.count) * 10) / 10 : Number(product.averageRating || product.rating || 0);
+    const locationParts = getLocationParts(product, vendor);
 
     return serializeProduct({
       ...product,
@@ -215,12 +335,24 @@ const enrichProducts = ({ products = [], categories = [], vendors = [], reviews 
       reviewCount: rating.count || Number(product.reviewCount || product.reviewsCount || 0),
       discountPercent: discountPercent(product),
       deliverySpeed: getDeliverySpeed(product, vendor),
-      location: getLocation(product, vendor),
+      location: locationParts.location,
+      locationDivision: locationParts.division,
+      locationDivisionId: locationParts.divisionId,
+      locationDistrict: locationParts.district,
+      locationDistrictId: locationParts.districtId,
+      locationUpazila: locationParts.upazila,
+      locationUpazilaId: locationParts.upazilaId,
+      locationUnion: locationParts.union,
+      locationUnionId: locationParts.unionId,
       searchableText: normalizeText([
         product.title,
         product.description,
         getBrand(product),
         category.name,
+        locationParts.location,
+        locationParts.district,
+        locationParts.upazila,
+        locationParts.union,
         tagText(product.tags),
         product.sku,
       ].filter(Boolean).join(" ")),
@@ -229,6 +361,10 @@ const enrichProducts = ({ products = [], categories = [], vendors = [], reviews 
         product.description,
         getBrand(product),
         category.name,
+        locationParts.location,
+        locationParts.district,
+        locationParts.upazila,
+        locationParts.union,
         tagText(product.tags),
         product.sku,
       ].filter(Boolean).join(" ")),
@@ -396,6 +532,49 @@ const normalizeSort = (value = "best_match") => {
   return aliases[value] || value || "best_match";
 };
 
+const matchesLocationValue = (product = {}, { id, text, idField, textFields = [], normalize = normalizeText }) => {
+  const filterId = id !== undefined && id !== null ? String(id).trim() : "";
+  const filterText = text !== undefined && text !== null ? String(text).trim() : "";
+  if (!filterId && !filterText) return true;
+
+  if (filterId && String(product[idField] || "").trim() === filterId) return true;
+
+  const normalizedFilter = normalize(filterText || filterId);
+  if (!normalizedFilter) return true;
+
+  return textFields.some((field) => {
+    const normalizedValue = normalize(product[field] || "");
+    return normalizedValue && (normalizedValue === normalizedFilter || normalizedValue.includes(normalizedFilter));
+  });
+};
+
+const matchesLocationFilters = (product = {}, filters = {}) =>
+  matchesLocationValue(product, {
+    id: filters.divisionId,
+    text: filters.location,
+    idField: "locationDivisionId",
+    textFields: ["locationDivision", "location"],
+    normalize: normalizeLocationText,
+  }) &&
+  matchesLocationValue(product, {
+    id: filters.districtId,
+    text: filters.district,
+    idField: "locationDistrictId",
+    textFields: ["locationDistrict", "location"],
+  }) &&
+  matchesLocationValue(product, {
+    id: filters.upazilaId,
+    text: filters.upazila,
+    idField: "locationUpazilaId",
+    textFields: ["locationUpazila"],
+  }) &&
+  matchesLocationValue(product, {
+    id: filters.unionId,
+    text: filters.union,
+    idField: "locationUnionId",
+    textFields: ["locationUnion"],
+  });
+
 const matchesFilters = (product, filters = {}, categoryIds = []) => {
   if (categoryIds.length && !categoryIds.includes(normalizeId(product.categoryId))) return false;
   if (filters.minPrice !== undefined && Number(product.price || 0) < Number(filters.minPrice)) return false;
@@ -405,7 +584,7 @@ const matchesFilters = (product, filters = {}, categoryIds = []) => {
   if (filters.discountMin !== undefined && Number(product.discountPercent || 0) < Number(filters.discountMin)) return false;
   if (filters.inStock && Number(product.stock || 0) <= 0 && !product.allowBackorder) return false;
   if (filters.deliverySpeed && !normalizeText(product.deliverySpeed).includes(normalizeText(filters.deliverySpeed))) return false;
-  if (filters.location && !normalizeText(product.location).includes(normalizeText(filters.location))) return false;
+  if (!matchesLocationFilters(product, filters)) return false;
   return true;
 };
 
@@ -426,16 +605,33 @@ const sortProducts = (products = [], sort = "best_match") => {
 const buildFacets = (products = [], categories = []) => {
   const brands = new Map();
   const locations = new Map();
+  const divisionLocations = new Map();
+  const districtLocations = new Map();
+  const upazilaLocations = new Map();
+  const unionLocations = new Map();
   const deliverySpeeds = new Map();
   let min = 0;
   let max = 0;
+
+  const addLocationCount = (map, id, text) => {
+    const value = String(id || text || "").trim();
+    if (!value) return;
+    map.set(value, (map.get(value) || 0) + 1);
+  };
 
   products.forEach((product, index) => {
     const price = Number(product.price || 0);
     if (index === 0 || price < min) min = price;
     if (price > max) max = price;
     if (product.brand) brands.set(product.brand, (brands.get(product.brand) || 0) + 1);
-    if (product.location) locations.set(product.location, (locations.get(product.location) || 0) + 1);
+    if (product.location) {
+      const location = displayLocationValue(product.location);
+      locations.set(location, (locations.get(location) || 0) + 1);
+    }
+    addLocationCount(divisionLocations, product.locationDivisionId, product.locationDivision || product.location);
+    addLocationCount(districtLocations, product.locationDistrictId, product.locationDistrict);
+    addLocationCount(upazilaLocations, product.locationUpazilaId, product.locationUpazila);
+    addLocationCount(unionLocations, product.locationUnionId, product.locationUnion);
     if (product.deliverySpeed) deliverySpeeds.set(product.deliverySpeed, (deliverySpeeds.get(product.deliverySpeed) || 0) + 1);
   });
 
@@ -445,6 +641,12 @@ const buildFacets = (products = [], categories = []) => {
     priceRange: { min, max },
     brands: mapToRows(brands).slice(0, 30),
     locations: mapToRows(locations).slice(0, 20),
+    locationBreakdown: {
+      divisions: mapToRows(divisionLocations),
+      districts: mapToRows(districtLocations),
+      upazilas: mapToRows(upazilaLocations),
+      unions: mapToRows(unionLocations),
+    },
     deliverySpeeds: mapToRows(deliverySpeeds).slice(0, 12),
     categories: categories.map((category) => ({
       _id: normalizeId(category._id),
@@ -476,7 +678,22 @@ const buildAppliedFilters = (filters = {}, categories = []) => {
   if (filters.discountMin !== undefined) chips.push({ key: "discountMin", label: `${filters.discountMin}% off or more`, value: filters.discountMin });
   if (filters.inStock) chips.push({ key: "inStock", label: "In stock", value: true });
   if (filters.deliverySpeed) chips.push({ key: "deliverySpeed", label: `Delivery: ${filters.deliverySpeed}`, value: filters.deliverySpeed });
-  if (filters.location) chips.push({ key: "location", label: `Ships from: ${filters.location}`, value: filters.location });
+  if (filters.location || filters.divisionId) {
+    chips.push({
+      key: "location",
+      label: `Division: ${filters.location ? displayLocationValue(filters.location) : displayDivisionById(filters.divisionId) || filters.divisionId}`,
+      value: filters.location || filters.divisionId,
+    });
+  }
+  if (filters.district || filters.districtId) {
+    chips.push({ key: "district", label: `District: ${filters.district || filters.districtId}`, value: filters.district || filters.districtId });
+  }
+  if (filters.upazila || filters.upazilaId) {
+    chips.push({ key: "upazila", label: `Upazila: ${filters.upazila || filters.upazilaId}`, value: filters.upazila || filters.upazilaId });
+  }
+  if (filters.union || filters.unionId) {
+    chips.push({ key: "union", label: `Union: ${filters.union || filters.unionId}`, value: filters.union || filters.unionId });
+  }
   return chips;
 };
 

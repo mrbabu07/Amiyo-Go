@@ -89,7 +89,16 @@ const rawProducts = [
     views: 60,
     tags: ["shirt"],
     deliverySpeed: "standard",
-    location: "Chattogram",
+    location: {
+      division: "Chattogram",
+      divisionId: "1",
+      district: "Chattogram",
+      districtId: "8",
+      upazila: "Chattogram Sadar",
+      upazilaId: "11",
+      union: "Pahartali",
+      unionId: "880",
+    },
     createdAt: "2026-05-08T00:00:00.000Z",
   },
 ];
@@ -146,8 +155,61 @@ describe("search controller white-box utilities", () => {
         "10% off or more",
         "In stock",
         "Delivery: 24h",
-        "Ships from: Dhaka",
+        "Division: Dhaka",
       ]),
+    );
+  });
+
+  test("runSearch matches Bangladesh division aliases", () => {
+    const result = runSearch({
+      products,
+      categories,
+      filters: {
+        location: "Chattagram",
+      },
+      sort: "best_match",
+    });
+
+    expect(result.totalCount).toBe(1);
+    expect(result.products[0]._id).toBe("product-basic-shirt");
+    expect(buildFacets(products, categories).locations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ value: "Chattogram", count: 1 }),
+      ]),
+    );
+  });
+
+  test("runSearch filters by district, upazila, and union", () => {
+    const result = runSearch({
+      products,
+      categories,
+      filters: {
+        location: "Chattogram",
+        divisionId: "1",
+        district: "Chattogram",
+        districtId: "8",
+        upazila: "Chattogram Sadar",
+        upazilaId: "11",
+        union: "Pahartali",
+        unionId: "880",
+      },
+      sort: "best_match",
+    });
+
+    expect(result.totalCount).toBe(1);
+    expect(result.products[0]._id).toBe("product-basic-shirt");
+    expect(result.appliedFilters.map((filter) => filter.label)).toEqual(
+      expect.arrayContaining([
+        "Division: Chattogram",
+        "District: Chattogram",
+        "Upazila: Chattogram Sadar",
+        "Union: Pahartali",
+      ]),
+    );
+
+    const facets = buildFacets(products, categories);
+    expect(facets.locationBreakdown.districts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ value: "8", count: 1 })]),
     );
   });
 

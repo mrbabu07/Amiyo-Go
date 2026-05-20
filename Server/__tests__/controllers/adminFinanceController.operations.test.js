@@ -40,6 +40,15 @@ const setByPath = (doc, path, value) => {
   target[parts[parts.length - 1]] = value;
 };
 
+const assertNoMongoUpdatePathConflict = (update = {}) => {
+  const setPaths = new Set(Object.keys(update.$set || {}));
+  Object.keys(update.$setOnInsert || {}).forEach((path) => {
+    if (setPaths.has(path)) {
+      throw new Error(`Updating the path '${path}' would create a conflict at '${path}'`);
+    }
+  });
+};
+
 const matchesQuery = (doc, query = {}) =>
   Object.entries(query).every(([key, expected]) => {
     const actual = getByPath(doc, key);
@@ -119,6 +128,7 @@ class FakeCollection {
   }
 
   async updateOne(query, update, options = {}) {
+    assertNoMongoUpdatePathConflict(update);
     let doc = this.docs.find((item) => matchesQuery(item, query));
     if (!doc && options.upsert) {
       doc = { ...query, ...(update.$setOnInsert || {}) };
@@ -380,14 +390,27 @@ describe("adminFinanceController operations", () => {
     await upsertPayoutSchedule(
       buildReq({
         db,
-        body: { frequency: "biweekly", cutoffDay: 5, processingDay: 1, minimumPayout: 1500 },
+        body: {
+          _id: "payout_schedule",
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+          frequency: "biweekly",
+          cutoffDay: 5,
+          processingDay: 1,
+          minimumPayout: 1500,
+        },
       }),
       createRes(),
     );
     await upsertEscrowRules(
       buildReq({
         db,
-        body: { holdPercentage: 12, holdDaysAfterDelivery: 5, disputeHoldPercentage: 80 },
+        body: {
+          _id: "escrow_rules",
+          createdAt: new Date("2026-05-01T00:00:00.000Z"),
+          holdPercentage: 12,
+          holdDaysAfterDelivery: 5,
+          disputeHoldPercentage: 80,
+        },
       }),
       createRes(),
     );

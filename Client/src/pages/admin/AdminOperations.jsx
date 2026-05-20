@@ -83,17 +83,54 @@ const windowOptions = [
   { value: 168, label: "7d" },
 ];
 
+const adminSurface =
+  "rounded-lg border border-[#E0E0E0] bg-white shadow-sm shadow-slate-200/60 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none";
+
 const statusStyles = {
-  healthy: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
-  running: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
-  sent: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
+  healthy: "border-[#00B14F]/25 bg-[#E9FFF3] text-[#007A38] dark:border-[#00B14F]/40 dark:bg-[#00B14F]/10 dark:text-[#7DFFB9]",
+  running: "border-[#00B14F]/25 bg-[#E9FFF3] text-[#007A38] dark:border-[#00B14F]/40 dark:bg-[#00B14F]/10 dark:text-[#7DFFB9]",
+  sent: "border-[#00B14F]/25 bg-[#E9FFF3] text-[#007A38] dark:border-[#00B14F]/40 dark:bg-[#00B14F]/10 dark:text-[#7DFFB9]",
   idle: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300",
   low: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300",
-  watch: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
-  medium: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
+  watch: "border-[#F57224]/25 bg-[#FFF3EC] text-[#C64B11] dark:border-[#F57224]/40 dark:bg-[#F57224]/10 dark:text-orange-200",
+  medium: "border-[#F57224]/25 bg-[#FFF3EC] text-[#C64B11] dark:border-[#F57224]/40 dark:bg-[#F57224]/10 dark:text-orange-200",
   queued: "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200",
   critical: "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200",
   failed: "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200",
+};
+
+const getHealthPresentation = (health) => {
+  const status = String(health.status || "healthy").toLowerCase();
+  const critical = Number(health.critical || 0);
+  const warnings = Number(health.warnings || 0);
+
+  if (status === "critical" || critical > 0) {
+    return {
+      title: "Marketplace needs attention",
+      detail: "Review critical queues first, then clear warning signals for this window.",
+      accent: "bg-rose-500",
+      scoreText: "text-rose-700 dark:text-rose-200",
+      panel: "border-rose-200 bg-rose-50/80 dark:border-rose-900/70 dark:bg-rose-950/20",
+    };
+  }
+
+  if (status === "watch" || status === "medium" || warnings > 0) {
+    return {
+      title: "Marketplace is under watch",
+      detail: "A few signals need follow-up before they become customer-facing issues.",
+      accent: "bg-[#F57224]",
+      scoreText: "text-[#C64B11] dark:text-orange-200",
+      panel: "border-[#F57224]/25 bg-[#FFF3EC] dark:border-[#F57224]/40 dark:bg-[#F57224]/10",
+    };
+  }
+
+  return {
+    title: "Marketplace is running smoothly",
+    detail: "Core operations are inside the expected range for the selected window.",
+    accent: "bg-[#00B14F]",
+    scoreText: "text-[#007A38] dark:text-[#7DFFB9]",
+    panel: "border-[#00B14F]/25 bg-[#E9FFF3] dark:border-[#00B14F]/40 dark:bg-[#00B14F]/10",
+  };
 };
 
 const typeIcons = {
@@ -325,6 +362,7 @@ export default function AdminOperations() {
   const notificationHealth = operations.notificationHealth || emptyOperations.notificationHealth;
   const queueWorkload = operations.queueWorkload || [];
   const queueSummary = useMemo(() => getQueueSummary(queueWorkload), [queueWorkload]);
+  const healthPresentation = useMemo(() => getHealthPresentation(health), [health]);
   const adminWorkflow = useMemo(
     () =>
       buildAdminWorkflow({
@@ -387,30 +425,34 @@ export default function AdminOperations() {
   }, [issueFilter, operations.issueQueues]);
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-6 dark:bg-gray-950 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F5F5F5] px-3 py-4 text-slate-950 dark:bg-slate-950 dark:text-white sm:px-4 sm:py-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className={`${adminSurface} flex flex-col gap-4 border-t-4 border-t-[#F57224] p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between`}>
           <div>
-            <div className="flex items-center gap-2 text-sm font-bold text-orange-600 dark:text-orange-300">
-              <Activity className="h-4 w-4" />
-              Operational visibility
+            <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-[#C64B11] dark:text-orange-200">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#FFF3EC] text-[#F57224] dark:bg-[#F57224]/10">
+                <Activity className="h-4 w-4" />
+              </span>
+              Amiyo-Go operations
             </div>
-            <h1 className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">Operations Command Center</h1>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Last updated {formatDateTime(operations.updatedAt)}
+            <h1 className="mt-3 text-2xl font-bold tracking-tight text-[#1A1A2E] dark:text-white">Operations Command Center</h1>
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+              <span>Last updated {formatDateTime(operations.updatedAt)}</span>
+              <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" />
+              <span>{formatAge(operations.updatedAt)}</span>
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="inline-flex rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] p-1 dark:border-slate-800 dark:bg-slate-950">
               {windowOptions.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => setWindowHours(option.value)}
-                  className={`min-h-10 rounded-md px-4 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-orange-500/25 ${
+                  className={`min-h-10 rounded-md px-4 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-[#F57224]/25 ${
                     windowHours === option.value
-                      ? "bg-orange-600 text-white"
+                      ? "bg-[#F57224] text-white shadow-sm shadow-orange-200/70"
                       : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                   }`}
                 >
@@ -421,7 +463,7 @@ export default function AdminOperations() {
             <button
               type="button"
               onClick={() => setRefreshNonce((value) => value + 1)}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/25 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-orange-800 dark:hover:bg-orange-950/30 dark:hover:text-orange-200"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#E0E0E0] bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:border-[#F57224]/50 hover:bg-[#FFF3EC] hover:text-[#C64B11] focus:outline-none focus:ring-2 focus:ring-[#F57224]/25 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-[#F57224]/50 dark:hover:bg-[#F57224]/10 dark:hover:text-orange-200"
             >
               {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
               Refresh
@@ -435,29 +477,60 @@ export default function AdminOperations() {
           </div>
         ) : null}
 
-        <section className={`rounded-xl border p-5 shadow-sm ${getStatusClass(health.status)}`}>
-          <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-center">
-            <div className="flex items-center gap-4">
-              <div className="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-white shadow-inner dark:bg-slate-950">
-                <span className="text-3xl font-black text-slate-950 dark:text-white">{loading ? "..." : health.score}</span>
-                <span className="absolute bottom-5 text-[10px] font-bold uppercase text-slate-500">score</span>
-              </div>
-              <div className="lg:hidden">
-                <StatusPill status={health.status} />
+        <section className={`${adminSurface} overflow-hidden`}>
+          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className={`border-b p-5 dark:border-slate-800 lg:border-b-0 lg:border-r ${healthPresentation.panel}`}>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <StatusPill status={health.status} />
+                  <h2 className="mt-3 text-xl font-bold tracking-tight text-[#1A1A2E] dark:text-white">
+                    {loading ? "Checking marketplace operations" : healthPresentation.title}
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    {loading ? "Loading the latest admin signals and queue health." : healthPresentation.detail}
+                  </p>
+                  {health.message ? (
+                    <p className="mt-3 rounded-lg border border-white/70 bg-white/70 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-800/70 dark:bg-slate-950/40 dark:text-slate-200">
+                      System note: {health.message}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="rounded-lg border border-white/70 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Health score</p>
+                  <div className="mt-2 flex items-end gap-1">
+                    <span className={`text-4xl font-black leading-none ${healthPresentation.scoreText}`}>
+                      {loading ? "..." : formatCount(health.score)}
+                    </span>
+                    <span className="pb-1 text-sm font-bold text-slate-500">/100</span>
+                  </div>
+                  <div className="mt-3 h-2 rounded-full bg-[#EEEEEE] dark:bg-slate-800">
+                    <div
+                      className={`h-full rounded-full ${healthPresentation.accent}`}
+                      style={{ width: `${Math.min(100, Math.max(0, Number(health.score || 0)))}%` }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-            <div>
-              <div className="hidden lg:block">
-                <StatusPill status={health.status} />
+            <div className="grid grid-cols-3 divide-x divide-[#E0E0E0] bg-white dark:divide-slate-800 dark:bg-slate-900">
+              <div className="p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Critical</p>
+                <p className="mt-2 text-2xl font-black text-rose-600 dark:text-rose-300">{loading ? "..." : formatCount(health.critical)}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">signals</p>
               </div>
-              <h2 className="mt-3 text-xl font-bold text-slate-950 dark:text-white">{health.message}</h2>
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                {formatCount(health.critical)} critical signals and {formatCount(health.warnings)} warning signals in the selected window.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 rounded-lg bg-white/70 px-4 py-3 text-sm font-bold text-slate-700 dark:bg-slate-950/50 dark:text-slate-200">
-              <Clock3 className="h-4 w-4" />
-              Window: {operations.windowHours || windowHours}h
+              <div className="p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Warnings</p>
+                <p className="mt-2 text-2xl font-black text-[#C64B11] dark:text-orange-200">{loading ? "..." : formatCount(health.warnings)}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">signals</p>
+              </div>
+              <div className="p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Window</p>
+                <p className="mt-2 flex items-center gap-1 text-2xl font-black text-[#1A1A2E] dark:text-white">
+                  <Clock3 className="h-4 w-4 text-[#F57224]" />
+                  {operations.windowHours || windowHours}h
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">selected</p>
+              </div>
             </div>
           </div>
         </section>

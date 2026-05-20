@@ -54,6 +54,27 @@ const DISCOUNT_OPTIONS = [
   { value: "50", label: "50% off or more" },
 ];
 
+const BD_DIVISION_OPTIONS = [
+  { id: "6", value: "Dhaka", label: "Dhaka Division", aliases: ["dhaka"] },
+  {
+    id: "1",
+    value: "Chattogram",
+    label: "Chattogram Division",
+    aliases: ["chattogram", "chattagram", "chittagong"],
+  },
+  { id: "2", value: "Rajshahi", label: "Rajshahi Division", aliases: ["rajshahi"] },
+  { id: "3", value: "Khulna", label: "Khulna Division", aliases: ["khulna"] },
+  {
+    id: "4",
+    value: "Barishal",
+    label: "Barishal Division",
+    aliases: ["barishal", "barisal"],
+  },
+  { id: "5", value: "Sylhet", label: "Sylhet Division", aliases: ["sylhet"] },
+  { id: "7", value: "Rangpur", label: "Rangpur Division", aliases: ["rangpur"] },
+  { id: "8", value: "Mymensingh", label: "Mymensingh Division", aliases: ["mymensingh"] },
+];
+
 const LIMIT = 24;
 
 const DAILY_NEED_MAIN_CATEGORY_SLUGS = [
@@ -127,8 +148,68 @@ const parseList = (value = "") =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const extractGeoData = (payload, tableName) => {
+  if (Array.isArray(payload)) {
+    const table = payload.find(
+      (item) => item.type === "table" && (!tableName || item.name === tableName),
+    );
+    if (Array.isArray(table?.data)) return table.data;
+  }
+  return Array.isArray(payload?.data) ? payload.data : [];
+};
+
 const normalizeLookupText = (value = "") =>
   String(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+const normalizeDivisionKey = (value = "") => {
+  const normalized = normalizeLookupText(value);
+  if (!normalized) return "";
+
+  const option = BD_DIVISION_OPTIONS.find((division) =>
+    division.aliases.some((alias) => normalized === alias || normalized.includes(alias)),
+  );
+
+  return option ? option.value.toLowerCase() : normalized;
+};
+
+const buildDivisionLocationOptions = (locations = [], divisionCounts = []) => {
+  const countsByDivision = new Map(
+    BD_DIVISION_OPTIONS.map((division) => [normalizeDivisionKey(division.value), 0]),
+  );
+
+  const sourceRows = divisionCounts.length ? divisionCounts : locations;
+  sourceRows.forEach((location) => {
+    const byId = BD_DIVISION_OPTIONS.find((division) => division.id === String(location.value));
+    const key = byId ? normalizeDivisionKey(byId.value) : normalizeDivisionKey(location.value);
+    if (!countsByDivision.has(key)) return;
+    countsByDivision.set(key, countsByDivision.get(key) + Number(location.count || 0));
+  });
+
+  return BD_DIVISION_OPTIONS.map((division) => ({
+    ...division,
+    count: countsByDivision.get(normalizeDivisionKey(division.value)) || 0,
+  }));
+};
+
+const countFromFacetRows = (rows = [], item = {}) => {
+  const id = String(item.id || "").trim();
+  const name = String(item.name || "").trim();
+  const nameKey = normalizeLookupText(name);
+
+  return rows.reduce((total, row) => {
+    const value = String(row.value || "").trim();
+    const valueKey = normalizeLookupText(value);
+    if ((id && value === id) || (nameKey && valueKey === nameKey)) {
+      return total + Number(row.count || 0);
+    }
+    return total;
+  }, 0);
+};
+
+const optionLabelWithCount = (name, count) =>
+  count > 0 ? `${name} (${count})` : name;
+
+const LOCATION_FILTER_KEYS = new Set(["location", "district", "upazila", "union"]);
 
 const getMainCategoryPriority = (category = {}) => {
   const slug = String(category.slug || "").toLowerCase();
@@ -165,6 +246,13 @@ const hasMarketplaceFilters = (searchParams) =>
     "discountMin",
     "inStock",
     "location",
+    "divisionId",
+    "district",
+    "districtId",
+    "upazila",
+    "upazilaId",
+    "union",
+    "unionId",
   ].some((key) => Boolean(searchParams.get(key)));
 
 const CategoryTile = ({ category, index = 0, active = false }) => {
@@ -416,6 +504,11 @@ export default function SearchCatalog({ mode = "browse" }) {
   const [viewMode, setViewMode] = useState("grid3");
   const [searchDraft, setSearchDraft] = useState("");
   const [searchDraftTouched, setSearchDraftTouched] = useState(false);
+  const [geoData, setGeoData] = useState({
+    districts: [],
+    upazilas: [],
+    unions: [],
+  });
 
   const query = searchParams.get("q") || "";
   const searchInputValue = searchDraftTouched ? searchDraft : query;
@@ -435,6 +528,13 @@ export default function SearchCatalog({ mode = "browse" }) {
       discountMin: searchParams.get("discountMin") || "",
       inStock: searchParams.get("inStock") === "true" ? "true" : "",
       location: searchParams.get("location") || "",
+      divisionId: searchParams.get("divisionId") || "",
+      district: searchParams.get("district") || "",
+      districtId: searchParams.get("districtId") || "",
+      upazila: searchParams.get("upazila") || "",
+      upazilaId: searchParams.get("upazilaId") || "",
+      union: searchParams.get("union") || "",
+      unionId: searchParams.get("unionId") || "",
       sort: sortValue,
       page: searchParams.get("page") || "1",
       limit: LIMIT,
@@ -446,6 +546,39 @@ export default function SearchCatalog({ mode = "browse" }) {
 
     return params;
   }, [searchParams, sortValue]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadGeoData = async () => {
+      try {
+        const [districtsRes, upazilasRes, unionsRes] = await Promise.all([
+          fetch("/districts.json"),
+          fetch("/upazilas.json"),
+          fetch("/unions.json"),
+        ]);
+        const [districtsJson, upazilasJson, unionsJson] = await Promise.all([
+          districtsRes.json(),
+          upazilasRes.json(),
+          unionsRes.json(),
+        ]);
+
+        if (!mounted) return;
+        setGeoData({
+          districts: extractGeoData(districtsJson, "districts"),
+          upazilas: extractGeoData(upazilasJson, "upazilas"),
+          unions: extractGeoData(unionsJson, "unions"),
+        });
+      } catch (geoError) {
+        console.error("Failed to load Bangladesh location filters:", geoError);
+      }
+    };
+
+    loadGeoData();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -475,7 +608,7 @@ export default function SearchCatalog({ mode = "browse" }) {
 
   const facets = result?.facets || {};
   const products = result?.products || [];
-  const appliedFilters = result?.appliedFilters || [];
+  const serverAppliedFilters = result?.appliedFilters || [];
   const totalCount = result?.totalCount || 0;
   const page = Number(result?.page || searchParams.get("page") || 1);
   const totalPages = Number(result?.totalPages || 1);
@@ -485,6 +618,130 @@ export default function SearchCatalog({ mode = "browse" }) {
   const maxPrice = Number(searchParams.get("maxPrice") || maxBound);
   const sliderValue = Math.max(minBound, Math.min(maxPrice, maxBound));
   const categoryFacets = useMemo(() => facets.categories || [], [facets.categories]);
+  const locationBreakdown = facets.locationBreakdown || {};
+  const divisionLocationOptions = useMemo(
+    () => buildDivisionLocationOptions(facets.locations || [], locationBreakdown.divisions || []),
+    [facets.locations, locationBreakdown.divisions],
+  );
+  const selectedDivisionId =
+    searchParams.get("divisionId") ||
+    divisionLocationOptions.find(
+      (division) => division.value === searchParams.get("location"),
+    )?.id ||
+    "";
+  const selectedDistrictId = searchParams.get("districtId") || "";
+  const selectedUpazilaId = searchParams.get("upazilaId") || "";
+  const selectedUnionId = searchParams.get("unionId") || "";
+  const districtOptions = useMemo(
+    () =>
+      geoData.districts
+        .filter((district) => district.division_id === selectedDivisionId)
+        .map((district) => ({
+          ...district,
+          count: countFromFacetRows(locationBreakdown.districts || [], district),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [geoData.districts, locationBreakdown.districts, selectedDivisionId],
+  );
+  const upazilaOptions = useMemo(
+    () =>
+      geoData.upazilas
+        .filter((upazila) => upazila.district_id === selectedDistrictId)
+        .map((upazila) => ({
+          ...upazila,
+          count: countFromFacetRows(locationBreakdown.upazilas || [], upazila),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [geoData.upazilas, locationBreakdown.upazilas, selectedDistrictId],
+  );
+  const unionOptions = useMemo(
+    () =>
+      geoData.unions
+        .filter((union) => union.upazilla_id === selectedUpazilaId)
+        .map((union) => ({
+          ...union,
+          count: countFromFacetRows(locationBreakdown.unions || [], union),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [geoData.unions, locationBreakdown.unions, selectedUpazilaId],
+  );
+  const selectedDivision = useMemo(
+    () => divisionLocationOptions.find((division) => division.id === selectedDivisionId) || null,
+    [divisionLocationOptions, selectedDivisionId],
+  );
+  const selectedDistrict = useMemo(
+    () => districtOptions.find((district) => district.id === selectedDistrictId) || null,
+    [districtOptions, selectedDistrictId],
+  );
+  const selectedUpazila = useMemo(
+    () => upazilaOptions.find((upazila) => upazila.id === selectedUpazilaId) || null,
+    [upazilaOptions, selectedUpazilaId],
+  );
+  const selectedUnion = useMemo(
+    () => unionOptions.find((union) => union.id === selectedUnionId) || null,
+    [unionOptions, selectedUnionId],
+  );
+  const locationFilterChips = useMemo(() => {
+    const chips = [];
+    const divisionLabel = selectedDivision?.value || searchParams.get("location") || "";
+    const districtLabel = selectedDistrict?.name || searchParams.get("district") || "";
+    const upazilaLabel = selectedUpazila?.name || searchParams.get("upazila") || "";
+    const unionLabel = selectedUnion?.name || searchParams.get("union") || "";
+
+    if (selectedDivisionId || divisionLabel) {
+      chips.push({
+        key: "location",
+        label: `Division: ${divisionLabel || selectedDivisionId}`,
+        value: selectedDivisionId || divisionLabel,
+      });
+    }
+    if (selectedDistrictId || districtLabel) {
+      chips.push({
+        key: "district",
+        label: `District: ${districtLabel || selectedDistrictId}`,
+        value: selectedDistrictId || districtLabel,
+      });
+    }
+    if (selectedUpazilaId || upazilaLabel) {
+      chips.push({
+        key: "upazila",
+        label: `Upazila: ${upazilaLabel || selectedUpazilaId}`,
+        value: selectedUpazilaId || upazilaLabel,
+      });
+    }
+    if (selectedUnionId || unionLabel) {
+      chips.push({
+        key: "union",
+        label: `Union: ${unionLabel || selectedUnionId}`,
+        value: selectedUnionId || unionLabel,
+      });
+    }
+
+    return chips;
+  }, [
+    searchParams,
+    selectedDistrict,
+    selectedDistrictId,
+    selectedDivision,
+    selectedDivisionId,
+    selectedUnion,
+    selectedUnionId,
+    selectedUpazila,
+    selectedUpazilaId,
+  ]);
+  const displayAppliedFilters = useMemo(
+    () => [
+      ...serverAppliedFilters.filter((filter) => !LOCATION_FILTER_KEYS.has(filter.key)),
+      ...locationFilterChips,
+    ],
+    [locationFilterChips, serverAppliedFilters],
+  );
+  const selectedLocationTrail = [
+    selectedDivision?.value || searchParams.get("location"),
+    selectedDistrict?.name || searchParams.get("district"),
+    selectedUpazila?.name || searchParams.get("upazila"),
+    selectedUnion?.name || searchParams.get("union"),
+  ].filter(Boolean);
 
   const rootCategories = useMemo(() => {
     const roots = categoryFacets.filter((category) => !category.parentId);
@@ -530,6 +787,60 @@ export default function SearchCatalog({ mode = "browse" }) {
 
     if (!normalizedValue || normalizedValue === "false") next.delete(key);
     else next.set(key, normalizedValue);
+
+    next.delete("page");
+    setSearchParams(next);
+  };
+
+  const clearLocationParams = (next, level = "division") => {
+    const keysByLevel = {
+      division: ["location", "divisionId", "district", "districtId", "upazila", "upazilaId", "union", "unionId"],
+      district: ["district", "districtId", "upazila", "upazilaId", "union", "unionId"],
+      upazila: ["upazila", "upazilaId", "union", "unionId"],
+      union: ["union", "unionId"],
+    };
+
+    (keysByLevel[level] || []).forEach((key) => next.delete(key));
+  };
+
+  const updateLocationSelection = (level, id) => {
+    const next = new URLSearchParams(searchParams);
+
+    if (level === "division") {
+      clearLocationParams(next, "division");
+      const division = divisionLocationOptions.find((item) => item.id === id);
+      if (division) {
+        next.set("location", division.value);
+        next.set("divisionId", division.id);
+      }
+    }
+
+    if (level === "district") {
+      clearLocationParams(next, "district");
+      const district = districtOptions.find((item) => item.id === id);
+      if (district) {
+        next.set("district", district.name);
+        next.set("districtId", district.id);
+      }
+    }
+
+    if (level === "upazila") {
+      clearLocationParams(next, "upazila");
+      const upazila = upazilaOptions.find((item) => item.id === id);
+      if (upazila) {
+        next.set("upazila", upazila.name);
+        next.set("upazilaId", upazila.id);
+      }
+    }
+
+    if (level === "union") {
+      clearLocationParams(next, "union");
+      const union = unionOptions.find((item) => item.id === id);
+      if (union) {
+        next.set("union", union.name);
+        next.set("unionId", union.id);
+      }
+    }
 
     next.delete("page");
     setSearchParams(next);
@@ -585,6 +896,34 @@ export default function SearchCatalog({ mode = "browse" }) {
       updateParam("brands", nextBrands.join(","));
       return;
     }
+    if (filter.key === "location") {
+      const next = new URLSearchParams(searchParams);
+      clearLocationParams(next, "division");
+      next.delete("page");
+      setSearchParams(next);
+      return;
+    }
+    if (filter.key === "district") {
+      const next = new URLSearchParams(searchParams);
+      clearLocationParams(next, "district");
+      next.delete("page");
+      setSearchParams(next);
+      return;
+    }
+    if (filter.key === "upazila") {
+      const next = new URLSearchParams(searchParams);
+      clearLocationParams(next, "upazila");
+      next.delete("page");
+      setSearchParams(next);
+      return;
+    }
+    if (filter.key === "union") {
+      const next = new URLSearchParams(searchParams);
+      clearLocationParams(next, "union");
+      next.delete("page");
+      setSearchParams(next);
+      return;
+    }
     updateParam(filter.key, "");
   };
 
@@ -637,7 +976,7 @@ export default function SearchCatalog({ mode = "browse" }) {
   const showCategoryBrowse = !query && rootCategories.length > 0;
   const activeSortLabel =
     SORT_OPTIONS.find((option) => option.value === sortValue)?.label || "Best Match";
-  const activeFiltersCount = appliedFilters.length;
+  const activeFiltersCount = displayAppliedFilters.length;
   const firstResult = totalCount === 0 ? 0 : (page - 1) * LIMIT + 1;
   const lastResult = Math.min(page * LIMIT, totalCount);
   const productGridClass =
@@ -806,23 +1145,119 @@ export default function SearchCatalog({ mode = "browse" }) {
           />
         </label>
 
-        <div>
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-            <MapPin className="h-4 w-4" />
-            Location
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-950/60">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-primary-600 ring-1 ring-slate-200 dark:bg-gray-900 dark:text-primary-300 dark:ring-gray-800">
+                <MapPin className="h-4 w-4" />
+              </span>
+              <div>
+                <p>Location</p>
+                <p className="mt-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {selectedLocationTrail.length
+                    ? selectedLocationTrail.join(" / ")
+                    : "Filter by Bangladesh area"}
+                </p>
+              </div>
+            </div>
+            {selectedLocationTrail.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = new URLSearchParams(searchParams);
+                  clearLocationParams(next, "division");
+                  next.delete("page");
+                  setSearchParams(next);
+                }}
+                className="min-h-8 rounded-md px-2 text-xs font-semibold text-primary-600 transition hover:bg-white hover:text-primary-700 dark:text-primary-300 dark:hover:bg-gray-900"
+              >
+                Clear
+              </button>
+            ) : null}
           </div>
-          <select
-            value={searchParams.get("location") || ""}
-            onChange={(event) => updateParam("location", event.target.value)}
-            className="input-control"
-          >
-            <option value="">Any location</option>
-            {(facets.locations || []).map((location) => (
-              <option key={location.value} value={location.value}>
-                {location.value} ({location.count})
-              </option>
-            ))}
-          </select>
+
+          <div className="grid gap-2">
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-500 dark:text-gray-400">
+                Division
+              </span>
+              <select
+                value={selectedDivisionId}
+                onChange={(event) => updateLocationSelection("division", event.target.value)}
+                className="input-control bg-white"
+              >
+                <option value="">Any division</option>
+                {divisionLocationOptions.map((division) => (
+                  <option key={division.id} value={division.id}>
+                    {optionLabelWithCount(division.label, division.count)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-500 dark:text-gray-400">
+                District
+              </span>
+              <select
+                value={selectedDistrictId}
+                onChange={(event) => updateLocationSelection("district", event.target.value)}
+                disabled={!selectedDivisionId || !districtOptions.length}
+                className="input-control bg-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-gray-900 dark:disabled:text-gray-600"
+              >
+                <option value="">
+                  {selectedDivisionId ? "Any district" : "Choose division first"}
+                </option>
+                {districtOptions.map((district) => (
+                  <option key={district.id} value={district.id}>
+                    {optionLabelWithCount(district.name, district.count)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-500 dark:text-gray-400">
+                Upazila
+              </span>
+              <select
+                value={selectedUpazilaId}
+                onChange={(event) => updateLocationSelection("upazila", event.target.value)}
+                disabled={!selectedDistrictId || !upazilaOptions.length}
+                className="input-control bg-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-gray-900 dark:disabled:text-gray-600"
+              >
+                <option value="">
+                  {selectedDistrictId ? "Any upazila" : "Choose district first"}
+                </option>
+                {upazilaOptions.map((upazila) => (
+                  <option key={upazila.id} value={upazila.id}>
+                    {optionLabelWithCount(upazila.name, upazila.count)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-500 dark:text-gray-400">
+                Union / Area
+              </span>
+              <select
+                value={selectedUnionId}
+                onChange={(event) => updateLocationSelection("union", event.target.value)}
+                disabled={!selectedUpazilaId || !unionOptions.length}
+                className="input-control bg-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-gray-900 dark:disabled:text-gray-600"
+              >
+                <option value="">
+                  {selectedUpazilaId ? "Any union" : "Choose upazila first"}
+                </option>
+                {unionOptions.map((union) => (
+                  <option key={union.id} value={union.id}>
+                    {optionLabelWithCount(union.name, union.count)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
       </div>
     </>
@@ -979,12 +1414,12 @@ export default function SearchCatalog({ mode = "browse" }) {
             </div>
           </div>
 
-          {appliedFilters.length > 0 && (
+          {displayAppliedFilters.length > 0 && (
             <div className="mt-5 flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
                 Applied
               </span>
-              {appliedFilters.map((filter) => (
+              {displayAppliedFilters.map((filter) => (
                 <button
                   key={`${filter.key}-${filter.value}`}
                   type="button"

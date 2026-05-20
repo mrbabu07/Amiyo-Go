@@ -401,6 +401,15 @@ const getAdminActor = (req) => ({
   email: req.user?.email || "",
 });
 
+const omitDocumentMetadata = (value = {}) => {
+  const payload = { ...(value || {}) };
+  delete payload._id;
+  delete payload.createdAt;
+  delete payload.updatedAt;
+  delete payload.updatedBy;
+  return payload;
+};
+
 const appendFinanceAudit = async (req, { action, target, changes = {}, metadata = {} }) => {
   const db = req.app.locals.db;
   if (!db?.collection) return null;
@@ -949,13 +958,14 @@ exports.getPayoutSchedule = async (req, res) => {
 exports.upsertPayoutSchedule = async (req, res) => {
   try {
     const db = req.app.locals.db;
+    const body = omitDocumentMetadata(req.body);
     const payload = {
       ...DEFAULT_PAYOUT_SCHEDULE,
-      ...req.body,
-      frequency: ["weekly", "biweekly"].includes(req.body.frequency) ? req.body.frequency : "weekly",
-      cutoffDay: Number(req.body.cutoffDay ?? DEFAULT_PAYOUT_SCHEDULE.cutoffDay),
-      processingDay: Number(req.body.processingDay ?? DEFAULT_PAYOUT_SCHEDULE.processingDay),
-      minimumPayout: Number(req.body.minimumPayout ?? DEFAULT_PAYOUT_SCHEDULE.minimumPayout),
+      ...body,
+      frequency: ["weekly", "biweekly"].includes(body.frequency) ? body.frequency : "weekly",
+      cutoffDay: Number(body.cutoffDay ?? DEFAULT_PAYOUT_SCHEDULE.cutoffDay),
+      processingDay: Number(body.processingDay ?? DEFAULT_PAYOUT_SCHEDULE.processingDay),
+      minimumPayout: Number(body.minimumPayout ?? DEFAULT_PAYOUT_SCHEDULE.minimumPayout),
       updatedAt: new Date(),
       updatedBy: getAdminActor(req).userId,
     };
@@ -989,13 +999,14 @@ exports.getEscrowRules = async (req, res) => {
 exports.upsertEscrowRules = async (req, res) => {
   try {
     const db = req.app.locals.db;
+    const body = omitDocumentMetadata(req.body);
     const payload = {
       ...DEFAULT_ESCROW_RULES,
-      ...req.body,
-      holdPercentage: Math.max(0, Math.min(Number(req.body.holdPercentage ?? DEFAULT_ESCROW_RULES.holdPercentage), 100)),
-      holdDaysAfterDelivery: Math.max(0, Number(req.body.holdDaysAfterDelivery ?? DEFAULT_ESCROW_RULES.holdDaysAfterDelivery)),
-      disputeHoldPercentage: Math.max(0, Math.min(Number(req.body.disputeHoldPercentage ?? DEFAULT_ESCROW_RULES.disputeHoldPercentage), 100)),
-      releaseAfterReturnWindow: req.body.releaseAfterReturnWindow !== false,
+      ...body,
+      holdPercentage: Math.max(0, Math.min(Number(body.holdPercentage ?? DEFAULT_ESCROW_RULES.holdPercentage), 100)),
+      holdDaysAfterDelivery: Math.max(0, Number(body.holdDaysAfterDelivery ?? DEFAULT_ESCROW_RULES.holdDaysAfterDelivery)),
+      disputeHoldPercentage: Math.max(0, Math.min(Number(body.disputeHoldPercentage ?? DEFAULT_ESCROW_RULES.disputeHoldPercentage), 100)),
+      releaseAfterReturnWindow: body.releaseAfterReturnWindow !== false,
       updatedAt: new Date(),
       updatedBy: getAdminActor(req).userId,
     };

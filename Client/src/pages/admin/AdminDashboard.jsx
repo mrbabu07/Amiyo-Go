@@ -203,6 +203,101 @@ const pendingActionLinks = [
   },
 ];
 
+const adminControlSections = [
+  {
+    key: "system",
+    title: "System Command",
+    description: "Health, audits, analytics, platform settings, and delivery rules.",
+    icon: ShieldAlert,
+    controls: [
+      { label: "Operations", path: "/admin/operations", metricKey: "operations", detail: "Jobs, delivery, queue health" },
+      { label: "Audit Logs", path: "/admin/audit-logs", metricKey: "audit", detail: "Admin evidence trail" },
+      { label: "Analytics & Reports", path: "/admin/analytics", metricKey: "analytics", detail: "GMV and marketplace reports" },
+      { label: "Platform Control", path: "/admin/platform", metricKey: "platform", detail: "Global platform switches" },
+      { label: "Delivery Settings", path: "/admin/delivery-settings", metricKey: "delivery", detail: "Shipping zones and delivery rules" },
+    ],
+  },
+  {
+    key: "vendors",
+    title: "Vendor Control",
+    description: "Seller approvals, KYC, activity, shop review, and vendor chat.",
+    icon: Store,
+    controls: [
+      { label: "Vendor Requests", path: "/admin/vendor-requests", metricKey: "vendorApprovals", detail: "New seller applications" },
+      { label: "KYC Review", path: "/admin/vendor-kyc", metricKey: "kycReviews", detail: "Identity and shop checks" },
+      { label: "All Vendors", path: "/admin/vendors", metricKey: "activeVendors", detail: "Vendor directory" },
+      { label: "Vendor Activity", path: "/admin/vendor-activity", metricKey: "vendorActivity", detail: "Seller behavior and health" },
+      { label: "Vendor Chats", path: "/admin/chats", metricKey: "vendorChats", detail: "Admin to seller messages" },
+    ],
+  },
+  {
+    key: "catalog",
+    title: "Catalog Control",
+    description: "Products, inventory, category structure, and seller category requests.",
+    icon: PackageSearch,
+    controls: [
+      { label: "Products", path: "/admin/products", metricKey: "productModeration", detail: "Listings and moderation" },
+      { label: "Add Product", path: "/admin/products/add", metricKey: "addProduct", detail: "Create admin product" },
+      { label: "Inventory", path: "/admin/inventory", metricKey: "inventory", detail: "Stock and SKU health" },
+      { label: "Categories", path: "/admin/categories", metricKey: "categories", detail: "Dynamic category tree" },
+      { label: "Manage Categories", path: "/admin/categories/manage", metricKey: "manageCategories", detail: "Category admin tools" },
+      { label: "Category Requests", path: "/admin/category-requests", metricKey: "categoryRequests", detail: "Seller category requests" },
+    ],
+  },
+  {
+    key: "orders",
+    title: "Order & Service Control",
+    description: "Global orders, returns, logistics, parcel assignment, and support.",
+    icon: ShoppingCart,
+    controls: [
+      { label: "All Orders", path: "/admin/orders", metricKey: "orders", detail: "Global order queue" },
+      { label: "Returns", path: "/admin/returns", metricKey: "returnDisputes", detail: "Return and dispute workflow" },
+      { label: "Logistics", path: "/admin/logistics", metricKey: "logistics", detail: "Courier and parcel flow" },
+      { label: "Parcel Assignment", path: "/admin/logistics?tab=parcels", metricKey: "parcels", detail: "Assign delivery parcels" },
+      { label: "Support Tickets", path: "/admin/support", metricKey: "supportTickets", detail: "Customer service desk" },
+    ],
+  },
+  {
+    key: "marketing",
+    title: "Marketing Control",
+    description: "Promotions, coupons, flash sales, offers, and newsletter broadcasts.",
+    icon: Tags,
+    controls: [
+      { label: "Promotions", path: "/admin/promotions", metricKey: "promotions", detail: "Campaign controls" },
+      { label: "Coupons", path: "/admin/coupons", metricKey: "coupons", detail: "Coupon rules" },
+      { label: "Flash Sales", path: "/admin/flash-sales", metricKey: "flashSales", detail: "Countdown sale events" },
+      { label: "Offers", path: "/admin/offers", metricKey: "offers", detail: "Marketplace offers" },
+      { label: "Add Offer", path: "/admin/offers/add", metricKey: "addOffer", detail: "Create offer" },
+      { label: "Newsletter", path: "/admin/newsletter", metricKey: "newsletter", detail: "Email campaigns" },
+    ],
+  },
+  {
+    key: "finance",
+    title: "Finance Control",
+    description: "Vendor payouts, payout requests, manual payments, refunds, and exposure.",
+    icon: Banknote,
+    controls: [
+      { label: "Vendor Payouts", path: "/admin/payouts", metricKey: "pendingPayouts", detail: "Payout ledger" },
+      { label: "Payout Requests", path: "/admin/payout-requests", metricKey: "payoutRequests", detail: "Seller withdrawal queue" },
+      { label: "Manual Payments", path: "/admin/payment-verifications", metricKey: "manualPayments", detail: "Payment verification" },
+    ],
+  },
+  {
+    key: "customers",
+    title: "Customer Trust Control",
+    description: "Customers, roles, trust checks, reviews, Q&A, and customer insights.",
+    icon: Users,
+    controls: [
+      { label: "Customers", path: "/admin/customers", metricKey: "customers", detail: "Customer directory" },
+      { label: "Trust & Safety", path: "/admin/trust-safety", metricKey: "trustSafety", detail: "Fraud and risk controls" },
+      { label: "User Roles", path: "/admin/users", metricKey: "userRoles", detail: "Admin and user permissions" },
+      { label: "Insights", path: "/admin/insights", metricKey: "insights", detail: "Customer analytics" },
+      { label: "Reviews", path: "/admin/reviews", metricKey: "reviewModeration", detail: "Review moderation" },
+      { label: "Q&A", path: "/admin/qa", metricKey: "qa", detail: "Product questions" },
+    ],
+  },
+];
+
 const exceptionFilters = [
   { value: "all", label: "All" },
   { value: "critical", label: "Critical" },
@@ -216,11 +311,20 @@ const exceptionFilters = [
 ];
 
 const activityStyles = {
-  order: "bg-sky-50 text-sky-700",
-  vendor: "bg-emerald-50 text-emerald-700",
+  order: "bg-[#FFF3EC] text-[#C64B11]",
+  vendor: "bg-[#E9FFF3] text-[#008A3D]",
   product: "bg-amber-50 text-amber-700",
   payment: "bg-rose-50 text-rose-700",
 };
+
+const adminSurface =
+  "rounded-lg border border-[#E0E0E0] bg-white shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none";
+
+const adminInteractiveSurface =
+  "rounded-lg border border-[#E0E0E0] bg-white shadow-sm shadow-slate-200/50 transition hover:border-[#F57224]/50 hover:shadow-md hover:shadow-orange-100/60 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:border-[#F57224]/60";
+
+const adminInput =
+  "rounded-lg border border-[#E0E0E0] bg-white text-sm text-slate-900 outline-none transition focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white";
 
 const compactNumber = (value) => {
   const number = Number(value || 0);
@@ -365,25 +469,45 @@ const getActivityIcon = (type) => {
 function KpiCard({ label, value, detail, icon, tone = "sky", loading }) {
   const IconComponent = icon;
   const tones = {
-    sky: "bg-sky-50 text-sky-700",
-    emerald: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-700",
-    rose: "bg-rose-50 text-rose-700",
-    indigo: "bg-indigo-50 text-indigo-700",
-    slate: "bg-slate-100 text-slate-700",
+    sky: {
+      icon: "bg-[#FFF3EC] text-[#C64B11] ring-[#F57224]/15 dark:bg-orange-950/40 dark:text-orange-200 dark:ring-orange-900/50",
+      accent: "bg-[#F57224]",
+    },
+    emerald: {
+      icon: "bg-[#E9FFF3] text-[#008A3D] ring-[#00B14F]/15 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900/50",
+      accent: "bg-[#00B14F]",
+    },
+    amber: {
+      icon: "bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900/50",
+      accent: "bg-amber-500",
+    },
+    rose: {
+      icon: "bg-rose-50 text-rose-700 ring-rose-100 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900/50",
+      accent: "bg-rose-500",
+    },
+    indigo: {
+      icon: "bg-indigo-50 text-indigo-700 ring-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-200 dark:ring-indigo-900/50",
+      accent: "bg-indigo-500",
+    },
+    slate: {
+      icon: "bg-[#EEEEEE] text-[#1A1A2E] ring-[#E0E0E0] dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700",
+      accent: "bg-[#1A1A2E]",
+    },
   };
+  const toneClasses = tones[tone] || tones.sky;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <div className={`${adminSurface} relative overflow-hidden p-4`}>
+      <span className={`absolute inset-x-0 top-0 h-1 ${toneClasses.accent}`} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-          <p className="mt-2 truncate text-2xl font-bold text-slate-950">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+          <p className="mt-2 truncate text-2xl font-black text-slate-950 dark:text-white">
             {loading ? "..." : value}
           </p>
-          <p className="mt-1 text-xs text-slate-500">{detail}</p>
+          <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{detail}</p>
         </div>
-        <div className={`rounded-lg p-2.5 ${tones[tone]}`}>
+        <div className={`rounded-lg p-2.5 ring-1 ${toneClasses.icon}`}>
           <IconComponent className="h-5 w-5" />
         </div>
       </div>
@@ -395,44 +519,15 @@ function ChangePill({ label, value }) {
   const number = Number(value || 0);
   const tone =
     number > 0
-      ? "bg-emerald-50 text-emerald-700"
+      ? "bg-[#E9FFF3] text-[#008A3D]"
       : number < 0
         ? "bg-rose-50 text-rose-700"
-        : "bg-slate-100 text-slate-600";
+        : "bg-[#EEEEEE] text-slate-600";
 
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${tone}`}>
       {label} {formatChange(number)}
     </span>
-  );
-}
-
-function WorkflowCard({ to, icon, label, value, detail, tone = "sky" }) {
-  const IconComponent = icon;
-  const tones = {
-    sky: "bg-sky-50 text-sky-700 border-sky-100",
-    emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
-    amber: "bg-amber-50 text-amber-700 border-amber-100",
-    rose: "bg-rose-50 text-rose-700 border-rose-100",
-    slate: "bg-slate-100 text-slate-700 border-slate-200",
-  };
-
-  return (
-    <Link
-      to={to}
-      className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
-          <p className="mt-1 text-xs text-slate-500">{detail}</p>
-        </div>
-        <div className={`rounded-lg border p-2.5 ${tones[tone]}`}>
-          <IconComponent className="h-5 w-5" />
-        </div>
-      </div>
-    </Link>
   );
 }
 
@@ -443,18 +538,662 @@ function PendingAction({ item, count }) {
   return (
     <Link
       to={item.path}
-      className="flex min-w-[190px] items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
+      className={`${adminInteractiveSurface} flex min-w-[190px] items-center justify-between px-4 py-3`}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <div className={`rounded-lg p-2 ${hasCount ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
+        <div className={`rounded-lg p-2 ${hasCount ? "bg-rose-50 text-rose-700" : "bg-[#E9FFF3] text-[#008A3D]"}`}>
           <Icon className="h-4 w-4" />
         </div>
-        <p className="truncate text-sm font-semibold text-slate-800">{item.label}</p>
+        <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{item.label}</p>
       </div>
-      <span className={`ml-3 rounded-full px-2 py-0.5 text-xs font-bold ${hasCount ? "bg-rose-600 text-white" : "bg-emerald-100 text-emerald-700"}`}>
+      <span className={`ml-3 rounded-full px-2 py-0.5 text-xs font-bold ${hasCount ? "bg-rose-600 text-white" : "bg-[#E9FFF3] text-[#008A3D]"}`}>
         {hasCount ? formatCount(count) : "0"}
       </span>
     </Link>
+  );
+}
+
+const workflowToneStyles = {
+  healthy: {
+    panel: "border-[#00B14F]/25 bg-[#E9FFF3] text-[#007A38]",
+    icon: "bg-[#E9FFF3] text-[#008A3D]",
+    bar: "bg-[#00B14F]",
+    label: "Ready",
+  },
+  watch: {
+    panel: "border-[#F57224]/25 bg-[#FFF3EC] text-[#C64B11]",
+    icon: "bg-[#FFF3EC] text-[#C64B11]",
+    bar: "bg-[#F57224]",
+    label: "Needs work",
+  },
+  risk: {
+    panel: "border-rose-200 bg-rose-50 text-rose-700",
+    icon: "bg-rose-50 text-rose-700",
+    bar: "bg-rose-500",
+    label: "Urgent",
+  },
+};
+
+const getWorkflowTone = (count, priority = "normal") => {
+  if (Number(count || 0) <= 0) return "healthy";
+  return priority === "high" ? "risk" : "watch";
+};
+
+const buildAdminDashboardWorkflow = ({ pendingActions, exceptionInbox, opsSummary, adminHardening, kpis }) => {
+  const summary = exceptionInbox?.summary || emptyDashboard.exceptionInbox.summary;
+  const staffWorkload = adminHardening?.staffWorkload || emptyDashboard.adminHardening.staffWorkload;
+  const finance = adminHardening?.financeReconciliation || emptyDashboard.adminHardening.financeReconciliation;
+
+  const moderationCount =
+    Number(pendingActions.vendorApprovals || 0) +
+    Number(pendingActions.productModeration || 0) +
+    Number(pendingActions.kycReviews || 0) +
+    Number(pendingActions.reviewModeration || 0);
+  const supportCount =
+    Number(pendingActions.supportTickets || 0) +
+    Number(kpis.supportOpen || 0) +
+    Number(kpis.supportSlaBreaches || 0) +
+    Number(pendingActions.returnDisputes || 0) +
+    Number(kpis.activeDisputes || 0);
+  const financeCount =
+    Number(pendingActions.payoutRequests || 0) +
+    Number(kpis.pendingPayouts || 0) +
+    Number(finance.unresolvedBuckets || 0) +
+    Number(finance.payoutHolds || 0);
+  const opsCount =
+    Number(opsSummary.failedNotifications || 0) +
+    Number(pendingActions.failedNotifications || 0) +
+    Number(opsSummary.failedBulkJobs || 0) +
+    Number(opsSummary.failedPayments || 0) +
+    (opsSummary.analyticsCronStatus && opsSummary.analyticsCronStatus !== "running" ? 1 : 0);
+
+  const steps = [
+    {
+      key: "triage",
+      number: 1,
+      label: "Triage risk queue",
+      description: "Start with critical exceptions, breached SLA, and high-exposure cases.",
+      detail: `${formatCount(summary.critical)} critical / ${formatCount(summary.breached)} SLA breached`,
+      count: Number(summary.critical || 0) + Number(summary.breached || 0),
+      priority: "high",
+      icon: ShieldAlert,
+      filter: Number(summary.critical || 0) > 0 ? "critical" : "breached",
+      actionLabel: "Review exceptions",
+    },
+    {
+      key: "assignment",
+      number: 2,
+      label: "Assign ownership",
+      description: "Move unassigned and overdue admin cases to a named owner before queue work begins.",
+      detail: `${formatCount(staffWorkload.unassigned)} unassigned / ${formatCount(staffWorkload.overdue)} overdue`,
+      count: Number(staffWorkload.unassigned || 0) + Number(staffWorkload.overdue || 0),
+      priority: "high",
+      icon: Users,
+      filter: "all",
+      actionLabel: "Assign cases",
+    },
+    {
+      key: "service",
+      number: 3,
+      label: "Protect customer service",
+      description: "Clear support SLA, return disputes, and customer-facing escalations.",
+      detail: `${formatCount(kpis.supportOpen)} support / ${formatCount(kpis.activeDisputes)} disputes`,
+      count: supportCount,
+      priority: "medium",
+      icon: Headphones,
+      to: "/admin/support",
+      actionLabel: "Open support desk",
+    },
+    {
+      key: "finance",
+      number: 4,
+      label: "Reconcile money flow",
+      description: "Review payout requests, COD exposure, refund buckets, and held balances.",
+      detail: `${formatCount(kpis.pendingPayouts)} payouts / ${formatCount(finance.unresolvedBuckets)} buckets`,
+      count: financeCount,
+      priority: finance.status === "critical" ? "high" : "medium",
+      icon: Banknote,
+      to: "/admin/payouts",
+      actionLabel: "Open finance desk",
+    },
+    {
+      key: "moderation",
+      number: 5,
+      label: "Clear marketplace approvals",
+      description: "Approve sellers, KYC, product moderation, and review queues.",
+      detail: `${formatCount(moderationCount)} approval items`,
+      count: moderationCount,
+      priority: "medium",
+      icon: FileCheck2,
+      to: "/admin/vendor-requests",
+      actionLabel: "Open approval center",
+    },
+    {
+      key: "ops",
+      number: 6,
+      label: "Verify system health",
+      description: "Close notification failures, failed jobs, payment failures, and stale cron signals.",
+      detail: `${formatCount(opsCount)} technical signals`,
+      count: opsCount,
+      priority: "medium",
+      icon: BellRing,
+      to: "/admin/operations",
+      actionLabel: "Open ops monitor",
+    },
+  ].map((step) => ({
+    ...step,
+    done: Number(step.count || 0) <= 0,
+    tone: getWorkflowTone(step.count, step.priority),
+  }));
+
+  const completed = steps.filter((step) => step.done).length;
+  const score = Math.round((completed / steps.length) * 100);
+  const openSteps = steps.filter((step) => !step.done);
+
+  return {
+    steps,
+    openSteps,
+    completed,
+    total: steps.length,
+    score,
+    nextStep: openSteps[0] || null,
+    totalSignals: steps.reduce((sum, step) => sum + Number(step.count || 0), 0),
+    tone: score >= 85 ? "healthy" : score >= 50 ? "watch" : "risk",
+  };
+};
+
+const buildAdminControlSections = ({ pendingActions, exceptionInbox, opsSummary, adminHardening, kpis }) => {
+  const summary = exceptionInbox?.summary || emptyDashboard.exceptionInbox.summary;
+  const finance = adminHardening?.financeReconciliation || emptyDashboard.adminHardening.financeReconciliation;
+  const staffWorkload = adminHardening?.staffWorkload || emptyDashboard.adminHardening.staffWorkload;
+  const readiness = adminHardening?.integrationReadiness || emptyDashboard.adminHardening.integrationReadiness;
+
+  const metric = (value, label, tone = Number(value || 0) > 0 ? "attention" : "ready") => ({
+    value: Number(value || 0),
+    label,
+    tone,
+  });
+
+  const metrics = {
+    operations: metric(
+      Number(summary.total || 0) +
+        Number(opsSummary.failedNotifications || 0) +
+        Number(opsSummary.failedBulkJobs || 0) +
+        Number(opsSummary.failedPayments || 0),
+      `${formatCount(summary.total)} exceptions`,
+      Number(summary.critical || 0) > 0 ? "critical" : Number(summary.total || 0) > 0 ? "attention" : "ready",
+    ),
+    audit: { value: 0, label: "Trail", tone: "neutral" },
+    analytics: {
+      value: opsSummary.analyticsCronStatus === "running" ? 0 : 1,
+      label: opsSummary.analyticsCronStatus === "running" ? "Running" : "Watch",
+      tone: opsSummary.analyticsCronStatus === "running" ? "ready" : "attention",
+    },
+    platform: metric(opsSummary.failedNotifications, `${formatCount(opsSummary.failedNotifications)} failed`),
+    delivery: { value: 0, label: "Rules", tone: "neutral" },
+    vendorApprovals: metric(pendingActions.vendorApprovals, `${formatCount(pendingActions.vendorApprovals)} pending`),
+    kycReviews: metric(pendingActions.kycReviews, `${formatCount(pendingActions.kycReviews)} review`),
+    activeVendors: { value: Number(kpis.activeVendors || 0), label: `${formatCount(kpis.activeVendors)} active`, tone: "neutral" },
+    vendorActivity: { value: 0, label: "Monitor", tone: "neutral" },
+    vendorChats: { value: 0, label: "Inbox", tone: "neutral" },
+    productModeration: metric(pendingActions.productModeration, `${formatCount(pendingActions.productModeration)} pending`),
+    addProduct: { value: 0, label: "Create", tone: "neutral" },
+    inventory: metric(kpis.failedBulkJobs, `${formatCount(kpis.failedBulkJobs)} jobs`),
+    categories: { value: 0, label: "Tree", tone: "neutral" },
+    manageCategories: { value: 0, label: "Manage", tone: "neutral" },
+    categoryRequests: { value: 0, label: "Requests", tone: "neutral" },
+    orders: { value: Number(kpis.todayOrders || 0), label: `${formatCount(kpis.todayOrders)} today`, tone: "neutral" },
+    returnDisputes: metric(pendingActions.returnDisputes || kpis.activeDisputes, `${formatCount(pendingActions.returnDisputes || kpis.activeDisputes)} open`),
+    logistics: { value: 0, label: "Flow", tone: "neutral" },
+    parcels: { value: 0, label: "Assign", tone: "neutral" },
+    supportTickets: metric(
+      Number(pendingActions.supportTickets || 0) + Number(kpis.supportSlaBreaches || 0),
+      `${formatCount(kpis.supportOpen)} open`,
+      Number(kpis.supportSlaBreaches || 0) > 0 ? "critical" : Number(pendingActions.supportTickets || 0) > 0 ? "attention" : "ready",
+    ),
+    promotions: { value: 0, label: "Campaigns", tone: "neutral" },
+    coupons: { value: 0, label: "Rules", tone: "neutral" },
+    flashSales: { value: 0, label: "Events", tone: "neutral" },
+    offers: { value: 0, label: "Offers", tone: "neutral" },
+    addOffer: { value: 0, label: "Create", tone: "neutral" },
+    newsletter: metric(opsSummary.failedNotifications, `${formatCount(opsSummary.failedNotifications)} failed`),
+    pendingPayouts: metric(kpis.pendingPayouts, `${formatCount(kpis.pendingPayouts)} pending`),
+    payoutRequests: metric(pendingActions.payoutRequests, `${formatCount(pendingActions.payoutRequests)} requests`),
+    manualPayments: metric(opsSummary.failedPayments, `${formatCount(opsSummary.failedPayments)} failed`),
+    customers: { value: Number(kpis.newUsers || 0), label: `${formatCount(kpis.newUsers)} new`, tone: "neutral" },
+    trustSafety: metric(summary.critical, `${formatCount(summary.critical)} critical`, Number(summary.critical || 0) > 0 ? "critical" : "ready"),
+    userRoles: { value: 0, label: "Roles", tone: "neutral" },
+    insights: { value: 0, label: "Reports", tone: "neutral" },
+    reviewModeration: metric(pendingActions.reviewModeration, `${formatCount(pendingActions.reviewModeration)} pending`),
+    qa: { value: 0, label: "Questions", tone: "neutral" },
+  };
+
+  return adminControlSections.map((section) => ({
+    ...section,
+    controls: section.controls.map((control) => ({
+      ...control,
+      metric: metrics[control.metricKey] || { value: 0, label: "Open", tone: "neutral" },
+    })),
+    attentionCount: section.controls.reduce((sum, control) => {
+      const controlMetric = metrics[control.metricKey];
+      return sum + (["critical", "attention"].includes(controlMetric?.tone) ? 1 : 0);
+    }, 0),
+    signalCount:
+      section.key === "finance"
+        ? Number(finance.unresolvedBuckets || 0) + Number(finance.payoutHolds || 0)
+        : section.key === "system"
+          ? Number(readiness.watch || 0) + Number(readiness.manual || 0)
+          : section.key === "vendors"
+            ? Number(pendingActions.vendorApprovals || 0) + Number(pendingActions.kycReviews || 0)
+            : section.key === "orders"
+              ? Number(staffWorkload.overdue || 0) + Number(kpis.supportSlaBreaches || 0)
+              : 0,
+  }));
+};
+
+function WorkflowActionButton({ step, onFilterChange, children, variant = "primary" }) {
+  const baseClass =
+    variant === "primary"
+      ? "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#F57224] px-4 text-sm font-bold text-white transition hover:bg-[#d95f18] focus:outline-none focus:ring-2 focus:ring-[#F57224]/25"
+      : "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[#E0E0E0] bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-[#F57224]/40 hover:bg-[#FFF3EC] hover:text-[#C64B11] focus:outline-none focus:ring-2 focus:ring-[#F57224]/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200";
+
+  if (step.filter) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          onFilterChange(step.filter);
+          window.setTimeout(() => {
+            document.getElementById("admin-exception-inbox")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 0);
+        }}
+        className={baseClass}
+      >
+        {children}
+        <ArrowRight className="h-4 w-4" />
+      </button>
+    );
+  }
+
+  return (
+    <Link to={step.to || "/admin"} className={baseClass}>
+      {children}
+      <ArrowRight className="h-4 w-4" />
+    </Link>
+  );
+}
+
+function AdminWorkflowCenter({ workflow, pendingActions, onFilterChange, loading }) {
+  const tone = workflowToneStyles[workflow.tone] || workflowToneStyles.healthy;
+  const nextStep = workflow.nextStep;
+  const visibleQueues = pendingActionLinks
+    .map((item) => ({ ...item, count: Number(pendingActions[item.key] || 0) }))
+    .filter((item) => item.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  return (
+    <section data-testid="admin-workflow-center" className={`${adminSurface} overflow-hidden`}>
+      <div className="grid gap-0 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="border-b border-[#E0E0E0] bg-[#1A1A2E] p-5 text-white dark:border-slate-800 xl:border-b-0 xl:border-r">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-orange-200">Admin workflow</p>
+              <h2 className="mt-2 text-2xl font-black">Today&apos;s control flow</h2>
+            </div>
+            <span className={`rounded-full border px-3 py-1 text-xs font-black ${tone.panel}`}>
+              {tone.label}
+            </span>
+          </div>
+
+          <div className="mt-6 rounded-lg border border-white/10 bg-white/10 p-4">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Workflow score</p>
+                <p className="mt-2 text-5xl font-black leading-none">{loading ? "..." : workflow.score}</p>
+              </div>
+              <p className="pb-1 text-sm font-bold text-slate-300">
+                {workflow.completed}/{workflow.total} ready
+              </p>
+            </div>
+            <div className="mt-4 h-2 rounded-full bg-white/15">
+              <div className={`h-full rounded-full ${tone.bar}`} style={{ width: `${workflow.score}%` }} />
+            </div>
+            <p className="mt-3 text-sm font-medium text-slate-200">
+              {formatCount(workflow.totalSignals)} open signal{Number(workflow.totalSignals) === 1 ? "" : "s"} across admin queues.
+            </p>
+          </div>
+
+          <div className="mt-4 rounded-lg border border-white/10 bg-white p-4 text-slate-950">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Next best action</p>
+            {nextStep ? (
+              <>
+                <div className="mt-3 flex gap-3">
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${workflowToneStyles[nextStep.tone].icon}`}>
+                    <nextStep.icon className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-black text-[#1A1A2E]">{nextStep.label}</p>
+                    <p className="mt-1 text-sm text-slate-600">{nextStep.description}</p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <WorkflowActionButton step={nextStep} onFilterChange={onFilterChange}>
+                    {nextStep.actionLabel}
+                  </WorkflowActionButton>
+                </div>
+              </>
+            ) : (
+              <div className="mt-3 rounded-lg border border-[#00B14F]/20 bg-[#E9FFF3] p-3 text-sm font-semibold text-[#007A38]">
+                Core admin workflow is clear for this range.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[#F57224]">Operating sequence</p>
+              <h2 className="mt-1 text-xl font-black text-[#1A1A2E] dark:text-white">Run queues in priority order</h2>
+            </div>
+            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+              Triage, assign, resolve, then verify.
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {workflow.steps.map((step) => {
+              const Icon = step.icon;
+              const stepTone = workflowToneStyles[step.tone] || workflowToneStyles.healthy;
+
+              return (
+                <article
+                  key={step.key}
+                  className={`rounded-lg border p-4 transition hover:border-[#F57224]/40 hover:shadow-sm ${step.done ? "border-[#E0E0E0] bg-white dark:border-slate-800 dark:bg-slate-900" : stepTone.panel}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${stepTone.icon}`}>
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-[#EEEEEE] px-2 py-0.5 text-[11px] font-black text-slate-600">
+                          Step {step.number}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${step.done ? "bg-[#E9FFF3] text-[#008A3D]" : "bg-white/70 text-current"}`}>
+                          {step.done ? "Clear" : `${formatCount(step.count)} open`}
+                        </span>
+                      </div>
+                      <h3 className="mt-2 text-sm font-black text-[#1A1A2E] dark:text-white">{step.label}</h3>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{step.description}</p>
+                      <p className="mt-2 text-xs font-bold text-slate-500 dark:text-slate-400">{step.detail}</p>
+                      {!step.done ? (
+                        <div className="mt-3">
+                          <WorkflowActionButton step={step} onFilterChange={onFilterChange} variant="secondary">
+                            {step.actionLabel}
+                          </WorkflowActionButton>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 border-t border-[#E0E0E0] pt-4 dark:border-slate-800">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-black text-[#1A1A2E] dark:text-white">Fast action queues</h3>
+              <span className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                {formatCount(visibleQueues.length || pendingActionLinks.length)} visible
+              </span>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {(visibleQueues.length ? visibleQueues : pendingActionLinks.slice(0, 6).map((item) => ({ ...item, count: 0 }))).map((item) => (
+                <PendingAction key={item.key} item={item} count={item.count} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const controlMetricClasses = {
+  critical: "bg-rose-600 text-white",
+  attention: "bg-[#FFF3EC] text-[#C64B11] ring-1 ring-[#F57224]/20",
+  ready: "bg-[#E9FFF3] text-[#008A3D] ring-1 ring-[#00B14F]/20",
+  neutral: "bg-[#EEEEEE] text-slate-600 ring-1 ring-[#E0E0E0]",
+};
+
+function AdminControlHub({ sections }) {
+  const [query, setQuery] = useState("");
+  const [activeSection, setActiveSection] = useState("all");
+  const [viewMode, setViewMode] = useState("all");
+  const normalizedQuery = query.trim().toLowerCase();
+
+  const totalControls = sections.reduce((sum, section) => sum + section.controls.length, 0);
+  const attentionControls = sections.reduce((sum, section) => sum + Number(section.attentionCount || 0), 0);
+
+  const visibleSections = sections
+    .filter((section) => activeSection === "all" || section.key === activeSection)
+    .map((section) => ({
+      ...section,
+      controls: section.controls.filter((control) => {
+        if (viewMode === "focus" && !["critical", "attention"].includes(control.metric?.tone)) return false;
+        if (!normalizedQuery) return true;
+        return [section.title, control.label, control.detail, control.metric?.label]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+      }),
+    }))
+    .filter((section) => section.controls.length > 0);
+
+  return (
+    <section data-testid="admin-control-hub" className={`${adminSurface} overflow-hidden`}>
+      <div className="border-b border-[#E0E0E0] p-5 dark:border-slate-800">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-[#F57224]">Overall admin control system</p>
+            <h2 className="mt-1 text-xl font-black text-[#1A1A2E] dark:text-white">All Control Hub</h2>
+            <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+              Every admin workspace is visible here first, grouped by system, vendors, catalog, orders, marketing, finance, and customer trust.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[420px]">
+            <div className="rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] px-3 py-2 dark:border-slate-800 dark:bg-slate-950">
+              <p className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Controls</p>
+              <p className="text-xl font-black text-[#1A1A2E] dark:text-white">{formatCount(totalControls)}</p>
+            </div>
+            <div className="rounded-lg border border-[#F57224]/20 bg-[#FFF3EC] px-3 py-2 dark:border-[#F57224]/40 dark:bg-[#F57224]/10">
+              <p className="text-xs font-bold uppercase text-[#C64B11] dark:text-orange-200">Needs attention</p>
+              <p className="text-xl font-black text-[#C64B11] dark:text-orange-200">{formatCount(attentionControls)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 xl:grid-cols-[auto_minmax(0,1fr)_280px] xl:items-center">
+          <div className="inline-flex w-max rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] p-1 dark:border-slate-800 dark:bg-slate-950">
+            <button
+              type="button"
+              onClick={() => setViewMode("all")}
+              className={`min-h-9 rounded-md px-3 text-xs font-black transition ${
+                viewMode === "all"
+                  ? "bg-[#1A1A2E] text-white dark:bg-white dark:text-slate-950"
+                  : "text-slate-600 hover:bg-white hover:text-[#1A1A2E] dark:text-slate-300 dark:hover:bg-slate-900"
+              }`}
+            >
+              All controls
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("focus")}
+              className={`min-h-9 rounded-md px-3 text-xs font-black transition ${
+                viewMode === "focus"
+                  ? "bg-[#F57224] text-white"
+                  : "text-slate-600 hover:bg-white hover:text-[#C64B11] dark:text-slate-300 dark:hover:bg-slate-900"
+              }`}
+            >
+              Needs action {attentionControls ? `(${formatCount(attentionControls)})` : ""}
+            </button>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            <button
+              type="button"
+              onClick={() => setActiveSection("all")}
+              className={`inline-flex min-h-10 shrink-0 items-center rounded-full border px-4 text-sm font-bold transition ${
+                activeSection === "all"
+                  ? "border-[#F57224] bg-[#F57224] text-white"
+                  : "border-[#E0E0E0] bg-white text-slate-600 hover:bg-[#FFF3EC] hover:text-[#C64B11] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+              }`}
+            >
+              All
+            </button>
+            {sections.map((section) => (
+              <button
+                key={section.key}
+                type="button"
+                onClick={() => setActiveSection(section.key)}
+                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-bold transition ${
+                  activeSection === section.key
+                    ? "border-[#F57224] bg-[#F57224] text-white"
+                    : "border-[#E0E0E0] bg-white text-slate-600 hover:bg-[#FFF3EC] hover:text-[#C64B11] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                }`}
+              >
+                {section.title}
+                {section.attentionCount ? (
+                  <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${activeSection === section.key ? "bg-white/20 text-white" : "bg-rose-600 text-white"}`}>
+                    {formatCount(section.attentionCount)}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search admin controls"
+              className={`${adminInput} min-h-10 w-full py-2 pl-9 pr-3`}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-0 divide-y divide-[#E0E0E0] dark:divide-slate-800">
+        {visibleSections.map((section) => {
+          const SectionIcon = section.icon;
+
+          return (
+            <div key={section.key} className="grid gap-4 p-4 xl:grid-cols-[220px_minmax(0,1fr)] xl:p-5">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FFF3EC] text-[#F57224] dark:bg-[#F57224]/10">
+                    <SectionIcon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-black text-[#1A1A2E] dark:text-white">{section.title}</h3>
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                      {formatCount(section.controls.length)} control{section.controls.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">{section.description}</p>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {section.controls.map((control) => (
+                  <Link
+                    key={`${section.key}-${control.path}-${control.label}`}
+                    to={control.path}
+                    className="group flex min-h-[86px] flex-col justify-between rounded-lg border border-[#E0E0E0] bg-white p-3 transition hover:border-[#F57224]/50 hover:bg-[#FFF3EC]/50 hover:shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:hover:border-[#F57224]/50 dark:hover:bg-[#F57224]/10"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-black text-[#1A1A2E] transition group-hover:text-[#C64B11] dark:text-white dark:group-hover:text-orange-200">
+                          {control.label}
+                        </p>
+                        <p className="mt-1 line-clamp-1 text-sm text-slate-500 dark:text-slate-400">{control.detail}</p>
+                      </div>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-[#F57224]" />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <span className={`rounded-full px-2 py-1 text-[11px] font-black ${controlMetricClasses[control.metric?.tone] || controlMetricClasses.neutral}`}>
+                        {control.metric?.label || "Open"}
+                      </span>
+                      {control.metric?.value > 0 && ["critical", "attention"].includes(control.metric?.tone) ? (
+                        <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[11px] font-black text-white">
+                          {formatCount(control.metric.value)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {!visibleSections.length ? (
+          <div className="flex min-h-36 flex-col items-center justify-center px-4 py-8 text-center">
+            <Search className="h-9 w-9 text-slate-300" />
+            <p className="mt-3 text-sm font-bold text-slate-900 dark:text-white">
+              {viewMode === "focus" ? "No urgent controls found" : "No admin controls found"}
+            </p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {viewMode === "focus" ? "Switch to All controls to browse every admin workspace." : "Try another control name, section, or workflow term."}
+            </p>
+            {viewMode === "focus" ? (
+              <button
+                type="button"
+                onClick={() => setViewMode("all")}
+                className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg bg-[#F57224] px-4 text-sm font-bold text-white transition hover:bg-[#d95f18]"
+              >
+                Show all controls
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function DashboardGroup({ title, description, children, defaultOpen = true, badge }) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <section className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className={`${adminSurface} flex w-full items-center justify-between gap-4 p-4 text-left transition hover:border-[#F57224]/40 hover:bg-[#FFF3EC]/40 dark:hover:border-[#F57224]/50 dark:hover:bg-[#F57224]/10`}
+      >
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-black text-[#1A1A2E] dark:text-white">{title}</h2>
+            {badge ? (
+              <span className="rounded-full bg-[#FFF3EC] px-2 py-0.5 text-[11px] font-black text-[#C64B11] ring-1 ring-[#F57224]/20">
+                {badge}
+              </span>
+            ) : null}
+          </div>
+          {description ? (
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>
+          ) : null}
+        </div>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E0E0E0] bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+          <ArrowRight className={`h-4 w-4 transition ${open ? "rotate-90 text-[#F57224]" : ""}`} />
+        </span>
+      </button>
+      {open ? <div className="space-y-5">{children}</div> : null}
+    </section>
   );
 }
 
@@ -462,15 +1201,15 @@ function ChartTooltip({ active, payload, label, formatPrice }) {
   if (!active || !payload?.length) return null;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
-      <p className="text-sm font-bold text-slate-900">{label}</p>
+    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-800 dark:bg-slate-950">
+      <p className="text-sm font-bold text-slate-900 dark:text-white">{label}</p>
       <div className="mt-2 space-y-1">
         {payload.map((entry) => (
           <div key={entry.dataKey} className="flex items-center justify-between gap-6 text-xs">
             <span style={{ color: entry.color }} className="font-semibold capitalize">
               {entry.name}
             </span>
-            <span className="font-bold text-slate-900">{formatPrice(entry.value || 0)}</span>
+            <span className="font-bold text-slate-900 dark:text-white">{formatPrice(entry.value || 0)}</span>
           </div>
         ))}
       </div>
@@ -484,7 +1223,7 @@ function SortButton({ active, children, onClick }) {
       type="button"
       onClick={onClick}
       className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-        active ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+        active ? "bg-[#F57224] text-white" : "bg-[#EEEEEE] text-slate-600 hover:bg-[#FFF3EC] hover:text-[#C64B11]"
       }`}
     >
       {children}
@@ -519,13 +1258,14 @@ function ExceptionInbox({
 
   return (
     <section
+      id="admin-exception-inbox"
       data-testid="admin-exception-inbox"
       className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
     >
       <div className="border-b border-slate-100 p-5 dark:border-slate-800">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-sm font-bold text-orange-600 dark:text-orange-300">
+            <div className="flex items-center gap-2 text-sm font-bold text-[#F57224] dark:text-orange-300">
               <ShieldAlert className="h-4 w-4" />
               Admin command center
             </div>
@@ -548,9 +1288,9 @@ function ExceptionInbox({
               <p className="text-xs font-bold uppercase text-amber-600 dark:text-amber-300">SLA</p>
               <p className="text-xl font-black text-amber-700 dark:text-amber-200">{formatCount(summary.breached)}</p>
             </div>
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-900 dark:bg-emerald-950/30">
-              <p className="text-xs font-bold uppercase text-emerald-600 dark:text-emerald-300">Exposure</p>
-              <p className="truncate text-xl font-black text-emerald-700 dark:text-emerald-200">{formatPrice(summary.financeExposure)}</p>
+            <div className="rounded-lg border border-[#00B14F]/20 bg-[#E9FFF3] px-3 py-2 dark:border-emerald-900 dark:bg-emerald-950/30">
+              <p className="text-xs font-bold uppercase text-[#008A3D] dark:text-emerald-300">Exposure</p>
+              <p className="truncate text-xl font-black text-[#008A3D] dark:text-emerald-200">{formatPrice(summary.financeExposure)}</p>
             </div>
           </div>
         </div>
@@ -568,8 +1308,8 @@ function ExceptionInbox({
                   onClick={() => onFilterChange(item.value)}
                   className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-orange-500/25 ${
                     active
-                      ? "border-orange-600 bg-orange-600 text-white"
-                      : "border-slate-200 text-slate-600 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-orange-800 dark:hover:bg-orange-950/30 dark:hover:text-orange-200"
+                      ? "border-[#F57224] bg-[#F57224] text-white"
+                      : "border-slate-200 text-slate-600 hover:border-[#F57224]/40 hover:bg-[#FFF3EC] hover:text-[#C64B11] dark:border-slate-700 dark:text-slate-300 dark:hover:border-orange-800 dark:hover:bg-orange-950/30 dark:hover:text-orange-200"
                   }`}
                 >
                   <span>{item.label}</span>
@@ -594,7 +1334,7 @@ function ExceptionInbox({
             {nextAction ? (
               <Link
                 to={nextAction.path}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-bold text-white transition hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#F57224] px-4 text-sm font-bold text-white transition hover:bg-[#d95f18] focus:outline-none focus:ring-2 focus:ring-[#F57224]/30"
               >
                 Work next issue
                 <ArrowRight className="h-4 w-4" />
@@ -626,7 +1366,7 @@ function ExceptionInbox({
       {selectedCount ? (
         <div
           data-testid="admin-bulk-case-actions"
-          className="border-b border-orange-100 bg-orange-50/80 p-4 dark:border-orange-950 dark:bg-orange-950/20"
+          className="border-b border-[#F57224]/15 bg-[#FFF3EC] p-4 dark:border-orange-950 dark:bg-orange-950/20"
         >
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
@@ -1461,6 +2201,14 @@ export default function AdminDashboard() {
   const exceptionInbox = dashboard.exceptionInbox || emptyDashboard.exceptionInbox;
   const adminHardening = dashboard.adminHardening || emptyDashboard.adminHardening;
   const totalPendingActions = Object.values(pendingActions).reduce((sum, value) => sum + Number(value || 0), 0);
+  const adminWorkflow = useMemo(
+    () => buildAdminDashboardWorkflow({ pendingActions, exceptionInbox, opsSummary, adminHardening, kpis }),
+    [adminHardening, exceptionInbox, kpis, opsSummary, pendingActions],
+  );
+  const controlSections = useMemo(
+    () => buildAdminControlSections({ pendingActions, exceptionInbox, opsSummary, adminHardening, kpis }),
+    [adminHardening, exceptionInbox, kpis, opsSummary, pendingActions],
+  );
 
   const sortedVendors = useMemo(() => {
     const query = vendorFilter.trim().toLowerCase();
@@ -1473,29 +2221,53 @@ export default function AdminDashboard() {
   const activeAlerts = dashboard.healthAlerts || [];
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-6 lg:px-8">
+    <div className="min-h-screen bg-[#F5F5F5] px-3 py-4 text-slate-950 dark:bg-slate-950 dark:text-white sm:px-4 sm:py-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-5">
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="overflow-hidden rounded-lg border border-[#E0E0E0] border-t-4 border-t-[#F57224] bg-white p-5 shadow-sm shadow-slate-200/60 dark:border-slate-800 dark:border-t-[#F57224] dark:bg-slate-900 dark:shadow-none">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#E9FFF3] px-3 py-1 text-xs font-bold text-[#008A3D] ring-1 ring-[#00B14F]/15">
+                  <span className="h-2 w-2 rounded-full bg-[#00B14F]" />
                   Live
                 </span>
-                <span className="text-xs font-semibold text-slate-500">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                   Updated {formatDateTime(dashboard.updatedAt)}
                 </span>
-                {refreshing && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
+                {refreshing && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#F57224]" />}
               </div>
-              <h1 className="mt-3 text-2xl font-bold text-slate-950 lg:text-3xl">Admin Dashboard</h1>
-              <p className="mt-1 max-w-3xl text-sm text-slate-600">
+              <div className="mt-3 flex items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#F57224] text-sm font-black text-white">
+                  AG
+                </span>
+                <div>
+                  <h1 className="text-2xl font-black text-[#1A1A2E] dark:text-white lg:text-3xl">Amiyo-Go Control Center</h1>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[#F57224]">
+                    Marketplace operations
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 max-w-3xl text-sm font-medium text-slate-600 dark:text-slate-300">
                 Platform health, revenue, order flow, vendor performance, and pending action queues in one view.
               </p>
+              <div className="mt-4 grid max-w-2xl gap-2 sm:grid-cols-3">
+                <div className="rounded-lg border border-[#E0E0E0] bg-[#FFF3EC] px-3 py-2">
+                  <p className="text-xs font-semibold text-slate-600">Pending actions</p>
+                  <p className="text-xl font-black text-[#C64B11]">{formatCount(totalPendingActions)}</p>
+                </div>
+                <div className="rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] px-3 py-2 dark:bg-slate-950">
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">Open exceptions</p>
+                  <p className="text-xl font-black text-[#1A1A2E] dark:text-white">{formatCount(exceptionInbox.summary?.total)}</p>
+                </div>
+                <div className="rounded-lg border border-[#E0E0E0] bg-[#E9FFF3] px-3 py-2">
+                  <p className="text-xs font-semibold text-slate-600">Today GMV</p>
+                  <p className="text-xl font-black text-[#008A3D]">{formatPrice(kpis.todayGmv)}</p>
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-col gap-3 lg:min-w-[440px]">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] p-2 dark:border-slate-800 dark:bg-slate-950">
                 {rangeOptions.map((option) => (
                   <button
                     key={option.value}
@@ -1503,8 +2275,8 @@ export default function AdminDashboard() {
                     onClick={() => setRange(option.value)}
                     className={`rounded-lg px-3 py-2 text-sm font-semibold ${
                       range === option.value
-                        ? "bg-slate-950 text-white"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        ? "bg-[#F57224] text-white shadow-sm"
+                        : "bg-white text-slate-700 ring-1 ring-[#E0E0E0] hover:bg-[#FFF3EC] hover:text-[#C64B11] dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-800"
                     }`}
                   >
                     {option.label}
@@ -1513,7 +2285,7 @@ export default function AdminDashboard() {
                 <button
                   type="button"
                   onClick={() => loadDashboard({ silent: true })}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#E0E0E0] bg-white px-3 py-2 text-sm font-semibold text-[#1A1A2E] transition hover:bg-[#FFF3EC] hover:text-[#C64B11] dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                 >
                   <RefreshCcw className="h-4 w-4" />
                   Refresh
@@ -1525,30 +2297,30 @@ export default function AdminDashboard() {
                     type="date"
                     value={customStart}
                     onChange={(event) => setCustomStart(event.target.value)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                    className={`${adminInput} px-3 py-2`}
                   />
                   <input
                     type="date"
                     value={customEnd}
                     onChange={(event) => setCustomEnd(event.target.value)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                    className={`${adminInput} px-3 py-2`}
                   />
                 </div>
               )}
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] p-3 dark:border-slate-800 dark:bg-slate-950">
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <input
                     type="text"
                     value={savedViewName}
                     onChange={(event) => setSavedViewName(event.target.value)}
                     placeholder="Save this admin view"
-                    className="min-h-10 flex-1 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                    className="min-h-10 flex-1 rounded-lg border border-[#E0E0E0] bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20"
                   />
                   <button
                     type="button"
                     onClick={saveCurrentView}
                     disabled={!savedViewName.trim() || savedViewsLoading}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#F57224] px-3 text-sm font-bold text-white transition hover:bg-[#d95f18] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {savedViewsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}
                     Save view
@@ -1559,7 +2331,7 @@ export default function AdminDashboard() {
                     {savedViews.map((view) => (
                       <span
                         key={view.key}
-                        className="inline-flex min-h-9 shrink-0 items-center overflow-hidden rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700"
+                        className="inline-flex min-h-9 shrink-0 items-center overflow-hidden rounded-lg border border-[#E0E0E0] bg-white text-xs font-bold text-slate-700"
                       >
                         <button
                           type="button"
@@ -1585,144 +2357,129 @@ export default function AdminDashboard() {
           </div>
 
           {error && (
-            <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+            <div className="mt-4 rounded-lg border border-rose-300/40 bg-rose-500/15 px-4 py-3 text-sm font-semibold text-rose-100">
               {error}
             </div>
           )}
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
-          <KpiCard
-            label="Today's GMV"
-            value={formatPrice(kpis.todayGmv)}
-            detail={`${formatCount(kpis.todayOrders)} order${Number(kpis.todayOrders) === 1 ? "" : "s"} today`}
-            icon={CircleDollarSign}
-            tone="emerald"
-            loading={loading}
-          />
-          <KpiCard
-            label="Total orders"
-            value={formatCount(kpis.totalOrders)}
-            detail={`${formatChange(comparison.ordersChange)} vs previous period`}
-            icon={ShoppingCart}
-            tone="sky"
-            loading={loading}
-          />
-          <KpiCard
-            label="Active vendors"
-            value={formatCount(kpis.activeVendors)}
-            detail={`${formatCount(kpis.newVendors)} new today`}
-            icon={Store}
-            tone="amber"
-            loading={loading}
-          />
-          <KpiCard
-            label="New users"
-            value={formatCount(kpis.newUsers)}
-            detail="Joined today"
-            icon={Users}
-            tone="indigo"
-            loading={loading}
-          />
-          <KpiCard
-            label="Payout exposure"
-            value={formatPrice(kpis.payoutExposure)}
-            detail={`${formatCount(kpis.pendingPayouts)} pending payouts`}
-            icon={Banknote}
-            tone="rose"
-            loading={loading}
-          />
-          <KpiCard
-            label="Refund rate"
-            value={formatPercent(kpis.refundRate)}
-            detail={`${formatPrice(kpis.refundAmount)} in refunds`}
-            icon={TrendingDown}
-            tone="slate"
-            loading={loading}
-          />
-          <KpiCard
-            label="Support SLA"
-            value={formatCount(kpis.supportSlaBreaches)}
-            detail={`${formatCount(kpis.supportOpen)} open tickets`}
-            icon={Headphones}
-            tone={Number(kpis.supportSlaBreaches || 0) > 0 ? "rose" : "emerald"}
-            loading={loading}
-          />
-          <KpiCard
-            label="Active disputes"
-            value={formatCount(kpis.activeDisputes)}
-            detail={`${formatCount(totalPendingActions)} pending actions`}
-            icon={ShieldAlert}
-            tone="slate"
-            loading={loading}
-          />
-        </section>
+        <AdminControlHub sections={controlSections} />
 
-        <section className="flex gap-3 overflow-x-auto pb-1">
-          {pendingActionLinks.map((item) => (
-            <PendingAction key={item.key} item={item} count={pendingActions[item.key]} />
-          ))}
-        </section>
-
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <WorkflowCard
-            to="/admin/support"
-            icon={Headphones}
-            label="Support SLA"
-            value={formatCount(opsSummary.supportSlaBreaches)}
-            detail={`${formatCount(opsSummary.supportOpen)} open support tickets`}
-            tone={Number(opsSummary.supportSlaBreaches || 0) > 0 ? "rose" : "emerald"}
-          />
-          <WorkflowCard
-            to="/admin/operations"
-            icon={BellRing}
-            label="Failed notifications"
-            value={formatCount(opsSummary.failedNotifications)}
-            detail="Email, push, and in-app delivery issues"
-            tone={Number(opsSummary.failedNotifications || 0) > 0 ? "amber" : "emerald"}
-          />
-          <WorkflowCard
-            to="/admin/operations"
-            icon={AlertTriangle}
-            label="Failed jobs"
-            value={formatCount(opsSummary.failedBulkJobs)}
-            detail={`${formatCount(opsSummary.failedPayments)} failed payment/webhook events`}
-            tone={Number(opsSummary.failedBulkJobs || 0) > 0 ? "rose" : "emerald"}
-          />
-          <WorkflowCard
-            to="/admin/analytics"
-            icon={Clock3}
-            label="Analytics cron"
-            value={opsSummary.analyticsCronStatus === "running" ? "Running" : "Watch"}
-            detail={`Last signal ${formatDateTime(opsSummary.analyticsUpdatedAt)}`}
-            tone={opsSummary.analyticsCronStatus === "running" ? "emerald" : "amber"}
-          />
-        </section>
-
-        <ExceptionInbox
-          inbox={exceptionInbox}
-          filter={exceptionFilter}
+        <AdminWorkflowCenter
+          workflow={adminWorkflow}
+          pendingActions={pendingActions}
           onFilterChange={setExceptionFilter}
-          onOpenCase={openAdminCase}
-          formatPrice={formatPrice}
           loading={loading}
-          selectedCaseKeys={selectedCaseKeys}
-          onToggleCase={toggleCaseSelection}
-          onToggleAll={toggleVisibleCases}
-          bulkForm={bulkCaseForm}
-          onBulkFormChange={updateBulkCaseForm}
-          onBulkApply={applyBulkCaseUpdate}
-          bulkSaving={bulkSaving}
         />
 
-        <AdminHardeningPanels hardening={adminHardening} formatPrice={formatPrice} />
+        <DashboardGroup
+          title="Marketplace Snapshot"
+          description="Daily health numbers kept compact for quick scanning."
+          badge={`${formatCount(totalPendingActions)} pending`}
+        >
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
+            <KpiCard
+              label="Today's GMV"
+              value={formatPrice(kpis.todayGmv)}
+              detail={`${formatCount(kpis.todayOrders)} order${Number(kpis.todayOrders) === 1 ? "" : "s"} today`}
+              icon={CircleDollarSign}
+              tone="emerald"
+              loading={loading}
+            />
+            <KpiCard
+              label="Total orders"
+              value={formatCount(kpis.totalOrders)}
+              detail={`${formatChange(comparison.ordersChange)} vs previous period`}
+              icon={ShoppingCart}
+              tone="sky"
+              loading={loading}
+            />
+            <KpiCard
+              label="Active vendors"
+              value={formatCount(kpis.activeVendors)}
+              detail={`${formatCount(kpis.newVendors)} new today`}
+              icon={Store}
+              tone="amber"
+              loading={loading}
+            />
+            <KpiCard
+              label="New users"
+              value={formatCount(kpis.newUsers)}
+              detail="Joined today"
+              icon={Users}
+              tone="indigo"
+              loading={loading}
+            />
+            <KpiCard
+              label="Payout exposure"
+              value={formatPrice(kpis.payoutExposure)}
+              detail={`${formatCount(kpis.pendingPayouts)} pending payouts`}
+              icon={Banknote}
+              tone="rose"
+              loading={loading}
+            />
+            <KpiCard
+              label="Refund rate"
+              value={formatPercent(kpis.refundRate)}
+              detail={`${formatPrice(kpis.refundAmount)} in refunds`}
+              icon={TrendingDown}
+              tone="slate"
+              loading={loading}
+            />
+            <KpiCard
+              label="Support SLA"
+              value={formatCount(kpis.supportSlaBreaches)}
+              detail={`${formatCount(kpis.supportOpen)} open tickets`}
+              icon={Headphones}
+              tone={Number(kpis.supportSlaBreaches || 0) > 0 ? "rose" : "emerald"}
+              loading={loading}
+            />
+            <KpiCard
+              label="Active disputes"
+              value={formatCount(kpis.activeDisputes)}
+              detail={`${formatCount(totalPendingActions)} pending actions`}
+              icon={ShieldAlert}
+              tone="slate"
+              loading={loading}
+            />
+          </section>
+        </DashboardGroup>
 
+        <DashboardGroup
+          title="Exception Handling"
+          description="Open only the queues that need assignment, SLA work, or escalation."
+          badge={`${formatCount(exceptionInbox.summary?.total)} open`}
+        >
+          <ExceptionInbox
+            inbox={exceptionInbox}
+            filter={exceptionFilter}
+            onFilterChange={setExceptionFilter}
+            onOpenCase={openAdminCase}
+            formatPrice={formatPrice}
+            loading={loading}
+            selectedCaseKeys={selectedCaseKeys}
+            onToggleCase={toggleCaseSelection}
+            onToggleAll={toggleVisibleCases}
+            bulkForm={bulkCaseForm}
+            onBulkFormChange={updateBulkCaseForm}
+            onBulkApply={applyBulkCaseUpdate}
+            bulkSaving={bulkSaving}
+          />
+
+          <AdminHardeningPanels hardening={adminHardening} formatPrice={formatPrice} />
+        </DashboardGroup>
+
+        <DashboardGroup
+          title="Reports And Activity"
+          description="Charts, activity, vendors, and product performance are available when you need deeper review."
+          defaultOpen={false}
+        >
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.55fr)]">
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className={`${adminSurface} p-5`}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-lg font-bold text-slate-950">Revenue Breakdown</h2>
-                <p className="text-sm text-slate-500">
+                <h2 className="text-lg font-black text-slate-950 dark:text-white">Revenue Breakdown</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   Commission {formatPrice(dashboard.revenueTotals?.commission)} - GMV {formatPrice(dashboard.revenueTotals?.gmv)} - Refunds {formatPrice(dashboard.revenueTotals?.refunds)}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -1732,7 +2489,7 @@ export default function AdminDashboard() {
                   <ChangePill label="Refunds" value={comparison.refundsChange} />
                 </div>
               </div>
-              <div className="inline-flex w-max items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+              <div className="inline-flex w-max items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700 ring-1 ring-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:ring-orange-900/50">
                 <TrendingUp className="h-3.5 w-3.5" />
                 {rangeOptions.find((item) => item.value === range)?.label || "Range"}
               </div>
@@ -1743,8 +2500,8 @@ export default function AdminDashboard() {
                 <AreaChart data={dashboard.revenueSeries || []} margin={{ top: 10, right: 18, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="gmvFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.28} />
-                      <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.02} />
+                      <stop offset="5%" stopColor="#F57224" stopOpacity={0.28} />
+                      <stop offset="95%" stopColor="#F57224" stopOpacity={0.02} />
                     </linearGradient>
                     <linearGradient id="commissionFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.32} />
@@ -1760,7 +2517,7 @@ export default function AdminDashboard() {
                   <YAxis tickFormatter={compactNumber} tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 12 }} width={48} />
                   <Tooltip content={<ChartTooltip formatPrice={formatPrice} />} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Area type="monotone" dataKey="gmv" name="Vendor GMV" stroke="#0ea5e9" fill="url(#gmvFill)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="gmv" name="Vendor GMV" stroke="#F57224" fill="url(#gmvFill)" strokeWidth={2} />
                   <Area type="monotone" dataKey="commission" name="Commission" stroke="#10b981" fill="url(#commissionFill)" strokeWidth={2} />
                   <Area type="monotone" dataKey="refunds" name="Refunds" stroke="#f43f5e" fill="url(#refundFill)" strokeWidth={2} />
                 </AreaChart>
@@ -1768,11 +2525,11 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className={`${adminSurface} p-5`}>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-slate-950">Top Categories</h2>
-                <p className="text-sm text-slate-500">Highest GMV categories in the selected period.</p>
+                <h2 className="text-lg font-black text-slate-950 dark:text-white">Top Categories</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Highest GMV categories in the selected period.</p>
               </div>
               <Tags className="h-5 w-5 text-slate-400" />
             </div>
@@ -1781,17 +2538,17 @@ export default function AdminDashboard() {
                 <Link
                   key={category.categoryId || category.categoryName}
                   to={`/admin/categories?search=${encodeURIComponent(category.categoryName || "")}`}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 transition hover:border-sky-300 hover:bg-sky-50"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 transition hover:border-orange-300 hover:bg-orange-50 dark:border-slate-800 dark:hover:border-orange-800 dark:hover:bg-orange-950/20"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900">
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
                       {index + 1}. {category.categoryName}
                     </p>
-                    <p className="truncate text-xs text-slate-500">
+                    <p className="truncate text-xs text-slate-500 dark:text-slate-400">
                       {formatCount(category.orders)} orders - {formatCount(category.units)} units
                     </p>
                   </div>
-                  <span className="shrink-0 text-sm font-bold text-slate-950">{formatPrice(category.gmv)}</span>
+                  <span className="shrink-0 text-sm font-bold text-slate-950 dark:text-white">{formatPrice(category.gmv)}</span>
                 </Link>
               ))}
               {(dashboard.topCategories || []).length === 0 && (
@@ -1802,11 +2559,11 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className={`${adminSurface} p-5`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-slate-950">Order Funnel</h2>
-                <p className="text-sm text-slate-500">Pending to returned drop-off.</p>
+                <h2 className="text-lg font-black text-slate-950 dark:text-white">Order Funnel</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Pending to returned drop-off.</p>
               </div>
               <TrendingDown className="h-5 w-5 text-slate-400" />
             </div>
@@ -1814,16 +2571,16 @@ export default function AdminDashboard() {
               {(dashboard.orderFunnel || []).map((item) => (
                 <div key={item.key}>
                   <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="font-semibold text-slate-800">{item.label}</span>
-                    <span className="font-bold text-slate-950">{formatCount(item.count)}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{item.label}</span>
+                    <span className="font-bold text-slate-950 dark:text-white">{formatCount(item.count)}</span>
                   </div>
-                  <div className="h-2 rounded-full bg-slate-100">
+                  <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
                     <div
-                      className={`h-2 rounded-full ${item.key === "returned" ? "bg-rose-500" : "bg-sky-500"}`}
+                      className={`h-2 rounded-full ${item.key === "returned" ? "bg-rose-500" : "bg-orange-500"}`}
                       style={{ width: `${Math.max(6, (item.count / funnelMax) * 100)}%` }}
                     />
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     {item.dropOff > 0 ? `${formatCount(item.dropOff)} drop-off from previous step` : "No drop-off from previous step"}
                   </p>
                 </div>
@@ -1833,11 +2590,11 @@ export default function AdminDashboard() {
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className={`${adminSurface} p-5`}>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-slate-950">Real-Time Activity Feed</h2>
-                <p className="text-sm text-slate-500">Orders, vendor applications, product flags, and failed payments.</p>
+                <h2 className="text-lg font-black text-slate-950 dark:text-white">Real-Time Activity Feed</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Orders, vendor applications, product flags, and failed payments.</p>
               </div>
               <BellRing className="h-5 w-5 text-slate-400" />
             </div>
@@ -1850,13 +2607,13 @@ export default function AdminDashboard() {
               {(dashboard.activityFeed || []).map((activity) => {
                 const Icon = getActivityIcon(activity.type);
                 return (
-                  <div key={activity.id} className="flex gap-3 rounded-lg border border-slate-200 p-3">
+                  <div key={activity.id} className="flex gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-orange-200 hover:bg-orange-50/40 dark:border-slate-800 dark:hover:border-orange-900 dark:hover:bg-orange-950/10">
                     <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${activityStyles[activity.type] || activityStyles.order}`}>
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-900">{activity.title}</p>
-                      <p className="mt-0.5 truncate text-xs text-slate-500">
+                      <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{activity.title}</p>
+                      <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
                         {activity.meta?.label || activity.type}
                         {activity.meta?.amount ? ` - ${formatPrice(activity.meta.amount)}` : ""}
                       </p>
@@ -1868,11 +2625,11 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className={`${adminSurface} p-5`}>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-slate-950">Platform Health Alerts</h2>
-                <p className="text-sm text-slate-500">Automatic warnings from cancellation, payment, SLA, and fraud signals.</p>
+                <h2 className="text-lg font-black text-slate-950 dark:text-white">Platform Health Alerts</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Automatic warnings from cancellation, payment, SLA, and fraud signals.</p>
               </div>
               <AlertTriangle className="h-5 w-5 text-slate-400" />
             </div>
@@ -1892,12 +2649,12 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
-            <div className="mt-5 rounded-lg border border-slate-200 p-4">
+            <div className="mt-5 rounded-lg border border-slate-200 p-4 dark:border-slate-800">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-semibold text-slate-600">Cancellation rate</span>
-                <span className="font-bold text-slate-950">{Number(kpis.cancellationRate || 0).toFixed(1)}%</span>
+                <span className="font-semibold text-slate-600 dark:text-slate-300">Cancellation rate</span>
+                <span className="font-bold text-slate-950 dark:text-white">{Number(kpis.cancellationRate || 0).toFixed(1)}%</span>
               </div>
-              <div className="mt-3 h-2 rounded-full bg-slate-100">
+              <div className="mt-3 h-2 rounded-full bg-slate-100 dark:bg-slate-800">
                 <div
                   className={`h-2 rounded-full ${Number(kpis.cancellationRate || 0) >= 15 ? "bg-rose-500" : "bg-emerald-500"}`}
                   style={{ width: `${Math.min(100, Number(kpis.cancellationRate || 0))}%` }}
@@ -1908,11 +2665,11 @@ export default function AdminDashboard() {
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className={`${adminSurface} p-5`}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h2 className="text-lg font-bold text-slate-950">Top Vendors</h2>
-                <p className="text-sm text-slate-500">Ranked by GMV, orders, and commission generated.</p>
+                <h2 className="text-lg font-black text-slate-950 dark:text-white">Top Vendors</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Ranked by GMV, orders, and commission generated.</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative">
@@ -1922,7 +2679,7 @@ export default function AdminDashboard() {
                     value={vendorFilter}
                     onChange={(event) => setVendorFilter(event.target.value)}
                     placeholder="Filter vendors"
-                    className="w-44 rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                    className={`${adminInput} w-44 py-2 pl-9 pr-3`}
                   />
                 </div>
                 <SortButton active={vendorSort === "gmv"} onClick={() => setVendorSort("gmv")}>GMV</SortButton>
@@ -1931,9 +2688,9 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="mt-5 overflow-hidden rounded-lg border border-slate-200">
+            <div className="mt-5 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
                   <tr>
                     <th className="px-4 py-3 text-left font-bold">Vendor</th>
                     <th className="px-4 py-3 text-right font-bold">GMV</th>
@@ -1941,7 +2698,7 @@ export default function AdminDashboard() {
                     <th className="px-4 py-3 text-right font-bold">Commission</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
+                <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
                   {sortedVendors.length === 0 && (
                     <tr>
                       <td colSpan="4" className="px-4 py-6 text-center text-slate-500">
@@ -1953,14 +2710,14 @@ export default function AdminDashboard() {
                     <tr key={vendor.vendorId}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-xs font-bold text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">
                             {index + 1}
                           </span>
-                          <span className="font-semibold text-slate-900">{vendor.vendorName}</span>
+                          <span className="font-semibold text-slate-900 dark:text-white">{vendor.vendorName}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-slate-900">{formatPrice(vendor.gmv)}</td>
-                      <td className="px-4 py-3 text-right text-slate-600">{formatCount(vendor.orders)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">{formatPrice(vendor.gmv)}</td>
+                      <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">{formatCount(vendor.orders)}</td>
                       <td className="px-4 py-3 text-right font-semibold text-emerald-700">{formatPrice(vendor.commission)}</td>
                     </tr>
                   ))}
@@ -1969,11 +2726,11 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className={`${adminSurface} p-5`}>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-slate-950">Top Products Today</h2>
-                <p className="text-sm text-slate-500">Best-selling SKUs by revenue and units.</p>
+                <h2 className="text-lg font-black text-slate-950 dark:text-white">Top Products Today</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Best-selling SKUs by revenue and units.</p>
               </div>
               <Filter className="h-5 w-5 text-slate-400" />
             </div>
@@ -1984,22 +2741,22 @@ export default function AdminDashboard() {
                   <XAxis dataKey="sku" tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 11 }} />
                   <YAxis tickFormatter={compactNumber} tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 11 }} width={40} />
                   <Tooltip content={<ChartTooltip formatPrice={formatPrice} />} />
-                  <Bar dataKey="revenue" name="Revenue" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="revenue" name="Revenue" fill="#F57224" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
             <div className="mt-4 space-y-3">
               {(dashboard.topProductsToday || []).slice(0, 5).map((product, index) => (
-                <div key={product.productId} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
+                <div key={product.productId} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 transition hover:border-orange-300 hover:bg-orange-50 dark:border-slate-800 dark:hover:border-orange-800 dark:hover:bg-orange-950/20">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900">
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
                       {index + 1}. {product.productName}
                     </p>
-                    <p className="truncate text-xs text-slate-500">
+                    <p className="truncate text-xs text-slate-500 dark:text-slate-400">
                       {product.vendorName} - {formatCount(product.units)} units
                     </p>
                   </div>
-                  <span className="shrink-0 text-sm font-bold text-slate-950">{formatPrice(product.revenue)}</span>
+                  <span className="shrink-0 text-sm font-bold text-slate-950 dark:text-white">{formatPrice(product.revenue)}</span>
                 </div>
               ))}
               {(dashboard.topProductsToday || []).length === 0 && (
@@ -2010,55 +2767,62 @@ export default function AdminDashboard() {
             </div>
           </div>
         </section>
+        </DashboardGroup>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-          <Link to="/admin/orders" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-950">Order Operations</h3>
-              <ArrowRight className="h-4 w-4 text-slate-400" />
-            </div>
-            <p className="mt-1 text-sm text-slate-500">Review order queues, shipment states, and payment issues.</p>
-          </Link>
-          <Link to="/admin/vendor-requests" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-950">Approval Center</h3>
-              <ArrowRight className="h-4 w-4 text-slate-400" />
-            </div>
-            <p className="mt-1 text-sm text-slate-500">Clear vendor, KYC, product, and category approval queues.</p>
-          </Link>
-          <Link to="/admin/support" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-950">Support Desk</h3>
-              <ArrowRight className="h-4 w-4 text-slate-400" />
-            </div>
-            <p className="mt-1 text-sm text-slate-500">Resolve customer tickets, SLA risks, and linked order issues.</p>
-          </Link>
-          <Link to="/admin/payouts" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-950">Finance Desk</h3>
-              <ArrowRight className="h-4 w-4 text-slate-400" />
-            </div>
-            <p className="mt-1 text-sm text-slate-500">Handle pending payouts, payout requests, and refund impact.</p>
-          </Link>
-          <Link to="/admin/operations" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-950">Ops Monitor</h3>
-              <ArrowRight className="h-4 w-4 text-slate-400" />
-            </div>
-            <p className="mt-1 text-sm text-slate-500">Watch failed jobs, notification health, cron status, and queue load.</p>
-          </Link>
-          <Link to="/admin/analytics" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300 hover:bg-sky-50">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-950">Analytics</h3>
-              <ArrowRight className="h-4 w-4 text-slate-400" />
-            </div>
-            <p className="mt-1 text-sm text-slate-500">Open GMV, category, vendor, refund, and performance reports.</p>
-          </Link>
-        </section>
+        <DashboardGroup
+          title="Common Workspaces"
+          description="Frequently used areas, kept separate from the full control hub."
+          defaultOpen={false}
+        >
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            <Link to="/admin/orders" className={`${adminInteractiveSurface} group p-4`}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-slate-950 dark:text-white">Order Operations</h3>
+                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-orange-600" />
+              </div>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Review order queues, shipment states, and payment issues.</p>
+            </Link>
+            <Link to="/admin/vendor-requests" className={`${adminInteractiveSurface} group p-4`}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-slate-950 dark:text-white">Approval Center</h3>
+                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-orange-600" />
+              </div>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Clear vendor, KYC, product, and category approval queues.</p>
+            </Link>
+            <Link to="/admin/support" className={`${adminInteractiveSurface} group p-4`}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-slate-950 dark:text-white">Support Desk</h3>
+                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-orange-600" />
+              </div>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Resolve customer tickets, SLA risks, and linked order issues.</p>
+            </Link>
+            <Link to="/admin/payouts" className={`${adminInteractiveSurface} group p-4`}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-slate-950 dark:text-white">Finance Desk</h3>
+                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-orange-600" />
+              </div>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Handle pending payouts, payout requests, and refund impact.</p>
+            </Link>
+            <Link to="/admin/operations" className={`${adminInteractiveSurface} group p-4`}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-slate-950 dark:text-white">Ops Monitor</h3>
+                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-orange-600" />
+              </div>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Watch failed jobs, notification health, cron status, and queue load.</p>
+            </Link>
+            <Link to="/admin/analytics" className={`${adminInteractiveSurface} group p-4`}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-slate-950 dark:text-white">Analytics</h3>
+                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-orange-600" />
+              </div>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Open GMV, category, vendor, refund, and performance reports.</p>
+            </Link>
+          </section>
+        </DashboardGroup>
 
         {loading && (
-          <div className="fixed inset-x-0 bottom-5 z-30 mx-auto flex w-max items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg">
-            <Loader2 className="h-4 w-4 animate-spin text-sky-600" />
+          <div className="fixed inset-x-0 bottom-5 z-30 mx-auto flex w-max items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+            <Loader2 className="h-4 w-4 animate-spin text-orange-600" />
             Loading admin dashboard
           </div>
         )}
