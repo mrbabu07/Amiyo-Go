@@ -3,6 +3,7 @@ require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 const { MongoClient, ServerApiVersion } = require("mongodb");
 
 const uri = process.env.MONGO_URI;
+const dbName = process.env.DB_NAME || "BazarBD";
 
 function createMongoClient() {
   if (!uri) {
@@ -875,6 +876,488 @@ const categoryTree = [
       },
     ],
   },
+  {
+    name: "Baby & Kids",
+    slug: "baby-kids",
+    icon: "baby",
+    displayOrder: 14,
+    minimumCommissionRate: 6,
+    description: "Baby care, kids clothing, school essentials, toys, and safe family products.",
+    children: [
+      {
+        name: "Baby Care Essentials",
+        slug: "baby-care-essentials",
+        children: [
+          { name: "Diapers & Wipes", slug: "baby-kids-diapers-wipes" },
+          { name: "Baby Food & Formula", slug: "baby-kids-food-formula" },
+          { name: "Baby Bath & Skin Care", slug: "baby-kids-bath-skin-care" },
+          { name: "Baby Health & Safety", slug: "baby-health-safety" },
+          { name: "Feeding Accessories", slug: "baby-feeding-accessories" },
+        ],
+      },
+      {
+        name: "Baby Gear",
+        slug: "baby-gear",
+        children: [
+          { name: "Strollers & Prams", slug: "strollers-prams" },
+          { name: "Baby Carriers", slug: "baby-carriers" },
+          { name: "Cribs & Baby Bedding", slug: "cribs-baby-bedding" },
+          { name: "Baby Monitors", slug: "baby-monitors" },
+          { name: "Baby Furniture", slug: "baby-furniture" },
+        ],
+      },
+      {
+        name: "Kids Clothing",
+        slug: "kids-clothing",
+        children: [
+          { name: "Kids T-Shirts", slug: "kids-tshirts" },
+          { name: "Kids Dresses", slug: "kids-dresses" },
+          { name: "Kids Pants", slug: "kids-pants" },
+          { name: "Kids Ethnic Wear", slug: "kids-ethnic-wear" },
+          { name: "School Uniforms", slug: "school-uniforms" },
+        ],
+      },
+      {
+        name: "Kids Shoes & Accessories",
+        slug: "kids-shoes-accessories",
+        children: [
+          { name: "Kids School Shoes", slug: "kids-school-shoes" },
+          { name: "Kids Sandals", slug: "kids-sandals" },
+          { name: "Kids Bags", slug: "kids-bags" },
+          { name: "Kids Watches & Accessories", slug: "kids-watches-accessories" },
+        ],
+      },
+      {
+        name: "Baby & Kids Toys",
+        slug: "baby-kids-toys",
+        children: [
+          { name: "Infant Toys", slug: "infant-toys" },
+          { name: "Educational Toys", slug: "educational-toys-baby-kids" },
+          { name: "Soft Toys", slug: "soft-toys-baby-kids" },
+          { name: "Outdoor Play", slug: "kids-outdoor-play" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Mobile & Gadgets",
+    slug: "mobile-gadgets",
+    icon: "mobile",
+    displayOrder: 15,
+    minimumCommissionRate: 5,
+    description: "Phones, tablets, wearables, smart devices, and everyday tech accessories.",
+    children: [
+      {
+        name: "Phones & Tablets",
+        slug: "phones-tablets",
+        children: [
+          { name: "Smartphones", slug: "mobile-gadgets-smartphones" },
+          { name: "Feature Phones", slug: "mobile-feature-phones" },
+          { name: "Tablets", slug: "tablets" },
+          { name: "Refurbished Phones", slug: "refurbished-phones" },
+        ],
+      },
+      {
+        name: "Mobile Accessories",
+        slug: "mobile-gadgets-accessories",
+        children: [
+          { name: "Phone Cases & Protectors", slug: "phone-cases-protectors" },
+          { name: "Chargers, Cables & Adapters", slug: "mobile-power-charging" },
+          { name: "Power Banks", slug: "mobile-gadgets-power-banks" },
+          { name: "Memory Cards & Storage", slug: "memory-cards-storage" },
+        ],
+      },
+      {
+        name: "Wearables & Smart Devices",
+        slug: "wearables-smart-devices",
+        children: [
+          { name: "Smart Watches", slug: "mobile-gadgets-smart-watches" },
+          { name: "Fitness Bands", slug: "fitness-bands" },
+          { name: "Smart Home Devices", slug: "smart-home-devices" },
+          { name: "Trackers & Finders", slug: "trackers-finders" },
+        ],
+      },
+      {
+        name: "Gadgets & Gaming Devices",
+        slug: "gadgets-gaming-devices",
+        children: [
+          { name: "Portable Gadgets", slug: "portable-gadgets" },
+          { name: "Gaming Controllers", slug: "gaming-controllers" },
+          { name: "VR & AR Accessories", slug: "vr-ar-accessories" },
+          { name: "Tech Gifts", slug: "tech-gifts" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Jewelry & Watches",
+    slug: "jewelry-watches",
+    icon: "jewelry",
+    displayOrder: 16,
+    minimumCommissionRate: 8,
+    description: "Jewelry, watches, eyewear, and premium personal accessories.",
+    children: [
+      {
+        name: "Jewelry",
+        slug: "jewelry",
+        children: [
+          { name: "Fashion Jewelry", slug: "fashion-jewelry" },
+          { name: "Fine Jewelry", slug: "fine-jewelry" },
+          { name: "Gold-Plated Jewelry", slug: "gold-plated-jewelry" },
+          { name: "Bridal Jewelry", slug: "bridal-jewelry" },
+          { name: "Religious Jewelry", slug: "religious-jewelry" },
+        ],
+      },
+      {
+        name: "Watches",
+        slug: "jewelry-watches-products",
+        children: [
+          { name: "Men's Watches", slug: "jewelry-mens-watches" },
+          { name: "Women's Watches", slug: "jewelry-womens-watches" },
+          { name: "Couple Watches", slug: "couple-watches" },
+          { name: "Watch Accessories", slug: "watch-accessories" },
+        ],
+      },
+      {
+        name: "Eyewear & Accessories",
+        slug: "eyewear-accessories",
+        children: [
+          { name: "Sunglasses & Eyewear", slug: "sunglasses-eyewear" },
+          { name: "Jewelry Boxes", slug: "jewelry-boxes" },
+          { name: "Gift Accessories", slug: "jewelry-gift-accessories" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Sports & Outdoors",
+    slug: "sports-outdoors",
+    icon: "sports",
+    displayOrder: 17,
+    minimumCommissionRate: 7,
+    description: "Sports gear, fitness equipment, outdoor products, and active lifestyle essentials.",
+    children: [
+      {
+        name: "Cricket",
+        slug: "cricket-gear",
+        children: [
+          { name: "Cricket Bats", slug: "cricket-bats" },
+          { name: "Cricket Balls", slug: "cricket-balls" },
+          { name: "Cricket Protective Gear", slug: "cricket-protective-gear" },
+          { name: "Cricket Kits", slug: "cricket-kits" },
+        ],
+      },
+      {
+        name: "Football",
+        slug: "football-gear",
+        children: [
+          { name: "Footballs", slug: "footballs" },
+          { name: "Football Jerseys", slug: "football-jerseys" },
+          { name: "Goalkeeper Gear", slug: "goalkeeper-gear" },
+          { name: "Training Cones & Nets", slug: "training-cones-nets" },
+        ],
+      },
+      {
+        name: "Badminton & Indoor Sports",
+        slug: "badminton-indoor-sports",
+        children: [
+          { name: "Badminton Rackets", slug: "badminton-rackets" },
+          { name: "Shuttlecocks", slug: "shuttlecocks" },
+          { name: "Table Tennis", slug: "table-tennis" },
+          { name: "Carrom & Chess", slug: "carrom-chess" },
+        ],
+      },
+      {
+        name: "Fitness",
+        slug: "fitness-equipment",
+        children: [
+          { name: "Dumbbells & Weights", slug: "dumbbells-weights" },
+          { name: "Yoga Mats", slug: "yoga-mats" },
+          { name: "Resistance Bands", slug: "resistance-bands" },
+          { name: "Exercise Machines", slug: "exercise-machines" },
+        ],
+      },
+      {
+        name: "Cycling & Outdoors",
+        slug: "cycling-outdoors",
+        children: [
+          { name: "Bicycles", slug: "bicycles" },
+          { name: "Cycling Accessories", slug: "cycling-accessories" },
+          { name: "Camping Gear", slug: "camping-gear" },
+          { name: "Outdoor Recreation", slug: "outdoor-recreation" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Toys & Games",
+    slug: "toys-games",
+    icon: "toys",
+    displayOrder: 18,
+    minimumCommissionRate: 6,
+    description: "Educational toys, board games, collectibles, and gaming products for all ages.",
+    children: [
+      {
+        name: "Learning Toys",
+        slug: "learning-toys",
+        children: [
+          { name: "STEM Toys", slug: "stem-toys" },
+          { name: "Building Blocks", slug: "building-blocks" },
+          { name: "Puzzles", slug: "puzzles" },
+          { name: "Activity Toys", slug: "activity-toys" },
+        ],
+      },
+      {
+        name: "Games",
+        slug: "board-games-puzzles",
+        children: [
+          { name: "Board Games", slug: "board-games" },
+          { name: "Card Games", slug: "card-games" },
+          { name: "Strategy Games", slug: "strategy-games" },
+          { name: "Party Games", slug: "party-games" },
+        ],
+      },
+      {
+        name: "Pretend Play & Collectibles",
+        slug: "pretend-play-collectibles",
+        children: [
+          { name: "Dolls & Action Figures", slug: "dolls-action-figures" },
+          { name: "Toy Vehicles", slug: "toy-vehicles" },
+          { name: "Role Play Sets", slug: "role-play-sets" },
+          { name: "Collectible Toys", slug: "collectible-toys" },
+        ],
+      },
+      {
+        name: "Remote Control & Digital Games",
+        slug: "remote-control-digital-games",
+        children: [
+          { name: "Remote Control Toys", slug: "remote-control-toys" },
+          { name: "Video Games", slug: "video-games" },
+          { name: "Consoles & Accessories", slug: "consoles-accessories" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Automotive & Bike",
+    slug: "automotive-bike",
+    icon: "car",
+    displayOrder: 19,
+    minimumCommissionRate: 5,
+    description: "Motorbike, bicycle, car accessories, safety gear, and maintenance products.",
+    children: [
+      {
+        name: "Motorbike Accessories",
+        slug: "new-bike-accessories",
+        children: [
+          { name: "Bike Helmets", slug: "bike-helmets" },
+          { name: "Bike Covers", slug: "bike-covers" },
+          { name: "Bike Lights", slug: "bike-lights" },
+          { name: "Bike Locks", slug: "bike-locks" },
+        ],
+      },
+      {
+        name: "Car Accessories",
+        slug: "car-accessories",
+        children: [
+          { name: "Car Interior Accessories", slug: "car-interior-accessories" },
+          { name: "Car Exterior Accessories", slug: "car-exterior-accessories" },
+          { name: "Car Electronics", slug: "car-electronics" },
+          { name: "Car Care", slug: "car-care" },
+        ],
+      },
+      {
+        name: "Safety Gear",
+        slug: "helmets-safety-gear",
+        children: [
+          { name: "Helmets", slug: "helmets" },
+          { name: "Riding Gloves", slug: "riding-gloves" },
+          { name: "Protective Jackets", slug: "protective-jackets" },
+          { name: "Rain Gear", slug: "riding-rain-gear" },
+        ],
+      },
+      {
+        name: "Maintenance",
+        slug: "vehicle-maintenance",
+        children: [
+          { name: "Oils & Fluids", slug: "oils-fluids" },
+          { name: "Tyres & Tubes", slug: "tyres-tubes" },
+          { name: "Batteries", slug: "vehicle-batteries" },
+          { name: "Vehicle Tools", slug: "vehicle-tools-maintenance" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Tools, Hardware & Garden",
+    slug: "tools-hardware-garden",
+    icon: "tools",
+    displayOrder: 20,
+    minimumCommissionRate: 6,
+    description: "Power tools, hardware, electrical supplies, plumbing items, and garden products.",
+    children: [
+      {
+        name: "Power Tools",
+        slug: "power-tools",
+        children: [
+          { name: "Drills", slug: "drills" },
+          { name: "Saws & Cutters", slug: "saws-cutters" },
+          { name: "Grinders", slug: "grinders" },
+          { name: "Tool Kits", slug: "power-tool-kits" },
+        ],
+      },
+      {
+        name: "Hand Tools",
+        slug: "hand-tools",
+        children: [
+          { name: "Screwdrivers", slug: "screwdrivers" },
+          { name: "Wrenches", slug: "wrenches" },
+          { name: "Hammers", slug: "hammers" },
+          { name: "Measuring Tools", slug: "measuring-tools" },
+        ],
+      },
+      {
+        name: "Hardware & Supplies",
+        slug: "hardware-supplies",
+        children: [
+          { name: "Electrical Supplies", slug: "electrical-supplies" },
+          { name: "Plumbing Supplies", slug: "plumbing-supplies" },
+          { name: "Fasteners", slug: "fasteners" },
+          { name: "Paint & Repair", slug: "paint-repair" },
+        ],
+      },
+      {
+        name: "Garden",
+        slug: "garden",
+        children: [
+          { name: "Garden Tools", slug: "garden-tools" },
+          { name: "Seeds & Plants", slug: "seeds-plants" },
+          { name: "Pots & Planters", slug: "pots-planters" },
+          { name: "Watering Supplies", slug: "watering-supplies" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Pet Supplies",
+    slug: "pet-supplies",
+    icon: "pet",
+    displayOrder: 21,
+    minimumCommissionRate: 6,
+    description: "Food, grooming, toys, beds, and essentials for pets.",
+    children: [
+      {
+        name: "Pet Food",
+        slug: "pet-food",
+        children: [
+          { name: "Cat Food", slug: "cat-food" },
+          { name: "Dog Food", slug: "dog-food" },
+          { name: "Bird Food", slug: "bird-food" },
+          { name: "Fish Food", slug: "pet-fish-food" },
+        ],
+      },
+      {
+        name: "Pet Care",
+        slug: "pet-care",
+        children: [
+          { name: "Dog Supplies", slug: "dog-supplies" },
+          { name: "Cat Supplies", slug: "cat-supplies" },
+          { name: "Bird & Fish Supplies", slug: "bird-fish-supplies" },
+          { name: "Pet Grooming & Hygiene", slug: "pet-grooming-hygiene" },
+        ],
+      },
+      {
+        name: "Pet Comfort & Play",
+        slug: "pet-comfort-play",
+        children: [
+          { name: "Pet Beds & Carriers", slug: "pet-beds-carriers" },
+          { name: "Pet Toys", slug: "pet-toys" },
+          { name: "Collars & Leashes", slug: "collars-leashes" },
+          { name: "Pet Bowls & Feeders", slug: "pet-bowls-feeders" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Books, Media & Learning",
+    slug: "books-media-learning",
+    icon: "book",
+    displayOrder: 22,
+    minimumCommissionRate: 5,
+    description: "Books, exam guides, learning kits, religious titles, and media products.",
+    children: [
+      {
+        name: "Books",
+        slug: "books",
+        children: [
+          { name: "Academic Books", slug: "learning-academic-books" },
+          { name: "Exam Prep Guides", slug: "exam-prep-guides" },
+          { name: "Children's Learning Books", slug: "children-learning-books" },
+          { name: "Religious & Spiritual Books", slug: "religious-spiritual-books" },
+          { name: "Novels & Literature", slug: "novels-literature" },
+        ],
+      },
+      {
+        name: "Learning Materials",
+        slug: "learning-materials",
+        children: [
+          { name: "Educational Kits", slug: "educational-kits" },
+          { name: "Language Learning", slug: "learning-language-learning" },
+          { name: "Skill Development", slug: "skill-development" },
+          { name: "Online Course Materials", slug: "online-course-materials" },
+        ],
+      },
+      {
+        name: "Media",
+        slug: "media",
+        children: [
+          { name: "Music & Movies", slug: "music-movies-media" },
+          { name: "Magazines", slug: "magazines" },
+          { name: "Digital Learning Files", slug: "digital-learning-files" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Luggage & Travel",
+    slug: "luggage-travel",
+    icon: "travel",
+    displayOrder: 23,
+    minimumCommissionRate: 7,
+    description: "Suitcases, backpacks, travel organizers, laptop bags, and trip accessories.",
+    children: [
+      {
+        name: "Luggage",
+        slug: "luggage",
+        children: [
+          { name: "Suitcases", slug: "suitcases" },
+          { name: "Trolley Bags", slug: "trolley-bags" },
+          { name: "Duffel Bags", slug: "duffel-bags" },
+          { name: "Travel Sets", slug: "travel-sets" },
+        ],
+      },
+      {
+        name: "Bags",
+        slug: "travel-bags",
+        children: [
+          { name: "Backpacks", slug: "backpacks-travel" },
+          { name: "Laptop Bags & Sleeves", slug: "laptop-bags-sleeves" },
+          { name: "Messenger Bags", slug: "messenger-bags" },
+          { name: "Waist Bags", slug: "waist-bags" },
+        ],
+      },
+      {
+        name: "Travel Accessories",
+        slug: "travel-accessories",
+        children: [
+          { name: "Travel Organizers", slug: "travel-organizers" },
+          { name: "Neck Pillows & Eye Masks", slug: "neck-pillows-eye-masks" },
+          { name: "Locks & Tags", slug: "locks-tags" },
+          { name: "Travel Bottles", slug: "travel-bottles" },
+        ],
+      },
+    ],
+  },
 ];
 
 function flattenTree(nodes, parentId = null, level = 0) {
@@ -932,7 +1415,7 @@ async function seedCategories() {
     await client.connect();
     console.log("Connected to MongoDB");
 
-    const db = client.db("BazarBD");
+    const db = client.db(dbName);
     const collection = db.collection("categories");
 
     await collection.deleteMany({});

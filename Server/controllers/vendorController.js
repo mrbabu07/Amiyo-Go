@@ -656,9 +656,39 @@ exports.registerVendor = async (req, res) => {
     const User = req.app.locals.models.User;
 
     // Minimal validation: require basic identity + at least one category.
-    if (!shopName || !phone || !allowedCategoryIds || allowedCategoryIds.length === 0) {
+    if (!shopName || !phone || !Array.isArray(allowedCategoryIds) || allowedCategoryIds.length === 0) {
       return res.status(400).json({ 
         error: "Shop name, phone, and at least one category are required" 
+      });
+    }
+
+    const normalizedAllowedCategoryIds = [
+      ...new Set(allowedCategoryIds.map(toTrimmedString).filter(Boolean)),
+    ];
+
+    if (normalizedAllowedCategoryIds.length === 0) {
+      return res.status(400).json({
+        error: "Select at least one valid category before submitting.",
+      });
+    }
+
+    const hasInvalidCategoryId = normalizedAllowedCategoryIds.some((categoryId) => !ObjectId.isValid(categoryId));
+    if (hasInvalidCategoryId) {
+      return res.status(400).json({
+        error: "Select valid categories before submitting.",
+      });
+    }
+
+    const selectedCategories = await Category.findByIds(normalizedAllowedCategoryIds);
+    const activeCategoryIds = new Set(
+      selectedCategories
+        .filter((category) => category?.isActive !== false)
+        .map((category) => category._id.toString()),
+    );
+
+    if (activeCategoryIds.size !== normalizedAllowedCategoryIds.length) {
+      return res.status(400).json({
+        error: "One or more selected categories are unavailable. Refresh categories and try again.",
       });
     }
 
@@ -701,9 +731,7 @@ exports.registerVendor = async (req, res) => {
       slug,
       phone,
       address,
-      // Trust the IDs coming from the form; they are taken from
-      // the active categories list in the frontend.
-      allowedCategoryIds,
+      allowedCategoryIds: normalizedAllowedCategoryIds,
       payoutMethod: payoutMethod || null,
     };
 

@@ -302,7 +302,8 @@ const categoryFieldGroups = {
   electronics: {
     slugPatterns: [
       'electronics', 'digital-devices', 'mobile', 'phones', 'laptops', 
-      'computers', 'cameras', 'audio', 'headphones', 'smart-watches'
+      'computers', 'cameras', 'audio', 'headphones', 'smart-watches',
+      'tablet', 'wearable', 'smart-home', 'gadgets'
     ],
     fields: [
       {
@@ -394,7 +395,7 @@ const categoryFieldGroups = {
   // Baby & Kids
   babyKids: {
     slugPatterns: [
-      'baby', 'kids', 'toys', 'baby-care', 'baby-clothing', 'kids-clothing'
+      'baby', 'kids', 'baby-care', 'baby-clothing', 'kids-clothing'
     ],
     fields: [
       {
@@ -437,12 +438,332 @@ const categoryFieldGroups = {
       },
     ],
   },
+
+  toysGames: {
+    slugPatterns: [
+      'toys-games', 'learning-toys', 'toy', 'toys', 'puzzles',
+      'board-games', 'card-games', 'dolls', 'action-figures',
+      'remote-control', 'video-games', 'consoles'
+    ],
+    fields: [
+      {
+        name: 'ageRange',
+        label: 'Age Range',
+        type: 'text',
+        required: true,
+        placeholder: 'e.g., 3+ years, 8-12 years',
+      },
+      {
+        name: 'toyType',
+        label: 'Toy/Game Type',
+        type: 'select',
+        required: true,
+        options: ['Educational', 'Board Game', 'Outdoor Play', 'Remote Control', 'Collectible', 'Digital Game', 'Other'],
+      },
+      {
+        name: 'material',
+        label: 'Material',
+        type: 'text',
+        required: false,
+      },
+      {
+        name: 'safetyInfo',
+        label: 'Safety Information',
+        type: 'textarea',
+        required: false,
+      },
+    ],
+  },
+
+  sportsOutdoors: {
+    slugPatterns: [
+      'sports-outdoors', 'cricket', 'football', 'badminton', 'fitness',
+      'cycling', 'outdoor-recreation', 'camping', 'yoga', 'dumbbells',
+      'exercise-machines', 'table-tennis', 'carrom-chess'
+    ],
+    fields: [
+      {
+        name: 'sportType',
+        label: 'Sport/Activity',
+        type: 'text',
+        required: true,
+        placeholder: 'e.g., Cricket, Fitness, Cycling',
+      },
+      {
+        name: 'brand',
+        label: 'Brand',
+        type: 'text',
+        required: false,
+      },
+      {
+        name: 'size',
+        label: 'Size/Weight',
+        type: 'text',
+        required: false,
+        placeholder: 'e.g., Size 5, 5kg, Adult',
+      },
+      {
+        name: 'material',
+        label: 'Material',
+        type: 'text',
+        required: false,
+      },
+    ],
+  },
+
+  automotive: {
+    slugPatterns: [
+      'automotive', 'bike-accessories', 'car-accessories', 'bike-helmets',
+      'vehicle', 'helmets-safety', 'oils-fluids', 'tyres-tubes',
+      'vehicle-batteries', 'car-care', 'riding'
+    ],
+    fields: [
+      {
+        name: 'vehicleType',
+        label: 'Vehicle Type',
+        type: 'select',
+        required: true,
+        options: ['Motorbike', 'Bicycle', 'Car', 'CNG/Auto', 'Universal'],
+      },
+      {
+        name: 'brand',
+        label: 'Brand',
+        type: 'text',
+        required: false,
+      },
+      {
+        name: 'modelCompatibility',
+        label: 'Model Compatibility',
+        type: 'text',
+        required: false,
+        placeholder: 'e.g., Universal, Toyota Corolla, Hero Hunk',
+      },
+      {
+        name: 'warranty',
+        label: 'Warranty Period',
+        type: 'text',
+        required: false,
+      },
+    ],
+  },
+
+  petSupplies: {
+    slugPatterns: [
+      'pet-supplies', 'pet-food', 'dog', 'cat', 'bird-food',
+      'pet-fish-food', 'pet-care', 'pet-grooming', 'pet-beds',
+      'pet-toys', 'collars-leashes', 'pet-bowls'
+    ],
+    fields: [
+      {
+        name: 'petType',
+        label: 'Pet Type',
+        type: 'select',
+        required: true,
+        options: ['Cat', 'Dog', 'Bird', 'Fish', 'Small Pet', 'Other'],
+      },
+      {
+        name: 'weight',
+        label: 'Weight/Pack Size',
+        type: 'text',
+        required: false,
+        placeholder: 'e.g., 1kg, 500ml, 12 pcs',
+      },
+      {
+        name: 'brand',
+        label: 'Brand',
+        type: 'text',
+        required: false,
+      },
+      {
+        name: 'expiryDate',
+        label: 'Expiry Date',
+        type: 'date',
+        required: false,
+      },
+    ],
+  },
+
+  toolsGarden: {
+    slugPatterns: [
+      'tools-hardware-garden', 'power-tools', 'hand-tools', 'hardware',
+      'electrical-supplies', 'plumbing-supplies', 'garden', 'drills',
+      'saws-cutters', 'grinders', 'screwdrivers', 'wrenches', 'hammers'
+    ],
+    fields: [
+      {
+        name: 'toolType',
+        label: 'Tool/Use Type',
+        type: 'text',
+        required: true,
+        placeholder: 'e.g., Drill, Garden tool, Electrical supply',
+      },
+      {
+        name: 'brand',
+        label: 'Brand',
+        type: 'text',
+        required: false,
+      },
+      {
+        name: 'powerSource',
+        label: 'Power Source',
+        type: 'select',
+        required: false,
+        options: ['Manual', 'Electric', 'Battery', 'Fuel', 'Not applicable'],
+      },
+      {
+        name: 'warranty',
+        label: 'Warranty Period',
+        type: 'text',
+        required: false,
+      },
+    ],
+  },
+
+  booksLearning: {
+    slugPatterns: [
+      'books-media-learning', 'learning-academic-books', 'exam-prep',
+      'children-learning-books', 'religious-spiritual-books', 'novels',
+      'learning-materials', 'educational-kits', 'skill-development',
+      'music-movies-media', 'magazines', 'digital-learning'
+    ],
+    fields: [
+      {
+        name: 'authorOrCreator',
+        label: 'Author/Creator',
+        type: 'text',
+        required: false,
+      },
+      {
+        name: 'language',
+        label: 'Language',
+        type: 'select',
+        required: false,
+        options: ['Bangla', 'English', 'Arabic', 'Hindi', 'Urdu', 'Other'],
+      },
+      {
+        name: 'format',
+        label: 'Format',
+        type: 'select',
+        required: true,
+        options: ['Paperback', 'Hardcover', 'Digital', 'Audio/Video', 'Kit', 'Other'],
+      },
+      {
+        name: 'edition',
+        label: 'Edition/Class',
+        type: 'text',
+        required: false,
+        placeholder: 'e.g., Class 8, 2026 edition',
+      },
+    ],
+  },
+
+  jewelryWatches: {
+    slugPatterns: [
+      'jewelry-watches', 'fashion-jewelry', 'fine-jewelry',
+      'gold-plated-jewelry', 'bridal-jewelry', 'religious-jewelry',
+      'watch-accessories', 'sunglasses-eyewear', 'jewelry-boxes'
+    ],
+    fields: [
+      {
+        name: 'material',
+        label: 'Material',
+        type: 'text',
+        required: false,
+        placeholder: 'e.g., Gold plated, Stainless steel, Alloy',
+      },
+      {
+        name: 'color',
+        label: 'Color/Finish',
+        type: 'multiselect',
+        required: false,
+        options: ['Gold', 'Silver', 'Rose Gold', 'Black', 'Brown', 'Multicolor'],
+      },
+      {
+        name: 'gender',
+        label: 'Gender',
+        type: 'select',
+        required: false,
+        options: ['Men', 'Women', 'Unisex', 'Kids'],
+      },
+      {
+        name: 'warrantyOrAuthenticity',
+        label: 'Warranty/Authenticity',
+        type: 'text',
+        required: false,
+      },
+    ],
+  },
+
+  travelLuggage: {
+    slugPatterns: [
+      'luggage-travel', 'suitcases', 'trolley-bags', 'duffel-bags',
+      'travel-sets', 'backpacks-travel', 'laptop-bags-sleeves',
+      'messenger-bags', 'waist-bags', 'travel-accessories',
+      'travel-organizers', 'neck-pillows', 'locks-tags', 'travel-bottles'
+    ],
+    fields: [
+      {
+        name: 'capacity',
+        label: 'Capacity/Size',
+        type: 'text',
+        required: false,
+        placeholder: 'e.g., 20 inch, 45L, fits 15 inch laptop',
+      },
+      {
+        name: 'material',
+        label: 'Material',
+        type: 'text',
+        required: false,
+      },
+      {
+        name: 'color',
+        label: 'Color',
+        type: 'multiselect',
+        required: false,
+        options: ['Black', 'Blue', 'Brown', 'Gray', 'Red', 'Green', 'Multicolor'],
+      },
+      {
+        name: 'warranty',
+        label: 'Warranty Period',
+        type: 'text',
+        required: false,
+      },
+    ],
+  },
 };
+
+const categoryFieldPriority = [
+  'freshFish',
+  'toysGames',
+  'babyKids',
+  'sportsOutdoors',
+  'automotive',
+  'petSupplies',
+  'toolsGarden',
+  'booksLearning',
+  'jewelryWatches',
+  'travelLuggage',
+  'electronics',
+  'accessories',
+  'groceries',
+  'homemade',
+  'restaurant',
+  'resell',
+  'clothing',
+];
 
 // Helper function to get field configuration for a category slug
 function getFieldsForCategory(categorySlug) {
-  for (const config of Object.values(categoryFieldGroups)) {
-    if (config.slugPatterns.some(pattern => categorySlug.includes(pattern))) {
+  const normalizedSlug = String(categorySlug || '');
+  const orderedConfigs = [
+    ...categoryFieldPriority.map((key) => categoryFieldGroups[key]).filter(Boolean),
+    ...Object.entries(categoryFieldGroups)
+      .filter(([key]) => !categoryFieldPriority.includes(key))
+      .map(([, config]) => config),
+  ];
+
+  for (const config of orderedConfigs) {
+    if (config.slugPatterns.some(pattern => normalizedSlug.includes(pattern))) {
       return config.fields;
     }
   }
