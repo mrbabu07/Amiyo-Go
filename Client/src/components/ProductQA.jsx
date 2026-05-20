@@ -136,21 +136,21 @@ export default function ProductQA({ productId }) {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+          <h3 className="text-2xl font-black text-gray-900 dark:text-white">
             Questions & Answers
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          <p className="mt-1 text-sm font-semibold text-gray-600 dark:text-gray-400">
             {questions.length} question{questions.length !== 1 ? "s" : ""}
           </p>
         </div>
         {user && (
           <button
             onClick={() => setShowAskForm(!showAskForm)}
-            className="btn-primary text-sm"
+            className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-600 px-4 text-sm font-black text-white transition hover:bg-primary-700"
           >
             {showAskForm ? "Cancel" : "Ask Question"}
           </button>
@@ -166,18 +166,18 @@ export default function ProductQA({ productId }) {
             exit={{ opacity: 0, height: 0 }}
             className="mb-6 overflow-hidden"
           >
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div className="rounded-lg border border-gray-200 bg-slate-50 p-4 dark:border-gray-800 dark:bg-gray-950">
               <textarea
                 value={questionText}
                 onChange={(e) => setQuestionText(e.target.value)}
                 placeholder="What would you like to know about this product?"
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full resize-none rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-primary-900/50"
                 rows="3"
               />
               <div className="flex gap-2 mt-3">
                 <button
                   onClick={handleAskQuestion}
-                  className="btn-primary text-sm"
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-600 px-4 text-sm font-black text-white transition hover:bg-primary-700"
                 >
                   Submit Question
                 </button>
@@ -186,7 +186,7 @@ export default function ProductQA({ productId }) {
                     setShowAskForm(false);
                     setQuestionText("");
                   }}
-                  className="btn-secondary text-sm"
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 px-4 text-sm font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
                   Cancel
                 </button>
@@ -198,11 +198,11 @@ export default function ProductQA({ productId }) {
 
       {/* Questions List */}
       {loading ? (
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto"></div>
+        <div className="py-8 text-center">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-primary-500"></div>
         </div>
       ) : questions.length === 0 ? (
-        <div className="text-center py-12">
+        <div className="py-12 text-center">
           <svg
             className="w-16 h-16 mx-auto text-gray-400 dark:text-gray-600 mb-4"
             fill="none"
@@ -222,7 +222,7 @@ export default function ProductQA({ productId }) {
           {user && (
             <button
               onClick={() => setShowAskForm(true)}
-              className="btn-primary"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-600 px-4 text-sm font-black text-white transition hover:bg-primary-700"
             >
               Ask a Question
             </button>
@@ -233,12 +233,12 @@ export default function ProductQA({ productId }) {
           {questions.map((question) => (
             <div
               key={question._id}
-              className="border-b border-gray-200 dark:border-gray-700 pb-6 last:border-0"
+              className="rounded-lg border border-gray-200 bg-slate-50 p-4 dark:border-gray-800 dark:bg-gray-950"
             >
               {/* Question */}
               <div className="flex gap-4">
                 <div className="flex-shrink-0">
-                  <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-50 text-primary-600 ring-1 ring-primary-100 dark:bg-primary-950/30 dark:text-primary-300 dark:ring-primary-900/60">
                     <svg
                       className="w-5 h-5 text-primary-600 dark:text-primary-400"
                       fill="none"
@@ -254,11 +254,11 @@ export default function ProductQA({ productId }) {
                     </svg>
                   </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-gray-900 dark:text-white font-medium mb-2">
+                <div className="min-w-0 flex-1">
+                  <p className="mb-2 font-black text-gray-900 dark:text-white">
                     {question.question}
                   </p>
-                  <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                  <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-gray-600 dark:text-gray-400">
                     <span className="flex items-center gap-1">
                       {question.askedByUser?.name || "Anonymous"}
                       {question.askedByUser?.verified && (
@@ -280,7 +280,7 @@ export default function ProductQA({ productId }) {
                     </span>
                     <button
                       onClick={() => handleMarkHelpful(question._id)}
-                      className="flex items-center gap-1 hover:text-primary-600 dark:hover:text-primary-400"
+                      className="flex items-center gap-1 font-bold hover:text-primary-600 dark:hover:text-primary-400"
                     >
                       <svg
                         className="w-4 h-4"
@@ -414,18 +414,18 @@ export default function ProductQA({ productId }) {
                   {user && (
                     <div className="mt-4">
                       {answeringQuestionId === question._id ? (
-                        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                        <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
                           <textarea
                             value={answerText}
                             onChange={(e) => setAnswerText(e.target.value)}
                             placeholder="Write your answer..."
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-primary-900/50"
                             rows="2"
                           />
                           <div className="flex gap-2 mt-2">
                             <button
                               onClick={() => handleAnswerQuestion(question._id)}
-                              className="btn-primary text-xs"
+                              className="rounded-lg bg-primary-600 px-3 py-2 text-xs font-black text-white transition hover:bg-primary-700"
                             >
                               Submit Answer
                             </button>
@@ -434,7 +434,7 @@ export default function ProductQA({ productId }) {
                                 setAnsweringQuestionId(null);
                                 setAnswerText("");
                               }}
-                              className="btn-secondary text-xs"
+                              className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
                               Cancel
                             </button>

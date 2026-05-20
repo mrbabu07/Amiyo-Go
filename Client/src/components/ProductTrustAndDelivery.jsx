@@ -20,7 +20,16 @@ export default function ProductTrustAndDelivery({ product, stockStatus }) {
       ];
 
   return (
-    <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
+    <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5">
+      <div>
+        <h2 className="text-base font-black text-gray-950 dark:text-white">
+          Delivery & buyer protection
+        </h2>
+        <p className="mt-1 text-sm font-semibold text-gray-500 dark:text-gray-400">
+          Service details are confirmed again before payment.
+        </p>
+      </div>
+
       {delivery && (
         <DeliveryEstimateWidget
           title={delivery.label || "Delivery estimate"}
@@ -47,18 +56,18 @@ export default function ProductTrustAndDelivery({ product, stockStatus }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {protections.map((item) => {
           const Icon = iconMap[item.key] || ShieldCheck;
           return (
             <div
               key={item.key}
-              className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
+              className="rounded-lg border border-gray-200 bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-950"
             >
-              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-primary-50 text-primary-600 dark:bg-primary-950/40 dark:text-primary-300">
+              <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-white text-primary-600 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-primary-300 dark:ring-gray-800">
                 <Icon className="h-5 w-5" />
               </div>
-              <p className="font-semibold text-gray-900 dark:text-white">
+              <p className="text-sm font-black text-gray-900 dark:text-white">
                 {item.label}
               </p>
               <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">

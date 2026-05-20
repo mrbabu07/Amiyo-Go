@@ -254,6 +254,8 @@ const inputClass = formInputClass;
 const Field = FormField;
 const Metric = MetricCard;
 const Badge = ({ value }) => <StatusBadge status={value} />;
+const sortByPosition = (items) =>
+  [...items].sort((a, b) => Number(a.position || 0) - Number(b.position || 0));
 
 export default function AdminPromotions() {
   const { formatPrice } = useCurrency();
@@ -281,7 +283,11 @@ export default function AdminPromotions() {
 
   const productMap = useMemo(() => new Map(products.map((product) => [product._id, product])), [products]);
   const heroSlots = useMemo(
-    () => slots.filter((slot) => slot.slotType === "hero_banner").sort((a, b) => Number(a.position || 0) - Number(b.position || 0)),
+    () => sortByPosition(slots.filter((slot) => slot.slotType === "hero_banner")),
+    [slots],
+  );
+  const adSlots = useMemo(
+    () => sortByPosition(slots.filter((slot) => slot.slotType === "ad_slot")),
     [slots],
   );
 
@@ -473,7 +479,7 @@ export default function AdminPromotions() {
       const url = response.data?.url || response.data?.data?.url;
       if (!url) throw new Error("Upload completed without an image URL");
       setSlotForm((current) => ({ ...current, imageUrl: url }));
-      toast.success("Carousel image uploaded");
+      toast.success("Homepage slot image uploaded");
     } catch (error) {
       toast.error(error.response?.data?.error || error.message || "Failed to upload image");
     } finally {
@@ -507,19 +513,19 @@ export default function AdminPromotions() {
         slotId: slot._id,
         status: slot.status === "inactive" ? "active" : "inactive",
       });
-      toast.success(slot.status === "inactive" ? "Carousel slide is visible" : "Carousel slide hidden");
+      toast.success(slot.status === "inactive" ? "Homepage slot is visible" : "Homepage slot hidden");
       loadAll();
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to update slot");
     }
   };
 
-  const moveHeroSlot = async (slot, direction) => {
-    const currentIndex = heroSlots.findIndex((item) => item._id === slot._id);
+  const moveSlot = async (slot, direction, visibleSlots, successMessage) => {
+    const currentIndex = visibleSlots.findIndex((item) => item._id === slot._id);
     const targetIndex = currentIndex + direction;
-    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= heroSlots.length) return;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= visibleSlots.length) return;
 
-    const reordered = [...heroSlots];
+    const reordered = [...visibleSlots];
     const [selected] = reordered.splice(currentIndex, 1);
     reordered.splice(targetIndex, 0, selected);
 
@@ -531,9 +537,9 @@ export default function AdminPromotions() {
         })),
       );
       setSlots(response.data.data || []);
-      toast.success("Carousel order updated");
+      toast.success(successMessage);
     } catch (error) {
-      toast.error(error.response?.data?.error || "Failed to reorder carousel");
+      toast.error(error.response?.data?.error || "Failed to reorder homepage slots");
     }
   };
 
@@ -815,13 +821,13 @@ export default function AdminPromotions() {
                 <form onSubmit={saveSlot} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm lg:col-span-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-orange-600">Home carousel</p>
-                      <h2 className="text-lg font-bold text-gray-950">{slotForm.slotId ? "Edit slide" : "Create slide"}</h2>
-                      <p className="mt-1 text-sm text-gray-500">Control the hero carousel shown on the customer homepage.</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-orange-600">Homepage placement</p>
+                      <h2 className="text-lg font-bold text-gray-950">{slotForm.slotId ? "Edit slot" : "Create slot"}</h2>
+                      <p className="mt-1 text-sm text-gray-500">Control hero carousel slides and the admin-run ads beside the carousel.</p>
                     </div>
                     {slotForm.slotId ? (
                       <button type="button" onClick={resetSlotForm} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700">
-                        New slide
+                        New slot
                       </button>
                     ) : null}
                   </div>
@@ -849,7 +855,7 @@ export default function AdminPromotions() {
                       <input className={inputClass} value={slotForm.title} onChange={(e) => setSlotForm({ ...slotForm, title: e.target.value })} placeholder="Mega sale starts now" />
                     </Field>
                     <Field label="Subtitle">
-                      <textarea className={`${inputClass} min-h-24 resize-y`} value={slotForm.subtitle} onChange={(e) => setSlotForm({ ...slotForm, subtitle: e.target.value })} placeholder="Short customer-facing message for the carousel slide." />
+                      <textarea className={`${inputClass} min-h-24 resize-y`} value={slotForm.subtitle} onChange={(e) => setSlotForm({ ...slotForm, subtitle: e.target.value })} placeholder="Short customer-facing message for this placement." />
                     </Field>
 
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -881,7 +887,7 @@ export default function AdminPromotions() {
                       <p className="mt-1 text-xs text-gray-500">Shown below the carousel headline. Leave a field blank to hide that badge.</p>
                     </Field>
 
-                    <Field label="Carousel Image">
+                    <Field label="Slot Image">
                       <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                           <div className="h-24 w-full overflow-hidden rounded-lg bg-white ring-1 ring-gray-200 sm:w-36">
@@ -894,8 +900,8 @@ export default function AdminPromotions() {
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-gray-950">Upload a wide homepage banner</p>
-                            <p className="mt-1 text-xs text-gray-500">Recommended ratio: 16:9 or wider. The file is optimized and stored by the platform.</p>
+                            <p className="text-sm font-semibold text-gray-950">Upload a homepage banner image</p>
+                            <p className="mt-1 text-xs text-gray-500">Hero slides look best at 16:9 or wider. Right-side ads work well around 4:3.</p>
                             <label className={`mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white ${slotImageUploading ? "bg-gray-500" : "bg-orange-600 hover:bg-orange-700"}`}>
                               <UploadCloud className="h-4 w-4" />
                               {slotImageUploading ? "Uploading..." : "Choose image"}
@@ -933,8 +939,8 @@ export default function AdminPromotions() {
                           <p className="mb-2 inline-flex w-fit rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-wide">
                             {slotForm.badge || "Featured"}
                           </p>
-                          <h3 className="max-w-md text-xl font-black">{slotForm.title || "Slide preview"}</h3>
-                          <p className="mt-2 line-clamp-2 max-w-md text-sm text-white/75">{slotForm.subtitle || "Add a subtitle to preview how this slide will read on the storefront."}</p>
+                          <h3 className="max-w-md text-xl font-black">{slotForm.title || "Slot preview"}</h3>
+                          <p className="mt-2 line-clamp-2 max-w-md text-sm text-white/75">{slotForm.subtitle || "Add a subtitle to preview how this placement will read on the storefront."}</p>
                           {(slotForm.trustBadges || []).filter(Boolean).length ? (
                             <div className="mt-3 flex flex-wrap gap-2">
                               {(slotForm.trustBadges || []).filter(Boolean).map((badge) => (
@@ -949,7 +955,7 @@ export default function AdminPromotions() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      <button type="submit" className="rounded-lg bg-gray-950 px-3 py-2 text-sm font-semibold text-white">{slotForm.slotId ? "Update Slide" : "Save Slide"}</button>
+                      <button type="submit" className="rounded-lg bg-gray-950 px-3 py-2 text-sm font-semibold text-white">{slotForm.slotId ? "Update Slot" : "Save Slot"}</button>
                       <button type="button" onClick={saveDealOfDay} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700">Set Deal</button>
                     </div>
                   </div>
@@ -959,12 +965,13 @@ export default function AdminPromotions() {
                   <div className="border-b border-gray-200 px-4 py-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <h2 className="font-bold text-gray-950">Homepage Carousel Slides</h2>
+                        <h2 className="font-bold text-gray-950">Homepage Slots</h2>
                         <p className="mt-1 text-sm text-gray-500">{heroSlots.length} hero slides. Active slides appear in position order.</p>
                       </div>
                       <div className="flex gap-2">
                         <Metric icon={Image} label="Hero slides" value={heroSlots.length} />
-                        <Metric icon={Eye} label="Visible" value={heroSlots.filter((slot) => slot.status !== "inactive").length} />
+                        <Metric icon={Megaphone} label="Side ads" value={adSlots.length} />
+                        <Metric icon={Eye} label="Visible" value={[...heroSlots, ...adSlots].filter((slot) => slot.status !== "inactive").length} />
                       </div>
                     </div>
                   </div>
@@ -998,10 +1005,10 @@ export default function AdminPromotions() {
                           </div>
                         </div>
                         <div className="flex flex-wrap justify-end gap-2">
-                          <button type="button" onClick={() => moveHeroSlot(slot, -1)} disabled={index === 0} className="rounded-lg border border-gray-200 p-2 text-gray-600 disabled:opacity-40" title="Move up">
+                          <button type="button" onClick={() => moveSlot(slot, -1, heroSlots, "Carousel order updated")} disabled={index === 0} className="rounded-lg border border-gray-200 p-2 text-gray-600 disabled:opacity-40" title="Move up">
                             <ArrowUp className="h-4 w-4" />
                           </button>
-                          <button type="button" onClick={() => moveHeroSlot(slot, 1)} disabled={index === heroSlots.length - 1} className="rounded-lg border border-gray-200 p-2 text-gray-600 disabled:opacity-40" title="Move down">
+                          <button type="button" onClick={() => moveSlot(slot, 1, heroSlots, "Carousel order updated")} disabled={index === heroSlots.length - 1} className="rounded-lg border border-gray-200 p-2 text-gray-600 disabled:opacity-40" title="Move down">
                             <ArrowDown className="h-4 w-4" />
                           </button>
                           <button type="button" onClick={() => editSlot(slot)} className="rounded-lg border border-gray-200 p-2 text-gray-600" title="Edit">
@@ -1017,6 +1024,77 @@ export default function AdminPromotions() {
                         <Image className="mx-auto h-10 w-10 text-gray-300" />
                         <p className="mt-3 font-semibold text-gray-950">No hero slides yet</p>
                         <p className="mt-1 text-sm text-gray-500">Create the first visible hero banner for the customer homepage.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-gray-200 px-4 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-bold text-gray-950">Right Carousel Ads</h3>
+                        <p className="mt-1 text-sm text-gray-500">{adSlots.length} ad slots. The first two active ads show beside the homepage carousel.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          resetSlotForm();
+                          setSlotForm({ ...slotDefaults, slotType: "ad_slot", trustBadges: [...TRUST_BADGE_DEFAULTS] });
+                        }}
+                        className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-bold text-orange-700 hover:bg-orange-100"
+                      >
+                        New side ad
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-gray-100">
+                    {adSlots.length ? adSlots.map((slot, index) => (
+                      <div key={slot._id} className="grid gap-4 px-4 py-4 md:grid-cols-[8rem_minmax(0,1fr)_auto] md:items-center">
+                        <div className="relative h-24 overflow-hidden rounded-xl bg-gray-100">
+                          {slot.imageUrl ? (
+                            <img src={slot.imageUrl} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-gray-400"><Image className="h-8 w-8" /></div>
+                          )}
+                          <span className="absolute left-2 top-2 rounded bg-orange-600 px-2 py-1 text-xs font-bold text-white">Ad #{slot.position || index + 1}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate font-bold text-gray-950">{slot.title}</p>
+                            <Badge value={slot.status} />
+                            {slot.badge ? <span className="rounded-full bg-orange-50 px-2 py-1 text-xs font-bold text-orange-700">{slot.badge}</span> : null}
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-sm text-gray-600">{slot.subtitle || slot.description || "No subtitle set."}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-gray-500">
+                            <span>Homepage carousel side ad</span>
+                            <span>{formatDate(slot.startsAt)} - {formatDate(slot.endsAt)}</span>
+                            {slot.linkUrl ? (
+                              <a href={slot.linkUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-orange-700 hover:text-orange-800">
+                                Link <ExternalLink className="h-3 w-3" />
+                              </a>
+                            ) : <span>No link</span>}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button type="button" onClick={() => moveSlot(slot, -1, adSlots, "Side ad order updated")} disabled={index === 0} className="rounded-lg border border-gray-200 p-2 text-gray-600 disabled:opacity-40" title="Move up">
+                            <ArrowUp className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => moveSlot(slot, 1, adSlots, "Side ad order updated")} disabled={index === adSlots.length - 1} className="rounded-lg border border-gray-200 p-2 text-gray-600 disabled:opacity-40" title="Move down">
+                            <ArrowDown className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => editSlot(slot)} className="rounded-lg border border-gray-200 p-2 text-gray-600" title="Edit">
+                            <Edit3 className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => toggleSlotStatus(slot)} className="rounded-lg border border-gray-200 p-2 text-gray-600" title={slot.status === "inactive" ? "Show" : "Hide"}>
+                            {slot.status === "inactive" ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="px-4 py-10 text-center">
+                        <Megaphone className="mx-auto h-10 w-10 text-gray-300" />
+                        <p className="mt-3 font-semibold text-gray-950">No side ads yet</p>
+                        <p className="mt-1 text-sm text-gray-500">Create an Ad slot to run admin-controlled ads beside the homepage carousel.</p>
                       </div>
                     )}
                   </div>

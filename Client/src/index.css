@@ -239,6 +239,42 @@
     display: none;
   }
 
+  .home-hero-swiper {
+    --swiper-theme-color: #f57224;
+    --swiper-navigation-size: 18px;
+  }
+
+  .home-hero-swiper .swiper-button-prev,
+  .home-hero-swiper .swiper-button-next {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.92);
+    color: #1a1a2e;
+    box-shadow: 0 8px 24px rgba(26, 26, 46, 0.18);
+  }
+
+  .home-hero-swiper .swiper-button-prev {
+    left: 0.75rem;
+  }
+
+  .home-hero-swiper .swiper-button-next {
+    right: 0.75rem;
+  }
+
+  .home-hero-swiper .swiper-pagination-bullet {
+    width: 0.5rem;
+    height: 0.5rem;
+    background: rgba(255, 255, 255, 0.7);
+    opacity: 1;
+  }
+
+  .home-hero-swiper .swiper-pagination-bullet-active {
+    width: 1.75rem;
+    border-radius: 999px;
+    background: #f57224;
+  }
+
   .line-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;

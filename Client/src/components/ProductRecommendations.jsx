@@ -144,11 +144,11 @@ const ProductRecommendations = ({
 
   if (loading) {
     return (
-      <div className="py-8">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+      <div className="py-6">
+        <h2 className="mb-5 text-2xl font-black text-gray-900 dark:text-white">
           {title}
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: limit }).map((_, i) => (
             <ProductCardSkeleton key={i} />
           ))}
@@ -160,15 +160,15 @@ const ProductRecommendations = ({
   if (products.length === 0) return null;
 
   return (
-    <div className="py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+    <div className="py-6">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <h2 className="text-2xl font-black text-gray-900 dark:text-white">
           {title}
         </h2>
         {products.length >= limit && (
           <Link
             to="/products"
-            className="text-primary-600 hover:text-primary-700 font-medium text-sm flex items-center gap-1"
+            className="flex items-center gap-1 text-sm font-black text-primary-600 hover:text-primary-700"
           >
             View All
             <svg
@@ -190,8 +190,8 @@ const ProductRecommendations = ({
       <div
         className={
           layout === "carousel"
-            ? "flex gap-6 overflow-x-auto pb-2"
-            : "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+            ? "flex gap-3 overflow-x-auto pb-2"
+            : "grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4"
         }
       >
         {products.map((product) => (

@@ -20,19 +20,19 @@ export default function DeliveryEstimateWidget({
   return (
     <section
       className={cx(
-        "rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100",
+        "rounded-lg border border-emerald-200 bg-white p-4 text-emerald-950 shadow-sm dark:border-emerald-900/60 dark:bg-gray-950 dark:text-emerald-100",
         className,
       )}
       aria-label={title}
     >
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-100 dark:bg-emerald-900/60 dark:text-emerald-200 dark:ring-emerald-900">
+        <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 shadow-sm ring-1 ring-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-900">
           <Truck className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-black sm:text-base">{title}</h3>
-            <span className="rounded-full bg-white px-2.5 py-1 text-xs font-extrabold text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-900/60 dark:text-emerald-100 dark:ring-emerald-900">
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-100 dark:ring-emerald-900">
               {loading ? "Calculating" : feeLabel}
             </span>
           </div>
@@ -49,7 +49,7 @@ export default function DeliveryEstimateWidget({
           </div>
 
           {breakdown.length > 0 && (
-            <div className="mt-3 space-y-2 rounded-lg bg-white/80 p-3 ring-1 ring-emerald-100 dark:bg-emerald-950/40 dark:ring-emerald-900/70">
+            <div className="mt-3 space-y-2 rounded-lg bg-emerald-50/70 p-3 ring-1 ring-emerald-100 dark:bg-emerald-950/30 dark:ring-emerald-900/70">
               {breakdown.map((item, index) => {
                 const fee = Number(item.deliveryFee ?? item.shippingFee ?? item.fee ?? 0);
                 return (

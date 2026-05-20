@@ -56,22 +56,22 @@ const ReviewCard = ({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+    <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-            <span className="text-white font-semibold text-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center space-x-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700 ring-1 ring-slate-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700">
+            <span className="text-sm font-black">
               {review.userName?.charAt(0).toUpperCase() || "U"}
             </span>
           </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h4 className="font-semibold text-gray-900 dark:text-white">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h4 className="truncate font-black text-gray-900 dark:text-white">
                 {review.userName || "Anonymous"}
               </h4>
               {review.verified && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+                <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-bold text-green-700 dark:bg-green-950/30 dark:text-green-300">
                   <svg
                     className="w-3 h-3 mr-1"
                     fill="currentColor"
@@ -87,7 +87,7 @@ const ReviewCard = ({
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">
               {formatDate(review.createdAt)}
             </p>
           </div>
@@ -98,23 +98,23 @@ const ReviewCard = ({
 
       {/* Review Title */}
       {review.title && (
-        <h5 className="font-medium text-gray-900 dark:text-white">
+        <h5 className="font-black text-gray-900 dark:text-white">
           {review.title}
         </h5>
       )}
 
       {/* Review Content */}
-      <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+      <p className="leading-7 text-gray-700 dark:text-gray-300">
         {review.comment}
       </p>
 
       {/* Review Images */}
       {review.images && review.images.length > 0 && (
         <div className="space-y-3">
-          <h6 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <h6 className="text-sm font-black text-gray-700 dark:text-gray-300">
             Photos from this review:
           </h6>
-          <div className="review-image-grid">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
             {review.images.map((imageUrl, index) => (
               <div
                 key={index}
@@ -124,7 +124,7 @@ const ReviewCard = ({
                 <img
                   src={imageUrl}
                   alt={`Review image ${index + 1}`}
-                  className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                  className="h-24 w-full rounded-lg border border-gray-200 object-cover dark:border-gray-700"
                 />
                 <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg transition-all flex items-center justify-center">
                   <svg
@@ -150,7 +150,7 @@ const ReviewCard = ({
       {/* Review Videos */}
       {reviewVideos.length > 0 && (
         <div className="space-y-3">
-          <h6 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <h6 className="text-sm font-black text-gray-700 dark:text-gray-300">
             Videos from this review:
           </h6>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -170,20 +170,20 @@ const ReviewCard = ({
       {/* Image Modal */}
       {selectedImageIndex !== null && review.images && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-75 review-image-modal flex items-center justify-center z-50 p-4"
+          className="review-image-modal fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
           onClick={() => setSelectedImageIndex(null)}
         >
-          <div className="relative max-w-4xl max-h-full">
+          <div className="relative max-h-full max-w-4xl">
             <img
               src={review.images[selectedImageIndex]}
               alt={`Review image ${selectedImageIndex + 1}`}
-              className="max-w-full max-h-full object-contain rounded-lg"
+              className="max-h-full max-w-full rounded-lg object-contain"
             />
 
             {/* Close Button */}
             <button
               onClick={() => setSelectedImageIndex(null)}
-              className="absolute top-4 right-4 w-10 h-10 bg-black bg-opacity-50 text-white rounded-full flex items-center justify-center hover:bg-opacity-75 transition-all"
+              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-lg bg-black/50 text-white transition hover:bg-black/75"
             >
               <svg
                 className="w-6 h-6"
@@ -212,7 +212,7 @@ const ReviewCard = ({
                         : review.images.length - 1,
                     );
                   }}
-                  className="absolute left-4 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-black bg-opacity-50 text-white rounded-full flex items-center justify-center hover:bg-opacity-75 transition-all"
+                  className="absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg bg-black/50 text-white transition hover:bg-black/75"
                 >
                   <svg
                     className="w-6 h-6"
@@ -237,7 +237,7 @@ const ReviewCard = ({
                         : 0,
                     );
                   }}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-black bg-opacity-50 text-white rounded-full flex items-center justify-center hover:bg-opacity-75 transition-all"
+                  className="absolute right-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg bg-black/50 text-white transition hover:bg-black/75"
                 >
                   <svg
                     className="w-6 h-6"
@@ -257,7 +257,7 @@ const ReviewCard = ({
             )}
 
             {/* Image Counter */}
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full text-sm">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm text-white">
               {selectedImageIndex + 1} / {review.images.length}
             </div>
           </div>
@@ -266,7 +266,7 @@ const ReviewCard = ({
 
       {/* Admin Reply */}
       {review.adminReply && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border-l-4 border-blue-500">
+        <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50 p-4 dark:bg-blue-900/20">
           <div className="flex items-center space-x-2 mb-2">
             <svg
               className="w-5 h-5 text-blue-500"
@@ -294,7 +294,7 @@ const ReviewCard = ({
 
       {/* Vendor Reply */}
       {review.vendorReply && (
-        <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 border-l-4 border-orange-500">
+        <div className="rounded-lg border-l-4 border-orange-500 bg-orange-50 p-4 dark:bg-orange-900/20">
           <div className="flex items-center space-x-2 mb-2">
             <svg
               className="w-5 h-5 text-orange-500"
@@ -324,11 +324,11 @@ const ReviewCard = ({
       )}
 
       {/* Actions */}
-      <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between border-t border-gray-200 pt-4 dark:border-gray-800">
         <div className="flex items-center space-x-4">
           <button
             onClick={handleHelpful}
-            className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            className="flex items-center space-x-2 text-sm font-bold text-gray-600 transition-colors hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-300"
           >
             <svg
               className="w-4 h-4"
@@ -351,7 +351,7 @@ const ReviewCard = ({
         {user?.role === "admin" && !review.adminReply && (
           <button
             onClick={() => setShowReplyForm(!showReplyForm)}
-            className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors"
+            className="text-sm font-bold text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-300"
           >
             Reply as Admin
           </button>
@@ -365,7 +365,7 @@ const ReviewCard = ({
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
             placeholder="Write your admin response..."
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white resize-none"
+            className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-primary-900/50"
             rows={3}
             required
           />
@@ -373,7 +373,7 @@ const ReviewCard = ({
             <button
               type="submit"
               disabled={isSubmitting || !replyText.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+              className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-black text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? "Posting..." : "Post Reply"}
             </button>
@@ -383,7 +383,7 @@ const ReviewCard = ({
                 setShowReplyForm(false);
                 setReplyText("");
               }}
-              className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors text-sm"
+              className="px-4 py-2 text-sm font-bold text-gray-600 transition-colors hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
             >
               Cancel
             </button>

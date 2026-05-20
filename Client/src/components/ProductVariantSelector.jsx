@@ -119,12 +119,12 @@ export default function ProductVariantSelector({
       {allSizes.length > 0 && (
         <div>
           <div className="mb-3 flex items-center justify-between">
-            <label className="text-sm font-semibold text-gray-900 dark:text-white">
+            <label className="text-sm font-black text-gray-900 dark:text-white">
               Size
             </label>
             {selectedSize && (
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                Selected: <span className="font-medium">{selectedSize}</span>
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                Selected: <span className="font-black">{selectedSize}</span>
               </span>
             )}
           </div>
@@ -139,12 +139,12 @@ export default function ProductVariantSelector({
                   key={size}
                   onClick={() => available && handleSizeSelect(size)}
                   disabled={!available}
-                  className={`relative rounded-lg border-2 px-6 py-3 font-medium transition-all ${
+                  className={`relative min-h-11 rounded-lg border px-4 text-sm font-bold transition ${
                     isSelected
-                      ? "scale-105 border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400"
+                      ? "border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-100 dark:bg-primary-950/30 dark:text-primary-200 dark:ring-primary-900/60"
                       : available
-                        ? "border-gray-300 text-gray-700 hover:scale-105 hover:border-primary-300 dark:border-gray-600 dark:text-gray-300 dark:hover:border-primary-700"
-                        : "cursor-not-allowed border-gray-200 text-gray-400 opacity-50 dark:border-gray-700 dark:text-gray-600"
+                        ? "border-gray-300 bg-white text-gray-700 hover:border-primary-300 hover:bg-primary-50/40 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:border-primary-800"
+                        : "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400 opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-600"
                   }`}
                 >
                   {size}
@@ -163,12 +163,12 @@ export default function ProductVariantSelector({
       {allColors.length > 0 && (
         <div>
           <div className="mb-3 flex items-center justify-between">
-            <label className="text-sm font-semibold text-gray-900 dark:text-white">
+            <label className="text-sm font-black text-gray-900 dark:text-white">
               Color
             </label>
             {selectedColor && (
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                Selected: <span className="font-medium">{selectedColor}</span>
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                Selected: <span className="font-black">{selectedColor}</span>
               </span>
             )}
           </div>
@@ -184,15 +184,15 @@ export default function ProductVariantSelector({
                   key={color}
                   onClick={() => available && handleColorSelect(color)}
                   disabled={!available}
-                  className={`group relative ${!available ? "cursor-not-allowed opacity-50" : ""}`}
+                  className={`group relative min-w-16 ${!available ? "cursor-not-allowed opacity-50" : ""}`}
                   title={color}
                 >
                   <div
-                    className={`h-12 w-12 rounded-full border-4 transition-all ${
+                    className={`mx-auto h-11 w-11 rounded-full border transition ${
                       isSelected
-                        ? "scale-110 border-primary-500 shadow-lg"
+                        ? "border-primary-500 shadow-sm ring-2 ring-primary-100 dark:ring-primary-900/60"
                         : available
-                          ? "border-gray-300 hover:scale-105 hover:border-primary-300 dark:border-gray-600 dark:hover:border-primary-700"
+                          ? "border-gray-300 hover:border-primary-300 dark:border-gray-600 dark:hover:border-primary-700"
                           : "border-gray-200 dark:border-gray-700"
                     }`}
                     style={{ backgroundColor: colorHex }}
@@ -218,7 +218,7 @@ export default function ProductVariantSelector({
                       </div>
                     )}
                   </div>
-                  <span className="mt-1 block text-center text-xs text-gray-600 dark:text-gray-400">
+                  <span className="mt-1 block truncate text-center text-xs font-semibold text-gray-600 dark:text-gray-400">
                     {color}
                   </span>
                 </button>
@@ -232,14 +232,14 @@ export default function ProductVariantSelector({
         <MotionDiv
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
+          className="rounded-lg border border-gray-200 bg-slate-50 p-4 dark:border-gray-800 dark:bg-gray-950"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="mb-1 text-sm text-gray-600 dark:text-gray-400">
+              <p className="mb-1 text-xs font-black uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 Selected Variant
               </p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+              <p className="text-2xl font-black text-gray-900 dark:text-white">
                 BDT {variantPrice.toFixed(2)}
               </p>
               {variantPrice !== productPrice && (
@@ -249,11 +249,11 @@ export default function ProductVariantSelector({
               )}
             </div>
             <div className="text-right">
-              <p className="mb-1 text-sm text-gray-600 dark:text-gray-400">
+              <p className="mb-1 text-xs font-black uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 Stock
               </p>
               <p
-                className={`text-lg font-semibold ${
+                className={`text-sm font-black ${
                   variantStock > 10
                     ? "text-green-600 dark:text-green-400"
                     : variantStock > 0
@@ -290,7 +290,7 @@ export default function ProductVariantSelector({
           <img
             src={currentVariant.image || currentVariant.images?.[0]}
             alt={`${selectedSize || ""} ${selectedColor || ""}`.trim()}
-            className="h-48 w-full object-cover"
+            className="h-40 w-full bg-gray-50 object-contain p-2 dark:bg-gray-950"
           />
         </MotionDiv>
       )}

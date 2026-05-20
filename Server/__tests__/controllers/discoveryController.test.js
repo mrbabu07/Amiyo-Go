@@ -7,6 +7,7 @@ const {
   buildDailyCheckInPrompt,
   buildFlashSaleStrip,
   buildHeroBanners,
+  buildHomepageAdSlots,
   buildNewArrivals,
   buildPersonalizedFeed,
   buildRecentlyViewedProducts,
@@ -119,8 +120,8 @@ describe("discoveryController homepage builders", () => {
   });
 
   test("builds active campaign hero banners, category access, flash sales, and new arrivals", () => {
-    const heroes = buildHeroBanners({
-      homepageSlots: [{
+    const homepageSlots = [
+      {
         _id: "slot-1",
         slotType: "hero_banner",
         status: "active",
@@ -131,13 +132,27 @@ describe("discoveryController homepage builders", () => {
         ctaText: "Shop Eid",
         imageUrl: "eid.jpg",
         linkUrl: "/campaigns/eid",
-      }],
+      },
+      {
+        _id: "ad-1",
+        slotType: "ad_slot",
+        status: "active",
+        title: "Sponsored Grocery Deals",
+        subtitle: "Fresh offers on the right side",
+        badge: "Sponsored",
+        imageUrl: "grocery-ad.jpg",
+        linkUrl: "/products?ad=grocery",
+      },
+    ];
+    const heroes = buildHeroBanners({
+      homepageSlots,
       campaigns: [{ _id: "camp-1", status: "Active", name: "11.11", bannerImageUrl: "1111.jpg", startDate: "2026-05-01", endDate: "2026-05-30" }],
       flashSales: [],
       vendors,
       products,
       now,
     });
+    const adSlots = buildHomepageAdSlots({ homepageSlots, now });
     const quickAccess = buildCategoryQuickAccess({ categories, products });
     const flashSales = buildFlashSaleStrip({
       flashSales: [
@@ -155,6 +170,11 @@ describe("discoveryController homepage builders", () => {
       badge: "Mega deal",
       ctaText: "Shop Eid",
       trustBadges: ["Fast delivery", "COD available", "Verified seller"],
+    }));
+    expect(adSlots[0]).toEqual(expect.objectContaining({
+      title: "Sponsored Grocery Deals",
+      badge: "Sponsored",
+      link: "/products?ad=grocery",
     }));
     expect(quickAccess.find((category) => category._id === "cat-tech").productCount).toBe(1);
     expect(flashSales).toHaveLength(1);

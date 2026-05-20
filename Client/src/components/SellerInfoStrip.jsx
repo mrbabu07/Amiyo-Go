@@ -80,42 +80,45 @@ export default function SellerInfoStrip({ seller, vendorId }) {
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5">
       <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           {vendor.logo ? (
             <img
               src={vendor.logo}
               alt={vendor.shopName}
-              className="h-14 w-14 shrink-0 rounded-lg border border-gray-200 object-cover dark:border-gray-700"
+              className="h-16 w-16 shrink-0 rounded-lg border border-gray-200 object-cover dark:border-gray-700"
             />
           ) : (
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-800">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-800">
               <Store className="h-6 w-6" />
             </div>
           )}
           <div className="min-w-0">
+            <p className="mb-1 text-xs font-black uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Sold by
+            </p>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="min-w-0 truncate text-base font-semibold text-gray-900 dark:text-white">
+              <h2 className="min-w-0 truncate text-lg font-black text-gray-900 dark:text-white">
                 {vendor.shopName}
               </h2>
               {vendor.verified && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950/40 dark:text-green-300">
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-bold text-green-700 dark:bg-green-950/40 dark:text-green-300">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Verified
                 </span>
               )}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
-              <span className="inline-flex items-center gap-1">
+            <div className="mt-3 grid grid-cols-1 gap-2 text-sm font-semibold text-gray-600 dark:text-gray-400 sm:grid-cols-3">
+              <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-gray-950">
                 <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                 {rating ? rating.toFixed(1) : "New"}
               </span>
-              <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-gray-950">
                 <Users className="h-4 w-4" />
                 {numberFormat.format(Number(vendor.followerCount || 0))} followers
               </span>
-              <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-gray-950">
                 <MessageCircle className="h-4 w-4" />
                 Replies {vendor.responseTime || "within hours"}
               </span>
@@ -127,7 +130,7 @@ export default function SellerInfoStrip({ seller, vendorId }) {
           {isShopDirectoryVisible ? (
             <Link
               to={storePath}
-              className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-md border border-gray-300 px-3 text-xs font-bold text-gray-800 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800 sm:text-sm"
+              className="inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-gray-300 px-3 text-xs font-bold text-gray-800 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800 sm:text-sm"
             >
               <Store className="h-4 w-4 shrink-0" />
               <span className="truncate">Visit Store</span>
@@ -137,7 +140,7 @@ export default function SellerInfoStrip({ seller, vendorId }) {
             type="button"
             onClick={handleFollow}
             disabled={busy}
-            className={`inline-flex h-10 min-w-0 items-center justify-center rounded-md px-3 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-60 sm:text-sm ${
+            className={`inline-flex h-11 min-w-0 items-center justify-center rounded-lg px-3 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-60 sm:text-sm ${
               isFollowing
                 ? "bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100"
                 : "bg-primary-600 text-white hover:bg-primary-700"

@@ -412,6 +412,25 @@ const buildHeroBanners = ({
     .slice(0, limit);
 };
 
+const buildHomepageAdSlots = ({ homepageSlots = [], now = new Date(), limit = 2 }) =>
+  homepageSlots
+    .filter((slot) => slot.status !== "inactive" && slot.slotType === "ad_slot" && isDateActive(slot, now))
+    .sort((a, b) => Number(a.position || 0) - Number(b.position || 0))
+    .map((slot) => ({
+      id: normalizeId(slot._id),
+      source: "homepage_slot",
+      title: slot.title || "Sponsored offer",
+      subtitle: slot.subtitle || slot.description || "",
+      badge: slot.badge || "Sponsored",
+      imageUrl: slot.imageUrl || slot.bannerImageUrl || "",
+      link: slot.linkUrl || slot.targetUrl || slot.url || "/products",
+      ctaText: slot.ctaText || "Shop now",
+      startsAt: slot.startsAt || null,
+      endsAt: slot.endsAt || null,
+    }))
+    .filter((slot) => slot.title && slot.imageUrl)
+    .slice(0, limit);
+
 const buildCategoryQuickAccess = ({ categories = [], products = [], limit = 16 }) => {
   const activeCategories = categories
     .filter((category) => category.isActive !== false)
@@ -815,6 +834,10 @@ const getHomepageDiscovery = async (req, res) => {
           products: catalogProducts,
           now: source.now,
         }),
+        adSlots: buildHomepageAdSlots({
+          homepageSlots: source.homepageSlots,
+          now: source.now,
+        }),
         categories: buildCategoryQuickAccess({ categories: source.categories, products }),
         promotionStrip: buildPromotionStrip(source.coupons, source.now),
         flashSales: buildFlashSaleStrip({ flashSales: source.flashSales, products: catalogProducts, now: source.now }),
@@ -1021,6 +1044,7 @@ module.exports = {
     buildDailyCheckInPrompt,
     buildFlashSaleStrip,
     buildFollowedVendorUpdates,
+    buildHomepageAdSlots,
     buildHeroBanners,
     buildNewArrivals,
     buildPersonalizedFeed,

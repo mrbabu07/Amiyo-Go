@@ -118,17 +118,22 @@ const ReviewsSection = ({ productId }) => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Reviews Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Customer Reviews
-        </h2>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-black text-gray-900 dark:text-white">
+            Customer Reviews
+          </h2>
+          <p className="mt-1 text-sm font-semibold text-gray-500 dark:text-gray-400">
+            Real buyer feedback, photos, and seller responses.
+          </p>
+        </div>
 
         {user && !showReviewForm && (
           <button
             onClick={() => setShowReviewForm(true)}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-600 px-4 text-sm font-black text-white transition hover:bg-primary-700"
           >
             Write a Review
           </button>
@@ -141,7 +146,7 @@ const ReviewsSection = ({ productId }) => {
             </p>
             <a
               href="/login"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-600 px-4 text-sm font-black text-white transition hover:bg-primary-700"
             >
               Sign In to Review
             </a>
@@ -159,11 +164,11 @@ const ReviewsSection = ({ productId }) => {
       )}
 
       {/* Rating Summary */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="rounded-lg border border-gray-200 bg-slate-50 p-4 dark:border-gray-800 dark:bg-gray-950 sm:p-6">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-[18rem_1fr]">
           {/* Overall Rating */}
-          <div className="text-center">
-            <div className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+          <div className="rounded-lg bg-white p-5 text-center shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-800">
+            <div className="mb-2 text-5xl font-black text-gray-900 dark:text-white">
               {stats.averageRating.toFixed(1)}
             </div>
             <StarRating
@@ -173,26 +178,26 @@ const ReviewsSection = ({ productId }) => {
               showCount
               count={stats.totalReviews}
             />
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+            <p className="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-400">
               Based on {stats.totalReviews}{" "}
               {stats.totalReviews === 1 ? "review" : "reviews"}
             </p>
           </div>
 
           {/* Rating Distribution */}
-          <div className="space-y-2">
+          <div className="space-y-2 self-center">
             {[5, 4, 3, 2, 1].map((rating) => (
               <div key={rating} className="flex items-center space-x-3">
-                <span className="w-12 text-sm font-medium text-gray-700 dark:text-gray-300">
+                <span className="w-12 text-sm font-bold text-gray-700 dark:text-gray-300">
                   {rating} star
                 </span>
-                <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div className="h-2 flex-1 rounded-full bg-gray-200 dark:bg-gray-700">
                   <div
-                    className="bg-yellow-400 h-2 rounded-full transition-all duration-300"
+                    className="h-2 rounded-full bg-yellow-400 transition-all duration-300"
                     style={{ width: `${getRatingPercentage(rating)}%` }}
                   />
                 </div>
-                <span className="text-sm text-gray-600 dark:text-gray-400 w-12">
+                <span className="w-12 text-sm font-semibold text-gray-600 dark:text-gray-400">
                   {getRatingPercentage(rating)}%
                 </span>
               </div>
@@ -203,9 +208,9 @@ const ReviewsSection = ({ productId }) => {
 
       {/* Filters and Sorting */}
       {stats.totalReviews > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-          <div className="flex items-center space-x-4">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-black text-gray-700 dark:text-gray-300">
               Filter:
             </label>
             <select
@@ -214,7 +219,7 @@ const ReviewsSection = ({ productId }) => {
                 setFilterBy(e.target.value);
                 setCurrentPage(1);
               }}
-              className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+              className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-800 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-primary-900/50"
             >
               <option value="all">All Reviews</option>
               <option value="5">5 Stars</option>
@@ -228,8 +233,8 @@ const ReviewsSection = ({ productId }) => {
             </select>
           </div>
 
-          <div className="flex items-center space-x-4">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-black text-gray-700 dark:text-gray-300">
               Sort by:
             </label>
             <select
@@ -238,7 +243,7 @@ const ReviewsSection = ({ productId }) => {
                 setSortBy(e.target.value);
                 setCurrentPage(1);
               }}
-              className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+              className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-800 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-primary-900/50"
             >
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
@@ -264,7 +269,7 @@ const ReviewsSection = ({ productId }) => {
                 setFilterBy(item.key);
                 setCurrentPage(1);
               }}
-              className={`rounded-xl border px-4 py-3 text-left transition ${
+              className={`rounded-lg border px-4 py-3 text-left transition ${
                 filterBy === item.key
                   ? "border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-950/30 dark:text-primary-200"
                   : "border-gray-200 bg-white text-gray-700 hover:border-primary-200 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
@@ -281,7 +286,7 @@ const ReviewsSection = ({ productId }) => {
       <div className="space-y-6">
         {loading && currentPage === 1 ? (
           <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
           </div>
         ) : reviews.length > 0 ? (
           <>
@@ -300,7 +305,7 @@ const ReviewsSection = ({ productId }) => {
                 <button
                   onClick={loadMore}
                   disabled={loading}
-                  className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 px-5 text-sm font-black text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   {loading ? "Loading..." : "Load More Reviews"}
                 </button>
@@ -331,7 +336,7 @@ const ReviewsSection = ({ productId }) => {
             {user && !showReviewForm && (
               <button
                 onClick={() => setShowReviewForm(true)}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-600 px-5 text-sm font-black text-white transition hover:bg-primary-700"
               >
                 Write the First Review
               </button>
@@ -340,7 +345,7 @@ const ReviewsSection = ({ productId }) => {
             {!user && (
               <a
                 href="/login"
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium inline-block"
+                className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-600 px-5 text-sm font-black text-white transition hover:bg-primary-700"
               >
                 Sign In to Write Review
               </a>

@@ -4,6 +4,7 @@ import {
   Apple,
   Beef,
   Carrot,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Grid2X2,
@@ -27,6 +28,7 @@ import { getSearchResults } from "../services/api";
 import ProductCard from "./ProductCard";
 import { ProductCardSkeleton } from "./Skeleton";
 import { useCurrency } from "../hooks/useCurrency";
+import { getCategoryIcon, getCategoryImageSource, getCategoryTheme } from "../utils/categoryVisuals";
 
 const SORT_OPTIONS = [
   { value: "best_match", label: "Best Match" },
@@ -165,39 +167,119 @@ const hasMarketplaceFilters = (searchParams) =>
     "location",
   ].some((key) => Boolean(searchParams.get(key)));
 
-const CategoryTile = ({ category }) => (
-  <Link
-    to={`/products?category=${category._id}`}
-    className="group grid min-h-16 grid-cols-[2.5rem_minmax(0,1fr)_1.25rem] items-center gap-3 rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-800 dark:bg-gray-900"
-  >
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-primary-50 text-sm font-black text-primary-700 ring-1 ring-primary-100 dark:bg-primary-950/40 dark:text-primary-200 dark:ring-primary-900/50">
-      {category.image ? (
-        <img
-          src={category.image}
-          alt=""
-          className="h-full w-full object-cover"
-          loading="lazy"
-          decoding="async"
-        />
-      ) : (
-        category.name?.charAt(0) || "C"
-      )}
-    </div>
-    <div className="min-w-0">
-      <p className="truncate text-sm font-extrabold text-gray-900 transition group-hover:text-primary-600 dark:text-white dark:group-hover:text-primary-300">
-        {category.name}
-      </p>
-      {category.productCount !== undefined && (
-        <p className="mt-0.5 truncate text-xs font-semibold text-gray-500 dark:text-gray-400">
-          {Number(category.productCount || 0).toLocaleString()} products
+const CategoryTile = ({ category, index = 0, active = false }) => {
+  const Icon = getCategoryIcon(category);
+  const imageSource = getCategoryImageSource(category);
+  const theme = getCategoryTheme(category, index);
+
+  return (
+    <Link
+      to={`/products?category=${category._id}`}
+      className={`group grid min-h-16 grid-cols-[3rem_minmax(0,1fr)_1.5rem] items-center gap-3 rounded-lg border bg-white p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#F57224] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F57224] dark:bg-gray-900 ${
+        active
+          ? "border-[#F57224] ring-1 ring-orange-100 dark:border-orange-500 dark:ring-orange-900/40"
+          : "border-gray-200 dark:border-gray-800"
+      }`}
+    >
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#EEEEEE] text-[#1A1A2E] ring-1 ring-gray-100 dark:bg-gray-800 dark:text-white dark:ring-gray-700">
+        {imageSource ? (
+          <>
+            <img
+              src={imageSource}
+              alt=""
+              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+              loading="lazy"
+              decoding="async"
+            />
+            <span className="absolute bottom-1 left-1 flex h-5 w-5 items-center justify-center rounded bg-white text-[#F57224] shadow-sm dark:bg-gray-950">
+              <Icon className="h-3 w-3" />
+            </span>
+          </>
+        ) : (
+          <span className={`flex h-full w-full items-center justify-center ring-1 ring-inset ${theme}`}>
+            <Icon className="h-5 w-5" />
+          </span>
+        )}
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-extrabold text-[#1A1A2E] transition group-hover:text-[#F57224] dark:text-white dark:group-hover:text-orange-300">
+          {category.name}
         </p>
-      )}
-    </div>
-    <span className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition group-hover:bg-primary-50 group-hover:text-primary-600 dark:group-hover:bg-primary-950/40 dark:group-hover:text-primary-300">
-      <ChevronRight className="h-4 w-4" />
-    </span>
-  </Link>
-);
+        {category.productCount !== undefined && (
+          <p className="mt-0.5 truncate text-xs font-semibold text-gray-500 dark:text-gray-400">
+            {Number(category.productCount || 0).toLocaleString()} products
+          </p>
+        )}
+      </div>
+      <span className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition group-hover:bg-orange-50 group-hover:text-[#F57224] dark:group-hover:bg-orange-950/30 dark:group-hover:text-orange-300">
+        <ChevronRight className="h-4 w-4" />
+      </span>
+    </Link>
+  );
+};
+
+const CategoryBrowsePanel = ({
+  categories,
+  open,
+  onToggle,
+  selectedCategoryId,
+  className = "",
+}) => {
+  if (!categories.length) return null;
+
+  return (
+    <section className={`overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900 ${className}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-orange-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#F57224] dark:hover:bg-orange-950/20"
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-orange-50 text-[#F57224] ring-1 ring-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:ring-orange-900/50">
+            <Grid2X2 className="h-5 w-5" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-base font-black text-[#1A1A2E] dark:text-white">
+              Shop by Category
+            </span>
+            <span className="mt-0.5 block text-xs font-semibold text-gray-500 dark:text-gray-400">
+              {open ? `${categories.length} departments ready` : "Click to browse departments"}
+            </span>
+          </span>
+        </span>
+        <ChevronDown
+          className={`h-5 w-5 shrink-0 text-gray-400 transition ${open ? "rotate-180 text-[#F57224]" : ""}`}
+        />
+      </button>
+
+      {open ? (
+        <div className="border-t border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+            {categories.map((category, index) => (
+              <CategoryTile
+                key={category._id}
+                category={category}
+                index={index}
+                active={
+                  String(category._id) === String(selectedCategoryId) ||
+                  category.slug === selectedCategoryId
+                }
+              />
+            ))}
+          </div>
+          <Link
+            to="/categories"
+            className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-1 rounded-lg border border-orange-200 bg-white px-3 text-sm font-bold text-[#F57224] transition hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F57224] dark:border-orange-900/50 dark:bg-gray-900 dark:text-orange-200 dark:hover:bg-orange-950/20"
+          >
+            View all categories
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+      ) : null}
+    </section>
+  );
+};
 
 const DailyNeedTile = ({ item }) => {
   const Icon = item.Icon;
@@ -321,6 +403,7 @@ export default function SearchCatalog({ mode = "browse" }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [categoryBrowseOpen, setCategoryBrowseOpen] = useState(false);
   const [viewMode, setViewMode] = useState("grid3");
   const [searchDraft, setSearchDraft] = useState("");
   const [searchDraftTouched, setSearchDraftTouched] = useState(false);
@@ -527,7 +610,7 @@ export default function SearchCatalog({ mode = "browse" }) {
     {
       label: "Results",
       value: loading ? "..." : totalCount.toLocaleString(),
-      tone: "bg-primary-50 text-primary-700 ring-primary-100 dark:bg-primary-950/40 dark:text-primary-200 dark:ring-primary-900/50",
+      tone: "bg-orange-50 text-[#F57224] ring-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:ring-orange-900/50",
     },
     {
       label: "Category",
@@ -537,12 +620,12 @@ export default function SearchCatalog({ mode = "browse" }) {
     {
       label: "Sorted by",
       value: SORT_OPTIONS.find((option) => option.value === sortValue)?.label || "Best Match",
-      tone: "bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900/50",
+      tone: "bg-gray-100 text-[#1A1A2E] ring-gray-200 dark:bg-gray-800 dark:text-white dark:ring-gray-700",
     },
   ];
 
   const showDailyNeeds = !query && dailyNeedShortcuts.length > 0;
-  const showCategoryBrowse = !query && !hasFilters && rootCategories.length > 0;
+  const showCategoryBrowse = !query && rootCategories.length > 0;
   const activeSortLabel =
     SORT_OPTIONS.find((option) => option.value === sortValue)?.label || "Best Match";
   const activeFiltersCount = appliedFilters.length;
@@ -737,13 +820,13 @@ export default function SearchCatalog({ mode = "browse" }) {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-950 dark:bg-gray-950 dark:text-white">
-      <div className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+    <div className="min-h-screen bg-[#F5F5F5] text-[#1A1A2E] dark:bg-gray-950 dark:text-white">
+      <div className="border-b border-[#E0E0E0] bg-white dark:border-gray-800 dark:bg-gray-950">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <nav className="mb-5 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
             <Link
               to="/"
-              className="font-semibold hover:text-primary-600 dark:hover:text-primary-300"
+              className="font-semibold hover:text-[#F57224] dark:hover:text-orange-300"
             >
               Home
             </Link>
@@ -756,7 +839,7 @@ export default function SearchCatalog({ mode = "browse" }) {
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-start">
             <div className="min-w-0">
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="inline-flex min-h-8 items-center gap-2 rounded-full bg-primary-50 px-3 text-xs font-extrabold uppercase text-primary-700 ring-1 ring-primary-100 dark:bg-primary-950/40 dark:text-primary-200 dark:ring-primary-900/50">
+                <span className="inline-flex min-h-8 items-center gap-2 rounded-full bg-orange-50 px-3 text-xs font-extrabold uppercase text-[#F57224] ring-1 ring-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:ring-orange-900/50">
                   <ShieldCheck className="h-3.5 w-3.5" />
                   Verified marketplace catalog
                 </span>
@@ -767,7 +850,7 @@ export default function SearchCatalog({ mode = "browse" }) {
                 ) : null}
               </div>
 
-              <h1 className="max-w-3xl text-2xl font-black text-gray-950 dark:text-white sm:text-3xl">
+              <h1 className="max-w-3xl text-2xl font-black text-[#1A1A2E] dark:text-white sm:text-3xl">
                 {query ? `Results for "${query}"` : "Browse Products"}
               </h1>
               <p className="mt-2 max-w-2xl text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -802,7 +885,7 @@ export default function SearchCatalog({ mode = "browse" }) {
               )}
             </div>
 
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div className="rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
               <form onSubmit={submitCatalogSearch} className="flex flex-col gap-2 sm:flex-row">
                 <div className="relative min-w-0 flex-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -814,7 +897,7 @@ export default function SearchCatalog({ mode = "browse" }) {
                       setSearchDraftTouched(true);
                     }}
                     placeholder="Search products, brands, categories"
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-10 text-sm font-semibold text-gray-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-primary-900/40"
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-10 text-sm font-semibold text-gray-900 outline-none transition focus:border-[#F57224] focus:ring-2 focus:ring-orange-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-orange-900/30"
                   />
                   {query || searchInputValue ? (
                     <button
@@ -829,7 +912,7 @@ export default function SearchCatalog({ mode = "browse" }) {
                 </div>
                 <button
                   type="submit"
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary-500 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#F57224] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F57224] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
                 >
                   Search
                 </button>
@@ -846,8 +929,8 @@ export default function SearchCatalog({ mode = "browse" }) {
                     onClick={filter.onClick}
                     className={`inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
                       filter.active
-                        ? "border-primary-500 bg-primary-500 text-white shadow-sm"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-primary-300 hover:text-primary-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:border-primary-700 dark:hover:text-primary-300"
+                        ? "border-[#F57224] bg-[#F57224] text-white shadow-sm"
+                        : "border-gray-200 bg-white text-gray-700 hover:border-orange-300 hover:text-[#F57224] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:border-orange-700 dark:hover:text-orange-300"
                     }`}
                   >
                     {filter.label}
@@ -997,41 +1080,29 @@ export default function SearchCatalog({ mode = "browse" }) {
         )}
 
         {showCategoryBrowse && (
-          <section className="mb-6">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 ring-1 ring-primary-100 dark:bg-primary-950/40 dark:text-primary-200 dark:ring-primary-900/50">
-                  <Grid2X2 className="h-5 w-5 text-primary-600 dark:text-primary-300" />
-                </span>
-                <div className="min-w-0">
-                  <h2 className="text-lg font-black text-gray-900 dark:text-white">
-                    Shop by Category
-                  </h2>
-                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                    {rootCategories.length} departments
-                  </p>
-                </div>
-              </div>
-              <Link
-                to="/categories"
-                className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm font-bold text-primary-600 transition hover:bg-primary-50 hover:text-primary-700 dark:text-primary-300 dark:hover:bg-primary-950/40"
-              >
-                View all
-                <ChevronRight className="h-4 w-4" />
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-              {rootCategories.map((category) => (
-                <CategoryTile key={category._id} category={category} />
-              ))}
-            </div>
-          </section>
+          <CategoryBrowsePanel
+            categories={rootCategories}
+            open={categoryBrowseOpen}
+            onToggle={() => setCategoryBrowseOpen((current) => !current)}
+            selectedCategoryId={selectedCategoryId}
+            className="mb-6 lg:hidden"
+          />
         )}
 
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
           <aside className="hidden lg:block">
-            <div className="sticky top-24 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-              {filterContent}
+            <div className="sticky top-24 space-y-4">
+              {showCategoryBrowse ? (
+                <CategoryBrowsePanel
+                  categories={rootCategories}
+                  open={categoryBrowseOpen}
+                  onToggle={() => setCategoryBrowseOpen((current) => !current)}
+                  selectedCategoryId={selectedCategoryId}
+                />
+              ) : null}
+              <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                {filterContent}
+              </div>
             </div>
           </aside>
 

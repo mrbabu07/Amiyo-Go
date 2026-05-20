@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Check, Eye, ShoppingCart, Store } from "lucide-react";
+import { Check, Eye, ShoppingCart, Star, Store } from "lucide-react";
 import useCart from "../hooks/useCart";
 import WishlistButton from "./WishlistButton";
 import QuickViewModal from "./QuickViewModal";
@@ -54,6 +54,13 @@ export default function ProductCard({ product }) {
           : ""
       : "";
   const reviewCount = product.reviewCount || product.totalReviews || 0;
+  const soldCount =
+    product.soldCount ||
+    product.sold ||
+    product.totalSold ||
+    product.orderCount ||
+    product.salesCount ||
+    0;
 
   const getStockStatus = () => {
     if (product.stock === 0 && product.allowBackorder)
@@ -276,12 +283,20 @@ export default function ProductCard({ product }) {
 
             {/* Rating with colored stars */}
             <div className="mt-2">
-              <ProductRatingDisplay
-                productId={product._id}
-                size="sm"
-                showCount={true}
-                className="mb-1 text-xs"
-              />
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <ProductRatingDisplay
+                  productId={product._id}
+                  size="sm"
+                  showCount={true}
+                  className="min-w-0 text-xs"
+                />
+                {soldCount ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-gray-500 dark:text-gray-400">
+                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                    {formatViewCount(soldCount)} {t("productCard.sold", "sold")}
+                  </span>
+                ) : null}
+              </div>
 
               {/* View Count */}
               <div className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">

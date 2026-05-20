@@ -60,27 +60,27 @@ export default function FrequentlyBoughtTogether({
   };
 
   return (
-    <section className="mt-10 border-t border-gray-200 pt-8 dark:border-gray-700">
+    <section className="mt-8 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h2 className="text-2xl font-black text-gray-900 dark:text-white">
             Frequently Bought Together
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm font-semibold text-gray-500 dark:text-gray-400">
             Add useful companions in one click.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Bundle total</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">
+            <p className="text-xs font-black uppercase tracking-wide text-gray-500 dark:text-gray-400">Bundle total</p>
+            <p className="text-xl font-black text-gray-900 dark:text-white">
               {formatPrice(total)}
             </p>
           </div>
           <button
             type="button"
             onClick={addBundle}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary-700"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-black text-white transition hover:bg-primary-700"
           >
             <ShoppingCart className="h-4 w-4" />
             Add Bundle
@@ -88,7 +88,7 @@ export default function FrequentlyBoughtTogether({
         </div>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-2">
+      <div className="flex gap-3 overflow-x-auto pb-2">
         <BundleItem product={primaryProduct} checked locked formatPrice={formatPrice} />
         {items.map((item) => (
           <BundleItem
@@ -106,7 +106,7 @@ export default function FrequentlyBoughtTogether({
 
 function BundleItem({ product, checked, locked = false, onToggle, formatPrice }) {
   return (
-    <div className="relative w-44 flex-shrink-0 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+    <div className="relative w-44 flex-shrink-0 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-950">
       {!locked && (
         <button
           type="button"
@@ -115,14 +115,14 @@ function BundleItem({ product, checked, locked = false, onToggle, formatPrice })
           className={`absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full border transition ${
             checked
               ? "border-primary-600 bg-primary-600 text-white"
-              : "border-gray-300 bg-white text-gray-500 hover:border-primary-400"
+              : "border-gray-300 bg-white text-gray-500 hover:border-primary-400 dark:bg-gray-900"
           }`}
         >
           {checked ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
         </button>
       )}
       {locked && (
-        <span className="absolute right-3 top-3 z-10 rounded-full bg-gray-900 px-2 py-1 text-xs font-semibold text-white">
+        <span className="absolute right-3 top-3 z-10 rounded-full bg-gray-900 px-2 py-1 text-xs font-bold text-white">
           This item
         </span>
       )}
@@ -132,10 +132,10 @@ function BundleItem({ product, checked, locked = false, onToggle, formatPrice })
             <img src={productImage(product)} alt={product.title} className="h-full w-full object-cover" />
           ) : null}
         </div>
-        <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-gray-900 dark:text-white">
+        <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-sm font-bold text-gray-900 dark:text-white">
           {product.title}
         </p>
-        <p className="mt-1 text-sm font-bold text-primary-600 dark:text-primary-400">
+        <p className="mt-1 text-sm font-black text-primary-600 dark:text-primary-400">
           {formatPrice(product.price)}
         </p>
       </Link>
