@@ -22,6 +22,120 @@ const normalizeAdminOrderSearch = (search = "") =>
     .replace(/^#+/, "")
     .trim();
 
+const ADMIN_ORDER_STATUS_KEYS = [
+  "pending",
+  "processing",
+  "packed",
+  "ready_to_ship",
+  "shipped",
+  "delivered",
+  "cancelled",
+  "returned",
+];
+
+const buildAdminOrderQuery = (filter = {}, options = {}) => {
+  const {
+    status,
+    vendorId,
+    from,
+    to,
+    dateFrom,
+    dateTo,
+    search,
+    paymentMethod,
+    deliveryZone,
+  } = filter;
+  const { includeStatus = true } = options;
+  const query = {};
+  const andBranches = [];
+
+  if (includeStatus && status && status !== "all") query.status = status;
+
+  const fromDateValue = from || dateFrom;
+  const toDateValue = to || dateTo;
+  if (fromDateValue || toDateValue) {
+    query.createdAt = {};
+    if (fromDateValue) query.createdAt.$gte = new Date(fromDateValue);
+    if (toDateValue) {
+      const toDate = new Date(toDateValue);
+      toDate.setHours(23, 59, 59, 999);
+      query.createdAt.$lte = toDate;
+    }
+  }
+
+  if (vendorId && vendorId !== "all") {
+    const vendorValues = [vendorId.toString()];
+    if (ObjectId.isValid(vendorId)) vendorValues.push(new ObjectId(vendorId));
+    query["products.vendorId"] = { $in: vendorValues };
+  }
+
+  if (paymentMethod && paymentMethod !== "all") {
+    const normalizedMethod = paymentMethod.toString().toLowerCase();
+    const aliases =
+      normalizedMethod === "cod"
+        ? ["cod", "cash_on_delivery", "cash on delivery"]
+        : [paymentMethod, normalizedMethod];
+    query.paymentMethod = { $in: aliases };
+  }
+
+  if (search) {
+    const rawSearch = String(search || "").trim();
+    if (rawSearch) {
+      const normalizedSearch = normalizeAdminOrderSearch(rawSearch);
+      const searchRegex = new RegExp(escapeRegExp(rawSearch), "i");
+      const normalizedRegex = normalizedSearch && normalizedSearch !== rawSearch
+        ? new RegExp(escapeRegExp(normalizedSearch), "i")
+        : searchRegex;
+      const searchBranches = [
+        { "shippingInfo.name": searchRegex },
+        { "shippingInfo.email": searchRegex },
+        { "shippingInfo.phone": searchRegex },
+        { orderNumber: normalizedRegex },
+        { invoiceNumber: normalizedRegex },
+        { trackingNumber: normalizedRegex },
+        { "courierAssignment.trackingNumber": normalizedRegex },
+        { "products.title": searchRegex },
+        { "products.name": searchRegex },
+        { "products.sku": normalizedRegex },
+        { "products.trackingNumber": normalizedRegex },
+      ];
+      if (ObjectId.isValid(normalizedSearch)) searchBranches.push({ _id: new ObjectId(normalizedSearch) });
+      if (/^[a-f0-9]{6,24}$/i.test(normalizedSearch)) {
+        searchBranches.push({
+          $expr: {
+            $regexMatch: {
+              input: { $toString: "$_id" },
+              regex: escapeRegExp(normalizedSearch),
+              options: "i",
+            },
+          },
+        });
+      }
+      andBranches.push({ $or: searchBranches });
+    }
+  }
+
+  if (deliveryZone && deliveryZone !== "all") {
+    const zoneRegex = new RegExp(deliveryZone, "i");
+    andBranches.push({
+      $or: [
+        { deliveryZone: zoneRegex },
+        { "shippingInfo.deliveryZone": zoneRegex },
+        { "shippingInfo.zone": zoneRegex },
+        { "shippingInfo.district": zoneRegex },
+        { "shippingInfo.city": zoneRegex },
+        { "shippingInfo.upazila": zoneRegex },
+        { "shippingInfo.area": zoneRegex },
+        { "shippingInfo.division": zoneRegex },
+      ],
+    });
+  }
+
+  if (andBranches.length > 0) query.$and = andBranches;
+
+  return query;
+};
+
 class Order {
   constructor(db) {
     this.collection = db.collection("orders");
@@ -50,104 +164,10 @@ class Order {
    */
   async findAllPaginated(filter = {}) {
     const {
-      status,
-      vendorId,
-      from,
-      to,
-      dateFrom,
-      dateTo,
-      search,
-      paymentMethod,
-      deliveryZone,
       page = 1,
       limit = 20,
     } = filter;
-    const query = {};
-    const andBranches = [];
-
-    if (status && status !== "all") query.status = status;
-
-    const fromDateValue = from || dateFrom;
-    const toDateValue = to || dateTo;
-    if (fromDateValue || toDateValue) {
-      query.createdAt = {};
-      if (fromDateValue) query.createdAt.$gte = new Date(fromDateValue);
-      if (toDateValue) {
-        const toDate = new Date(toDateValue);
-        toDate.setHours(23, 59, 59, 999);
-        query.createdAt.$lte = toDate;
-      }
-    }
-
-    if (vendorId && vendorId !== "all") {
-      const vendorValues = [vendorId.toString()];
-      if (ObjectId.isValid(vendorId)) vendorValues.push(new ObjectId(vendorId));
-      query["products.vendorId"] = { $in: vendorValues };
-    }
-
-    if (paymentMethod && paymentMethod !== "all") {
-      const normalizedMethod = paymentMethod.toString().toLowerCase();
-      const aliases =
-        normalizedMethod === "cod"
-          ? ["cod", "cash_on_delivery", "cash on delivery"]
-          : [paymentMethod, normalizedMethod];
-      query.paymentMethod = { $in: aliases };
-    }
-
-    if (search) {
-      const rawSearch = String(search || "").trim();
-      if (rawSearch) {
-        const normalizedSearch = normalizeAdminOrderSearch(rawSearch);
-        const searchRegex = new RegExp(escapeRegExp(rawSearch), "i");
-        const normalizedRegex = normalizedSearch && normalizedSearch !== rawSearch
-          ? new RegExp(escapeRegExp(normalizedSearch), "i")
-          : searchRegex;
-        const searchBranches = [
-          { "shippingInfo.name": searchRegex },
-          { "shippingInfo.email": searchRegex },
-          { "shippingInfo.phone": searchRegex },
-          { orderNumber: normalizedRegex },
-          { invoiceNumber: normalizedRegex },
-          { trackingNumber: normalizedRegex },
-          { "courierAssignment.trackingNumber": normalizedRegex },
-          { "products.title": searchRegex },
-          { "products.name": searchRegex },
-          { "products.sku": normalizedRegex },
-          { "products.trackingNumber": normalizedRegex },
-        ];
-        if (ObjectId.isValid(normalizedSearch)) searchBranches.push({ _id: new ObjectId(normalizedSearch) });
-        if (/^[a-f0-9]{6,24}$/i.test(normalizedSearch)) {
-          searchBranches.push({
-            $expr: {
-              $regexMatch: {
-                input: { $toString: "$_id" },
-                regex: escapeRegExp(normalizedSearch),
-                options: "i",
-              },
-            },
-          });
-        }
-        andBranches.push({ $or: searchBranches });
-      }
-    }
-
-    if (deliveryZone && deliveryZone !== "all") {
-      const zoneRegex = new RegExp(deliveryZone, "i");
-      andBranches.push({
-        $or: [
-          { deliveryZone: zoneRegex },
-          { "shippingInfo.deliveryZone": zoneRegex },
-          { "shippingInfo.zone": zoneRegex },
-          { "shippingInfo.district": zoneRegex },
-          { "shippingInfo.city": zoneRegex },
-          { "shippingInfo.upazila": zoneRegex },
-          { "shippingInfo.area": zoneRegex },
-          { "shippingInfo.division": zoneRegex },
-        ],
-      });
-    }
-
-    if (andBranches.length > 0) query.$and = andBranches;
+    const query = buildAdminOrderQuery(filter);
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
@@ -170,6 +190,30 @@ class Order {
       limit: limitNum,
       pages: Math.ceil(total / limitNum),
     };
+  }
+
+  async getAdminStatusCounts(filter = {}) {
+    const baseQuery = buildAdminOrderQuery(filter, { includeStatus: false });
+    const statusRows = await this.collection
+      .aggregate([
+        { $match: baseQuery },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ])
+      .toArray();
+
+    const counts = ADMIN_ORDER_STATUS_KEYS.reduce((acc, status) => {
+      acc[status] = 0;
+      return acc;
+    }, { all: 0 });
+
+    statusRows.forEach((row) => {
+      if (!row._id) return;
+      const key = String(row._id);
+      counts[key] = (counts[key] || 0) + row.count;
+      counts.all += row.count;
+    });
+
+    return counts;
   }
 
   /**

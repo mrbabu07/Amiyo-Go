@@ -1756,7 +1756,7 @@ const getAdminOrders = async (req, res) => {
       page = 1,
       limit = 20,
     } = req.query;
-    const result = await Order.findAllPaginated({
+    const orderFilters = {
       status,
       vendorId,
       from: from || dateFrom,
@@ -1766,7 +1766,11 @@ const getAdminOrders = async (req, res) => {
       deliveryZone,
       page,
       limit,
-    });
+    };
+    const [result, statusCounts] = await Promise.all([
+      Order.findAllPaginated(orderFilters),
+      Order.getAdminStatusCounts(orderFilters),
+    ]);
 
     const orders = await enrichAdminOrdersWithVendors(db, result.orders || []);
 
@@ -1775,6 +1779,7 @@ const getAdminOrders = async (req, res) => {
       ...result,
       orders,
       data: orders,
+      statusCounts,
       filters: { status, vendorId, from: from || dateFrom, to: to || dateTo, search, paymentMethod, deliveryZone },
     });
   } catch (error) {

@@ -101,15 +101,42 @@ const DEFAULT_FORMS = {
 };
 
 const statusTone = {
-  pending: "border-yellow-200 bg-yellow-50 text-yellow-800",
+  pending: "border-amber-200 bg-amber-50 text-amber-800",
   processing: "border-blue-200 bg-blue-50 text-blue-800",
   packed: "border-cyan-200 bg-cyan-50 text-cyan-800",
   ready_to_ship: "border-indigo-200 bg-indigo-50 text-indigo-800",
   shipped: "border-indigo-200 bg-indigo-50 text-indigo-800",
-  delivered: "border-green-200 bg-green-50 text-green-800",
+  delivered: "border-emerald-200 bg-emerald-50 text-emerald-800",
   cancelled: "border-red-200 bg-red-50 text-red-800",
-  returned: "border-gray-200 bg-gray-100 text-gray-700",
+  returned: "border-slate-200 bg-slate-100 text-slate-700",
 };
+
+const statusDotTone = {
+  pending: "bg-amber-500",
+  processing: "bg-blue-500",
+  packed: "bg-cyan-500",
+  ready_to_ship: "bg-indigo-500",
+  shipped: "bg-indigo-500",
+  delivered: "bg-emerald-500",
+  cancelled: "bg-red-500",
+  returned: "bg-slate-500",
+};
+
+const metricAccent = {
+  orange: "bg-[#F57224]/10 text-[#F57224] ring-[#F57224]/15",
+  amber: "bg-amber-50 text-amber-700 ring-amber-200",
+  blue: "bg-blue-50 text-blue-700 ring-blue-200",
+  red: "bg-red-50 text-red-700 ring-red-200",
+};
+
+const fieldClass =
+  "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20";
+const softButtonClass =
+  "inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-gray-400 hover:bg-gray-50 disabled:opacity-60";
+const darkButtonClass =
+  "inline-flex items-center justify-center gap-2 rounded-lg bg-[#1A1A2E] px-3 py-2 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60";
+const orangeButtonClass =
+  "inline-flex items-center justify-center gap-2 rounded-lg bg-[#F57224] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#d85f1b] disabled:opacity-60";
 
 const formatStatus = (status = "") =>
   status
@@ -135,6 +162,8 @@ const formatDate = (value) => {
   });
 };
 
+const formatCount = (value = 0) => Number(value || 0).toLocaleString("en-BD");
+
 const cleanParams = (filters) =>
   Object.entries(filters).reduce((params, [key, value]) => {
     if (value && value !== "all") params[key] = value;
@@ -146,7 +175,7 @@ const getVendorNames = (order) =>
     ? order.vendorNames.join(", ")
     : order?.perVendorBreakdown?.map((vendor) => vendor.vendorName || vendor.shopName).filter(Boolean).join(", ") ||
       order?.primaryVendorName ||
-      "HnilaBazar";
+      "Amiyo-Go";
 
 const getAddressText = (shippingInfo = {}) =>
   [
@@ -161,21 +190,25 @@ const getAddressText = (shippingInfo = {}) =>
     .filter(Boolean)
     .join(", ");
 
-function MetricTile({ icon: Icon, label, value, tone = "text-gray-900" }) {
+function MetricTile({ icon: Icon, label, value, accent = "orange", helper }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
+    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-gray-500">{label}</p>
-        <Icon className="h-4 w-4 text-gray-400" />
+        <p className="text-sm font-bold text-gray-600">{label}</p>
+        <span className={`flex h-9 w-9 items-center justify-center rounded-lg ring-1 ${metricAccent[accent] || metricAccent.orange}`}>
+          <Icon className="h-4 w-4" />
+        </span>
       </div>
-      <p className={`mt-2 text-2xl font-bold ${tone}`}>{value}</p>
+      <p className="mt-2 text-2xl font-black text-[#1A1A2E]">{typeof value === "number" ? formatCount(value) : value}</p>
+      {helper && <p className="mt-1 text-xs font-medium text-gray-500">{helper}</p>}
     </div>
   );
 }
 
 function StatusBadge({ status }) {
   return (
-    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusTone[status] || "border-gray-200 bg-gray-50 text-gray-700"}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${statusTone[status] || "border-gray-200 bg-gray-50 text-gray-700"}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${statusDotTone[status] || "bg-gray-400"}`} />
       {formatStatus(status)}
     </span>
   );
@@ -183,7 +216,7 @@ function StatusBadge({ status }) {
 
 function EmptyPanel({ title }) {
   return (
-    <div className="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-500">
+    <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm font-semibold text-gray-500">
       {title}
     </div>
   );
@@ -198,6 +231,7 @@ export default function AdminOrders() {
   }));
   const [orders, setOrders] = useState([]);
   const [total, setTotal] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({ all: 0 });
   const [loading, setLoading] = useState(true);
   const [sideLoading, setSideLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -252,6 +286,10 @@ export default function AdminOrders() {
       const nextOrders = payload.data || payload.orders || [];
       setOrders(nextOrders);
       setTotal(payload.total || nextOrders.length);
+      setStatusCounts({
+        all: payload.statusCounts?.all ?? payload.total ?? nextOrders.length,
+        ...(payload.statusCounts || {}),
+      });
       if (nextFilters.search && nextOrders.length === 1) {
         loadDetail(nextOrders[0]._id);
       } else if (nextFilters.search && nextOrders.length !== 1) {
@@ -386,25 +424,28 @@ export default function AdminOrders() {
   if (loading && orders.length === 0) return <Loading />;
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-[#F5F5F5]">
       <Toaster position="top-right" />
 
       <div className="border-b border-gray-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="flex items-center gap-3">
-            <Link to="/admin" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" title="Back to dashboard">
+            <Link to="/admin" className="rounded-lg border border-[#F57224]/20 bg-[#F57224]/10 p-2 text-[#F57224] transition hover:bg-[#F57224]/15" title="Back to dashboard">
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Order Management</h1>
-              <p className="text-sm text-gray-500">Global operations across vendors, delivery, payment, SLA, and risk.</p>
+              <div className="mb-1 inline-flex rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-black uppercase tracking-wide text-[#1A1A2E]">
+                Amiyo-Go Admin
+              </div>
+              <h1 className="text-2xl font-black text-[#1A1A2E]">Order Management</h1>
+              <p className="text-sm font-medium text-gray-500">Global operations across vendors, delivery, payment, SLA, and risk.</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={refreshAll}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              className={softButtonClass}
             >
               <RefreshCw className="h-4 w-4" />
               Refresh
@@ -412,7 +453,7 @@ export default function AdminOrders() {
             <button
               type="button"
               onClick={downloadCsv}
-              className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800"
+              className={darkButtonClass}
             >
               <Download className="h-4 w-4" />
               Export CSV
@@ -423,26 +464,31 @@ export default function AdminOrders() {
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricTile icon={PackageCheck} label="Filtered Orders" value={metrics.total} />
-          <MetricTile icon={CalendarClock} label="Pending" value={metrics.pending} tone="text-yellow-700" />
-          <MetricTile icon={Truck} label="In Fulfillment" value={metrics.processing} tone="text-blue-700" />
-          <MetricTile icon={AlertTriangle} label="SLA Breaches" value={slaData.summary?.total || 0} tone="text-red-700" />
+          <MetricTile icon={PackageCheck} label="Filtered Orders" value={metrics.total} accent="orange" helper="Current view" />
+          <MetricTile icon={CalendarClock} label="Pending" value={metrics.pending} accent="amber" helper="Needs attention" />
+          <MetricTile icon={Truck} label="In Fulfillment" value={metrics.processing} accent="blue" helper="Processing to ship" />
+          <MetricTile icon={AlertTriangle} label="SLA Breaches" value={slaData.summary?.total || 0} accent="red" helper="Operations risk" />
         </div>
 
-        <form onSubmit={handleSearch} className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-            <Filter className="h-4 w-4" />
-            Filters
+        <form onSubmit={handleSearch} className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-sm font-black text-[#1A1A2E]">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F57224]/10 text-[#F57224]">
+                <Filter className="h-4 w-4" />
+              </span>
+              Filters
+            </div>
+            <p className="text-xs font-semibold text-gray-500">{formatCount(total)} matching orders</p>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-7">
             <label className="text-sm">
               <span className="mb-1 block font-medium text-gray-600">Search</span>
-              <div className="flex rounded-lg border border-gray-300 bg-white">
+              <div className="flex rounded-lg border border-gray-300 bg-white transition focus-within:border-[#F57224] focus-within:ring-2 focus-within:ring-[#F57224]/20">
                 <Search className="ml-3 mt-2.5 h-4 w-4 text-gray-400" />
                 <input
                   value={filters.search}
                   onChange={(event) => updateFilter("search", event.target.value)}
-                  className="w-full rounded-lg border-0 px-3 py-2 text-sm focus:outline-none"
+                  className="w-full rounded-lg border-0 bg-transparent px-3 py-2 text-sm text-gray-900 outline-none"
                   placeholder="Order, buyer, SKU"
                 />
               </div>
@@ -452,7 +498,7 @@ export default function AdminOrders() {
               <select
                 value={filters.vendorId}
                 onChange={(event) => updateFilter("vendorId", event.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className={fieldClass}
               >
                 <option value="">All vendors</option>
                 {vendorOptions.map((vendor) => (
@@ -467,7 +513,7 @@ export default function AdminOrders() {
               <select
                 value={filters.paymentMethod}
                 onChange={(event) => updateFilter("paymentMethod", event.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className={fieldClass}
               >
                 <option value="all">All methods</option>
                 <option value="cod">COD</option>
@@ -481,7 +527,7 @@ export default function AdminOrders() {
               <input
                 value={filters.deliveryZone}
                 onChange={(event) => updateFilter("deliveryZone", event.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className={fieldClass}
                 placeholder="Dhaka, Chattogram"
               />
             </label>
@@ -491,7 +537,7 @@ export default function AdminOrders() {
                 type="date"
                 value={filters.from}
                 onChange={(event) => updateFilter("from", event.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className={fieldClass}
               />
             </label>
             <label className="text-sm">
@@ -500,14 +546,14 @@ export default function AdminOrders() {
                 type="date"
                 value={filters.to}
                 onChange={(event) => updateFilter("to", event.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className={fieldClass}
               />
             </label>
             <div className="flex items-end gap-2">
-              <button type="submit" className="w-full rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700">
+              <button type="submit" className={`${orangeButtonClass} w-full`}>
                 Apply
               </button>
-              <button type="button" onClick={resetFilters} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+              <button type="button" onClick={resetFilters} className={softButtonClass}>
                 Reset
               </button>
             </div>
@@ -515,41 +561,67 @@ export default function AdminOrders() {
         </form>
 
         {filters.search && (
-          <div className="mt-4 flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-4 flex flex-col gap-3 rounded-lg border border-[#F57224]/20 bg-[#F57224]/5 px-4 py-3 text-sm text-[#1A1A2E] sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-semibold">Searching order operations for {filters.search}</p>
-              <p className="text-blue-700">Short order codes like #{String(filters.search).replace(/^#+/, "")} open the matching order automatically when only one result is found.</p>
+              <p className="text-[#F57224]">Short order codes like #{String(filters.search).replace(/^#+/, "")} open the matching order automatically when only one result is found.</p>
             </div>
-            <Link to="/admin/orders" className="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-white px-3 py-2 font-semibold text-blue-700 hover:bg-blue-100">
+            <Link to="/admin/orders" className="inline-flex items-center justify-center rounded-lg border border-[#F57224]/25 bg-white px-3 py-2 font-semibold text-[#F57224] transition hover:bg-[#F57224]/10">
               Clear search
             </Link>
           </div>
         )}
 
-        <div className="mt-6 flex flex-wrap gap-2">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => updateFilter("status", tab.key)}
-              className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-                filters.status === tab.key ? "bg-gray-900 text-white" : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="mt-6 flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-2 shadow-sm">
+          {STATUS_TABS.map((tab) => {
+            const isActive = filters.status === tab.key;
+            const count = statusCounts[tab.key] || 0;
+
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => updateFilter("status", tab.key)}
+                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                  isActive
+                    ? "bg-[#1A1A2E] text-white shadow-sm"
+                    : "text-gray-700 hover:bg-gray-50"
+                }`}
+                aria-label={`${tab.label} orders, ${formatCount(count)} total`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`min-w-6 rounded-full px-2 py-0.5 text-center text-xs font-black leading-5 ${
+                    isActive
+                      ? "bg-white text-gray-950"
+                      : count > 0
+                        ? "bg-[#F57224]/10 text-[#F57224] ring-1 ring-[#F57224]/20"
+                        : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  {formatCount(count)}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-12">
           <section className="lg:col-span-8">
-            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-              <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
                 <div>
-                  <h2 className="font-semibold text-gray-900">Global Orders</h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-black text-[#1A1A2E]">Global Orders</h2>
+                    <span className="rounded-full bg-[#1A1A2E] px-2.5 py-1 text-xs font-black text-white">
+                      {formatCount(total)}
+                    </span>
+                  </div>
                   <p className="text-xs text-gray-500">{loading ? "Loading..." : `${orders.length} visible from ${total} matching orders`}</p>
                 </div>
-                <FileText className="h-5 w-5 text-gray-400" />
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F57224]/10 text-[#F57224]">
+                  <FileText className="h-5 w-5" />
+                </span>
               </div>
 
               {orders.length === 0 ? (
@@ -557,7 +629,7 @@ export default function AdminOrders() {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                    <thead className="bg-[#F5F5F5] text-left text-xs font-black uppercase text-gray-500">
                       <tr>
                         <th className="px-4 py-3">Order</th>
                         <th className="px-4 py-3">Vendor</th>
@@ -571,7 +643,7 @@ export default function AdminOrders() {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {orders.map((order) => (
-                        <tr key={order._id} className={selectedOrderId === order._id ? "bg-blue-50/60" : "hover:bg-gray-50"}>
+                        <tr key={order._id} className={selectedOrderId === order._id ? "bg-[#F57224]/5" : "transition hover:bg-gray-50"}>
                           <td className="px-4 py-3">
                             <div className="font-semibold text-gray-900">#{shortId(order._id)}</div>
                             <div className="text-xs text-gray-500">{formatDate(order.createdAt)}</div>
@@ -608,7 +680,7 @@ export default function AdminOrders() {
                             <button
                               type="button"
                               onClick={() => loadDetail(order._id)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                              className="inline-flex items-center gap-1 rounded-lg border border-[#F57224]/25 bg-white px-2.5 py-1.5 text-xs font-bold text-[#F57224] transition hover:bg-[#F57224]/10"
                             >
                               <Eye className="h-3.5 w-3.5" />
                               Open
@@ -623,11 +695,11 @@ export default function AdminOrders() {
             </div>
 
             {selectedOrder && (
-              <div className="mt-6 rounded-lg border border-gray-200 bg-white">
-                <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="mt-6 rounded-lg border border-gray-200 bg-white shadow-sm">
+                <div className="flex flex-col gap-3 border-b border-gray-200 bg-[#F5F5F5] px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-bold text-gray-900">Order #{shortId(selectedOrder._id)}</h2>
+                      <h2 className="text-lg font-black text-[#1A1A2E]">Order #{shortId(selectedOrder._id)}</h2>
                       <StatusBadge status={selectedOrder.status} />
                     </div>
                     <p className="mt-1 text-sm text-gray-500">{getAddressText(selectedOrder.shippingInfo)}</p>
@@ -722,10 +794,10 @@ export default function AdminOrders() {
                                   </div>
                                   {vendor.vendorId && (
                                     <div className="mt-3 flex flex-wrap gap-2">
-                                      <Link to={`/admin/vendors/${vendor.vendorId}`} className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                      <Link to={`/admin/vendors/${vendor.vendorId}`} className="rounded-lg border border-[#F57224]/25 bg-white px-2.5 py-1.5 text-xs font-bold text-[#F57224] transition hover:bg-[#F57224]/10">
                                         Vendor profile
                                       </Link>
-                                      <Link to={`/admin/orders?vendorId=${vendor.vendorId}`} className="rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                      <Link to={`/admin/orders?vendorId=${vendor.vendorId}`} className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-700 transition hover:border-gray-400 hover:bg-gray-50">
                                         Vendor orders
                                       </Link>
                                     </div>
@@ -771,7 +843,7 @@ export default function AdminOrders() {
                           ) : (
                             selectedOrder.timeline.map((event, index) => (
                               <div key={`${event.type}-${event.status}-${event.createdAt}-${index}`} className="flex gap-3">
-                                <div className="mt-1 h-2.5 w-2.5 rounded-full bg-gray-900" />
+                                <div className="mt-1 h-2.5 w-2.5 rounded-full bg-[#F57224]" />
                                 <div className="flex-1 border-b border-gray-100 pb-3">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <p className="font-medium text-gray-900">{event.label || formatStatus(event.status)}</p>
@@ -801,7 +873,7 @@ export default function AdminOrders() {
                               <select
                                 value={forms.status}
                                 onChange={(event) => setForms((current) => ({ ...current, status: event.target.value }))}
-                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                className={fieldClass}
                               >
                                 {ORDER_STATUSES.map((status) => (
                                   <option key={status} value={status}>{formatStatus(status)}</option>
@@ -810,7 +882,7 @@ export default function AdminOrders() {
                               <input
                                 value={forms.statusNote}
                                 onChange={(event) => setForms((current) => ({ ...current, statusNote: event.target.value }))}
-                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                className={fieldClass}
                                 placeholder="Status note"
                               />
                             </div>
@@ -818,7 +890,7 @@ export default function AdminOrders() {
                               type="button"
                               disabled={actionLoading}
                               onClick={() => runAction(() => adminOverrideOrderStatus(selectedOrderId, { status: forms.status, note: forms.statusNote }), "Status overridden")}
-                              className="mt-2 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                              className={`${darkButtonClass} mt-2`}
                             >
                               <Activity className="h-4 w-4" />
                               Override Status
@@ -848,19 +920,19 @@ export default function AdminOrders() {
                               <input
                                 value={forms.refundAmount}
                                 onChange={(event) => setForms((current) => ({ ...current, refundAmount: event.target.value }))}
-                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                className={fieldClass}
                                 placeholder="Amount"
                               />
                               <input
                                 value={forms.refundMethod}
                                 onChange={(event) => setForms((current) => ({ ...current, refundMethod: event.target.value }))}
-                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                className={fieldClass}
                                 placeholder="Method"
                               />
                               <input
                                 value={forms.refundReason}
                                 onChange={(event) => setForms((current) => ({ ...current, refundReason: event.target.value }))}
-                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                className={fieldClass}
                                 placeholder="Reason"
                               />
                             </div>
@@ -877,7 +949,7 @@ export default function AdminOrders() {
                                   "Refund forced",
                                 )
                               }
-                              className="mt-2 inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                              className={`${softButtonClass} mt-2`}
                             >
                               <Wallet className="h-4 w-4" />
                               Force Refund
@@ -886,12 +958,12 @@ export default function AdminOrders() {
 
                           <div className="rounded-lg border border-gray-200 p-3">
                             <div className="grid gap-2 sm:grid-cols-2">
-                              <input value={forms.courierName} onChange={(event) => setForms((current) => ({ ...current, courierName: event.target.value }))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Courier name" />
-                              <input value={forms.trackingNumber} onChange={(event) => setForms((current) => ({ ...current, trackingNumber: event.target.value }))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Tracking number" />
-                              <input value={forms.riderName} onChange={(event) => setForms((current) => ({ ...current, riderName: event.target.value }))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Rider name" />
-                              <input value={forms.riderPhone} onChange={(event) => setForms((current) => ({ ...current, riderPhone: event.target.value }))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Rider phone" />
+                              <input value={forms.courierName} onChange={(event) => setForms((current) => ({ ...current, courierName: event.target.value }))} className={fieldClass} placeholder="Courier name" />
+                              <input value={forms.trackingNumber} onChange={(event) => setForms((current) => ({ ...current, trackingNumber: event.target.value }))} className={fieldClass} placeholder="Tracking number" />
+                              <input value={forms.riderName} onChange={(event) => setForms((current) => ({ ...current, riderName: event.target.value }))} className={fieldClass} placeholder="Rider name" />
+                              <input value={forms.riderPhone} onChange={(event) => setForms((current) => ({ ...current, riderPhone: event.target.value }))} className={fieldClass} placeholder="Rider phone" />
                             </div>
-                            <input value={forms.courierNote} onChange={(event) => setForms((current) => ({ ...current, courierNote: event.target.value }))} className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Courier note" />
+                            <input value={forms.courierNote} onChange={(event) => setForms((current) => ({ ...current, courierNote: event.target.value }))} className={`${fieldClass} mt-2`} placeholder="Courier note" />
                             <button
                               type="button"
                               disabled={actionLoading}
@@ -907,7 +979,7 @@ export default function AdminOrders() {
                                   "Courier reassigned",
                                 )
                               }
-                              className="mt-2 inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                              className={`${softButtonClass} mt-2`}
                             >
                               <Truck className="h-4 w-4" />
                               Reassign Courier
@@ -925,7 +997,7 @@ export default function AdminOrders() {
                                 key={key}
                                 value={addressForm[key]}
                                 onChange={(event) => setAddressForm((current) => ({ ...current, [key]: event.target.value }))}
-                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                className={fieldClass}
                                 placeholder={formatStatus(key)}
                               />
                             ))}
@@ -934,7 +1006,7 @@ export default function AdminOrders() {
                             type="button"
                             disabled={actionLoading}
                             onClick={() => runAction(() => adminChangeOrderDeliveryAddress(selectedOrderId, { shippingInfo: addressForm, note: "Admin address correction" }), "Delivery address updated")}
-                            className="mt-2 inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                            className={`${softButtonClass} mt-2`}
                           >
                             <MapPin className="h-4 w-4" />
                             Change Address
@@ -946,12 +1018,12 @@ export default function AdminOrders() {
                               type="datetime-local"
                               value={forms.returnWindowUntil}
                               onChange={(event) => setForms((current) => ({ ...current, returnWindowUntil: event.target.value }))}
-                              className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                              className={fieldClass}
                             />
                             <input
                               value={forms.returnWindowNote}
                               onChange={(event) => setForms((current) => ({ ...current, returnWindowNote: event.target.value }))}
-                              className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                              className={fieldClass}
                               placeholder="Reason"
                             />
                           </div>
@@ -959,7 +1031,7 @@ export default function AdminOrders() {
                             type="button"
                             disabled={actionLoading}
                             onClick={() => runAction(() => adminExtendOrderReturnWindow(selectedOrderId, { returnWindowUntil: forms.returnWindowUntil, note: forms.returnWindowNote }), "Return window extended")}
-                            className="mt-2 inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                            className={`${softButtonClass} mt-2`}
                           >
                             <RotateCcw className="h-4 w-4" />
                             Extend Return Window
@@ -974,23 +1046,25 @@ export default function AdminOrders() {
           </section>
 
           <aside className="space-y-6 lg:col-span-4">
-            <section className="rounded-lg border border-gray-200 bg-white">
-              <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+            <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-gray-200 bg-[#F5F5F5] px-4 py-3">
                 <div>
-                  <h2 className="font-semibold text-gray-900">COD Reconciliation</h2>
+                  <h2 className="font-black text-[#1A1A2E]">COD Reconciliation</h2>
                   <p className="text-xs text-gray-500">{sideLoading ? "Loading..." : `${codData.summary?.totalCod || 0} COD orders`}</p>
                 </div>
-                <Banknote className="h-5 w-5 text-green-600" />
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                  <Banknote className="h-5 w-5" />
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-2 p-4 text-sm">
-                <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-500">Collected</p><p className="font-bold text-gray-900">{codData.summary?.collected || 0}</p></div>
-                <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-500">Remitted</p><p className="font-bold text-gray-900">{codData.summary?.remitted || 0}</p></div>
-                <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-500">Discrepancies</p><p className="font-bold text-red-700">{codData.summary?.discrepancies || 0}</p></div>
-                <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-500">COD Value</p><p className="font-bold text-gray-900">{formatPrice(codData.summary?.codValue || 0)}</p></div>
+                <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-500">Collected</p><p className="font-black text-[#1A1A2E]">{formatCount(codData.summary?.collected || 0)}</p></div>
+                <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-500">Remitted</p><p className="font-black text-[#1A1A2E]">{formatCount(codData.summary?.remitted || 0)}</p></div>
+                <div className="rounded-lg bg-red-50 p-3"><p className="text-red-600">Discrepancies</p><p className="font-black text-red-700">{formatCount(codData.summary?.discrepancies || 0)}</p></div>
+                <div className="rounded-lg bg-[#F57224]/5 p-3"><p className="text-gray-500">COD Value</p><p className="font-black text-[#1A1A2E]">{formatPrice(codData.summary?.codValue || 0)}</p></div>
               </div>
               <div className="border-t border-gray-100">
                 {(codData.orders || []).slice(0, 6).map((order) => (
-                  <button key={order.orderId} type="button" onClick={() => loadDetail(order.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50">
+                  <button key={order.orderId} type="button" onClick={() => loadDetail(order.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-[#F57224]/5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium text-gray-900">#{shortId(order.orderId)}</p>
                       <span className={order.hasDiscrepancy ? "text-xs font-semibold text-red-700" : "text-xs font-semibold text-gray-500"}>{formatStatus(order.reconciliationStatus)}</span>
@@ -1001,19 +1075,21 @@ export default function AdminOrders() {
               </div>
             </section>
 
-            <section className="rounded-lg border border-gray-200 bg-white">
-              <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+            <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-gray-200 bg-[#F5F5F5] px-4 py-3">
                 <div>
-                  <h2 className="font-semibold text-gray-900">SLA Breach Monitor</h2>
+                  <h2 className="font-black text-[#1A1A2E]">SLA Breach Monitor</h2>
                   <p className="text-xs text-gray-500">{slaData.summary?.processing || 0} processing, {slaData.summary?.delivery || 0} delivery</p>
                 </div>
-                <CalendarClock className="h-5 w-5 text-red-600" />
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-700 ring-1 ring-red-200">
+                  <CalendarClock className="h-5 w-5" />
+                </span>
               </div>
               {(slaData.breaches || []).length === 0 ? (
                 <div className="p-4"><EmptyPanel title="No SLA breaches found." /></div>
               ) : (
                 (slaData.breaches || []).slice(0, 6).map((breach) => (
-                  <button key={`${breach.orderId}-${breach.breachType}`} type="button" onClick={() => loadDetail(breach.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50">
+                  <button key={`${breach.orderId}-${breach.breachType}`} type="button" onClick={() => loadDetail(breach.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-red-50">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium text-gray-900">#{shortId(breach.orderId)}</p>
                       <span className="text-xs font-semibold text-red-700">{breach.breachHours}h late</span>
@@ -1024,19 +1100,21 @@ export default function AdminOrders() {
               )}
             </section>
 
-            <section className="rounded-lg border border-gray-200 bg-white">
-              <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+            <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-gray-200 bg-[#F5F5F5] px-4 py-3">
                 <div>
-                  <h2 className="font-semibold text-gray-900">Fraud Order Queue</h2>
+                  <h2 className="font-black text-[#1A1A2E]">Fraud Order Queue</h2>
                   <p className="text-xs text-gray-500">{fraudData.summary?.totalFlagged || 0} flagged orders</p>
                 </div>
-                <ShieldAlert className="h-5 w-5 text-orange-600" />
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F57224]/10 text-[#F57224] ring-1 ring-[#F57224]/20">
+                  <ShieldAlert className="h-5 w-5" />
+                </span>
               </div>
               {(fraudData.orders || []).length === 0 ? (
                 <div className="p-4"><EmptyPanel title="No fraud signals found." /></div>
               ) : (
                 (fraudData.orders || []).slice(0, 6).map((order) => (
-                  <button key={order.orderId} type="button" onClick={() => loadDetail(order.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50">
+                  <button key={order.orderId} type="button" onClick={() => loadDetail(order.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-[#F57224]/5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium text-gray-900">#{shortId(order.orderId)}</p>
                       <span className="text-xs font-semibold text-orange-700">{order.signals?.length || 0} signals</span>
