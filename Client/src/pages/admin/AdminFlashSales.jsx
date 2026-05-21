@@ -1,10 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "../../context/ToastContext";
 import { useCurrency } from "../../hooks/useCurrency";
 import { auth } from "../../firebase/firebase.config";
 import SimpleModal from "../../components/SimpleModal";
 import Loading from "../../components/Loading";
+import { Pagination } from "../../components/ui/data";
 
 const AdminFlashSales = () => {
   const { t } = useTranslation();
@@ -15,6 +18,8 @@ const AdminFlashSales = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingSale, setEditingSale] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -195,6 +200,10 @@ const AdminFlashSales = () => {
   };
 
   const selectedProduct = products.find((product) => product._id === formData.product);
+  const paginatedFlashSales = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return flashSales.slice(start, start + pageSize);
+  }, [flashSales, page, pageSize]);
   const flashSaleValidationError = (() => {
     if (!formData.title || !formData.product || !formData.flashPrice || !formData.startTime || !formData.endTime || !formData.totalStock) {
       return "";
@@ -227,9 +236,18 @@ const AdminFlashSales = () => {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+        <div>
+          <Link
+            to="/admin"
+            className="mb-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to dashboard
+          </Link>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
           ⚡ Flash Sales Management
-        </h1>
+          </h1>
+        </div>
         <button
           onClick={() => {
             resetForm();
@@ -303,7 +321,7 @@ const AdminFlashSales = () => {
                 </td>
               </tr>
             ) : (
-              flashSales.map((sale) => (
+              paginatedFlashSales.map((sale) => (
                 <tr key={sale._id}>
                   <td className="px-6 py-4">
                     <div className="flex items-center">
@@ -375,6 +393,21 @@ const AdminFlashSales = () => {
             )}
           </tbody>
         </table>
+        {flashSales.length > 0 && (
+          <div className="border-t border-gray-200 p-4 dark:border-gray-700">
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={flashSales.length}
+              pageSizeOptions={[10, 20, 50]}
+              onPageChange={setPage}
+              onPageSizeChange={(nextPageSize) => {
+                setPageSize(nextPageSize);
+                setPage(1);
+              }}
+            />
+          </div>
+        )}
       </div>
 
       <SimpleModal

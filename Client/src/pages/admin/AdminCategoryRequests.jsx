@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuth from '../../hooks/useAuth';
+import { Pagination } from '../../components/ui/data';
 import { getCategoryPathLabel } from '../../utils/vendorCategoryRequests';
 
 const StatusBadge = ({ status }) => {
@@ -26,10 +27,18 @@ export default function AdminCategoryRequests() {
   const [showRejectModal, setShowRejectModal] = useState(null);
   const [adminNote, setAdminNote] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     fetchRequests();
+    setPage(1);
   }, [filter]);
+
+  const paginatedRequests = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return requests.slice(start, start + pageSize);
+  }, [requests, page, pageSize]);
 
   const fetchRequests = async () => {
     if (!user) return;
@@ -197,7 +206,7 @@ export default function AdminCategoryRequests() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {requests.map((request) => (
+                  {paginatedRequests.map((request) => (
                     <tr key={request._id} className="hover:bg-gray-50 transition">
                       <td className="px-6 py-4">
                         <div className="font-medium text-gray-900">{request.categoryName}</div>
@@ -244,6 +253,19 @@ export default function AdminCategoryRequests() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="border-t border-gray-200 p-4">
+              <Pagination
+                page={page}
+                pageSize={pageSize}
+                total={requests.length}
+                pageSizeOptions={[10, 20, 50]}
+                onPageChange={setPage}
+                onPageSizeChange={(nextPageSize) => {
+                  setPageSize(nextPageSize);
+                  setPage(1);
+                }}
+              />
             </div>
           </div>
         )}

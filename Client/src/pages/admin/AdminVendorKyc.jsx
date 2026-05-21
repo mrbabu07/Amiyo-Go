@@ -1,12 +1,16 @@
-import { useEffect, useState } from "react";
-import { CheckCircle2, FileText, RefreshCw, XCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, CheckCircle2, FileText, RefreshCw, XCircle } from "lucide-react";
 import { getAdminVendorKycQueue, reviewAdminVendorKyc } from "../../services/api";
+import { Pagination } from "../../components/ui/data";
 
 export default function AdminVendorKyc() {
   const [items, setItems] = useState([]);
   const [status, setStatus] = useState("pending");
   const [loading, setLoading] = useState(true);
   const [busyVendorId, setBusyVendorId] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const loadQueue = async () => {
     setLoading(true);
@@ -23,7 +27,13 @@ export default function AdminVendorKyc() {
 
   useEffect(() => {
     loadQueue();
+    setPage(1);
   }, [status]);
+
+  const paginatedItems = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return items.slice(start, start + pageSize);
+  }, [items, page, pageSize]);
 
   const review = async (vendorId, nextStatus) => {
     const reason =
@@ -64,6 +74,13 @@ export default function AdminVendorKyc() {
     <div className="p-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
+          <Link
+            to="/admin"
+            className="mb-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to dashboard
+          </Link>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Vendor KYC Review</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Review submitted NID and trade license documents.
@@ -101,7 +118,7 @@ export default function AdminVendorKyc() {
             No KYC submissions found.
           </div>
         ) : (
-          items.map((item) => {
+          paginatedItems.map((item) => {
             const documents = item.kyc?.documents || {};
             const vendorId = item.vendorId;
 
@@ -161,6 +178,21 @@ export default function AdminVendorKyc() {
           })
         )}
       </div>
+      {!loading && items.length > 0 && (
+        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={items.length}
+            pageSizeOptions={[10, 20, 50]}
+            onPageChange={setPage}
+            onPageSizeChange={(nextPageSize) => {
+              setPageSize(nextPageSize);
+              setPage(1);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

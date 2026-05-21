@@ -8,6 +8,7 @@ import {
   AdminQueueDrawer,
   AdminQueueKeyValue,
 } from "../../components/admin/AdminQueuePrimitives";
+import { Pagination } from "../../components/ui/data";
 import useCurrency from "../../hooks/useCurrency";
 import {
   formatQueueDate,
@@ -76,7 +77,10 @@ export default function AdminProducts() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [activeStatus, setActiveStatus] = useState("queue");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [selectedIds, setSelectedIds] = useState([]);
   const [total, setTotal] = useState(0);
   const [config, setConfig] = useState(null);
@@ -107,17 +111,17 @@ export default function AdminProducts() {
     [selectedQueueProduct],
   );
 
-  const fetchProducts = async (searchOverride = searchTerm) => {
+  const fetchProducts = async () => {
     setLoading(true);
     try {
       const params = {
-        page: 1,
-        limit: 50,
+        page,
+        limit: pageSize,
         sort: "submitted",
       };
       if (activeStatus === "queue") params.status = "queue";
       else if (activeStatus !== "all") params.approvalStatus = activeStatus;
-      if (searchOverride.trim()) params.search = searchOverride.trim();
+      if (appliedSearch.trim()) params.search = appliedSearch.trim();
 
       const response = await getAdminProducts(params);
       setProducts(response.data.data || []);
@@ -149,13 +153,14 @@ export default function AdminProducts() {
 
   useEffect(() => {
     fetchProducts();
-  }, [activeStatus]);
+  }, [activeStatus, page, pageSize, appliedSearch]);
 
   useEffect(() => {
     const urlSearch = searchParams.get("search") || "";
     if (!urlSearch) return;
     setSearchTerm(urlSearch);
-    fetchProducts(urlSearch);
+    setAppliedSearch(urlSearch);
+    setPage(1);
   }, [searchParams]);
 
   useEffect(() => {
@@ -164,7 +169,8 @@ export default function AdminProducts() {
 
   const handleSearch = (event) => {
     event.preventDefault();
-    fetchProducts();
+    setAppliedSearch(searchTerm.trim());
+    setPage(1);
   };
 
   const toggleProduct = (productId) => {
@@ -412,7 +418,10 @@ export default function AdminProducts() {
                 {STATUS_TABS.map((tab) => (
                   <button
                     key={tab.key}
-                    onClick={() => setActiveStatus(tab.key)}
+                    onClick={() => {
+                      setActiveStatus(tab.key);
+                      setPage(1);
+                    }}
                     className={`rounded-lg px-4 py-2 text-sm font-semibold ${
                       activeStatus === tab.key ? "bg-primary-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
@@ -561,6 +570,22 @@ export default function AdminProducts() {
               </table>
             </div>
           </div>
+
+          {total > 0 && (
+            <div className="border-t border-gray-200 bg-white px-4 py-3">
+              <Pagination
+                page={page}
+                pageSize={pageSize}
+                total={total}
+                pageSizeOptions={[10, 20, 50]}
+                onPageChange={setPage}
+                onPageSizeChange={(nextPageSize) => {
+                  setPageSize(nextPageSize);
+                  setPage(1);
+                }}
+              />
+            </div>
+          )}
         </main>
 
         <aside className="space-y-5">

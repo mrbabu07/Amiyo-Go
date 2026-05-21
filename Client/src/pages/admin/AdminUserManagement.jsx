@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import {
+  ArrowLeft,
   Users,
   Shield,
   Activity,
@@ -10,10 +11,12 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { Link } from "react-router-dom";
 import Modal from "../../components/Modal";
 import Button from "../../components/Button";
 import Input from "../../components/Input";
 import Loading from "../../components/Loading";
+import { Pagination } from "../../components/ui/data";
 import { getCurrentUserToken } from "../../utils/auth";
 
 const AdminUserManagement = () => {
@@ -32,6 +35,7 @@ const AdminUserManagement = () => {
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [newRole, setNewRole] = useState("");
   const [totalPages, setTotalPages] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
 
   const roles = [
     {
@@ -101,8 +105,16 @@ const AdminUserManagement = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setUsers(data.users);
-        setTotalPages(data.totalPages);
+        const nextUsers = data.users || [];
+        const nextTotalPages = data.totalPages || 1;
+        setUsers(nextUsers);
+        setTotalPages(nextTotalPages);
+        setTotalUsers(
+          data.total ||
+            data.totalUsers ||
+            data.pagination?.total ||
+            Math.max(nextUsers.length, (nextTotalPages - 1) * filters.limit + nextUsers.length),
+        );
       }
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -152,11 +164,20 @@ const AdminUserManagement = () => {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          User Management
-        </h1>
-        <p className="text-gray-600">Manage users, roles, and permissions</p>
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <Link
+            to="/admin"
+            className="mb-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to dashboard
+          </Link>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            User Management
+          </h1>
+          <p className="text-gray-600">Manage users, roles, and permissions</p>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -231,7 +252,7 @@ const AdminUserManagement = () => {
             <div className="text-center py-8 text-gray-500">No users found</div>
           ) : (
             <div className="space-y-4">
-              {users.slice(0, 10).map((user) => (
+              {users.map((user) => (
                 <div
                   key={user._id}
                   className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
@@ -264,6 +285,18 @@ const AdminUserManagement = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          {totalUsers > 0 && (
+            <div className="mt-5 border-t border-gray-200 pt-4">
+              <Pagination
+                page={filters.page}
+                pageSize={filters.limit}
+                total={totalUsers}
+                pageSizeOptions={[10, 20, 50]}
+                onPageChange={(page) => setFilters((current) => ({ ...current, page }))}
+                onPageSizeChange={(limit) => setFilters((current) => ({ ...current, limit, page: 1 }))}
+              />
             </div>
           )}
         </div>

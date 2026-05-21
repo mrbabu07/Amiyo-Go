@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import {
   getAllReviews,
   getUnrepliedReviews,
@@ -16,6 +17,7 @@ import {
   AdminQueueKeyValue,
   AdminQueueMetric,
 } from "../../components/admin/AdminQueuePrimitives";
+import { Pagination } from "../../components/ui/data";
 import {
   buildQueueSummary,
   formatQueueDate,
@@ -31,9 +33,12 @@ export default function AdminReviews() {
   const [selectedQueueReview, setSelectedQueueReview] = useState(null);
   const [replyText, setReplyText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     fetchReviews();
+    setPage(1);
   }, [filter]);
 
   const fetchReviews = async () => {
@@ -114,6 +119,10 @@ export default function AdminReviews() {
     [reviews],
   );
   const queueSummary = useMemo(() => buildQueueSummary(queueItems), [queueItems]);
+  const paginatedReviews = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return reviews.slice(start, start + pageSize);
+  }, [reviews, page, pageSize]);
   const selectedQueueItem = useMemo(
     () => (selectedQueueReview ? normalizeReviewQueueItem(selectedQueueReview) : null),
     [selectedQueueReview],
@@ -126,6 +135,13 @@ export default function AdminReviews() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
+          <Link
+            to="/admin"
+            className="mb-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to dashboard
+          </Link>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             Review Management
           </h1>
@@ -226,7 +242,7 @@ export default function AdminReviews() {
         </div>
       ) : (
         <div className="space-y-4">
-          {reviews.map((review) => (
+          {paginatedReviews.map((review) => (
             <div
               key={review._id}
               className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow"
@@ -379,6 +395,19 @@ export default function AdminReviews() {
               </div>
             </div>
           ))}
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={reviews.length}
+              pageSizeOptions={[10, 20, 50]}
+              onPageChange={setPage}
+              onPageSizeChange={(nextPageSize) => {
+                setPageSize(nextPageSize);
+                setPage(1);
+              }}
+            />
+          </div>
         </div>
       )}
 

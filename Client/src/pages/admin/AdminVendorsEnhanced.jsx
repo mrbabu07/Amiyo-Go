@@ -15,6 +15,7 @@ import {
   formatQueueDate,
   normalizeVendorQueueItem,
 } from '../../utils/adminQueuePattern';
+import { Pagination } from '../../components/ui/data';
 
 const REQUEST_EMPTY = {
   pendingVendors: [],
@@ -239,6 +240,8 @@ const AdminVendorsEnhanced = () => {
   const [requestLoading, setRequestLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [vendorPage, setVendorPage] = useState(1);
+  const [vendorPageSize, setVendorPageSize] = useState(12);
   const [viewMode, setViewMode] = useState('grid');
   const [selectedVendors, setSelectedVendors] = useState([]);
   const [showBulkActions, setShowBulkActions] = useState(false);
@@ -264,6 +267,10 @@ const AdminVendorsEnhanced = () => {
     const urlSearch = searchParams.get('search') || '';
     setSearchQuery((current) => (current === urlSearch ? current : urlSearch));
   }, [searchParams]);
+
+  useEffect(() => {
+    setVendorPage(1);
+  }, [filter, searchQuery, viewMode]);
 
   const fetchVendors = async () => {
     setLoading(true);
@@ -607,6 +614,10 @@ const AdminVendorsEnhanced = () => {
       ),
     [vendors, searchQuery]
   );
+  const paginatedVendors = useMemo(() => {
+    const start = (vendorPage - 1) * vendorPageSize;
+    return filteredVendors.slice(start, start + vendorPageSize);
+  }, [filteredVendors, vendorPage, vendorPageSize]);
   const vendorQueueItems = useMemo(
     () => requests.pendingVendors.map(normalizeVendorQueueItem),
     [requests.pendingVendors]
@@ -1202,7 +1213,7 @@ const AdminVendorsEnhanced = () => {
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {filteredVendors.map((vendor) => {
+            {paginatedVendors.map((vendor) => {
               const readiness = getVendorRequirements(vendor);
               return (
                 <div key={vendor._id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md">
@@ -1316,9 +1327,14 @@ const AdminVendorsEnhanced = () => {
                   <th className="px-6 py-3 text-left">
                     <input
                       type="checkbox"
-                      checked={selectedVendors.length > 0 && selectedVendors.length === filteredVendors.length}
+                      checked={paginatedVendors.length > 0 && paginatedVendors.every((vendor) => selectedVendors.includes(vendor._id))}
                       onChange={(event) =>
-                        setSelectedVendors(event.target.checked ? filteredVendors.map((vendor) => vendor._id) : [])
+                        setSelectedVendors((current) => {
+                          const pageIds = paginatedVendors.map((vendor) => vendor._id);
+                          return event.target.checked
+                            ? Array.from(new Set([...current, ...pageIds]))
+                            : current.filter((vendorId) => !pageIds.includes(vendorId));
+                        })
                       }
                       className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                     />
@@ -1333,7 +1349,7 @@ const AdminVendorsEnhanced = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredVendors.map((vendor) => {
+                {paginatedVendors.map((vendor) => {
                   const readiness = getVendorRequirements(vendor);
                   return (
                     <tr key={vendor._id} className="hover:bg-gray-50">
@@ -1407,6 +1423,22 @@ const AdminVendorsEnhanced = () => {
             </table>
           </div>
         ))}
+
+        {!isRequestCenterRoute && filteredVendors.length > 0 && (
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <Pagination
+              page={vendorPage}
+              pageSize={vendorPageSize}
+              total={filteredVendors.length}
+              pageSizeOptions={[12, 24, 48]}
+              onPageChange={setVendorPage}
+              onPageSizeChange={(nextPageSize) => {
+                setVendorPageSize(nextPageSize);
+                setVendorPage(1);
+              }}
+            />
+          </div>
+        )}
       </div>
 
       <AdminQueueDrawer

@@ -1,13 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 import { subscribeRealtime } from '../../services/realtime';
+import { Pagination } from '../../components/ui/data';
 
 export default function AdminVendorChats() {
   const { user } = useAuth();
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all' or 'unread'
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     if (!user) return undefined;
@@ -29,6 +33,15 @@ export default function AdminVendorChats() {
       unsubscribe();
     };
   }, [user, filter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter]);
+
+  const paginatedChats = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return chats.slice(start, start + pageSize);
+  }, [chats, page, pageSize]);
 
   const loadChats = async () => {
     try {
@@ -61,6 +74,13 @@ export default function AdminVendorChats() {
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 py-6">
+          <Link
+            to="/admin"
+            className="mb-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to dashboard
+          </Link>
           <h1 className="text-2xl font-bold text-gray-900">💬 Vendor Messages</h1>
           <p className="text-sm text-gray-500 mt-1">Chat with vendors about their shops and issues</p>
         </div>
@@ -107,7 +127,7 @@ export default function AdminVendorChats() {
                 </p>
               </div>
             ) : (
-              chats.map((chat) => {
+              paginatedChats.map((chat) => {
                 const lastMessage = chat.messages[chat.messages.length - 1];
                 return (
                   <Link
@@ -159,6 +179,21 @@ export default function AdminVendorChats() {
               })
             )}
           </div>
+          {chats.length > 0 && (
+            <div className="border-t p-4">
+              <Pagination
+                page={page}
+                pageSize={pageSize}
+                total={chats.length}
+                pageSizeOptions={[10, 20, 50]}
+                onPageChange={setPage}
+                onPageSizeChange={(nextPageSize) => {
+                  setPageSize(nextPageSize);
+                  setPage(1);
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
