@@ -4,6 +4,12 @@ const {
   getCourierProviderStatus,
   normalizeProvider,
 } = require("../services/courierProviderService");
+const {
+  filterOrdersForLogisticsScope,
+  filterZonesForLogisticsScope,
+  getLogisticsScopeFromRequest,
+  orderMatchesLogisticsScope,
+} = require("../utils/logisticsScope");
 
 const READY_FOR_DISPATCH_STATUSES = ["packed", "ready_to_ship", "pickup_ready"];
 const READY_FOR_COLLECTION_STATUSES = ["ready_to_ship", "pickup_ready"];
@@ -132,6 +138,144 @@ const collectionToArray = async (db, name, query = {}, sort = {}) => {
   const cursor = db.collection(name).find(query);
   if (Object.keys(sort).length > 0) cursor.sort(sort);
   return cursor.toArray();
+};
+
+const canManageLogisticsConfig = (req) => ["admin", "manager"].includes(req.dbUser?.role || req.user?.role);
+
+const denyLogisticsConfigMutation = (res) =>
+  res.status(403).json({ success: false, error: "Only admin or manager can change logistics setup" });
+
+const scopeBaseLogisticsData = (data = {}, req) => {
+  const scope = getLogisticsScopeFromRequest(req);
+  if (!scope?.scoped) return data;
+
+  const zones = filterZonesForLogisticsScope(data.zones || [], scope);
+  const orders = filterOrdersForLogisticsScope(data.orders || [], data.zones || [], scope);
+  const allowedOrderIds = new Set(orders.map((order) => normalizeId(order._id)));
+  const remittances = (data.remittances || []).filter((remittance) => {
+    const orderIds = Array.isArray(remittance.orderIds) ? remittance.orderIds.map(normalizeId) : [];
+    return orderIds.length > 0 && orderIds.some((orderId) => allowedOrderIds.has(orderId));
+  });
+  const pickupStaff = (data.pickupStaff || []).filter((staff) => pickupStaffMatchesScope(staff, scope));
+
+  return {
+    ...data,
+    zones,
+    orders,
+    pickupStaff,
+    assignments: (data.assignments || []).filter((assignment) => allowedOrderIds.has(normalizeId(assignment.orderId))),
+    failureRecords: (data.failureRecords || []).filter((failure) => allowedOrderIds.has(normalizeId(failure.orderId))),
+    remittances,
+  };
+};
+
+const pickupStaffMatchesScope = (staff = {}, scope = null) => {
+  if (!scope?.scoped) return true;
+  const userKeys = [scope.userId, scope.firebaseUid].map(normalizeId).filter(Boolean);
+  const staffUserKeys = [staff.userId, staff.firebaseUid].map(normalizeId).filter(Boolean);
+  if (staffUserKeys.some((key) => userKeys.includes(key))) return true;
+  if (!scope.assignedZones?.length) return false;
+  const staffZones = normalizeStringArray(staff.assignedZones).map(normalizeText);
+  return staffZones.some((zone) => scope.assignedZones.map(normalizeText).includes(zone));
+};
+
+const assertOrderAllowedForLogisticsScope = async (req, orderId) => {
+  const scope = getLogisticsScopeFromRequest(req);
+  if (!scope?.scoped) return true;
+  const db = req.app.locals.db;
+  const [zones, order] = await Promise.all([
+    getSeededZones(db),
+    db.collection("orders").findOne(idFilter(orderId)),
+  ]);
+  if (order && orderMatchesLogisticsScope(order, zones, scope)) return true;
+  const error = new Error("This order is outside your assigned logistics area");
+  error.statusCode = 403;
+  throw error;
+};
+
+const assertOrdersAllowedForLogisticsScope = async (req, orderIds = []) => {
+  const scope = getLogisticsScopeFromRequest(req);
+  if (!scope?.scoped) return true;
+  if (orderIds.length === 0) {
+    const error = new Error("Select scoped orders before recording COD remittance");
+    error.statusCode = 403;
+    throw error;
+  }
+  const db = req.app.locals.db;
+  const objectIds = orderIds.filter(ObjectId.isValid).map((id) => new ObjectId(id));
+  const orderQuery =
+    objectIds.length > 0
+      ? { $or: [{ _id: { $in: objectIds } }, { _id: { $in: orderIds } }] }
+      : { _id: { $in: orderIds } };
+  const [zones, orders] = await Promise.all([
+    getSeededZones(db),
+    collectionToArray(db, "orders", orderQuery),
+  ]);
+  const allowedOrderIds = new Set(
+    filterOrdersForLogisticsScope(orders, zones, scope).map((order) => normalizeId(order._id)),
+  );
+  const blockedOrder = orderIds.find((orderId) => !allowedOrderIds.has(normalizeId(orderId)));
+  if (!blockedOrder) return true;
+  const error = new Error("One or more selected orders are outside your assigned logistics area");
+  error.statusCode = 403;
+  throw error;
+};
+
+const findLogisticsUserForPickupStaff = async (req, { userId, email }) => {
+  const User = req.app.locals.models.User;
+  if (!User) return null;
+  if (userId) {
+    const normalizedUserId = normalizeId(userId);
+    const objectId = safeObjectId(normalizedUserId);
+    if (User.collection?.findOne) {
+      const userIdentityFilters = [
+        { firebaseUid: normalizedUserId },
+        { email: normalizedUserId.toLowerCase() },
+      ];
+      if (objectId) userIdentityFilters.unshift({ _id: objectId });
+      return User.collection.findOne({ $or: userIdentityFilters });
+    }
+    return objectId ? User.findById(normalizedUserId) : null;
+  }
+  if (email) return User.findByEmail(String(email).trim().toLowerCase());
+  return null;
+};
+
+const syncPickupStaffLoginUser = async (req, staffDoc = {}) => {
+  const user = await findLogisticsUserForPickupStaff(req, {
+    userId: staffDoc.userId,
+    email: staffDoc.email,
+  });
+  if (!user) {
+    if (staffDoc.email || staffDoc.userId) {
+      const error = new Error("Linked logistics user was not found");
+      error.statusCode = 400;
+      throw error;
+    }
+    return {};
+  }
+
+  const User = req.app.locals.models.User;
+  const logisticsProfile = {
+    assignedZones: normalizeStringArray(staffDoc.assignedZones),
+    assignedVendorIds: normalizeStringArray(staffDoc.assignedVendorIds),
+    pickupStaffId: normalizeId(staffDoc._id || staffDoc.staffId),
+    routeName: staffDoc.routeName || "",
+    vehicleType: staffDoc.vehicleType || "",
+  };
+
+  if (user.role !== "logistics_manager") {
+    await User.updateRole(user.firebaseUid, "logistics_manager", req.user?.uid || "admin");
+  }
+  await User.updateLogisticsProfile(user.firebaseUid, logisticsProfile, req.user?.uid || "admin");
+
+  return {
+    userId: normalizeId(user._id),
+    firebaseUid: user.firebaseUid,
+    email: user.email,
+    linkedRole: "logistics_manager",
+    logisticsProfile,
+  };
 };
 
 const dayRange = (value) => {
@@ -884,7 +1028,7 @@ const getSeededZones = async (db) => {
 
 exports.getLogisticsOverview = async (req, res) => {
   try {
-    const data = await loadBaseLogisticsData(req.app.locals.db);
+    const data = scopeBaseLogisticsData(await loadBaseLogisticsData(req.app.locals.db), req);
     res.json({
       success: true,
       data: buildLogisticsOverview(data),
@@ -898,7 +1042,8 @@ exports.getLogisticsOverview = async (req, res) => {
 exports.listDeliveryZones = async (req, res) => {
   try {
     const zones = await getSeededZones(req.app.locals.db);
-    res.json({ success: true, data: zones.map(serializeDoc) });
+    const scopedZones = filterZonesForLogisticsScope(zones, getLogisticsScopeFromRequest(req));
+    res.json({ success: true, data: scopedZones.map(serializeDoc) });
   } catch (error) {
     console.error("Error loading delivery zones:", error);
     res.status(500).json({ success: false, error: "Failed to load delivery zones" });
@@ -907,6 +1052,7 @@ exports.listDeliveryZones = async (req, res) => {
 
 exports.upsertDeliveryZone = async (req, res) => {
   try {
+    if (!canManageLogisticsConfig(req)) return denyLogisticsConfigMutation(res);
     const db = req.app.locals.db;
     const now = new Date();
     const zoneId = req.params.zoneId || req.body.zoneId;
@@ -961,10 +1107,18 @@ exports.listCourierPartners = async (req, res) => {
   try {
     const query = {};
     if (req.query.status && req.query.status !== "all") query.status = req.query.status;
+    const scope = getLogisticsScopeFromRequest(req);
+    const assignedZones = (scope?.assignedZones || []).map(normalizeText);
     const couriers = await collectionToArray(req.app.locals.db, "courier_partners", query, { name: 1 });
+    const scopedCouriers = scope?.scoped && assignedZones.length > 0
+      ? couriers.filter((courier) => {
+          const serviceZones = normalizeStringArray(courier.serviceZones).map(normalizeText);
+          return serviceZones.length === 0 || serviceZones.some((zone) => assignedZones.includes(zone));
+        })
+      : couriers;
     res.json({
       success: true,
-      data: couriers.map((courier) => attachCourierCredentialStatus(serializeDoc(courier), process.env)),
+      data: scopedCouriers.map((courier) => attachCourierCredentialStatus(serializeDoc(courier), process.env)),
     });
   } catch (error) {
     console.error("Error loading courier partners:", error);
@@ -978,6 +1132,7 @@ exports.getCourierProviderReadiness = (req, res) => {
 
 exports.upsertCourierPartner = async (req, res) => {
   try {
+    if (!canManageLogisticsConfig(req)) return denyLogisticsConfigMutation(res);
     const db = req.app.locals.db;
     const now = new Date();
     const courierId = req.params.courierId || req.body.courierId;
@@ -1067,14 +1222,20 @@ exports.getDispatchManifest = async (req, res) => {
       collectionToArray(db, "orders", {}, { updatedAt: -1 }),
       collectionToArray(db, "dispatch_assignments", {}, { pickupDate: 1 }),
     ]);
+    const scope = getLogisticsScopeFromRequest(req);
+    const scopedOrders = filterOrdersForLogisticsScope(orders, zones, scope);
+    const scopedOrderIds = new Set(scopedOrders.map((order) => normalizeId(order._id)));
+    const scopedAssignments = scope?.scoped
+      ? assignments.filter((assignment) => scopedOrderIds.has(normalizeId(assignment.orderId)))
+      : assignments;
 
     res.json({
       success: true,
       data: buildDispatchManifest({
-        orders,
-        zones,
+        orders: scopedOrders,
+        zones: filterZonesForLogisticsScope(zones, scope),
         couriers,
-        assignments,
+        assignments: scopedAssignments,
         date: req.query.date,
       }),
     });
@@ -1087,20 +1248,26 @@ exports.getDispatchManifest = async (req, res) => {
 exports.getReadyToShipCollections = async (req, res) => {
   try {
     const db = req.app.locals.db;
-    const [orders, vendorOrders, vendors, assignments] = await Promise.all([
+    const [zones, orders, vendorOrders, vendors, assignments] = await Promise.all([
+      getSeededZones(db),
       collectionToArray(db, "orders", {}, { updatedAt: -1, createdAt: -1 }),
       collectionToArray(db, "vendorOrders", {}, { updatedAt: -1, createdAt: -1 }),
       collectionToArray(db, "vendors", {}, { shopName: 1 }),
       collectionToArray(db, "dispatch_assignments", {}, { pickupDate: 1 }),
     ]);
+    const scope = getLogisticsScopeFromRequest(req);
+    const scopedOrders = filterOrdersForLogisticsScope(orders, zones, scope);
+    const scopedOrderIds = new Set(scopedOrders.map((order) => normalizeId(order._id)));
 
     res.json({
       success: true,
       data: buildReadyToShipCollectionQueue({
-        orders,
+        orders: scopedOrders,
         vendorOrders,
         vendors,
-        assignments,
+        assignments: scope?.scoped
+          ? assignments.filter((assignment) => scopedOrderIds.has(normalizeId(assignment.orderId)))
+          : assignments,
         filters: {
           status: req.query.status,
           q: req.query.q || req.query.search,
@@ -1122,7 +1289,19 @@ exports.downloadDispatchManifestCsv = async (req, res) => {
       collectionToArray(db, "orders", {}, { updatedAt: -1 }),
       collectionToArray(db, "dispatch_assignments", {}, { pickupDate: 1 }),
     ]);
-    const manifest = buildDispatchManifest({ orders, zones, couriers, assignments, date: req.query.date });
+    const scope = getLogisticsScopeFromRequest(req);
+    const scopedOrders = filterOrdersForLogisticsScope(orders, zones, scope);
+    const scopedOrderIds = new Set(scopedOrders.map((order) => normalizeId(order._id)));
+    const scopedAssignments = scope?.scoped
+      ? assignments.filter((assignment) => scopedOrderIds.has(normalizeId(assignment.orderId)))
+      : assignments;
+    const manifest = buildDispatchManifest({
+      orders: scopedOrders,
+      zones: filterZonesForLogisticsScope(zones, scope),
+      couriers,
+      assignments: scopedAssignments,
+      date: req.query.date,
+    });
 
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename="dispatch-manifest-${req.query.date || "all"}.csv"`);
@@ -1138,7 +1317,9 @@ exports.listPickupStaff = async (req, res) => {
     const query = {};
     if (req.query.status && req.query.status !== "all") query.status = req.query.status;
     const staff = await collectionToArray(req.app.locals.db, "pickup_staff", query, { name: 1 });
-    res.json({ success: true, data: staff.map(serializeDoc) });
+    const scope = getLogisticsScopeFromRequest(req);
+    const scopedStaff = scope?.scoped ? staff.filter((row) => pickupStaffMatchesScope(row, scope)) : staff;
+    res.json({ success: true, data: scopedStaff.map(serializeDoc) });
   } catch (error) {
     console.error("Error loading pickup staff:", error);
     res.status(500).json({ success: false, error: "Failed to load pickup staff" });
@@ -1147,6 +1328,7 @@ exports.listPickupStaff = async (req, res) => {
 
 exports.upsertPickupStaff = async (req, res) => {
   try {
+    if (!canManageLogisticsConfig(req)) return denyLogisticsConfigMutation(res);
     const db = req.app.locals.db;
     const now = new Date();
     const staffId = req.params.staffId || req.body.staffId;
@@ -1159,6 +1341,9 @@ exports.upsertPickupStaff = async (req, res) => {
     const payload = {
       name,
       phone,
+      email: String(req.body.email || "").trim().toLowerCase(),
+      userId: normalizeId(req.body.userId),
+      firebaseUid: normalizeId(req.body.firebaseUid),
       status: STAFF_STATUSES.includes(req.body.status) ? req.body.status : "active",
       routeName: String(req.body.routeName || "").trim(),
       assignedZones: normalizeStringArray(req.body.assignedZones),
@@ -1171,13 +1356,20 @@ exports.upsertPickupStaff = async (req, res) => {
       updatedAt: now,
     };
 
+    if ((payload.email || payload.userId) && !(await findLogisticsUserForPickupStaff(req, payload))) {
+      return res.status(400).json({ success: false, error: "Linked logistics user was not found" });
+    }
+
     if (staffId) {
-      const result = await db.collection("pickup_staff").updateOne(idFilter(staffId), { $set: payload });
+      const existing = await db.collection("pickup_staff").findOne(idFilter(staffId));
+      if (!existing) return res.status(404).json({ success: false, error: "Pickup staff not found" });
+      const linkPatch = await syncPickupStaffLoginUser(req, { ...existing, ...payload, staffId, _id: existing._id });
+      const result = await db.collection("pickup_staff").updateOne(idFilter(staffId), { $set: { ...payload, ...linkPatch } });
       if (result.matchedCount === 0) return res.status(404).json({ success: false, error: "Pickup staff not found" });
       await appendLogisticsAudit(req, {
         action: "logistics.pickup_staff.updated",
         target: { type: "pickup_staff", id: staffId },
-        changes: payload,
+        changes: { ...payload, ...linkPatch },
       });
       const updated = await db.collection("pickup_staff").findOne(idFilter(staffId));
       return res.json({ success: true, data: serializeDoc(updated) });
@@ -1185,23 +1377,32 @@ exports.upsertPickupStaff = async (req, res) => {
 
     const doc = { ...payload, createdAt: now };
     const result = await db.collection("pickup_staff").insertOne(doc);
-    const saved = { ...doc, _id: result.insertedId };
+    const linkPatch = await syncPickupStaffLoginUser(req, { ...doc, _id: result.insertedId });
+    if (Object.keys(linkPatch).length > 0) {
+      await db.collection("pickup_staff").updateOne({ _id: result.insertedId }, { $set: linkPatch });
+    }
+    const saved = { ...doc, ...linkPatch, _id: result.insertedId };
     await appendLogisticsAudit(req, {
       action: "logistics.pickup_staff.created",
       target: { type: "pickup_staff", id: normalizeId(result.insertedId) },
-      changes: payload,
+      changes: { ...payload, ...linkPatch },
     });
     return res.status(201).json({ success: true, data: serializeDoc(saved) });
   } catch (error) {
     console.error("Error saving pickup staff:", error);
-    res.status(500).json({ success: false, error: "Failed to save pickup staff" });
+    res.status(error.statusCode || 500).json({ success: false, error: error.statusCode ? error.message : "Failed to save pickup staff" });
   }
 };
 
 exports.listDeliveryFeeRules = async (req, res) => {
   try {
     const rules = await collectionToArray(req.app.locals.db, "delivery_fee_rules", {}, { priority: 1, createdAt: -1 });
-    res.json({ success: true, data: rules.map(serializeDoc) });
+    const scope = getLogisticsScopeFromRequest(req);
+    const assignedZones = (scope?.assignedZones || []).map(normalizeText);
+    const scopedRules = scope?.scoped && assignedZones.length > 0
+      ? rules.filter((rule) => !rule.zoneCode || assignedZones.includes(normalizeText(rule.zoneCode)))
+      : rules;
+    res.json({ success: true, data: scopedRules.map(serializeDoc) });
   } catch (error) {
     console.error("Error loading delivery fee rules:", error);
     res.status(500).json({ success: false, error: "Failed to load delivery fee rules" });
@@ -1210,6 +1411,7 @@ exports.listDeliveryFeeRules = async (req, res) => {
 
 exports.upsertDeliveryFeeRule = async (req, res) => {
   try {
+    if (!canManageLogisticsConfig(req)) return denyLogisticsConfigMutation(res);
     const db = req.app.locals.db;
     const now = new Date();
     const ruleId = req.params.ruleId || req.body.ruleId;
@@ -1270,12 +1472,24 @@ exports.upsertDeliveryFeeRule = async (req, res) => {
 exports.getCodFloatTracker = async (req, res) => {
   try {
     const db = req.app.locals.db;
-    const [orders, assignments, remittances] = await Promise.all([
+    const [zones, orders, assignments, remittances] = await Promise.all([
+      getSeededZones(db),
       collectionToArray(db, "orders", {}, { createdAt: -1 }),
       collectionToArray(db, "dispatch_assignments", {}, { createdAt: -1 }),
       collectionToArray(db, "cod_remittances", {}, { remittedAt: -1 }),
     ]);
-    res.json({ success: true, data: buildCodFloatTracker({ orders, assignments, remittances }) });
+    const scope = getLogisticsScopeFromRequest(req);
+    const scopedOrders = filterOrdersForLogisticsScope(orders, zones, scope);
+    const scopedOrderIds = new Set(scopedOrders.map((order) => normalizeId(order._id)));
+    const scopedAssignments = scope?.scoped
+      ? assignments.filter((assignment) => scopedOrderIds.has(normalizeId(assignment.orderId)))
+      : assignments;
+    const scopedRemittances = scope?.scoped
+      ? remittances.filter((remittance) =>
+          (remittance.orderIds || []).map(normalizeId).some((orderId) => scopedOrderIds.has(orderId)),
+        )
+      : remittances;
+    res.json({ success: true, data: buildCodFloatTracker({ orders: scopedOrders, assignments: scopedAssignments, remittances: scopedRemittances }) });
   } catch (error) {
     console.error("Error loading COD float tracker:", error);
     res.status(500).json({ success: false, error: "Failed to load COD float tracker" });
@@ -1293,6 +1507,7 @@ exports.recordCodRemittance = async (req, res) => {
 
     if (!courierName) return res.status(400).json({ success: false, error: "Courier name is required" });
     if (remittedAmount <= 0) return res.status(400).json({ success: false, error: "Remitted amount must be greater than zero" });
+    await assertOrdersAllowedForLogisticsScope(req, selectedOrderIds);
 
     const now = new Date();
     const remittedAt = asDate(req.body.remittedAt) || now;
@@ -1426,19 +1641,31 @@ exports.recordCodRemittance = async (req, res) => {
     });
   } catch (error) {
     console.error("Error recording COD remittance:", error);
-    res.status(500).json({ success: false, error: "Failed to record COD remittance" });
+    res.status(error.statusCode || 500).json({ success: false, error: error.statusCode ? error.message : "Failed to record COD remittance" });
   }
 };
 
 exports.listFailedDeliveries = async (req, res) => {
   try {
     const db = req.app.locals.db;
-    const [orders, failureRecords, assignments] = await Promise.all([
+    const [zones, orders, failureRecords, assignments] = await Promise.all([
+      getSeededZones(db),
       collectionToArray(db, "orders", {}, { updatedAt: -1 }),
       collectionToArray(db, "delivery_failures", {}, { updatedAt: -1 }),
       collectionToArray(db, "dispatch_assignments", {}, { updatedAt: -1 }),
     ]);
-    let rows = buildFailedDeliveryRows({ orders, failureRecords, assignments });
+    const scope = getLogisticsScopeFromRequest(req);
+    const scopedOrders = filterOrdersForLogisticsScope(orders, zones, scope);
+    const scopedOrderIds = new Set(scopedOrders.map((order) => normalizeId(order._id)));
+    let rows = buildFailedDeliveryRows({
+      orders: scopedOrders,
+      failureRecords: scope?.scoped
+        ? failureRecords.filter((failure) => scopedOrderIds.has(normalizeId(failure.orderId)))
+        : failureRecords,
+      assignments: scope?.scoped
+        ? assignments.filter((assignment) => scopedOrderIds.has(normalizeId(assignment.orderId)))
+        : assignments,
+    });
     if (req.query.status && req.query.status !== "all") {
       rows = rows.filter((row) => row.status === req.query.status);
     }
@@ -1453,6 +1680,7 @@ exports.scheduleFailedDeliveryReattempt = async (req, res) => {
   try {
     const db = req.app.locals.db;
     const orderId = req.params.orderId;
+    await assertOrderAllowedForLogisticsScope(req, orderId);
     const nextAttemptAt = asDate(req.body.nextAttemptAt);
     if (!nextAttemptAt) return res.status(400).json({ success: false, error: "Next attempt date is required" });
 
@@ -1520,7 +1748,7 @@ exports.scheduleFailedDeliveryReattempt = async (req, res) => {
     res.json({ success: true, data: serializeDoc(saved) });
   } catch (error) {
     console.error("Error scheduling delivery reattempt:", error);
-    res.status(500).json({ success: false, error: "Failed to schedule delivery reattempt" });
+    res.status(error.statusCode || 500).json({ success: false, error: error.statusCode ? error.message : "Failed to schedule delivery reattempt" });
   }
 };
 
@@ -1528,6 +1756,7 @@ exports.returnFailedDeliveryToSeller = async (req, res) => {
   try {
     const db = req.app.locals.db;
     const orderId = req.params.orderId;
+    await assertOrderAllowedForLogisticsScope(req, orderId);
     const now = new Date();
     const payload = {
       orderId: normalizeId(orderId),
@@ -1570,14 +1799,35 @@ exports.returnFailedDeliveryToSeller = async (req, res) => {
     res.json({ success: true, data: serializeDoc(saved) });
   } catch (error) {
     console.error("Error returning failed delivery to seller:", error);
-    res.status(500).json({ success: false, error: "Failed to return delivery to seller" });
+    res.status(error.statusCode || 500).json({ success: false, error: error.statusCode ? error.message : "Failed to return delivery to seller" });
   }
 };
 
 exports.getLogisticsAuditLog = async (req, res) => {
   try {
-    const logs = await collectionToArray(req.app.locals.db, "audit_logs", { module: "logistics" }, { createdAt: -1 });
-    res.json({ success: true, data: logs.slice(0, 100).map(serializeDoc) });
+    const db = req.app.locals.db;
+    const scope = getLogisticsScopeFromRequest(req);
+    const logs = await collectionToArray(db, "audit_logs", { module: "logistics" }, { createdAt: -1 });
+    if (!scope?.scoped) {
+      return res.json({ success: true, data: logs.slice(0, 100).map(serializeDoc) });
+    }
+
+    const [zones, orders] = await Promise.all([
+      getSeededZones(db),
+      collectionToArray(db, "orders", {}, { updatedAt: -1 }),
+    ]);
+    const allowedOrderIds = new Set(
+      filterOrdersForLogisticsScope(orders, zones, scope).map((order) => normalizeId(order._id)),
+    );
+    const scopedLogs = logs.filter((log) => {
+      const targetId = normalizeId(log.target?.id);
+      const changeOrderId = normalizeId(log.changes?.orderId || log.metadata?.orderId);
+      if (targetId && allowedOrderIds.has(targetId)) return true;
+      if (changeOrderId && allowedOrderIds.has(changeOrderId)) return true;
+      return scope.pickupStaffId && log.target?.type === "pickup_staff" && targetId === scope.pickupStaffId;
+    });
+
+    return res.json({ success: true, data: scopedLogs.slice(0, 100).map(serializeDoc) });
   } catch (error) {
     console.error("Error loading logistics audit log:", error);
     res.status(500).json({ success: false, error: "Failed to load logistics audit log" });

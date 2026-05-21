@@ -619,6 +619,8 @@ export const getLogisticsShipments = (params = {}) =>
   api.get("/admin/logistics/shipments", { params });
 export const assignLogisticsShipmentCourier = (shipmentId, data) =>
   api.post(`/admin/logistics/shipments/${shipmentId}/assign-courier`, data);
+export const recordLogisticsDeliveryAttempt = (shipmentId, data) =>
+  api.post(`/admin/logistics/shipments/${shipmentId}/delivery-attempt`, data);
 export const getPickupStaff = (params = {}) =>
   api.get("/admin/logistics/pickup-staff", { params });
 export const savePickupStaff = (data) =>

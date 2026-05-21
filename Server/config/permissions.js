@@ -107,12 +107,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     system: ["read"],
   },
   logistics_manager: {
-    orders: ["read", "update"],
-    vendors: ["read"],
-    payments: ["read", "update"],
-    returns: ["read", "update"],
-    analytics: ["read"],
-    system: ["read"],
+    orders: ["read", "create", "update"],
   },
   manager: {
     orders: ["read", "create", "update"],
@@ -175,6 +170,7 @@ const RESOURCE_BY_PATH = [
   [/\/support/, "support"],
   [/\/chat|\/vendor-chat/, "chat"],
   [/\/payment|\/payout|\/finance/, "payments"],
+  [/\/admin\/logistics/, "orders"],
   [/\/dispatch/, "orders"],
   [/\/analytics/, "analytics"],
   [/\/order/, "orders"],
@@ -191,6 +187,10 @@ const getDefaultPermissions = (role) =>
 const isStaffRole = (role) => STAFF_ROLES.includes(role);
 
 const getEffectivePermissions = (user = {}, permissionDoc = null) => {
+  if (user.role === "logistics_manager") {
+    return DEFAULT_ROLE_PERMISSIONS.logistics_manager;
+  }
+
   if (permissionDoc?.permissions) {
     return {
       ...(DEFAULT_ROLE_PERMISSIONS[user.role] || {}),

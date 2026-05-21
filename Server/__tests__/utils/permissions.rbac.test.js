@@ -56,6 +56,23 @@ describe("RBAC permission resolution", () => {
     });
   });
 
+  test("maps logistics routes to order permissions for area operators", () => {
+    expect(
+      resolvePermissionFromRequest({
+        baseUrl: "/api/admin/logistics",
+        route: { path: "/shipments/:id/assign-courier" },
+        method: "POST",
+      }),
+    ).toEqual({
+      resource: "orders",
+      action: "create",
+    });
+
+    expect(roleCan({ role: "logistics_manager" }, "orders", "create")).toBe(true);
+    expect(roleCan({ role: "logistics_manager" }, "system", "read")).toBe(false);
+  });
+
+
   test("keeps destructive actions and platform settings super-admin only", () => {
     const customPermissionDoc = {
       role: "manager",

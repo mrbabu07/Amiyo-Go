@@ -2,12 +2,15 @@ const { ObjectId } = require("mongodb");
 const {
   _logisticsTestUtils,
   getCourierProviderReadiness,
+  getLogisticsAuditLog,
   listCourierPartners,
+  listDeliveryFeeRules,
   recordCodRemittance,
   scheduleFailedDeliveryReattempt,
   upsertCourierPartner,
   upsertDeliveryFeeRule,
   upsertDeliveryZone,
+  upsertPickupStaff,
 } = require("../../controllers/adminLogisticsController");
 
 const stringify = (value) => (value instanceof ObjectId ? value.toString() : String(value || ""));
@@ -139,12 +142,19 @@ const buildDb = (collections = {}) => {
   };
 };
 
-const buildReq = ({ db, body = {}, params = {}, query = {} }) => ({
+const buildReq = ({
+  db,
+  body = {},
+  params = {},
+  query = {},
+  models = {},
+  user = { uid: "admin-1", role: "admin", email: "admin@example.com" },
+}) => ({
   body,
   params,
   query,
-  user: { uid: "admin-1", role: "admin", email: "admin@example.com" },
-  app: { locals: { db, models: {} } },
+  user,
+  app: { locals: { db, models } },
 });
 
 describe("adminLogisticsController", () => {
@@ -345,6 +355,58 @@ describe("adminLogisticsController", () => {
     );
   });
 
+  test("links pickup staff to a scoped logistics manager account", async () => {
+    const db = buildDb();
+    const user = {
+      _id: new ObjectId(),
+      firebaseUid: "logistics-uid",
+      email: "logistics@example.com",
+      role: "customer",
+    };
+    const User = {
+      findByEmail: jest.fn(async () => user),
+      findById: jest.fn(),
+      updateRole: jest.fn(async () => ({ modifiedCount: 1 })),
+      updateLogisticsProfile: jest.fn(async () => ({ modifiedCount: 1 })),
+    };
+    const res = createRes();
+
+    await upsertPickupStaff(
+      buildReq({
+        db,
+        models: { User },
+        body: {
+          name: "Dhaka Rider",
+          phone: "017",
+          email: "logistics@example.com",
+          routeName: "Dhaka North",
+          assignedZones: ["dhaka"],
+          assignedVendorIds: ["vendor-1"],
+        },
+      }),
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(User.updateRole).toHaveBeenCalledWith("logistics-uid", "logistics_manager", "admin-1");
+    expect(User.updateLogisticsProfile).toHaveBeenCalledWith(
+      "logistics-uid",
+      expect.objectContaining({
+        assignedZones: ["dhaka"],
+        assignedVendorIds: ["vendor-1"],
+        routeName: "Dhaka North",
+      }),
+      "admin-1",
+    );
+    expect(db.collection("pickup_staff").docs[0]).toEqual(
+      expect.objectContaining({
+        email: "logistics@example.com",
+        linkedRole: "logistics_manager",
+        firebaseUid: "logistics-uid",
+      }),
+    );
+  });
+
   test("lists courier partners with provider credential readiness and no secret values", async () => {
     const originalRedx = process.env.REDX_API_TOKEN;
     try {
@@ -381,6 +443,45 @@ describe("adminLogisticsController", () => {
       if (originalRedx === undefined) delete process.env.REDX_API_TOKEN;
       else process.env.REDX_API_TOKEN = originalRedx;
     }
+  });
+
+  test("scopes logistics manager lists to assigned delivery areas", async () => {
+    const db = buildDb({
+      courier_partners: [
+        { _id: "courier-dhaka", name: "Dhaka Local", provider: "local", serviceZones: ["dhaka"] },
+        { _id: "courier-ctg", name: "Chittagong Local", provider: "local", serviceZones: ["chittagong"] },
+      ],
+      delivery_fee_rules: [
+        { _id: "rule-dhaka", name: "Dhaka rate", zoneCode: "dhaka" },
+        { _id: "rule-ctg", name: "Chittagong rate", zoneCode: "chittagong" },
+        { _id: "rule-global", name: "Global fallback", zoneCode: "" },
+      ],
+      orders: [
+        { _id: "order-dhaka", shippingInfo: { district: "Dhaka" } },
+        { _id: "order-ctg", shippingInfo: { district: "Chittagong" } },
+      ],
+      audit_logs: [
+        { _id: "log-dhaka", module: "logistics", action: "dhaka", target: { type: "order", id: "order-dhaka" } },
+        { _id: "log-ctg", module: "logistics", action: "ctg", target: { type: "order", id: "order-ctg" } },
+      ],
+    });
+    const logisticsUser = {
+      uid: "logistics-uid",
+      role: "logistics_manager",
+      logisticsProfile: { assignedZones: ["dhaka"], pickupStaffId: "staff-1" },
+    };
+
+    const courierRes = createRes();
+    await listCourierPartners(buildReq({ db, user: logisticsUser }), courierRes);
+    expect(courierRes.json.mock.calls[0][0].data.map((courier) => courier._id)).toEqual(["courier-dhaka"]);
+
+    const feeRes = createRes();
+    await listDeliveryFeeRules(buildReq({ db, user: logisticsUser }), feeRes);
+    expect(feeRes.json.mock.calls[0][0].data.map((rule) => rule._id)).toEqual(["rule-dhaka", "rule-global"]);
+
+    const auditRes = createRes();
+    await getLogisticsAuditLog(buildReq({ db, user: logisticsUser }), auditRes);
+    expect(auditRes.json.mock.calls[0][0].data.map((log) => log._id)).toEqual(["log-dhaka"]);
   });
 
   test("returns courier provider readiness for the admin logistics UI", () => {

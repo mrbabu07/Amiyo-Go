@@ -58,6 +58,26 @@ const AdminUserManagement = () => {
       label: "Manager",
       color: "bg-purple-100 text-purple-800",
     },
+    {
+      value: "logistics_manager",
+      label: "Logistics Manager",
+      color: "bg-cyan-100 text-cyan-800",
+    },
+    {
+      value: "finance_manager",
+      label: "Finance Manager",
+      color: "bg-emerald-100 text-emerald-800",
+    },
+    {
+      value: "vendor_manager",
+      label: "Vendor Manager",
+      color: "bg-indigo-100 text-indigo-800",
+    },
+    {
+      value: "campaign_manager",
+      label: "Campaign Manager",
+      color: "bg-pink-100 text-pink-800",
+    },
     { value: "admin", label: "Admin", color: "bg-red-100 text-red-800" },
   ];
 
@@ -214,7 +234,7 @@ const AdminUserManagement = () => {
               <p className="text-2xl font-bold text-gray-900">
                 {stats.roleStats
                   ?.filter((r) =>
-                    ["admin", "manager", "support", "moderator"].includes(
+                    ["admin", "manager", "support", "moderator", "logistics_manager", "finance_manager", "vendor_manager", "campaign_manager"].includes(
                       r._id,
                     ),
                   )

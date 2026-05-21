@@ -75,6 +75,8 @@ export default function AdminGlobalSearch({
   searchTargets,
   canAccessPath,
   closeSidebarOnMobile,
+  allowResourceSearch = true,
+  placeholder = 'Search orders, vendors, products, customers, returns, tickets...',
 }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
@@ -97,7 +99,7 @@ export default function AdminGlobalSearch({
 
   useEffect(() => {
     const value = query.trim();
-    if (value.length < 2) {
+    if (!allowResourceSearch || value.length < 2) {
       setResources([]);
       setLoading(false);
       return undefined;
@@ -121,7 +123,7 @@ export default function AdminGlobalSearch({
     }, 250);
 
     return () => clearTimeout(timeout);
-  }, [query]);
+  }, [allowResourceSearch, query]);
 
   const resetSearch = () => {
     setQuery('');
@@ -169,7 +171,7 @@ export default function AdminGlobalSearch({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search orders, vendors, products, customers, returns, tickets..."
+          placeholder={placeholder}
           className="h-10 w-full rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm font-medium text-gray-900 outline-none transition focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-500/20 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:focus:border-primary-700"
           aria-label="Search admin resources"
         />

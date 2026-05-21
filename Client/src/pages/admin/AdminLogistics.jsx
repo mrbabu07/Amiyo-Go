@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import Loading from "../../components/Loading";
+import useAuth from "../../hooks/useAuth";
 import useCurrency from "../../hooks/useCurrency";
 import {
   downloadDispatchManifestCsv,
@@ -35,6 +36,7 @@ import {
   getLogisticsOverview,
   getPickupStaff,
   getReadyToShipCollections,
+  recordLogisticsDeliveryAttempt,
   recordCodRemittance,
   returnFailedDeliveryToSeller,
   assignLogisticsShipmentCourier,
@@ -50,6 +52,7 @@ const dateTimeInput = (days = 1) =>
   new Date(Date.now() + days * 24 * 60 * 60 * 1000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
 const TABS = [
+  { key: "work", label: "My Orders", icon: ClipboardList },
   { key: "zones", label: "Zones", icon: MapPin },
   { key: "couriers", label: "Couriers", icon: Truck },
   { key: "ready", label: "Ready to Ship", icon: PackageCheck },
@@ -60,6 +63,8 @@ const TABS = [
   { key: "cod", label: "COD Float", icon: Banknote },
   { key: "failed", label: "Failed Delivery", icon: AlertTriangle },
 ];
+
+const OPERATIONAL_TAB_KEYS = ["work", "ready", "manifest", "parcels", "cod", "failed"];
 
 const emptyZone = {
   name: "",
@@ -103,6 +108,8 @@ const emptyCourier = {
 const emptyStaff = {
   name: "",
   phone: "",
+  email: "",
+  userId: "",
   status: "active",
   routeName: "",
   assignedZonesText: "",
@@ -161,6 +168,18 @@ const emptyParcelAssignment = {
   estimatedDeliveryDate: "",
   note: "",
 };
+
+const emptyDeliveryAction = {
+  shipmentId: "",
+  outcome: "delivered",
+  receiverName: "",
+  reason: "",
+  notes: "",
+  codCollected: true,
+};
+
+const terminalShipmentStates = new Set(["delivered", "return_to_origin"]);
+const deliveryActiveStates = new Set(["picked_up", "in_transit", "out_for_delivery", "delivery_failed"]);
 
 const toArray = (value) =>
   String(value || "")
@@ -250,9 +269,16 @@ function EmptyPanel({ children }) {
 
 export default function AdminLogistics() {
   const { formatPrice } = useCurrency();
+  const { role } = useAuth();
+  const canManageLogisticsSettings = ["admin", "manager"].includes(role);
   const [searchParams, setSearchParams] = useSearchParams();
   const queryTab = searchParams.get("tab");
-  const initialTab = TABS.some((tab) => tab.key === queryTab) ? queryTab : "zones";
+  const visibleTabs = useMemo(
+    () => (canManageLogisticsSettings ? TABS : TABS.filter((tab) => OPERATIONAL_TAB_KEYS.includes(tab.key))),
+    [canManageLogisticsSettings],
+  );
+  const defaultTab = canManageLogisticsSettings ? "zones" : "work";
+  const initialTab = visibleTabs.some((tab) => tab.key === queryTab) ? queryTab : defaultTab;
   const [activeTab, setActiveTab] = useState(initialTab);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -281,6 +307,7 @@ export default function AdminLogistics() {
   const [selectedCodOrderIds, setSelectedCodOrderIds] = useState([]);
   const [failureAction, setFailureAction] = useState(emptyFailureAction);
   const [parcelAssignment, setParcelAssignment] = useState(emptyParcelAssignment);
+  const [deliveryAction, setDeliveryAction] = useState(emptyDeliveryAction);
 
   const zoneOptions = useMemo(
     () => zones.map((zone) => ({ value: zone.code || zone._id, label: zone.name })),
@@ -336,7 +363,37 @@ export default function AdminLogistics() {
     [shipments, parcelAssignment.shipmentId],
   );
 
+  const selectedDeliveryShipment = useMemo(
+    () => shipments.find((shipment) => String(shipment._id) === String(deliveryAction.shipmentId)) || null,
+    [shipments, deliveryAction.shipmentId],
+  );
+
   const readyRows = useMemo(() => readyQueue.rows || [], [readyQueue]);
+
+  const shipmentsByOrderVendor = useMemo(() => {
+    const map = new Map();
+    shipments.forEach((shipment) => {
+      const orderId = String(shipment.orderId || "");
+      const vendorId = String(shipment.vendorId || "");
+      if (!orderId) return;
+      if (vendorId) map.set(`${orderId}:${vendorId}`, shipment);
+      if (!map.has(orderId)) map.set(orderId, shipment);
+    });
+    return map;
+  }, [shipments]);
+
+  const getShipmentForReadyRow = (row) =>
+    shipmentsByOrderVendor.get(`${row.orderId}:${row.vendorId}`) || shipmentsByOrderVendor.get(String(row.orderId || ""));
+
+  const activeShipments = useMemo(
+    () => shipments.filter((shipment) => !terminalShipmentStates.has(shipment.shipmentState || "created")),
+    [shipments],
+  );
+
+  const deliveryQueue = useMemo(
+    () => activeShipments.filter((shipment) => deliveryActiveStates.has(shipment.shipmentState || "")),
+    [activeShipments],
+  );
 
   const getZoneCourierNames = (zone) =>
     (zone.courierPartnerIds || [])
@@ -423,9 +480,9 @@ export default function AdminLogistics() {
   }, []);
 
   useEffect(() => {
-    const nextTab = TABS.some((tab) => tab.key === queryTab) ? queryTab : "zones";
+    const nextTab = visibleTabs.some((tab) => tab.key === queryTab) ? queryTab : defaultTab;
     setActiveTab(nextTab);
-  }, [queryTab]);
+  }, [defaultTab, queryTab, visibleTabs]);
 
   const changeTab = (tabKey) => {
     setActiveTab(tabKey);
@@ -679,6 +736,39 @@ export default function AdminLogistics() {
     ).then(() => setParcelAssignment(emptyParcelAssignment));
   };
 
+  const openDeliveryAction = (shipment, outcome = "delivered") => {
+    setDeliveryAction({
+      ...emptyDeliveryAction,
+      shipmentId: shipment._id,
+      outcome,
+      codCollected: outcome === "delivered",
+    });
+  };
+
+  const submitDeliveryAction = (event) => {
+    event.preventDefault();
+    if (!deliveryAction.shipmentId) {
+      toast.error("Select a parcel first");
+      return;
+    }
+    if (deliveryAction.outcome !== "delivered" && !deliveryAction.reason.trim()) {
+      toast.error("Add a reason for failed delivery");
+      return;
+    }
+
+    runSave(
+      () =>
+        recordLogisticsDeliveryAttempt(deliveryAction.shipmentId, {
+          outcome: deliveryAction.outcome,
+          receiverName: deliveryAction.receiverName,
+          reason: deliveryAction.reason,
+          notes: deliveryAction.notes,
+          codCollected: deliveryAction.codCollected,
+        }),
+      deliveryAction.outcome === "delivered" ? "Delivery confirmed" : "Delivery attempt saved",
+    ).then(() => setDeliveryAction(emptyDeliveryAction));
+  };
+
   const submitReadySearch = (event) => {
     event.preventDefault();
     refreshReadyQueue();
@@ -696,6 +786,70 @@ export default function AdminLogistics() {
     } catch (error) {
       toast.error(error.response?.data?.error || "Failed to export manifest");
     }
+  };
+
+  const renderDeliveryActionPanel = () => {
+    if (!deliveryAction.shipmentId) return null;
+
+    return (
+      <form onSubmit={submitDeliveryAction} className="mt-4 grid gap-3 rounded-lg border border-primary-200 bg-primary-50 p-4 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+        <div>
+          <label className="text-xs font-bold uppercase text-primary-800">Delivery update</label>
+          <p className="mt-1 font-semibold text-slate-950">Parcel #{shortId(deliveryAction.shipmentId)}</p>
+          <p className="text-xs text-slate-600">Order #{shortId(selectedDeliveryShipment?.orderId || "")}</p>
+        </div>
+        <select
+          className="input-control"
+          value={deliveryAction.outcome}
+          onChange={(event) => setDeliveryAction({ ...deliveryAction, outcome: event.target.value, codCollected: event.target.value === "delivered" })}
+        >
+          <option value="delivered">Delivered</option>
+          <option value="failed">Failed attempt</option>
+          <option value="rto">Return to origin</option>
+        </select>
+        <input
+          className="input-control"
+          placeholder="Receiver name"
+          value={deliveryAction.receiverName}
+          onChange={(event) => setDeliveryAction({ ...deliveryAction, receiverName: event.target.value })}
+        />
+        <input
+          className="input-control"
+          placeholder={deliveryAction.outcome === "delivered" ? "Note" : "Failure reason"}
+          value={deliveryAction.outcome === "delivered" ? deliveryAction.notes : deliveryAction.reason}
+          onChange={(event) => {
+            const value = event.target.value;
+            setDeliveryAction(
+              deliveryAction.outcome === "delivered"
+                ? { ...deliveryAction, notes: value }
+                : { ...deliveryAction, reason: value },
+            );
+          }}
+        />
+        <button type="submit" disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
+          <CheckCircle2 className="h-4 w-4" />
+          Save
+        </button>
+        {selectedDeliveryShipment?.codAmount > 0 && (
+          <label className="flex items-center gap-2 text-sm font-semibold text-primary-800 lg:col-span-2">
+            <input
+              type="checkbox"
+              checked={deliveryAction.codCollected}
+              disabled={deliveryAction.outcome !== "delivered"}
+              onChange={(event) => setDeliveryAction({ ...deliveryAction, codCollected: event.target.checked })}
+            />
+            COD cash collected on delivery
+          </label>
+        )}
+        <button
+          type="button"
+          onClick={() => setDeliveryAction(emptyDeliveryAction)}
+          className="text-left text-sm font-semibold text-slate-500 hover:text-slate-800 lg:col-span-2"
+        >
+          Cancel update
+        </button>
+      </form>
+    );
   };
 
   if (loading) return <Loading />;
@@ -728,7 +882,7 @@ export default function AdminLogistics() {
 
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
           <div className="flex min-w-max gap-2">
-            {TABS.map((tab) => {
+            {visibleTabs.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.key;
               return (
@@ -748,13 +902,197 @@ export default function AdminLogistics() {
           </div>
         </div>
 
+        {activeTab === "work" && (
+          <div className="space-y-5">
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-950">Area Order Workflow</h2>
+                  <p className="mt-1 text-sm text-slate-500">Assigned pickup, delivery, COD, and exception work for this logistics area.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadData}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh queue
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-4">
+              <Metric icon={PackageCheck} label="Collect from vendors" value={readyRows.length} tone="text-primary-700" />
+              <Metric icon={Truck} label="Active delivery" value={deliveryQueue.length} tone="text-emerald-700" />
+              <Metric icon={Banknote} label="COD to remit" value={formatPrice(outstandingCodOrders.reduce((sum, row) => sum + Number(row.outstandingAmount || row.amount || 0), 0))} tone="text-primary-700" />
+              <Metric icon={AlertTriangle} label="Needs action" value={failedDeliveries.length} tone="text-red-700" />
+            </div>
+
+            {renderDeliveryActionPanel()}
+
+            <div className="grid gap-5 xl:grid-cols-[1.05fr_1fr]">
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-bold text-slate-950">Vendor Collection Queue</h3>
+                  <button type="button" onClick={() => changeTab("ready")} className="text-sm font-semibold text-primary-700 hover:text-primary-800">
+                    Open ready list
+                  </button>
+                </div>
+                {readyRows.length === 0 && <EmptyPanel>No vendor pickup is ready in this area.</EmptyPanel>}
+                {readyRows.slice(0, 6).map((row) => {
+                  const shipment = getShipmentForReadyRow(row);
+                  return (
+                    <div key={`work-ready-${row.orderId}-${row.vendorId}`} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-bold text-slate-950">#{shortId(row.orderNumber || row.orderId)}</h4>
+                            <StatusPill status={row.status} />
+                            <StatusPill status={row.pickupStatus || "pending"} />
+                          </div>
+                          <p className="mt-1 text-sm font-semibold text-slate-800">{row.vendorName}</p>
+                          <p className="mt-1 text-sm text-slate-500">{row.pickupAddress?.addressText || "Pickup address not set"}</p>
+                        </div>
+                        <div className="text-sm md:text-right">
+                          <p className="font-bold text-primary-700">{formatPrice(row.codAmount || 0)} COD</p>
+                          <p className="text-slate-500">{row.quantity || 0} item(s)</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        {row.location?.mapUrl && (
+                          <a
+                            href={row.location.mapUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            <MapPin className="h-4 w-4" />
+                            Map
+                          </a>
+                        )}
+                        {shipment ? (
+                          <button
+                            type="button"
+                            onClick={() => openParcelAssignment(shipment)}
+                            className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-950 px-3 text-sm font-semibold text-white hover:bg-slate-800"
+                          >
+                            <Truck className="h-4 w-4" />
+                            Dispatch parcel
+                          </button>
+                        ) : (
+                          <span className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                            Parcel will appear after vendor shipment is created
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-bold text-slate-950">Delivery Queue</h3>
+                  <button type="button" onClick={() => changeTab("parcels")} className="text-sm font-semibold text-primary-700 hover:text-primary-800">
+                    Open parcels
+                  </button>
+                </div>
+                {activeShipments.length === 0 && <EmptyPanel>No parcels are moving in this area.</EmptyPanel>}
+                {activeShipments.slice(0, 6).map((shipment) => (
+                  <div key={`work-shipment-${shipment._id}`} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-bold text-slate-950">Parcel #{shortId(shipment._id)}</h4>
+                          <StatusPill status={shipment.shipmentState || "created"} />
+                          {shipment.codState && <StatusPill status={shipment.codState} />}
+                        </div>
+                        <p className="mt-1 text-sm text-slate-500">Order #{shortId(shipment.orderId)} / {shipment.courierName || "Courier not assigned"}</p>
+                        <p className="mt-1 line-clamp-2 text-sm text-slate-600">{shipment.deliveryAddressText || shipment.deliveryAddress?.address || "No delivery address"}</p>
+                      </div>
+                      <p className="text-sm font-bold text-primary-700 md:text-right">{formatPrice(shipment.codAmount || 0)}</p>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openParcelAssignment(shipment)}
+                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        <Truck className="h-4 w-4" />
+                        Courier
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openDeliveryAction(shipment, "delivered")}
+                        className="inline-flex h-9 items-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Delivered
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openDeliveryAction(shipment, "failed")}
+                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-700 hover:bg-red-50"
+                      >
+                        <AlertTriangle className="h-4 w-4" />
+                        Failed
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            </div>
+
+            <div className="grid gap-5 xl:grid-cols-2">
+              <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-bold text-slate-950">COD Cash Waiting</h3>
+                  <button type="button" onClick={() => changeTab("cod")} className="text-sm font-semibold text-primary-700 hover:text-primary-800">
+                    Open COD
+                  </button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {outstandingCodOrders.slice(0, 5).map((row) => (
+                    <div key={`work-cod-${row.orderId}`} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                      <span className="font-semibold text-slate-800">#{shortId(row.orderId)} / {row.courierName}</span>
+                      <span className="font-bold text-primary-700">{formatPrice(row.outstandingAmount || row.amount || 0)}</span>
+                    </div>
+                  ))}
+                  {outstandingCodOrders.length === 0 && <p className="text-sm text-slate-500">No COD cash is waiting for this area.</p>}
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-bold text-slate-950">Delivery Exceptions</h3>
+                  <button type="button" onClick={() => changeTab("failed")} className="text-sm font-semibold text-primary-700 hover:text-primary-800">
+                    Open failed
+                  </button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {failedDeliveries.slice(0, 5).map((row) => (
+                    <div key={`work-failed-${row.orderId}`} className="flex flex-col gap-1 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-semibold text-slate-800">#{shortId(row.orderId)} / {row.customerName || "Customer"}</span>
+                        <StatusPill status={row.status} />
+                      </div>
+                      <span className="text-slate-500">{row.failureReason || row.address || "No reason saved"}</span>
+                    </div>
+                  ))}
+                  {failedDeliveries.length === 0 && <p className="text-sm text-slate-500">No failed delivery is waiting for this area.</p>}
+                </div>
+              </section>
+            </div>
+          </div>
+        )}
+
         {activeTab === "zones" && (
           <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
             <form onSubmit={submitZone} className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-bold">Delivery Zone</h2>
               <input className="input-control" placeholder="Zone name" value={zoneForm.name} onChange={(event) => setZoneForm({ ...zoneForm, name: event.target.value })} />
               <input className="input-control" placeholder="Code" value={zoneForm.code} onChange={(event) => setZoneForm({ ...zoneForm, code: event.target.value })} />
-              <textarea className="input-control min-h-24" placeholder="Districts, comma separated" value={zoneForm.districtsText} onChange={(event) => setZoneForm({ ...zoneForm, districtsText: event.target.value })} />
+              <textarea className="input-control min-h-24" placeholder="Districts, upazilas, unions, comma separated" value={zoneForm.districtsText} onChange={(event) => setZoneForm({ ...zoneForm, districtsText: event.target.value })} />
               <select className="input-control" value={zoneForm.defaultCourierName} onChange={(event) => setZoneForm({ ...zoneForm, defaultCourierName: event.target.value })}>
                 <option value="">Default courier</option>
                 {couriers.map((courier) => <option key={courier._id} value={courier.name}>{courier.name}</option>)}
@@ -807,7 +1145,7 @@ export default function AdminLogistics() {
                         <StatusPill status={zone.status || "active"} />
                         {zone.codAvailable !== false && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">COD</span>}
                       </div>
-                      <p className="mt-2 text-sm text-slate-600">{(zone.districts || []).join(", ") || "Fallback zone"}</p>
+                      <p className="mt-2 text-sm text-slate-600">{(zone.districts || []).join(", ") || "Fallback coverage"}</p>
                       <p className="mt-1 text-xs text-slate-500">Couriers: {getZoneCourierNames(zone) || zone.defaultCourierName || "Unassigned"} / SLA {zone.slaHours || 48}h</p>
                     </div>
                     <button
@@ -1201,6 +1539,8 @@ export default function AdminLogistics() {
                 </div>
               </div>
 
+              {renderDeliveryActionPanel()}
+
               {parcelAssignment.shipmentId && (
                 <form onSubmit={submitParcelAssignment} className="mt-4 grid gap-3 rounded-lg border border-primary-200 bg-primary-50 p-4 lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto]">
                   <div>
@@ -1274,14 +1614,36 @@ export default function AdminLogistics() {
                       Booking: {String(shipment.courierBookingStatus || "draft").replaceAll("_", " ")}
                       {shipment.courierConsignmentId ? ` / Consignment ${shipment.courierConsignmentId}` : ""}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => openParcelAssignment(shipment)}
-                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 text-sm font-semibold text-white hover:bg-slate-800"
-                    >
-                      <Truck className="h-4 w-4" />
-                      Assign courier
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openParcelAssignment(shipment)}
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 text-sm font-semibold text-white hover:bg-slate-800"
+                      >
+                        <Truck className="h-4 w-4" />
+                        Assign courier
+                      </button>
+                      {!terminalShipmentStates.has(shipment.shipmentState || "created") && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openDeliveryAction(shipment, "delivered")}
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            Delivered
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openDeliveryAction(shipment, "failed")}
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-700 hover:bg-red-50"
+                          >
+                            <AlertTriangle className="h-4 w-4" />
+                            Failed
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1290,14 +1652,19 @@ export default function AdminLogistics() {
         )}
 
         {activeTab === "staff" && (
-          <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
+          <div className={`grid gap-6 ${canManageLogisticsSettings ? "xl:grid-cols-[380px_1fr]" : ""}`}>
+            {canManageLogisticsSettings && (
             <form onSubmit={submitStaff} className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-bold">Pickup Staff</h2>
               <input className="input-control" placeholder="Name" value={staffForm.name} onChange={(event) => setStaffForm({ ...staffForm, name: event.target.value })} />
               <input className="input-control" placeholder="Phone" value={staffForm.phone} onChange={(event) => setStaffForm({ ...staffForm, phone: event.target.value })} />
+              <input className="input-control" type="email" placeholder="Login email for logistics access" value={staffForm.email} onChange={(event) => setStaffForm({ ...staffForm, email: event.target.value })} />
               <input className="input-control" placeholder="Route name" value={staffForm.routeName} onChange={(event) => setStaffForm({ ...staffForm, routeName: event.target.value })} />
-              <textarea className="input-control min-h-20" placeholder="Assigned zones" value={staffForm.assignedZonesText} onChange={(event) => setStaffForm({ ...staffForm, assignedZonesText: event.target.value })} />
+              <textarea className="input-control min-h-20" placeholder="Assigned zones, upazilas, unions, union IDs, comma separated" value={staffForm.assignedZonesText} onChange={(event) => setStaffForm({ ...staffForm, assignedZonesText: event.target.value })} />
               <textarea className="input-control min-h-20" placeholder="Vendor IDs" value={staffForm.assignedVendorIdsText} onChange={(event) => setStaffForm({ ...staffForm, assignedVendorIdsText: event.target.value })} />
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                If the email matches an existing user, saving will set that user as logistics manager. Use union names or union IDs here for union-based delivery areas.
+              </p>
               <div className="grid grid-cols-2 gap-3">
                 <input className="input-control" placeholder="Vehicle" value={staffForm.vehicleType} onChange={(event) => setStaffForm({ ...staffForm, vehicleType: event.target.value })} />
                 <input className="input-control" type="number" min="0" value={staffForm.capacityOrders} onChange={(event) => setStaffForm({ ...staffForm, capacityOrders: Number(event.target.value) })} />
@@ -1307,6 +1674,7 @@ export default function AdminLogistics() {
                 Save staff
               </button>
             </form>
+            )}
             <div className="grid gap-3 lg:grid-cols-2">
               {pickupStaff.length === 0 && <EmptyPanel>No pickup staff found.</EmptyPanel>}
               {pickupStaff.map((staff) => (
@@ -1315,23 +1683,31 @@ export default function AdminLogistics() {
                     <div>
                       <h3 className="font-bold">{staff.name}</h3>
                       <p className="text-sm text-slate-500">{staff.phone} · {staff.routeName || "No route"}</p>
+                      {staff.email && <p className="text-xs text-slate-500">Login: {staff.email}</p>}
                     </div>
                     <StatusPill status={staff.status || "active"} />
                   </div>
                   <p className="mt-3 text-sm text-slate-600">{(staff.assignedZones || []).join(", ") || "No zones assigned"}</p>
-                  <button
-                    type="button"
-                    onClick={() => setStaffForm({
-                      ...emptyStaff,
-                      ...staff,
-                      staffId: staff._id,
-                      assignedZonesText: (staff.assignedZones || []).join(", "),
-                      assignedVendorIdsText: (staff.assignedVendorIds || []).join(", "),
-                    })}
-                    className="mt-4 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                  >
-                    Edit
-                  </button>
+                  {staff.linkedRole === "logistics_manager" && (
+                    <p className="mt-2 inline-flex rounded-full border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-700">
+                      Logistics area access
+                    </p>
+                  )}
+                  {canManageLogisticsSettings && (
+                    <button
+                      type="button"
+                      onClick={() => setStaffForm({
+                        ...emptyStaff,
+                        ...staff,
+                        staffId: staff._id,
+                        assignedZonesText: (staff.assignedZones || []).join(", "),
+                        assignedVendorIdsText: (staff.assignedVendorIds || []).join(", "),
+                      })}
+                      className="mt-4 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

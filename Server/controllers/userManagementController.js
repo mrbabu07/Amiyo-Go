@@ -1,4 +1,5 @@
 const CustomerInsight = require("../models/CustomerInsight");
+const { STAFF_ROLES } = require("../config/permissions");
 
 // User Management
 const getAllUsers = async (req, res) => {
@@ -61,6 +62,13 @@ const updateUserRole = async (req, res) => {
     const updatedBy = req.user.uid;
 
     const User = req.app.locals.models.User;
+    const validRoles = ["customer", "vendor", ...STAFF_ROLES];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid role. Must be one of: ${validRoles.join(", ")}`,
+      });
+    }
 
     // First get the user to find their firebaseUid
     const user = await User.findById(id);

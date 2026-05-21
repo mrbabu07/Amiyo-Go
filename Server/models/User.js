@@ -12,6 +12,7 @@ class User {
       await this.collection.createIndex({ firebaseUid: 1 }, { unique: true });
       await this.collection.createIndex({ email: 1 });
       await this.collection.createIndex({ role: 1 });
+      await this.collection.createIndex({ "logisticsProfile.assignedZones": 1 });
       await this.collection.createIndex({ createdAt: -1 });
     } catch (error) {
       console.error("Error creating User indexes:", error);
@@ -201,6 +202,19 @@ class User {
 
   getDefaultPermissions(role) {
     return getDefaultPermissions(role);
+  }
+
+  async updateLogisticsProfile(firebaseUid, logisticsProfile, updatedBy) {
+    return await this.collection.updateOne(
+      { firebaseUid },
+      {
+        $set: {
+          logisticsProfile,
+          updatedAt: new Date(),
+          updatedBy,
+        },
+      },
+    );
   }
 
   async hasPermission(firebaseUid, resource, action) {

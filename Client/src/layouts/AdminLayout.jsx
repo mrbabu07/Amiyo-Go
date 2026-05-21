@@ -94,8 +94,13 @@ const navigation = [
       { name: 'COD Delivery', path: '/admin/cod-delivery', exact: true, alertKey: 'payments' },
       { name: 'Returns', path: '/admin/returns', exact: true, alertKey: 'returns' },
       { name: 'Logistics', path: '/admin/logistics', exact: true },
+      { name: 'My Orders', path: '/admin/logistics?tab=work', exact: true },
       { name: 'Ready Pickup', path: '/admin/logistics?tab=ready', exact: true },
+      { name: 'Dispatch Manifest', path: '/admin/logistics?tab=manifest', exact: true },
       { name: 'Parcel Assignment', path: '/admin/logistics?tab=parcels', exact: true },
+      { name: 'Pickup Staff', path: '/admin/logistics?tab=staff', exact: true },
+      { name: 'COD Float', path: '/admin/logistics?tab=cod', exact: true },
+      { name: 'Failed Delivery', path: '/admin/logistics?tab=failed', exact: true, alertKey: 'returns' },
       { name: 'Support Tickets', path: '/admin/support', exact: true, alertKey: 'support' },
     ],
   },
@@ -146,17 +151,34 @@ const quickLinks = [
   { name: 'Payments', path: '/admin/payment-verifications', icon: CreditCard },
 ];
 
-const matchesRoute = (pathname, item) => {
+const parseNavPath = (path = '') => {
+  const [pathname, query = ''] = String(path).split('?');
+  return {
+    pathname,
+    search: query ? `?${query}` : '',
+  };
+};
+
+const matchesRoute = (location, item) => {
   if (!item.path && !item.activePaths) return false;
 
   const paths = [item.path, ...(item.activePaths || [])].filter(Boolean);
+  const currentPathname = typeof location === 'string' ? location : location.pathname;
+  const currentSearch = typeof location === 'string' ? '' : location.search;
 
   return paths.some((path) => {
+    const target = parseNavPath(path);
+    const hasQuery = Boolean(target.search);
+    const queryMatches = !hasQuery || target.search === currentSearch;
+
     if (item.exact && path === item.path) {
-      return pathname === path;
+      return currentPathname === target.pathname && (hasQuery ? queryMatches : !currentSearch);
     }
 
-    return pathname === path || pathname.startsWith(`${path}/`);
+    return (
+      (currentPathname === target.pathname || currentPathname.startsWith(`${target.pathname}/`)) &&
+      queryMatches
+    );
   });
 };
 
@@ -171,7 +193,8 @@ const adminPermissionRules = [
   { pattern: /^\/admin\/categories|^\/admin\/category-requests/, resource: 'categories', action: 'read' },
   { pattern: /^\/admin\/orders/, resource: 'orders', action: 'read' },
   { pattern: /^\/admin\/returns/, resource: 'returns', action: 'read' },
-  { pattern: /^\/admin\/logistics|^\/admin\/delivery-settings/, resource: 'orders', action: 'read' },
+  { pattern: /^\/admin\/logistics/, resource: 'orders', action: 'read' },
+  { pattern: /^\/admin\/delivery-settings/, resource: 'system', action: 'read' },
   { pattern: /^\/admin\/support/, resource: 'support', action: 'read' },
   { pattern: /^\/admin\/(promotions|coupons|flash-sales|offers|newsletter)/, resource: 'system', action: 'read' },
   { pattern: /^\/admin\/(payouts|payout-requests|payment-verifications|cod-delivery)/, resource: 'payments', action: 'read' },
@@ -224,6 +247,25 @@ const flattenNavigation = (items = []) =>
     if (item.children) return flattenNavigation(item.children);
     return item.path ? [item] : [];
   });
+
+const isLogisticsPath = (path = '') => {
+  const { pathname } = parseNavPath(path);
+  return pathname === '/admin/logistics' || pathname.startsWith('/admin/logistics/');
+};
+
+const filterLogisticsNavigation = (items = []) =>
+  items
+    .map((item) => {
+      if (item.children) {
+        const children = item.children.filter((child) => isLogisticsPath(child.path));
+        return children.length
+          ? { ...item, name: item.name === 'Orders' ? 'Logistics' : item.name, children }
+          : null;
+      }
+
+      return isLogisticsPath(item.path) ? item : null;
+    })
+    .filter(Boolean);
 
 const AlertBadge = ({ count, className = '' }) => {
   if (!count) return null;
@@ -311,7 +353,7 @@ const AdminLayout = () => {
     toggleSection(sectionName);
   };
 
-  const isActive = (item) => matchesRoute(location.pathname, item);
+  const isActive = (item) => matchesRoute(location, item);
 
   const closeSidebarOnMobile = () => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -324,11 +366,24 @@ const AdminLayout = () => {
     navigate('/login');
   };
 
+  const isLogisticsManager = role === 'logistics_manager';
+  const logisticsHomePath = '/admin/logistics?tab=work';
   const access = { isAdmin: isAdmin || role === 'admin', permissions };
-  const visibleNavigation = filterNavigationByPermissions(navigation, access);
-  const visibleQuickLinks = quickLinks.filter((item) => canAccessPath(item.path, access) || item.path === '/');
+  const permittedNavigation = filterNavigationByPermissions(navigation, access);
+  const visibleNavigation = isLogisticsManager
+    ? filterLogisticsNavigation(permittedNavigation)
+    : permittedNavigation;
+  const visibleQuickLinks = isLogisticsManager
+    ? [
+        { name: 'Store', path: '/', icon: Home },
+        { name: 'Ready Pickup', path: logisticsHomePath, icon: Truck },
+      ]
+    : quickLinks.filter((item) => canAccessPath(item.path, access) || item.path === '/');
   const searchTargets = flattenNavigation(visibleNavigation);
-  const canAccessAdminPath = (path) => canAccessPath(path, access);
+  const canAccessAdminPath = (path) => {
+    if (isLogisticsManager) return path === '/' || isLogisticsPath(path);
+    return canAccessPath(path, access);
+  };
   const sidebarWidthClass = sidebarCollapsed ? 'lg:w-20' : 'lg:w-72';
   const mainOffsetClass = sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72';
   const desktopCollapsedClass = sidebarCollapsed ? 'lg:hidden' : '';
@@ -356,12 +411,12 @@ const AdminLayout = () => {
             >
               {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
             </button>
-            <Link to="/admin" className="flex min-w-0 items-center gap-3" onClick={closeSidebarOnMobile}>
+            <Link to={isLogisticsManager ? logisticsHomePath : '/admin'} className="flex min-w-0 items-center gap-3" onClick={closeSidebarOnMobile}>
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1A1A2E] text-sm font-bold text-white shadow-sm ring-2 ring-[#1e7098]/20">
                 AG
               </span>
               <span className="truncate text-lg font-bold text-[#1A1A2E] dark:text-white sm:text-xl">
-                Amiyo-Go Admin
+                {isLogisticsManager ? 'Amiyo-Go Logistics' : 'Amiyo-Go Admin'}
               </span>
             </Link>
           </div>
@@ -370,6 +425,8 @@ const AdminLayout = () => {
             searchTargets={searchTargets}
             canAccessPath={canAccessAdminPath}
             closeSidebarOnMobile={closeSidebarOnMobile}
+            allowResourceSearch={!isLogisticsManager}
+            placeholder={isLogisticsManager ? 'Search logistics pages...' : undefined}
           />
 
           <div className="flex items-center gap-2 sm:gap-3">

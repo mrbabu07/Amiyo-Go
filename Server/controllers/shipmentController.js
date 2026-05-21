@@ -13,9 +13,23 @@ const {
   REVERSE_TRANSITIONS,
   stateLabel,
 } = require("../utils/logisticsStateMachine");
+const {
+  filterShipmentsForLogisticsScope,
+  getLogisticsScopeFromRequest,
+  shipmentMatchesLogisticsScope,
+} = require("../utils/logisticsScope");
 
 const normalizeId = (value) => (value?.toString ? value.toString() : String(value || ""));
 const toObjectId = (value) => (ObjectId.isValid(normalizeId(value)) ? new ObjectId(normalizeId(value)) : null);
+const idValues = (value) => {
+  const normalized = normalizeId(value);
+  const objectId = toObjectId(value);
+  return objectId ? [normalized, objectId] : [normalized];
+};
+const idFilter = (value) => {
+  const values = idValues(value);
+  return { _id: { $in: values } };
+};
 
 const getActor = (req, fallbackRole = "system") => ({
   id: normalizeId(req.user?._id || req.user?.uid || req.user?.email || fallbackRole),
@@ -25,8 +39,124 @@ const getActor = (req, fallbackRole = "system") => ({
 const getShipmentModel = (req) => req.app.locals.models.Shipment;
 const isVendorActor = (req) => ["vendor", "vendor_staff"].includes(req.user?.role);
 
-const assertShipmentAccess = (req, shipment) => {
-  if (!shipment || isStaffRole(req.user?.role)) return;
+const syncOrderAfterDeliveryAttempt = async (req, shipment = {}, attempt = {}) => {
+  const db = req.app.locals.db;
+  if (!db?.collection || !shipment?.orderId) return;
+
+  const now = new Date();
+  const orderId = normalizeId(shipment.orderId);
+  const vendorId = normalizeId(shipment.vendorId);
+  const actor = getActor(req, "admin");
+  const orderQuery = idFilter(orderId);
+  const vendorOrderQuery = {
+    parentOrderId: { $in: idValues(orderId) },
+    ...(vendorId ? { vendorId: { $in: idValues(vendorId) } } : {}),
+  };
+  const assignmentQuery = { orderId: { $in: idValues(orderId) } };
+  const codCollected = Number(shipment.codAmount || 0) > 0 && attempt.codCollected !== false;
+
+  if (shipment.shipmentState === "delivered") {
+    const orderPatch = {
+      status: "delivered",
+      deliveryStatus: "delivered",
+      deliveredAt: shipment.deliveredAt || now,
+      updatedAt: now,
+      ...(codCollected
+        ? {
+            codCollectionStatus: "collected",
+            codCollected: true,
+            codCollectedAt: shipment.codCollectedAt || now,
+            codCollectedBy: actor,
+          }
+        : {}),
+    };
+    await Promise.all([
+      db.collection("orders").updateOne(orderQuery, { $set: orderPatch }),
+      db.collection("vendorOrders").updateMany(vendorOrderQuery, {
+        $set: {
+          status: "delivered",
+          deliveryStatus: "delivered",
+          deliveredAt: orderPatch.deliveredAt,
+          updatedAt: now,
+          ...(codCollected ? { codCollectionStatus: "collected", codCollectedAt: orderPatch.codCollectedAt } : {}),
+        },
+      }),
+      db.collection("dispatch_assignments").updateMany(assignmentQuery, {
+        $set: {
+          deliveryStatus: "delivered",
+          deliveredAt: orderPatch.deliveredAt,
+          updatedAt: now,
+          ...(codCollected ? { codCollectionStatus: "collected", codCollectedAt: orderPatch.codCollectedAt } : {}),
+        },
+      }),
+    ]);
+    return;
+  }
+
+  if (["delivery_failed", "return_to_origin"].includes(shipment.shipmentState)) {
+    const isReturn = shipment.shipmentState === "return_to_origin" || attempt.outcome === "rto";
+    const status = isReturn ? "return_to_seller" : "failed_delivery";
+    const failurePatch = {
+      status,
+      deliveryStatus: status,
+      failureReason: attempt.reason || attempt.notes || "",
+      lastDeliveryFailedAt: shipment.lastDeliveryFailedAt || now,
+      updatedAt: now,
+    };
+    await Promise.all([
+      db.collection("orders").updateOne(orderQuery, { $set: failurePatch }),
+      db.collection("vendorOrders").updateMany(vendorOrderQuery, { $set: failurePatch }),
+      db.collection("dispatch_assignments").updateMany(assignmentQuery, {
+        $set: {
+          deliveryStatus: status,
+          failureReason: failurePatch.failureReason,
+          updatedAt: now,
+        },
+      }),
+      db.collection("delivery_failures").updateOne(
+        { orderId },
+        {
+          $set: {
+            orderId,
+            shipmentId: normalizeId(shipment._id),
+            vendorId,
+            status,
+            courierName: shipment.courierName || "",
+            failureReason: failurePatch.failureReason,
+            updatedAt: now,
+          },
+          $setOnInsert: {
+            createdAt: now,
+          },
+        },
+        { upsert: true },
+      ),
+    ]);
+  }
+};
+
+const getDeliveryZones = async (req) => {
+  const db = req.app.locals.db;
+  if (!db?.collection) return [];
+  return db.collection("delivery_zones").find({}).toArray();
+};
+
+const assertShipmentInLogisticsScope = async (req, shipment) => {
+  const scope = getLogisticsScopeFromRequest(req);
+  if (!scope?.scoped) return;
+  const zones = await getDeliveryZones(req);
+  if (shipmentMatchesLogisticsScope(shipment, zones, scope)) return;
+  const error = new Error("Shipment is outside your assigned logistics area");
+  error.statusCode = 403;
+  throw error;
+};
+
+const assertShipmentAccess = async (req, shipment) => {
+  if (!shipment) return;
+  if (isStaffRole(req.user?.role)) {
+    await assertShipmentInLogisticsScope(req, shipment);
+    return;
+  }
 
   if (isVendorActor(req) && normalizeId(shipment.vendorId) === normalizeId(req.user?.vendorId)) return;
 
@@ -38,8 +168,11 @@ const assertShipmentAccess = (req, shipment) => {
   throw error;
 };
 
-const assertShipmentMutationAccess = (req, shipment) => {
-  if (isStaffRole(req.user?.role)) return;
+const assertShipmentMutationAccess = async (req, shipment) => {
+  if (isStaffRole(req.user?.role)) {
+    await assertShipmentInLogisticsScope(req, shipment);
+    return;
+  }
   if (isVendorActor(req) && normalizeId(shipment.vendorId) === normalizeId(req.user?.vendorId)) return;
   const error = new Error("Only vendor or admin users can update this shipment");
   error.statusCode = 403;
@@ -62,7 +195,7 @@ const findAccessibleShipment = async (req, shipmentId) => {
     error.statusCode = 404;
     throw error;
   }
-  assertShipmentAccess(req, shipment);
+  await assertShipmentAccess(req, shipment);
   return shipment;
 };
 
@@ -300,7 +433,12 @@ exports.listVendorShipments = async (req, res) => {
       reverseState: req.query.reverseState || "all",
       shipmentType: req.query.shipmentType || undefined,
     });
-    res.json({ success: true, data: shipments });
+    const scopedShipments = filterShipmentsForLogisticsScope(
+      shipments,
+      await getDeliveryZones(req),
+      getLogisticsScopeFromRequest(req),
+    );
+    res.json({ success: true, data: scopedShipments });
   } catch (error) {
     jsonError(res, error, "Failed to load shipments");
   }
@@ -377,7 +515,7 @@ exports.markPickupReady = async (req, res) => {
 exports.generateLabel = async (req, res) => {
   try {
     const shipment = await findAccessibleShipment(req, req.params.id);
-    assertShipmentMutationAccess(req, shipment);
+    await assertShipmentMutationAccess(req, shipment);
     const updated = await getShipmentModel(req).generateLabel(req.params.id, getActor(req));
     res.json({ success: true, data: updated });
   } catch (error) {
@@ -468,6 +606,7 @@ exports.assignCourier = async (req, res) => {
       error.statusCode = 404;
       throw error;
     }
+    await assertShipmentInLogisticsScope(req, currentShipment);
 
     const courier = await findCourierPartner(req, req.body);
     const provider = normalizeProvider(req.body.provider || req.body.courierProvider || courier?.provider || courier?.code);
@@ -545,7 +684,9 @@ exports.assignVendorCourier = async (req, res) => {
 
 exports.recordDeliveryAttempt = async (req, res) => {
   try {
+    await assertShipmentInLogisticsScope(req, await findAccessibleShipment(req, req.params.id));
     const shipment = await getShipmentModel(req).recordDeliveryAttempt(req.params.id, req.body, getActor(req, "admin"));
+    await syncOrderAfterDeliveryAttempt(req, shipment, req.body);
     res.json({ success: true, data: shipment });
   } catch (error) {
     jsonError(res, error, "Failed to record delivery attempt");
@@ -554,6 +695,7 @@ exports.recordDeliveryAttempt = async (req, res) => {
 
 exports.markRto = async (req, res) => {
   try {
+    await assertShipmentInLogisticsScope(req, await findAccessibleShipment(req, req.params.id));
     const shipment = await getShipmentModel(req).markRto(req.params.id, req.body, getActor(req, "admin"));
     res.json({ success: true, data: shipment });
   } catch (error) {
@@ -574,6 +716,7 @@ exports.confirmRtoReceived = async (req, res) => {
 
 exports.updateCodState = (targetState) => async (req, res) => {
   try {
+    await assertShipmentInLogisticsScope(req, await findAccessibleShipment(req, req.params.id));
     const shipment = await getShipmentModel(req).updateCodState(req.params.id, targetState, req.body, getActor(req, "admin"));
     res.json({ success: true, data: shipment });
   } catch (error) {
@@ -662,7 +805,11 @@ exports.listReverseLogistics = async (req, res) => {
 
 exports.getLogisticsDashboard = async (req, res) => {
   try {
-    const shipments = await getShipmentModel(req).list({});
+    const shipments = filterShipmentsForLogisticsScope(
+      await getShipmentModel(req).list({}),
+      await getDeliveryZones(req),
+      getLogisticsScopeFromRequest(req),
+    );
     const countBy = (field, value) => shipments.filter((item) => item[field] === value).length;
     const codExposure = shipments
       .filter((item) => ["cod_pending", "cod_collected"].includes(item.codState))

@@ -4,6 +4,7 @@ const {
   roleCan,
   resolvePermissionFromRequest,
 } = require("../config/permissions");
+const { getScopeFromUser } = require("../utils/logisticsScope");
 
 const debugAuth = process.env.DEBUG_AUTH === "true";
 const authDebug = (...args) => {
@@ -86,6 +87,12 @@ const attachDatabaseUser = async (req, decodedToken) => {
     }
   }
 
+  if (dbUser.role === "logistics_manager") {
+    req.user.logisticsScope = getScopeFromUser(dbUser);
+    req.logisticsScope = req.user.logisticsScope;
+    authDebug("Logistics scope attached");
+  }
+
   return dbUser;
 };
 
@@ -138,6 +145,11 @@ const verifyAdmin = async (req, res, next) => {
       return res.status(403).json({ error: "Admin or staff access required" });
     }
 
+    const requestPath = `${req.baseUrl || ""}${req.path || ""}`;
+    if (user.role === "logistics_manager" && !requestPath.includes("/admin/logistics")) {
+      return res.status(403).json({ error: "Logistics staff can only access the logistics workspace" });
+    }
+
     const permission = resolvePermissionFromRequest(req);
     const permissionDoc = Permission ? await Permission.findByRole(user.role) : null;
 
@@ -152,6 +164,10 @@ const verifyAdmin = async (req, res, next) => {
     req.dbUser = user;
     req.user._id = user._id;
     req.user.role = user.role;
+    if (user.role === "logistics_manager") {
+      req.user.logisticsScope = getScopeFromUser(user);
+      req.logisticsScope = req.user.logisticsScope;
+    }
     next();
   } catch {
     return res.status(500).json({ error: "Authorization failed" });
