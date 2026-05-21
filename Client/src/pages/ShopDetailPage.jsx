@@ -3,8 +3,10 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   BadgeCheck,
   Clock,
+  Copy,
   ExternalLink,
   Facebook,
+  Gift,
   Globe,
   Instagram,
   Mail,
@@ -28,8 +30,10 @@ import {
   getShopFollowStatus,
   getShopProducts,
   getShopReviews,
+  getPublicVendorMarketingItems,
   unfollowShop,
 } from "../services/api";
+import { isCampaignDecorationActive, themeFor } from "../utils/shopDecoration";
 
 const numberFormat = new Intl.NumberFormat("en-BD");
 
@@ -44,6 +48,10 @@ const shortDate = (value) => {
 const cropPosition = (crop = {}) => `${crop.x ?? 50}% ${crop.y ?? 50}%`;
 
 const cropScale = (crop = {}) => Math.max(1, Number(crop.zoom || 100) / 100);
+
+const idOf = (value) => value?._id?.toString?.() || value?.toString?.() || String(value || "");
+
+const productId = (product) => idOf(product?._id);
 
 function Stars({ rating = 0, size = "h-4 w-4" }) {
   const score = Number(rating || 0);
@@ -123,9 +131,32 @@ export default function ShopDetailPage() {
     rows: [],
     pagination: { currentPage: 1, totalPages: 1, hasNext: false },
   });
+  const [marketingItems, setMarketingItems] = useState([]);
+  const [decorationProducts, setDecorationProducts] = useState([]);
 
+  const decoration = shop?.shopDecoration || {};
+  const rawFeaturedProductIds = decoration.featuredCarousel?.productIds;
   const categoryOptions = useMemo(() => shop?.categories || [], [shop?.categories]);
   const hasLocation = Number.isFinite(Number(shop?.location?.lat)) && Number.isFinite(Number(shop?.location?.lng));
+  const activeCampaign = useMemo(
+    () => (isCampaignDecorationActive(decoration.campaignMode) ? decoration.campaignMode : null),
+    [decoration.campaignMode],
+  );
+  const liveTheme = themeFor(activeCampaign?.theme || decoration.bannerColor);
+  const approvedVouchers = useMemo(
+    () => marketingItems.filter((item) => item.type === "voucher" && item.status === "approved"),
+    [marketingItems],
+  );
+  const highlightedVoucher = decoration.couponBanner?.enabled
+    ? approvedVouchers.find((voucher) => idOf(voucher._id) === decoration.couponBanner?.voucherId) || approvedVouchers[0]
+    : null;
+  const featuredProductKey = useMemo(() => (rawFeaturedProductIds || []).map(String).filter(Boolean).join("|"), [rawFeaturedProductIds]);
+  const featuredProductIds = useMemo(() => (featuredProductKey ? featuredProductKey.split("|") : []), [featuredProductKey]);
+  const featuredProducts = useMemo(() => {
+    if (!featuredProductIds.length) return [];
+    const byId = new Map([...decorationProducts, ...productState.items].map((product) => [productId(product), product]));
+    return featuredProductIds.map((id) => byId.get(id)).filter(Boolean).slice(0, 8);
+  }, [decorationProducts, featuredProductIds, productState.items]);
 
   useEffect(() => {
     if (platformConfigLoading || !isShopDirectoryVisible) {
@@ -164,6 +195,46 @@ export default function ShopDetailPage() {
       .then((response) => setFollowing(Boolean(response.data?.data?.following)))
       .catch(() => setFollowing(false));
   }, [slug, user, isShopDirectoryVisible]);
+
+  useEffect(() => {
+    if (!shop?._id) {
+      setMarketingItems([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    getPublicVendorMarketingItems(shop._id)
+      .then((response) => {
+        if (!cancelled) setMarketingItems(response.data?.data || []);
+      })
+      .catch(() => {
+        if (!cancelled) setMarketingItems([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shop?._id]);
+
+  useEffect(() => {
+    if (!featuredProductIds.length || platformConfigLoading || !isShopDirectoryVisible || !slug) {
+      setDecorationProducts([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    getShopProducts(slug, { limit: 60, sort: "newest" })
+      .then((response) => {
+        if (!cancelled) setDecorationProducts(response.data?.data || []);
+      })
+      .catch(() => {
+        if (!cancelled) setDecorationProducts([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [featuredProductIds, isShopDirectoryVisible, platformConfigLoading, slug]);
 
   useEffect(() => {
     if (platformConfigLoading || !isShopDirectoryVisible) {
@@ -260,6 +331,16 @@ export default function ShopDetailPage() {
     window.setTimeout(() => reviewsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   };
 
+  const copyVoucherCode = async (voucher) => {
+    if (!voucher?.code) return;
+    try {
+      await navigator.clipboard.writeText(voucher.code);
+      toast.success("Voucher code copied");
+    } catch {
+      toast.error("Could not copy voucher code");
+    }
+  };
+
   if (platformConfigLoading || loading) {
     return (
       <div className="min-h-screen bg-slate-50 p-8 dark:bg-slate-950">
@@ -302,15 +383,43 @@ export default function ShopDetailPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <nav className="mb-4 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-500">
-          <Link to="/" className="hover:text-orange-600">Home</Link>
+          <Link to="/" className="hover:text-primary-600">Home</Link>
           <span>/</span>
-          <Link to="/shops" className="hover:text-orange-600">Shops</Link>
+          <Link to="/shops" className="hover:text-primary-600">Shops</Link>
           <span>/</span>
           <span className="text-slate-800 dark:text-slate-200">{shop.shopName}</span>
         </nav>
 
+        {decoration.showBanner ? (
+          <div className={`mb-4 rounded-lg bg-gradient-to-r ${themeFor(decoration.bannerColor).gradient} px-4 py-3 text-center text-sm font-extrabold text-white shadow-sm`}>
+            {decoration.bannerMessage || "Welcome to our shop."}
+          </div>
+        ) : null}
+
+        {activeCampaign ? (
+          <section className={`relative mb-5 overflow-hidden rounded-lg bg-gradient-to-r ${liveTheme.gradient} px-5 py-6 text-white shadow-sm`}>
+            {activeCampaign.banner ? (
+              <img src={activeCampaign.banner} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" loading="lazy" decoding="async" />
+            ) : null}
+            <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-extrabold uppercase">Store Campaign</p>
+                <h2 className="mt-3 text-2xl font-black">{activeCampaign.title || "Campaign Sale"}</h2>
+                {activeCampaign.message ? <p className="mt-1 max-w-3xl text-sm font-semibold text-white/85">{activeCampaign.message}</p> : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab("products")}
+                className="h-11 rounded-lg bg-white px-5 text-sm font-extrabold text-slate-950 shadow-sm transition hover:bg-slate-100"
+              >
+                Shop campaign
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="relative h-40 overflow-hidden bg-gradient-to-r from-primary-800 via-primary-600 to-slate-900 sm:h-52 lg:h-64 xl:h-72">
+          <div className="relative aspect-[4/1] min-h-32 max-h-72 overflow-hidden bg-gradient-to-r from-primary-800 via-primary-600 to-slate-900">
             {shop.banner ? (
               <img
                 src={shop.banner}
@@ -331,15 +440,30 @@ export default function ShopDetailPage() {
           <div className="px-4 pb-6 sm:px-6 lg:px-8">
             <div className="-mt-12 flex flex-col gap-5 sm:-mt-14 md:flex-row md:items-end md:justify-between">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-                <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-slate-100 shadow-xl sm:h-28 sm:w-28 lg:h-32 lg:w-32 dark:border-slate-900 dark:bg-slate-800">
-                  {shop.logo ? <img src={shop.logo} alt={shop.shopName} className="h-full w-full object-cover" /> : <Store className="h-10 w-10 text-slate-400" />}
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-slate-100 shadow-xl sm:h-28 sm:w-28 lg:h-32 lg:w-32 dark:border-slate-900 dark:bg-slate-800">
+                  {shop.logo ? (
+                    <img
+                      src={shop.logo}
+                      alt={shop.shopName}
+                      className="h-full w-full object-cover"
+                      style={{
+                        objectPosition: cropPosition(shop.shopDecoration?.logoCrop),
+                        transform: `scale(${cropScale(shop.shopDecoration?.logoCrop)})`,
+                        transformOrigin: cropPosition(shop.shopDecoration?.logoCrop),
+                      }}
+                      loading="eager"
+                      decoding="async"
+                    />
+                  ) : (
+                    <Store className="h-10 w-10 text-slate-400" />
+                  )}
                 </div>
                 <div className="pt-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-3xl font-black text-slate-950 dark:text-white">{shop.shopName}</h1>
                     {shop.isVerified ? <BadgeCheck className="h-6 w-6 text-blue-600" /> : null}
                     {shop.isOfficialStore ? (
-                      <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-extrabold uppercase text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">
+                      <span className="rounded-full bg-primary-100 px-3 py-1 text-xs font-extrabold uppercase text-primary-700 dark:bg-primary-950/40 dark:text-primary-200">
                         Official Store
                       </span>
                     ) : null}
@@ -374,7 +498,7 @@ export default function ShopDetailPage() {
                   className={`h-11 rounded-lg px-5 text-sm font-extrabold transition disabled:opacity-60 ${
                     following
                       ? "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                      : "bg-orange-600 text-white hover:bg-orange-700"
+                      : "bg-primary-600 text-white hover:bg-primary-700"
                   }`}
                 >
                   {followBusy ? "Saving..." : following ? "Following" : "Follow"}
@@ -392,6 +516,60 @@ export default function ShopDetailPage() {
           </div>
         </section>
 
+        {highlightedVoucher ? (
+          <section className={`mt-5 rounded-lg border p-4 shadow-sm ${themeFor(decoration.bannerColor).soft}`}>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/80">
+                  <Gift className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-xs font-black uppercase">{decoration.couponBanner?.customText || "Shop coupon"}</p>
+                  <h2 className="mt-1 text-lg font-black text-slate-950 dark:text-white">
+                    Use <span className="font-mono">{highlightedVoucher.code}</span> on this seller&apos;s products
+                  </h2>
+                  {highlightedVoucher.description ? <p className="mt-1 text-sm font-semibold opacity-80">{highlightedVoucher.description}</p> : null}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => copyVoucherCode(highlightedVoucher)}
+                className={`inline-flex h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-extrabold shadow-sm transition ${themeFor(decoration.bannerColor).button}`}
+              >
+                <Copy className="h-4 w-4" />
+                Copy code
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {featuredProducts.length > 0 ? (
+          <section className="mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className={`text-xs font-black uppercase ${themeFor(decoration.bannerColor).text}`}>Seller picks</p>
+                <h2 className="text-xl font-black text-slate-950 dark:text-white">
+                  {decoration.featuredCarousel?.title || "Featured products"}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab("products")}
+                className="h-10 rounded-md border border-slate-300 px-4 text-sm font-extrabold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                View all
+              </button>
+            </div>
+            <div className="flex snap-x gap-4 overflow-x-auto pb-2">
+              {featuredProducts.map((product) => (
+                <div key={productId(product)} className="min-w-[170px] max-w-[220px] snap-start sm:min-w-[210px]">
+                  <ProductCard product={product} />
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <div className="sticky top-[5rem] z-20 mt-5 overflow-x-auto rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex gap-2">
             {tabs.map((tab) => (
@@ -401,7 +579,7 @@ export default function ShopDetailPage() {
                 onClick={() => setActiveTab(tab)}
                 className={`h-10 min-w-28 rounded-md px-4 text-sm font-extrabold capitalize transition ${
                   activeTab === tab
-                    ? "bg-orange-600 text-white"
+                    ? "bg-primary-600 text-white"
                     : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                 }`}
               >
@@ -426,7 +604,7 @@ export default function ShopDetailPage() {
                     <button
                       type="button"
                       onClick={() => updateProductFilter("category", "")}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-extrabold ${!productFilters.category ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300"}`}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-extrabold ${!productFilters.category ? "border-primary-300 bg-primary-50 text-primary-700" : "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300"}`}
                     >
                       All
                     </button>
@@ -435,7 +613,7 @@ export default function ShopDetailPage() {
                         key={category}
                         type="button"
                         onClick={() => updateProductFilter("category", category)}
-                        className={`rounded-full border px-3 py-1.5 text-xs font-extrabold ${productFilters.category === category ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300"}`}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-extrabold ${productFilters.category === category ? "border-primary-300 bg-primary-50 text-primary-700" : "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300"}`}
                       >
                         {category}
                       </button>

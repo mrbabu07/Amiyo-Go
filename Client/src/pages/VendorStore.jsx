@@ -24,11 +24,12 @@ const getMarketingProductIds = (item) => {
 };
 
 const shopThemeGradients = {
-  orange: "from-orange-600 to-amber-500",
-  green: "from-emerald-600 to-lime-500",
-  blue: "from-sky-600 to-cyan-500",
-  rose: "from-rose-600 to-pink-500",
-  slate: "from-slate-800 to-slate-600",
+  orange: "from-primary-700 via-cyan-600 to-emerald-500",
+  green: "from-emerald-700 via-teal-600 to-primary-500",
+  blue: "from-primary-800 via-primary-600 to-sky-500",
+  indigo: "from-indigo-800 via-primary-700 to-sky-500",
+  rose: "from-rose-700 via-fuchsia-600 to-primary-500",
+  slate: "from-slate-950 via-slate-800 to-primary-700",
 };
 
 const getCategoryId = (product) =>
@@ -510,7 +511,7 @@ export default function VendorStore() {
 
       {/* Banner Image */}
       {vendor.banner && (
-        <div className="relative h-40 overflow-hidden bg-gradient-to-r from-primary-800 via-primary-600 to-slate-900 sm:h-52 lg:h-64 xl:h-72">
+        <div className="relative aspect-[4/1] min-h-32 max-h-72 overflow-hidden bg-gradient-to-r from-primary-800 via-primary-600 to-slate-900">
           <img
             src={vendor.banner}
             alt={`${vendor.shopName} Banner`}
@@ -526,26 +527,31 @@ export default function VendorStore() {
       )}
 
       {/* Vendor Header - Enhanced Daraz Style */}
-      <div className={`${vendor.banner ? 'bg-white dark:bg-gray-800' : 'bg-gradient-to-r from-orange-500 to-orange-600'} ${vendor.banner ? '' : 'text-white'}`}>
+      <div className={`${vendor.banner ? 'bg-white dark:bg-gray-800' : 'bg-gradient-to-r from-primary-800 via-primary-600 to-slate-900'} ${vendor.banner ? '' : 'text-white'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {!vendor.banner && <BackButton className="text-white hover:text-orange-100 pt-6 mb-4" />}
+          {!vendor.banner && <BackButton className="text-white hover:text-primary-100 pt-6 mb-4" />}
           
           <div className={`flex flex-col md:flex-row items-start md:items-end gap-6 ${vendor.banner ? '-mt-14 pb-6 sm:-mt-16' : 'py-6'}`}>
             {/* Vendor Logo */}
             <div className="flex-shrink-0">
               {vendor.logo ? (
-                <img
-                  src={vendor.logo}
-                  alt={vendor.shopName}
-                  className="w-32 h-32 md:w-40 md:h-40 rounded-2xl object-cover border-4 border-white shadow-2xl bg-white"
-                  style={{
-                    objectPosition: cropPosition(shopDecoration.logoCrop),
-                    transform: `scale(${cropScale(shopDecoration.logoCrop)})`,
-                  }}
-                />
+                <div className="h-32 w-32 overflow-hidden rounded-2xl border-4 border-white bg-white shadow-2xl md:h-40 md:w-40">
+                  <img
+                    src={vendor.logo}
+                    alt={vendor.shopName}
+                    className="h-full w-full object-cover"
+                    style={{
+                      objectPosition: cropPosition(shopDecoration.logoCrop),
+                      transform: `scale(${cropScale(shopDecoration.logoCrop)})`,
+                      transformOrigin: cropPosition(shopDecoration.logoCrop),
+                    }}
+                    loading="eager"
+                    decoding="async"
+                  />
+                </div>
               ) : (
-                <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-white flex items-center justify-center shadow-2xl border-4 border-white">
-                  <span className="text-5xl md:text-6xl font-bold text-orange-500">
+                <div className="flex h-32 w-32 items-center justify-center rounded-2xl border-4 border-white bg-white shadow-2xl md:h-40 md:w-40">
+                  <span className="text-5xl font-bold text-primary-600 md:text-6xl">
                     {vendor.shopName.charAt(0).toUpperCase()}
                   </span>
                 </div>

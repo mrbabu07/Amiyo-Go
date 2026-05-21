@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
+  BadgeCheck,
+  Eye,
   Image,
+  LayoutTemplate,
   Link as LinkIcon,
   Megaphone,
+  Palette,
   Plus,
   Save,
+  ShieldCheck,
   Sparkles,
   Star,
   TicketPercent,
@@ -22,6 +27,7 @@ import {
   uploadImages,
 } from "../../services/api";
 import useCurrency from "../../hooks/useCurrency";
+import { defaultShopTheme, shopThemeOptions, themeFor } from "../../utils/shopDecoration";
 
 const tabs = [
   { id: "profile", label: "Shop Profile", path: "/vendor/shop/profile" },
@@ -29,12 +35,40 @@ const tabs = [
   { id: "categories", label: "Categories", path: "/vendor/shop/categories" },
 ];
 
-const themeOptions = [
-  { label: "Market Orange", value: "orange", gradient: "from-orange-600 to-amber-500", chip: "bg-orange-500" },
-  { label: "Fresh Green", value: "green", gradient: "from-emerald-600 to-lime-500", chip: "bg-emerald-500" },
-  { label: "River Blue", value: "blue", gradient: "from-sky-600 to-cyan-500", chip: "bg-sky-500" },
-  { label: "Festival Rose", value: "rose", gradient: "from-rose-600 to-pink-500", chip: "bg-rose-500" },
-  { label: "Premium Slate", value: "slate", gradient: "from-slate-800 to-slate-600", chip: "bg-slate-700" },
+const decorationPresets = [
+  {
+    id: "signature",
+    title: "Signature Store",
+    caption: "Clean brand-first layout for everyday selling.",
+    icon: ShieldCheck,
+    bannerColor: "blue",
+    bannerMessage: "Verified seller support, fast dispatch, and fresh weekly picks.",
+    featuredTitle: "Signature picks",
+    couponText: "Store member deal",
+    campaignTheme: "blue",
+  },
+  {
+    id: "launch",
+    title: "Launch Spotlight",
+    caption: "High energy setup for new arrivals or campaigns.",
+    icon: Sparkles,
+    bannerColor: "indigo",
+    bannerMessage: "New arrivals are live. Explore limited launch picks today.",
+    featuredTitle: "Launch highlights",
+    couponText: "Launch voucher",
+    campaignTheme: "indigo",
+  },
+  {
+    id: "fresh",
+    title: "Fresh Deals",
+    caption: "Bright and confident for promotions and active offers.",
+    icon: BadgeCheck,
+    bannerColor: "green",
+    bannerMessage: "Fresh deals, reliable service, and quick checkout support.",
+    featuredTitle: "Fresh deals",
+    couponText: "Fresh savings",
+    campaignTheme: "green",
+  },
 ];
 
 const defaultProfile = {
@@ -54,7 +88,7 @@ const defaultProfile = {
 };
 
 const defaultDecoration = {
-  bannerColor: "orange",
+  bannerColor: defaultShopTheme,
   bannerMessage: "Welcome to our shop.",
   showBanner: true,
   logoCrop: { x: 50, y: 50, zoom: 100 },
@@ -74,7 +108,7 @@ const defaultDecoration = {
     title: "",
     message: "",
     banner: "",
-    theme: "orange",
+    theme: defaultShopTheme,
     startDate: "",
     endDate: "",
   },
@@ -205,6 +239,28 @@ export default function VendorShop() {
     setDecoration((prev) => ({ ...prev, ...patch }));
   };
 
+  const applyPreset = (preset) => {
+    setDecoration((prev) => ({
+      ...prev,
+      bannerColor: preset.bannerColor,
+      bannerMessage: preset.bannerMessage,
+      showBanner: true,
+      featuredCarousel: {
+        ...prev.featuredCarousel,
+        title: preset.featuredTitle,
+      },
+      couponBanner: {
+        ...prev.couponBanner,
+        customText: preset.couponText,
+      },
+      campaignMode: {
+        ...prev.campaignMode,
+        theme: preset.campaignTheme,
+      },
+    }));
+    toast.success(`${preset.title} preset applied`);
+  };
+
   const saveProfile = async () => {
     setSaving(true);
     try {
@@ -292,7 +348,7 @@ export default function VendorShop() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-orange-500" />
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary-500" />
       </div>
     );
   }
@@ -332,8 +388,8 @@ export default function VendorShop() {
       </div>
 
       {decoration.showBanner && (
-        <div className={`bg-gradient-to-r ${themeFor(decoration.bannerColor).gradient} px-8 py-4 text-center font-medium text-white`}>
-          {decoration.bannerMessage}
+        <div className={`bg-gradient-to-r ${themeFor(decoration.bannerColor).gradient} px-8 py-3 text-center text-sm font-extrabold text-white shadow-sm`}>
+          {decoration.bannerMessage || "Welcome to our shop."}
         </div>
       )}
 
@@ -346,7 +402,7 @@ export default function VendorShop() {
                 to={tab.path}
                 className={`flex-1 border-b-2 py-4 text-center text-sm font-medium transition ${
                   activeTab === tab.id
-                    ? "border-orange-500 bg-orange-50 text-orange-700"
+                    ? "border-primary-500 bg-primary-50 text-primary-700"
                     : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                 }`}
               >
@@ -428,7 +484,19 @@ export default function VendorShop() {
             {activeTab === "decoration" && (
               <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
                 <div className="space-y-6">
-                  <Section icon={Sparkles} title="Announcement Strip">
+                  <DecorationCommandPanel
+                    decoration={decoration}
+                    profile={profile}
+                    selectedVoucher={selectedVoucher || approvedVouchers[0]}
+                    products={products}
+                    onApplyPreset={applyPreset}
+                  />
+
+                  <Section
+                    icon={Megaphone}
+                    title="Announcement Strip"
+                    caption="A slim store-wide message that sits above your storefront and sets the buying mood."
+                  >
                     <div className="grid gap-4 md:grid-cols-2">
                       <Field label="Theme">
                         <ThemePicker value={decoration.bannerColor} onChange={(value) => updateDecoration({ bannerColor: value })} />
@@ -444,7 +512,11 @@ export default function VendorShop() {
                     />
                   </Section>
 
-                  <Section icon={Star} title="Featured Product Carousel">
+                  <Section
+                    icon={Star}
+                    title="Featured Product Carousel"
+                    caption="Pin your best products first so buyers do not have to search for your strongest items."
+                  >
                     <div className="mb-4 max-w-md">
                       <Field label="Carousel Title">
                         <input
@@ -470,7 +542,11 @@ export default function VendorShop() {
                     />
                   </Section>
 
-                  <Section icon={TicketPercent} title="Shop Coupon Banner">
+                  <Section
+                    icon={TicketPercent}
+                    title="Shop Coupon Banner"
+                    caption="Promote one approved seller voucher in the store header with a clear copy action."
+                  >
                     <ToggleRow
                       title="Show coupon banner on shop header"
                       checked={decoration.couponBanner?.enabled}
@@ -514,7 +590,11 @@ export default function VendorShop() {
                     </div>
                   </Section>
 
-                  <Section icon={Image} title="Campaign Mode Decoration">
+                  <Section
+                    icon={Image}
+                    title="Campaign Mode Decoration"
+                    caption="Use this for Eid, flash campaigns, new collections, or time-limited store events."
+                  >
                     <ToggleRow
                       title="Use campaign decoration"
                       checked={decoration.campaignMode?.enabled}
@@ -538,7 +618,7 @@ export default function VendorShop() {
                       </Field>
                       <Field label="Theme">
                         <ThemePicker
-                          value={decoration.campaignMode?.theme || "orange"}
+                          value={decoration.campaignMode?.theme || defaultShopTheme}
                           onChange={(value) =>
                             updateDecoration({
                               campaignMode: { ...decoration.campaignMode, theme: value },
@@ -596,12 +676,16 @@ export default function VendorShop() {
                     </div>
                   </Section>
 
-                  <Section icon={Plus} title="Category Tabs">
+                  <Section
+                    icon={Plus}
+                    title="Category Tabs"
+                    caption="Create curated shopping paths by category, product selection, or both."
+                  >
                     <div className="mb-4 flex justify-end">
                       <button
                         type="button"
                         onClick={() => updateDecoration({ categoryTabs: [...(decoration.categoryTabs || []), newTab()] })}
-                        className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                        className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700"
                       >
                         <Plus className="h-4 w-4" />
                         Add Tab
@@ -652,7 +736,7 @@ export default function VendorShop() {
                                       onClick={() => toggleCategoryOnTab(tab.id, categoryId)}
                                       className={`rounded-full border px-3 py-1.5 text-sm font-semibold ${
                                         selected
-                                          ? "border-orange-300 bg-orange-50 text-orange-700"
+                                          ? "border-primary-300 bg-primary-50 text-primary-700"
                                           : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                                       }`}
                                     >
@@ -728,10 +812,6 @@ export default function VendorShop() {
   );
 }
 
-function themeFor(value) {
-  return themeOptions.find((theme) => theme.value === value) || themeOptions[0];
-}
-
 function Field({ label, children, wide = false }) {
   return (
     <label className={`block text-sm font-medium text-slate-700 ${wide ? "md:col-span-2" : ""}`}>
@@ -741,15 +821,110 @@ function Field({ label, children, wide = false }) {
   );
 }
 
-function Section({ icon, title, children }) {
+function DecorationCommandPanel({ decoration, profile, selectedVoucher, products, onApplyPreset }) {
+  const liveTheme = themeFor(decoration.campaignMode?.enabled ? decoration.campaignMode.theme : decoration.bannerColor);
+  const featuredCount = decoration.featuredCarousel?.productIds?.length || 0;
+  const tabCount = decoration.categoryTabs?.length || 0;
+  const readinessItems = [
+    { label: "Banner", ready: Boolean(profile.banner) },
+    { label: "Announcement", ready: Boolean(decoration.showBanner && decoration.bannerMessage) },
+    { label: "Featured picks", ready: featuredCount > 0 },
+    { label: "Voucher", ready: Boolean(decoration.couponBanner?.enabled && selectedVoucher) },
+  ];
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className={`bg-gradient-to-r ${liveTheme.gradient} px-5 py-5 text-white`}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-extrabold uppercase">
+              <Palette className="h-3.5 w-3.5" />
+              Storefront Studio
+            </div>
+            <h2 className="mt-3 text-2xl font-black">Make the first screen sell the store</h2>
+            <p className="mt-1 max-w-2xl text-sm font-medium text-white/85">
+              Shape the banner, promotion strip, vouchers, featured picks, and tabs from one polished control room.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:w-[420px]">
+            <StudioMetric label="Products" value={products.length} />
+            <StudioMetric label="Featured" value={featuredCount} />
+            <StudioMetric label="Tabs" value={tabCount} />
+            <StudioMetric label="Voucher" value={selectedVoucher ? "Ready" : "Off"} />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <div>
+          <div className="mb-3 flex items-center gap-2 text-sm font-extrabold text-slate-900">
+            <LayoutTemplate className="h-4 w-4 text-primary-600" />
+            Professional presets
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {decorationPresets.map((preset) => {
+              const Icon = preset.icon;
+              const presetTheme = themeFor(preset.bannerColor);
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => onApplyPreset(preset)}
+                  className="group rounded-lg border border-slate-200 bg-slate-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-white hover:shadow-md"
+                >
+                  <span className={`inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-r ${presetTheme.gradient} text-white shadow-sm`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <p className="mt-3 text-sm font-black text-slate-950 group-hover:text-primary-700">{preset.title}</p>
+                  <p className="mt-1 text-xs font-medium leading-5 text-slate-500">{preset.caption}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-extrabold text-slate-900">
+            <Eye className="h-4 w-4 text-primary-600" />
+            Store readiness
+          </div>
+          <div className="space-y-2">
+            {readinessItems.map((item) => (
+              <div key={item.label} className="flex items-center justify-between rounded-md bg-white px-3 py-2 text-sm">
+                <span className="font-semibold text-slate-600">{item.label}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${item.ready ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                  {item.ready ? "Ready" : "Add"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function StudioMetric({ label, value }) {
+  return (
+    <div className="rounded-lg bg-white/15 px-3 py-2 text-center backdrop-blur">
+      <p className="text-lg font-black">{value}</p>
+      <p className="text-[11px] font-bold uppercase text-white/75">{label}</p>
+    </div>
+  );
+}
+
+function Section({ icon, title, caption, children }) {
   const Icon = icon;
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-700">
           <Icon className="h-5 w-5" />
         </span>
-        <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+        <div>
+          <h2 className="text-base font-black text-slate-950">{title}</h2>
+          {caption ? <p className="mt-1 text-sm leading-6 text-slate-500">{caption}</p> : null}
+        </div>
       </div>
       {children}
     </section>
@@ -762,7 +937,7 @@ function SaveButton({ saving, label, onClick }) {
       type="button"
       onClick={onClick}
       disabled={saving}
-      className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-3 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-3 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
     >
       <Save className="h-4 w-4" />
       {saving ? "Saving..." : label}
@@ -773,13 +948,13 @@ function SaveButton({ saving, label, onClick }) {
 function ThemePicker({ value, onChange }) {
   return (
     <div className="grid grid-cols-2 gap-2">
-      {themeOptions.map((theme) => (
+      {shopThemeOptions.map((theme) => (
         <button
           key={theme.value}
           type="button"
           onClick={() => onChange(theme.value)}
           className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${
-            value === theme.value ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-200 text-slate-600"
+            value === theme.value ? "border-primary-300 bg-primary-50 text-primary-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"
           }`}
         >
           <span className={`h-4 w-4 rounded-full ${theme.chip}`} />
@@ -792,9 +967,12 @@ function ThemePicker({ value, onChange }) {
 
 function ToggleRow({ title, checked, onChange }) {
   return (
-    <label className="mt-4 flex items-center justify-between rounded-lg border border-slate-200 p-4">
+    <label className="mt-4 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-4">
       <span className="font-semibold text-slate-900">{title}</span>
-      <input type="checkbox" checked={Boolean(checked)} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5" />
+      <span className={`relative h-6 w-11 rounded-full transition ${checked ? "bg-primary-600" : "bg-slate-300"}`}>
+        <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition ${checked ? "left-6" : "left-1"}`} />
+        <input type="checkbox" checked={Boolean(checked)} onChange={(event) => onChange(event.target.checked)} className="sr-only" />
+      </span>
     </label>
   );
 }
@@ -819,7 +997,7 @@ function ImageUploadCard({
           <p className="text-sm font-semibold text-slate-800">{title}</p>
           <p className="text-xs text-slate-500">{note}</p>
         </div>
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-orange-600 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-700">
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700">
           <Upload className="h-4 w-4" />
           {uploading ? "Uploading..." : "Upload"}
           <input type="file" accept="image/*" className="hidden" onChange={(event) => onUpload(field, event.target.files?.[0])} />
@@ -837,7 +1015,7 @@ function ImageUploadCard({
             }}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-orange-700">
+          <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-primary-700">
             {fallback || <Image className="h-8 w-8 text-slate-400" />}
           </div>
         )}
@@ -866,7 +1044,7 @@ function CropControl({ label, value, onChange, min = 0, max = 100 }) {
         max={max}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="w-full accent-orange-600"
+        className="w-full accent-primary-600"
       />
     </label>
   );
@@ -908,7 +1086,7 @@ function ProductPicker({ products, selectedIds, onChange, max = 0, compact = fal
               type="button"
               onClick={() => toggle(id)}
               className={`flex items-center gap-3 rounded-lg border p-3 text-left ${
-                selected ? "border-orange-300 bg-orange-50" : "border-slate-200 bg-white hover:bg-slate-50"
+                selected ? "border-primary-300 bg-primary-50" : "border-slate-200 bg-white hover:bg-slate-50"
               }`}
             >
               <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-md bg-slate-100">
@@ -938,13 +1116,23 @@ function ShopPreview({ profile, decoration, products, selectedVoucher, formatPri
     <aside className="sticky top-4 h-fit rounded-lg border border-slate-200 bg-white p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-950">Live Preview</h2>
-        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">Shop page</span>
+        <span className="rounded-full bg-primary-50 px-2 py-1 text-xs font-semibold text-primary-700">Shop page</span>
       </div>
       <div className="overflow-hidden rounded-lg border border-slate-200">
+        {decoration.showBanner && (
+          <div className={`bg-gradient-to-r ${themeFor(decoration.bannerColor).gradient} px-4 py-2 text-center text-xs font-extrabold text-white`}>
+            {decoration.bannerMessage || "Welcome to our shop."}
+          </div>
+        )}
         {decoration.campaignMode?.enabled && (
-          <div className={`bg-gradient-to-r ${theme.gradient} px-4 py-3 text-white`}>
-            <p className="text-sm font-bold">{decoration.campaignMode.title || "Campaign Sale"}</p>
-            <p className="text-xs opacity-90">{decoration.campaignMode.message || "Special campaign decoration is active."}</p>
+          <div className={`relative overflow-hidden bg-gradient-to-r ${theme.gradient} px-4 py-4 text-white`}>
+            {decoration.campaignMode?.banner ? (
+              <img src={decoration.campaignMode.banner} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />
+            ) : null}
+            <div className="relative">
+              <p className="text-sm font-bold">{decoration.campaignMode.title || "Campaign Sale"}</p>
+              <p className="text-xs opacity-90">{decoration.campaignMode.message || "Special campaign decoration is active."}</p>
+            </div>
           </div>
         )}
         <div className="aspect-[4/1] min-h-24 overflow-hidden bg-slate-100">
@@ -962,7 +1150,7 @@ function ShopPreview({ profile, decoration, products, selectedVoucher, formatPri
           )}
         </div>
         <div className="p-4">
-          <div className="-mt-12 mb-3 h-20 w-20 overflow-hidden rounded-xl border-4 border-white bg-orange-100">
+          <div className="-mt-12 mb-3 h-20 w-20 overflow-hidden rounded-xl border-4 border-white bg-primary-50">
             {profile.logo ? (
               <img
                 src={profile.logo}
@@ -971,10 +1159,11 @@ function ShopPreview({ profile, decoration, products, selectedVoucher, formatPri
                 style={{
                   objectPosition: cropPosition(decoration.logoCrop),
                   transform: `scale(${cropScale(decoration.logoCrop)})`,
+                  transformOrigin: cropPosition(decoration.logoCrop),
                 }}
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-orange-700">
+              <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-primary-700">
                 {profile.shopName?.[0] || "S"}
               </div>
             )}
@@ -982,8 +1171,8 @@ function ShopPreview({ profile, decoration, products, selectedVoucher, formatPri
           <h3 className="text-lg font-bold text-slate-950">{profile.shopName || "Shop name"}</h3>
           <p className="text-sm text-slate-500">{profile.tagline || "Shop tagline"}</p>
           {selectedVoucher && decoration.couponBanner?.enabled && (
-            <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-3">
-              <p className="text-xs font-semibold text-orange-700">{decoration.couponBanner.customText || "Shop coupon"}</p>
+            <div className={`mt-4 rounded-lg border p-3 ${themeFor(decoration.bannerColor).soft}`}>
+              <p className="text-xs font-semibold">{decoration.couponBanner.customText || "Shop coupon"}</p>
               <p className="mt-1 font-mono text-sm font-bold text-slate-950">{selectedVoucher.code}</p>
             </div>
           )}
