@@ -170,6 +170,61 @@ describe("Order model vendor voucher flow", () => {
     expect(couponsCollection.updateOne).toHaveBeenCalled();
   });
 
+  test("create applies seller free-shipping voucher only to that vendor delivery charge", async () => {
+    const { db, inserted, voucherCollection } = buildDb();
+    voucherCollection.findOne.mockResolvedValueOnce({
+      _id: "voucher-ship",
+      code: "SHIPSHOP",
+      title: "Seller shipping",
+      vendorId: "vendor-1",
+      vendorName: "Village Store",
+      discountType: "free_shipping",
+      discountValue: 0,
+      status: "approved",
+      startDate: new Date(Date.now() - 1000),
+      endDate: new Date(Date.now() + 60_000),
+      usedCount: 0,
+      usageLimit: 20,
+    });
+    const orderModel = new Order(db);
+
+    await orderModel.create({
+      userId: "user-1",
+      products: [
+        { title: "A", vendorId: "vendor-1", price: 200, quantity: 1 },
+        { title: "B", vendorId: "vendor-2", price: 100, quantity: 1 },
+      ],
+      couponCode: "shipshop",
+      paymentMethod: "cod",
+      deliveryCharge: 120,
+      deliveryBreakdown: [
+        { vendorId: "vendor-1", deliveryFee: 45 },
+        { vendorId: "vendor-2", deliveryFee: 75 },
+      ],
+    });
+
+    const insertedOrder = inserted[0];
+    expect(insertedOrder.couponDiscount).toBe(45);
+    expect(insertedOrder.totalDiscount).toBe(45);
+    expect(insertedOrder.total).toBe(375);
+    expect(insertedOrder.couponApplied).toEqual(
+      expect.objectContaining({
+        code: "SHIPSHOP",
+        source: "vendor_voucher",
+        scopeVendorId: "vendor-1",
+        vendorDeliveryCharge: 45,
+      }),
+    );
+    expect(insertedOrder.discountBreakdown.totals).toEqual(
+      expect.objectContaining({
+        subtotal: 300,
+        deliveryCharge: 120,
+        discountTotal: 45,
+        payableTotal: 375,
+      }),
+    );
+  });
+
   test("create persists offer promo code discounts in every customer-facing total field", async () => {
     const { db, inserted, voucherCollection, offersCollection } = buildDb();
     voucherCollection.findOne.mockResolvedValueOnce(null);

@@ -21,6 +21,14 @@ const createFindCursor = (docs) => ({
   })),
 });
 
+const createProjectedFindCursor = (docs) => ({
+  project: jest.fn(() => ({
+    limit: jest.fn(() => ({
+      toArray: jest.fn().mockResolvedValue(docs),
+    })),
+  })),
+});
+
 describe("shopController featured shops", () => {
   afterEach(() => {
     jest.clearAllMocks();
@@ -85,6 +93,158 @@ describe("shopController featured shops", () => {
             featuredOnHomepage: true,
           }),
         ],
+      }),
+    );
+  });
+
+  test("getShopProducts ignores blank filter params from the shop page", async () => {
+    const vendor = {
+      _id: "vendor-1",
+      shopName: "Tech World Bangladesh",
+      slug: "tech-world-bangladesh",
+      status: "approved",
+      isShopOpen: true,
+    };
+    const product = {
+      _id: "product-1",
+      title: "Laptop",
+      price: 10000,
+      vendorId: "vendor-1",
+      isActive: true,
+      approvalStatus: "approved",
+    };
+    const aggregate = jest.fn((pipeline) => ({
+      toArray: jest.fn().mockResolvedValue(
+        pipeline.some((stage) => stage.$count === "total")
+          ? [{ total: 1 }]
+          : [product],
+      ),
+    }));
+    const req = {
+      params: { slug: "tech-world-bangladesh" },
+      query: {
+        search: "",
+        category: "",
+        minPrice: "",
+        maxPrice: "",
+        rating: "",
+        sort: "newest",
+        page: "1",
+        limit: "16",
+      },
+      app: {
+        locals: {
+          models: {
+            Vendor: {
+              collection: {
+                findOne: jest.fn().mockResolvedValue(vendor),
+              },
+            },
+            Product: {
+              collection: { aggregate },
+            },
+            Category: {
+              collection: {
+                find: jest.fn(),
+              },
+            },
+          },
+        },
+      },
+    };
+    const res = createRes();
+
+    await shopController.getShopProducts(req, res);
+
+    const firstPipeline = aggregate.mock.calls[0][0];
+    const initialMatch = firstPipeline[0].$match;
+    expect(JSON.stringify(initialMatch)).not.toContain('"price"');
+    expect(firstPipeline).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ $match: { averageRating: expect.any(Object) } }),
+      ]),
+    );
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        data: [expect.objectContaining({ _id: "product-1", vendorName: "Tech World Bangladesh" })],
+        pagination: expect.objectContaining({ totalCount: 1 }),
+      }),
+    );
+  });
+
+  test("getShopProducts includes child categories when filtering by shop category name", async () => {
+    const parentCategoryId = "6a02fc5befef5fe23b2c7d9b";
+    const childCategoryId = "6a02fc5befef5fe23b2c7da1";
+    const vendor = {
+      _id: "vendor-1",
+      shopName: "Tech World Bangladesh",
+      slug: "tech-world-bangladesh",
+      status: "approved",
+      isShopOpen: true,
+    };
+    const product = {
+      _id: "product-1",
+      title: "Laptop",
+      price: 10000,
+      vendorId: "vendor-1",
+      categoryId: childCategoryId,
+      isActive: true,
+      approvalStatus: "approved",
+    };
+    const aggregate = jest.fn((pipeline) => ({
+      toArray: jest.fn().mockResolvedValue(
+        pipeline.some((stage) => stage.$count === "total")
+          ? [{ total: 1 }]
+          : [product],
+      ),
+    }));
+    const categoryFind = jest.fn(() => createProjectedFindCursor([{ _id: parentCategoryId }]));
+    const getDescendantIds = jest.fn().mockResolvedValue([childCategoryId]);
+    const req = {
+      params: { slug: "tech-world-bangladesh" },
+      query: {
+        category: "Electronics",
+        sort: "newest",
+        page: "1",
+        limit: "16",
+      },
+      app: {
+        locals: {
+          models: {
+            Vendor: {
+              collection: {
+                findOne: jest.fn().mockResolvedValue(vendor),
+              },
+            },
+            Product: {
+              collection: { aggregate },
+            },
+            Category: {
+              collection: {
+                find: categoryFind,
+              },
+              getDescendantIds,
+            },
+          },
+        },
+      },
+    };
+    const res = createRes();
+
+    await shopController.getShopProducts(req, res);
+
+    const firstPipeline = aggregate.mock.calls[0][0];
+    const categoryCondition = firstPipeline[0].$match.$and.find((item) => item.categoryId?.$in);
+    const categoryFilterIds = categoryCondition.categoryId.$in.map((value) => value.toString());
+
+    expect(categoryFind).toHaveBeenCalledWith({ name: expect.any(RegExp) });
+    expect(getDescendantIds).toHaveBeenCalled();
+    expect(categoryFilterIds).toEqual(expect.arrayContaining([parentCategoryId, childCategoryId]));
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        data: [expect.objectContaining({ _id: "product-1" })],
       }),
     );
   });

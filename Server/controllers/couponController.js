@@ -74,6 +74,13 @@ const buildValidationBreakdown = ({
     couponDiscountAmount: Number(discountAmount || 0),
   });
 
+const getValidationPayableTotal = (discountBreakdown, fallbackSubtotal, fallbackDeliveryCharge, discountAmount) =>
+  discountBreakdown?.totals?.payableTotal ??
+  Math.max(
+    0,
+    Number(fallbackSubtotal || 0) + Number(fallbackDeliveryCharge || 0) - Number(discountAmount || 0),
+  );
+
 const validateCouponPayload = (payload, { partial = false } = {}) => {
   const normalized = {
     ...payload,
@@ -216,7 +223,13 @@ const validateCoupon = async (req, res) => {
   try {
     const Coupon = req.app.locals.models.Coupon;
     const Offer = require("../models/Offer"); // Import Mongoose model directly
-    const { code, orderTotal, deliveryCharge = 0, items = [] } = req.body;
+    const {
+      code,
+      orderTotal,
+      deliveryCharge = 0,
+      deliveryBreakdown = [],
+      items = [],
+    } = req.body;
     const userId = req.user?.uid;
     const normalizedOrderTotal = Number(orderTotal || 0);
     const hasDeliveryCharge = req.body.deliveryCharge !== undefined && req.body.deliveryCharge !== null;
@@ -267,7 +280,12 @@ const validateCoupon = async (req, res) => {
           data: {
             coupon: couponValidation.coupon,
             discountAmount: effectiveDiscountAmount,
-            finalTotal: Math.max(0, normalizedOrderTotal - effectiveDiscountAmount),
+            finalTotal: getValidationPayableTotal(
+              discountBreakdown,
+              normalizedOrderTotal,
+              deliveryCharge,
+              effectiveDiscountAmount,
+            ),
             discountBreakdown,
           },
         });
@@ -285,6 +303,8 @@ const validateCoupon = async (req, res) => {
         const voucherValidation = calculateVendorVoucherDiscount({
           voucher: vendorVoucher,
           items: Array.isArray(items) ? items : [],
+          deliveryCharge,
+          deliveryBreakdown: Array.isArray(deliveryBreakdown) ? deliveryBreakdown : [],
         });
 
         if (!voucherValidation.valid) {
@@ -301,9 +321,10 @@ const validateCoupon = async (req, res) => {
             _id: vendorVoucher._id,
             code: vendorVoucher.code,
             name: vendorVoucher.title,
-            discountType: vendorVoucher.discountType,
-            discountValue: vendorVoucher.discountValue,
-          },
+              discountType: vendorVoucher.discountType,
+              discountValue: vendorVoucher.discountValue,
+              maxDiscountAmount: vendorVoucher.maxDiscountAmount,
+            },
           discountAmount: voucherValidation.discountAmount,
           source: "vendor_voucher",
           scopeVendorId: voucherValidation.scopeVendorId,
@@ -319,15 +340,22 @@ const validateCoupon = async (req, res) => {
               description: vendorVoucher.description,
               discountType: vendorVoucher.discountType,
               discountValue: vendorVoucher.discountValue,
+              maxDiscountAmount: vendorVoucher.maxDiscountAmount,
               type: "vendor_voucher",
               vendorId: vendorVoucher.vendorId,
               vendorName: vendorVoucher.vendorName,
               minOrderAmount: vendorVoucher.minOrderAmount || 0,
             },
             discountAmount: voucherValidation.discountAmount,
-            finalTotal: Math.max(0, normalizedOrderTotal - voucherValidation.discountAmount),
+            finalTotal: getValidationPayableTotal(
+              discountBreakdown,
+              normalizedOrderTotal,
+              deliveryCharge,
+              voucherValidation.discountAmount,
+            ),
             scopeVendorId: voucherValidation.scopeVendorId,
             vendorSubtotal: voucherValidation.vendorSubtotal,
+            vendorDeliveryCharge: voucherValidation.vendorDeliveryCharge,
             discountBreakdown,
           },
         });
@@ -394,7 +422,12 @@ const validateCoupon = async (req, res) => {
             type: "offer", // Indicate this is from an offer
           },
           discountAmount,
-          finalTotal: Math.max(0, normalizedOrderTotal - discountAmount),
+          finalTotal: getValidationPayableTotal(
+            discountBreakdown,
+            normalizedOrderTotal,
+            deliveryCharge,
+            discountAmount,
+          ),
           discountBreakdown,
         },
       });

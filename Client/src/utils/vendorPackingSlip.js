@@ -46,7 +46,7 @@ export const generateVendorPackingSlip = (order, vendorInfo = {}) => {
     (sum, item) => sum + Number(item.adminCommissionAmount || 0),
     0,
   );
-  const vendorEarnings = products.reduce(
+  const grossVendorEarnings = products.reduce(
     (sum, item) =>
       sum +
       Number(
@@ -57,6 +57,21 @@ export const generateVendorPackingSlip = (order, vendorInfo = {}) => {
     0,
   );
   const deliveryCharge = Number(order?.deliveryCharge || 0);
+  const discount = Number(
+    order?.totalDiscount ??
+    order?.vendorVoucherDiscount ??
+    order?.sellerVoucherDiscount ??
+    order?.discount ??
+    order?.vendorDiscount ??
+    order?.couponDiscount ??
+    0,
+  );
+  const vendorEarnings = Math.max(
+    0,
+    Number(order?.vendorEarnings ?? grossVendorEarnings - Number(order?.vendorVoucherDiscount || 0)),
+  );
+  const payableTotal = Number(order?.payableTotal ?? order?.customerPayableTotal ?? 0) ||
+    Math.max(0, subtotal + deliveryCharge - discount);
   const trackingNumber =
     order?.trackingNumber ||
     products.find((item) => item.trackingNumber)?.trackingNumber ||
@@ -344,6 +359,8 @@ export const generateVendorPackingSlip = (order, vendorInfo = {}) => {
               <div class="label">Vendor Summary</div>
               <div class="row"><span>Gross subtotal</span><span>${escapeHtml(formatPrice(subtotal))}</span></div>
               <div class="row"><span>Delivery share</span><span>${deliveryCharge ? escapeHtml(formatPrice(deliveryCharge)) : "FREE"}</span></div>
+              ${discount > 0 ? `<div class="row"><span>Voucher discount</span><span>- ${escapeHtml(formatPrice(discount))}</span></div>` : ""}
+              <div class="row"><span>Customer payable</span><span>${escapeHtml(formatPrice(payableTotal))}</span></div>
               <div class="row"><span>Platform commission</span><span>- ${escapeHtml(formatPrice(commission))}</span></div>
               <div class="row total"><span>Vendor earning</span><span>${escapeHtml(formatPrice(vendorEarnings))}</span></div>
             </div>

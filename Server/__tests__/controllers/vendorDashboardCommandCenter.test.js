@@ -82,6 +82,74 @@ describe("vendor dashboard command center helpers", () => {
     }));
   });
 
+  test("calculates vendor order totals after a seller voucher", () => {
+    const financials = _private.calculateVendorOrderFinancials(
+      {
+        subtotal: 1000,
+        couponDiscount: 150,
+        totalDiscount: 150,
+        couponApplied: {
+          source: "vendor_voucher",
+          scopeVendorId: "vendor-1",
+          discountAmount: 150,
+        },
+        discountBreakdown: {
+          lines: [
+            {
+              type: "vendor_voucher",
+              amount: 150,
+              scopeVendorId: "vendor-1",
+            },
+          ],
+          totals: { discountTotal: 150 },
+        },
+      },
+      [
+        {
+          vendorId: "vendor-1",
+          price: 600,
+          quantity: 1,
+          adminCommissionAmount: 60,
+          vendorEarningAmount: 540,
+        },
+      ],
+      "vendor-1",
+    );
+
+    expect(financials).toEqual(expect.objectContaining({
+      vendorSubtotal: 600,
+      couponDiscount: 150,
+      vendorVoucherDiscount: 150,
+      totalDiscount: 150,
+      payableTotal: 450,
+      grossVendorEarnings: 540,
+      vendorEarnings: 390,
+      totalAmount: 450,
+    }));
+
+    const otherVendorFinancials = _private.calculateVendorOrderFinancials(
+      {
+        subtotal: 1000,
+        couponDiscount: 150,
+        totalDiscount: 150,
+        couponApplied: {
+          source: "vendor_voucher",
+          scopeVendorId: "vendor-1",
+          discountAmount: 150,
+        },
+      },
+      [{ vendorId: "vendor-2", price: 400, quantity: 1, adminCommissionAmount: 40 }],
+      "vendor-2",
+    );
+
+    expect(otherVendorFinancials).toEqual(expect.objectContaining({
+      vendorSubtotal: 400,
+      totalDiscount: 0,
+      payableTotal: 400,
+      vendorEarnings: 360,
+    }));
+  });
+
   test("reports vendor readiness with required and optional checks", () => {
     const readiness = _private.buildVendorReadiness({
       vendor: {

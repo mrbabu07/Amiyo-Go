@@ -555,8 +555,11 @@ export default function Checkout() {
     }
 
     try {
-      const response = await validateCoupon(normalizedCode, subtotal, checkoutItems);
-      const { coupon, discountAmount, finalTotal, scopeVendorId, vendorSubtotal } =
+      const response = await validateCoupon(normalizedCode, subtotal, checkoutItems, {
+        deliveryCharge,
+        deliveryBreakdown: deliveryQuote?.breakdown || [],
+      });
+      const { coupon, discountAmount, finalTotal, scopeVendorId, vendorSubtotal, vendorDeliveryCharge } =
         response.data.data;
 
       const previousCode = appliedCoupon?.code;
@@ -568,6 +571,7 @@ export default function Checkout() {
         coupon,
         scopeVendorId: scopeVendorId || coupon.vendorId || null,
         vendorSubtotal: vendorSubtotal || null,
+        vendorDeliveryCharge: vendorDeliveryCharge || null,
       });
 
       if (previousCode && previousCode !== coupon.code) {
@@ -2275,6 +2279,8 @@ export default function Checkout() {
                 <CouponInput
                   orderTotal={cartTotal}
                   items={checkoutItems}
+                  deliveryCharge={deliveryCharge}
+                  deliveryBreakdown={deliveryQuote?.breakdown || []}
                   onCouponApplied={() => {}}
                   onCouponRemoved={handleCouponRemoved}
                   appliedCoupon={appliedCoupon}
@@ -2340,7 +2346,9 @@ export default function Checkout() {
                               </div>
                               <div className="text-right">
                                 <p className="text-sm font-black text-orange-600">
-                                  {voucher.discountType === "percentage"
+                                  {voucher.discountType === "free_shipping"
+                                    ? "Free delivery"
+                                    : voucher.discountType === "percentage"
                                     ? `${voucher.discountValue}% OFF`
                                     : `${formatPrice(voucher.discountValue || 0)} OFF`}
                                 </p>

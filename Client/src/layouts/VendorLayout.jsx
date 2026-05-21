@@ -16,6 +16,8 @@ import {
   MessageSquare,
   Package,
   PackagePlus,
+  PanelLeftClose,
+  PanelLeftOpen,
   RefreshCcw,
   Settings,
   ShieldCheck,
@@ -115,6 +117,8 @@ const singleLinks = [
   { name: "Settings", path: "/vendor/settings", icon: Settings, permission: "settings:manage" },
 ];
 
+const SIDEBAR_COLLAPSE_KEY = "amiyo:vendor-sidebar-collapsed";
+
 const actionIconMap = {
   kyc: ShieldCheck,
   orders: ShoppingBag,
@@ -129,19 +133,31 @@ function isDesktop() {
   return typeof window !== "undefined" && window.innerWidth >= 1024;
 }
 
+function getStoredSidebarCollapsed() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 function isPathActive(pathname, path) {
   return pathname === path || pathname.startsWith(`${path}/`);
 }
 
-function SellerNavLink({ item, onClick }) {
+function SellerNavLink({ item, onClick, collapsed = false }) {
   const Icon = item.icon;
 
   return (
     <NavLink
       to={item.path}
       onClick={onClick}
+      title={collapsed ? item.name : undefined}
       className={({ isActive }) =>
         `flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-primary-500/25 ${
+          collapsed ? "lg:justify-center lg:px-0" : ""
+        } ${
           isActive
             ? "bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-200"
             : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
@@ -149,7 +165,7 @@ function SellerNavLink({ item, onClick }) {
       }
     >
       <Icon className="h-4 w-4 shrink-0" />
-      <span className="min-w-0 flex-1 truncate">{item.name}</span>
+      <span className={`min-w-0 flex-1 truncate ${collapsed ? "lg:hidden" : ""}`}>{item.name}</span>
     </NavLink>
   );
 }
@@ -160,6 +176,7 @@ export default function VendorLayout() {
   const { user, dbUser, role, permissions, isAdmin, logout, vendorProfile } = useAuth();
   const actionCenterRef = useRef(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => isDesktop());
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(getStoredSidebarCollapsed);
   const [expandedSections, setExpandedSections] = useState({});
   const [actionCenterOpen, setActionCenterOpen] = useState(false);
 
@@ -200,14 +217,12 @@ export default function VendorLayout() {
   useClickOutside(actionCenterRef, () => setActionCenterOpen(false));
 
   useEffect(() => {
-    setExpandedSections((current) => {
-      const next = { ...current };
-      hydratedGroups.forEach((group) => {
-        if (group.active) next[group.name] = true;
-      });
-      return next;
-    });
-  }, [hydratedGroups]);
+    try {
+      window.localStorage.setItem(SIDEBAR_COLLAPSE_KEY, sidebarCollapsed ? "true" : "false");
+    } catch {
+      // Local storage is optional; the sidebar still works without persistence.
+    }
+  }, [sidebarCollapsed]);
 
   const closeSidebarOnMobile = () => {
     if (!isDesktop()) setSidebarOpen(false);
@@ -219,6 +234,15 @@ export default function VendorLayout() {
   };
 
   const toggleSection = (name) => {
+    if (sidebarCollapsed && isDesktop()) {
+      setSidebarCollapsed(false);
+      setExpandedSections((current) => ({
+        ...current,
+        [name]: true,
+      }));
+      return;
+    }
+
     setExpandedSections((current) => ({
       ...current,
       [name]: !current[name],
@@ -237,6 +261,15 @@ export default function VendorLayout() {
               aria-label={sidebarOpen ? "Close seller menu" : "Open seller menu"}
             >
               {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+              className="hidden h-10 w-10 items-center justify-center rounded-lg text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:text-slate-200 dark:hover:bg-slate-800 lg:inline-flex"
+              aria-label={sidebarCollapsed ? "Expand seller sidebar" : "Collapse seller sidebar"}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
             </button>
             <Link to="/vendor/dashboard" className="flex min-w-0 items-center gap-3" onClick={closeSidebarOnMobile}>
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-sm font-extrabold text-white shadow-sm">
@@ -371,23 +404,36 @@ export default function VendorLayout() {
       ) : null}
 
       <aside
-        className={`fixed bottom-0 left-0 top-16 z-20 flex w-72 flex-col border-r border-slate-200 bg-white transition-transform duration-300 dark:border-slate-800 dark:bg-slate-950 ${
+        className={`fixed bottom-0 left-0 top-16 z-20 flex w-72 flex-col border-r border-slate-200 bg-white transition-[transform,width] duration-300 dark:border-slate-800 dark:bg-slate-950 ${
+          sidebarCollapsed ? "lg:w-20" : "lg:w-72"
+        } ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } lg:translate-x-0`}
         aria-label="Vendor navigation"
       >
-        <div className="border-b border-slate-100 px-4 py-4 dark:border-slate-800">
-          <div className="rounded-lg bg-slate-50 px-3 py-3 dark:bg-slate-900">
-            <p className="truncate text-sm font-extrabold text-slate-950 dark:text-white">{shopName}</p>
-            <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
-              {accessSummary.description}
-            </p>
+        <div className={`border-b border-slate-100 py-4 dark:border-slate-800 ${sidebarCollapsed ? "px-3 lg:px-4" : "px-4"}`}>
+          <div
+            className={`rounded-lg bg-slate-50 px-3 py-3 dark:bg-slate-900 ${
+              sidebarCollapsed ? "lg:flex lg:h-11 lg:items-center lg:justify-center lg:p-0" : ""
+            }`}
+          >
+            {sidebarCollapsed ? (
+              <span className="hidden text-sm font-extrabold text-primary-700 dark:text-primary-200 lg:inline-flex">
+                {userInitial}
+              </span>
+            ) : null}
+            <div className={sidebarCollapsed ? "lg:hidden" : ""}>
+              <p className="truncate text-sm font-extrabold text-slate-950 dark:text-white">{shopName}</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                {accessSummary.description}
+              </p>
+            </div>
           </div>
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {visibleSingleLinks.map((item) => (
-            <SellerNavLink key={item.path} item={item} onClick={closeSidebarOnMobile} />
+            <SellerNavLink key={item.path} item={item} collapsed={sidebarCollapsed} onClick={closeSidebarOnMobile} />
           ))}
 
           {hydratedGroups.map((group) => {
@@ -399,7 +445,10 @@ export default function VendorLayout() {
                 <button
                   type="button"
                   onClick={() => toggleSection(group.name)}
+                  title={sidebarCollapsed ? group.name : undefined}
                   className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-extrabold transition focus:outline-none focus:ring-2 focus:ring-primary-500/25 ${
+                    sidebarCollapsed ? "lg:justify-center lg:px-0" : ""
+                  } ${
                     group.active
                       ? "bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-200"
                       : "text-slate-700 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
@@ -407,14 +456,14 @@ export default function VendorLayout() {
                   aria-expanded={expanded}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate text-left">{group.name}</span>
-                  <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                  <span className={`min-w-0 flex-1 truncate text-left ${sidebarCollapsed ? "lg:hidden" : ""}`}>{group.name}</span>
+                  <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${sidebarCollapsed ? "lg:hidden" : ""} ${expanded ? "rotate-180" : ""}`} />
                 </button>
 
                 {expanded ? (
-                  <div className="mt-1 space-y-1 border-l border-slate-200 py-1 pl-4 dark:border-slate-800">
+                  <div className={`mt-1 space-y-1 border-l border-slate-200 py-1 pl-4 dark:border-slate-800 ${sidebarCollapsed ? "lg:hidden" : ""}`}>
                     {group.children.map((child) => (
-                      <SellerNavLink key={child.path} item={child} onClick={closeSidebarOnMobile} />
+                      <SellerNavLink key={child.path} item={child} collapsed={sidebarCollapsed} onClick={closeSidebarOnMobile} />
                     ))}
                   </div>
                 ) : null}
@@ -424,7 +473,7 @@ export default function VendorLayout() {
         </nav>
       </aside>
 
-      <main className="min-h-screen pt-16 transition-all duration-300 lg:ml-72">
+      <main className={`min-h-screen pt-16 transition-all duration-300 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"}`}>
         <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8">
           <Outlet />
         </div>

@@ -9,6 +9,29 @@ const round2 = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100
 
 const getVoucherCollection = (db) => db.collection("vendorMarketingItems");
 
+const asPositiveNumber = (value) => {
+  const number = Number(value || 0);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+};
+
+const getVendorDeliveryCharge = ({ scopeVendorId, deliveryCharge = 0, deliveryBreakdown = [] }) => {
+  const matchingDelivery = (deliveryBreakdown || []).find(
+    (entry) => normalizeId(entry.vendorId || entry.vendor || entry.sellerId || "platform") === scopeVendorId,
+  );
+
+  if (!matchingDelivery) {
+    return round2(deliveryCharge);
+  }
+
+  return round2(
+    matchingDelivery.deliveryFee ??
+      matchingDelivery.shippingFee ??
+      matchingDelivery.fee ??
+      matchingDelivery.totalDeliveryFee ??
+      0,
+  );
+};
+
 const getApprovedVendorVoucher = async (db, code) => {
   if (!db || !code) return null;
 
@@ -24,7 +47,12 @@ const getApprovedVendorVoucher = async (db, code) => {
   });
 };
 
-const calculateVendorVoucherDiscount = ({ voucher, items = [], deliveryCharge = 0 }) => {
+const calculateVendorVoucherDiscount = ({
+  voucher,
+  items = [],
+  deliveryCharge = 0,
+  deliveryBreakdown = [],
+}) => {
   if (!voucher) {
     return {
       valid: false,
@@ -52,7 +80,7 @@ const calculateVendorVoucherDiscount = ({ voucher, items = [], deliveryCharge = 
   if (voucher.minOrderAmount && vendorSubtotal < Number(voucher.minOrderAmount || 0)) {
     return {
       valid: false,
-      error: `Minimum order for this store voucher is ৳${Number(voucher.minOrderAmount || 0)}`,
+      error: `Minimum order for this store voucher is BDT ${Number(voucher.minOrderAmount || 0)}`,
     };
   }
 
@@ -64,16 +92,31 @@ const calculateVendorVoucherDiscount = ({ voucher, items = [], deliveryCharge = 
   }
 
   let discountAmount = 0;
+  let vendorDeliveryCharge = 0;
   if (voucher.discountType === "percentage") {
     discountAmount = (vendorSubtotal * Number(voucher.discountValue || 0)) / 100;
   } else if (voucher.discountType === "free_shipping") {
-    discountAmount = Number(deliveryCharge || 0);
+    vendorDeliveryCharge = getVendorDeliveryCharge({
+      scopeVendorId,
+      deliveryCharge,
+      deliveryBreakdown,
+    });
+    const shippingCap =
+      asPositiveNumber(voucher.maxDiscountAmount) ||
+      asPositiveNumber(voucher.discountValue) ||
+      vendorDeliveryCharge;
+    discountAmount = Math.min(vendorDeliveryCharge, shippingCap);
   } else {
     discountAmount = Number(voucher.discountValue || 0);
   }
 
+  const configuredMaxDiscount = asPositiveNumber(voucher.maxDiscountAmount);
+  if (configuredMaxDiscount && voucher.discountType !== "free_shipping") {
+    discountAmount = Math.min(discountAmount, configuredMaxDiscount);
+  }
+
   const maxDiscount = voucher.discountType === "free_shipping"
-    ? Number(deliveryCharge || 0)
+    ? vendorDeliveryCharge
     : vendorSubtotal;
   discountAmount = round2(Math.min(discountAmount, maxDiscount));
 
@@ -81,6 +124,7 @@ const calculateVendorVoucherDiscount = ({ voucher, items = [], deliveryCharge = 
     valid: discountAmount > 0,
     discountAmount,
     vendorSubtotal,
+    vendorDeliveryCharge,
     scopeVendorId,
     matchingItems,
     voucher: {

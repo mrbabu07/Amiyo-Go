@@ -265,8 +265,16 @@ export const sendNewsletterBroadcast = (id) =>
 
 // Coupons
 export const getActiveCoupons = () => api.get("/coupons/active");
-export const validateCoupon = (code, orderTotal, items = []) =>
-  api.post("/coupons/validate", { code, orderTotal, items });
+export const validateCoupon = (code, orderTotal, items = [], options = {}) => {
+  const extra =
+    typeof options === "number"
+      ? { deliveryCharge: options }
+      : options && typeof options === "object"
+        ? options
+        : {};
+
+  return api.post("/coupons/validate", { code, orderTotal, items, ...extra });
+};
 export const getAllCoupons = () => api.get("/coupons");
 export const createCoupon = (data) => api.post("/coupons", data);
 export const updateCoupon = (id, data) => api.put(`/coupons/${id}`, data);
@@ -958,10 +966,19 @@ export const getYouMayAlsoLike = (params = {}) =>
   api.get("/recommendations/you-may-also-like", { params });
 
 // Public shop storefronts
+const cleanShopProductParams = (params = {}) =>
+  Object.fromEntries(
+    Object.entries(params).filter(([, value]) => {
+      if (value === undefined || value === null) return false;
+      if (typeof value === "string") return value.trim() !== "";
+      return true;
+    }),
+  );
+
 export const getShops = (params = {}) => api.get("/shops", { params });
 export const getShopBySlug = (slug) => api.get(`/shops/${slug}`);
 export const getShopProducts = (slug, params = {}) =>
-  api.get(`/shops/${slug}/products`, { params });
+  api.get(`/shops/${slug}/products`, { params: cleanShopProductParams(params) });
 export const getShopReviews = (slug, params = {}) =>
   api.get(`/shops/${slug}/reviews`, { params });
 export const followShop = (slug) => api.post(`/shops/${slug}/follow`);

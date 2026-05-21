@@ -947,7 +947,7 @@ function ShopPreview({ profile, decoration, products, selectedVoucher, formatPri
             <p className="text-xs opacity-90">{decoration.campaignMode.message || "Special campaign decoration is active."}</p>
           </div>
         )}
-        <div className="h-28 bg-slate-100">
+        <div className="aspect-[4/1] min-h-24 overflow-hidden bg-slate-100">
           {profile.banner && (
             <img
               src={profile.banner}
@@ -956,6 +956,7 @@ function ShopPreview({ profile, decoration, products, selectedVoucher, formatPri
               style={{
                 objectPosition: cropPosition(decoration.bannerCrop),
                 transform: `scale(${cropScale(decoration.bannerCrop)})`,
+                transformOrigin: cropPosition(decoration.bannerCrop),
               }}
             />
           )}

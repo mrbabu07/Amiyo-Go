@@ -161,6 +161,8 @@ const buildLedgerRows = ({ orders = [], returns = [], vendorId }) => {
 
   return orders.map((order) => {
     const vendorProducts = (order.products || []).filter((product) => matchesVendor(product, vendorId));
+    if (vendorProducts.length === 0) return null;
+
     const saleAmount = vendorProducts.reduce(
       (sum, product) => sum + Number(product.price || 0) * Number(product.quantity || 0),
       0,
@@ -236,7 +238,7 @@ const buildLedgerRows = ({ orders = [], returns = [], vendorId }) => {
         };
       }),
     };
-  });
+  }).filter(Boolean);
 };
 
 const summarizeLedger = ({ ledgerRows = [], payouts = [], returnDeductions = {}, cycleStart, cycleEnd }) => {

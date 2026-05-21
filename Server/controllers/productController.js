@@ -824,24 +824,35 @@ const getAllProducts = async (req, res) => {
       }
     });
 
-    const countQuery = {};
+    const countQuery = {
+      isActive: { $ne: false },
+      $or: [
+        { approvalStatus: { $exists: false } },
+        { approvalStatus: null },
+        { approvalStatus: "approved" },
+      ],
+    };
     if (category) {
-      const categoryObjectId = new ObjectId(category);
-      countQuery.categoryId = categoryObjectId;
+      const categoryObjectId = safeObjectId(category);
 
-      try {
-        const Category = req.app.locals.models.Category;
-        const descendants = await Category.getDescendantIds(category);
-        if (descendants.length > 0) {
-          filters.category = [categoryObjectId, ...descendants];
-          countQuery.categoryId = { $in: filters.category };
+      if (categoryObjectId) {
+        filters.category = categoryObjectId;
+        countQuery.categoryId = { $in: idVariants(categoryObjectId) };
+
+        try {
+          const Category = req.app.locals.models.Category;
+          const descendants = await Category.getDescendantIds(categoryObjectId);
+          if (descendants.length > 0) {
+            filters.category = [categoryObjectId, ...descendants];
+            countQuery.categoryId = { $in: idVariants(filters.category) };
+          }
+        } catch (error) {
+          console.error("Failed to resolve category descendants:", error);
         }
-      } catch (error) {
-        console.error("Failed to resolve category descendants:", error);
       }
     }
 
-    if (vendorId) countQuery.vendorId = new ObjectId(vendorId);
+    if (vendorId) countQuery.vendorId = { $in: idVariants(vendorId) };
 
     const products = await Product.findWithFilters(filters);
 

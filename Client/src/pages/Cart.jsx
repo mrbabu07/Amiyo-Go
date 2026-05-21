@@ -195,6 +195,14 @@ export default function Cart() {
     (sum, group) => sum + group.shippingFee,
     0,
   );
+  const cartDeliveryBreakdown =
+    deliveryQuote?.breakdown?.length > 0
+      ? deliveryQuote.breakdown
+      : vendorGroups.map((group) => ({
+          vendorId: group.vendorId,
+          vendorName: group.vendorName,
+          deliveryFee: group.shippingFee,
+        }));
   const estimatedTotal = Math.max(cartTotal - totalVoucherDiscount, 0) + shippingTotal;
   const checkoutTarget = getCheckoutTarget(user);
   const checkoutCtaLabel = getCheckoutCtaLabel(user);
@@ -233,7 +241,10 @@ export default function Cart() {
     setCouponMessage("");
 
     try {
-      const response = await validateCoupon(code, cartTotal, cartItemsForCoupon);
+      const response = await validateCoupon(code, cartTotal, cartItemsForCoupon, {
+        deliveryCharge: shippingTotal,
+        deliveryBreakdown: cartDeliveryBreakdown,
+      });
       const data = response.data?.data || {};
       const coupon = data.coupon || {};
       const applied = {

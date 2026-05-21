@@ -24,6 +24,85 @@ const idVariants = (value) => {
   return objectId ? [id, objectId] : [id].filter(Boolean);
 };
 
+const uniqueIdVariants = (values = []) => {
+  const seen = new Set();
+  return values.flatMap(idVariants).filter((value) => {
+    const key = `${value instanceof ObjectId ? "objectId" : typeof value}:${normalizeId(value)}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const resolveCategoryFilterIds = async (Category, value) => {
+  const resolved = [];
+  const directCategoryId = safeObjectId(value);
+
+  const addCategoryWithDescendants = async (categoryId) => {
+    if (!categoryId) return;
+    resolved.push(categoryId);
+    if (typeof Category.getDescendantIds === "function") {
+      const descendants = await Category.getDescendantIds(categoryId);
+      resolved.push(...descendants);
+    }
+  };
+
+  if (directCategoryId) {
+    await addCategoryWithDescendants(directCategoryId);
+    return uniqueIdVariants(resolved);
+  }
+
+  const categoryRegex = new RegExp(escapeRegex(value), "i");
+  const categoryRows = await Category.collection
+    .find({ name: categoryRegex })
+    .project({ _id: 1 })
+    .limit(50)
+    .toArray();
+
+  for (const category of categoryRows) {
+    await addCategoryWithDescendants(category._id);
+  }
+
+  return uniqueIdVariants(resolved);
+};
+
+const categoryLookupStages = [
+  {
+    $addFields: {
+      categoryLookupId: {
+        $switch: {
+          branches: [
+            { case: { $eq: [{ $type: "$categoryId" }, "objectId"] }, then: "$categoryId" },
+            {
+              case: {
+                $and: [
+                  { $eq: [{ $type: "$categoryId" }, "string"] },
+                  { $regexMatch: { input: "$categoryId", regex: /^[a-fA-F0-9]{24}$/ } },
+                ],
+              },
+              then: { $toObjectId: "$categoryId" },
+            },
+          ],
+          default: null,
+        },
+      },
+    },
+  },
+  {
+    $lookup: {
+      from: "categories",
+      localField: "categoryLookupId",
+      foreignField: "_id",
+      as: "categoryRows",
+    },
+  },
+  {
+    $addFields: {
+      categoryName: { $ifNull: ["$categoryName", { $arrayElemAt: ["$categoryRows.name", 0] }] },
+    },
+  },
+];
+
 const normalizeShopSlug = (value = "") =>
   String(value || "")
     .toLowerCase()
@@ -34,6 +113,8 @@ const normalizeShopSlug = (value = "") =>
 const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const toTrimmedString = (value) => (value === undefined || value === null ? "" : String(value).trim());
+
+const hasQueryValue = (value) => toTrimmedString(value) !== "";
 
 const truthyQuery = (value) => ["1", "true", "yes", "featured"].includes(String(value || "").toLowerCase());
 
@@ -438,7 +519,7 @@ exports.getShopProducts = async (req, res) => {
     const query = publicProductQuery(vendor);
     const and = [...query.$and];
 
-    if (req.query.search) {
+    if (hasQueryValue(req.query.search)) {
       const regex = new RegExp(escapeRegex(req.query.search), "i");
       and.push({
         $or: [
@@ -451,20 +532,14 @@ exports.getShopProducts = async (req, res) => {
       });
     }
 
-    if (req.query.category) {
-      const categoryId = safeObjectId(req.query.category);
-      if (categoryId) {
-        and.push({ categoryId });
+    if (hasQueryValue(req.query.category)) {
+      const categoryIds = await resolveCategoryFilterIds(req.app.locals.models.Category, req.query.category);
+      if (categoryIds.length > 0) {
+        and.push({ categoryId: { $in: categoryIds } });
       } else {
         const categoryRegex = new RegExp(escapeRegex(req.query.category), "i");
-        const categoryRows = await req.app.locals.models.Category.collection
-          .find({ name: categoryRegex })
-          .project({ _id: 1 })
-          .limit(50)
-          .toArray();
         and.push({
           $or: [
-            { categoryId: { $in: categoryRows.map((category) => category._id) } },
             { categoryName: categoryRegex },
             { category: categoryRegex },
           ],
@@ -472,10 +547,10 @@ exports.getShopProducts = async (req, res) => {
       }
     }
 
-    if (req.query.minPrice !== undefined || req.query.maxPrice !== undefined) {
+    if (hasQueryValue(req.query.minPrice) || hasQueryValue(req.query.maxPrice)) {
       const price = {};
-      if (req.query.minPrice !== undefined) price.$gte = number(req.query.minPrice);
-      if (req.query.maxPrice !== undefined) price.$lte = number(req.query.maxPrice);
+      if (hasQueryValue(req.query.minPrice)) price.$gte = number(req.query.minPrice);
+      if (hasQueryValue(req.query.maxPrice)) price.$lte = number(req.query.maxPrice);
       and.push({ price });
     }
 
@@ -494,6 +569,7 @@ exports.getShopProducts = async (req, res) => {
 
     const pipeline = [
       { $match: match },
+      ...categoryLookupStages,
       {
         $lookup: {
           from: "reviews",
@@ -514,11 +590,11 @@ exports.getShopProducts = async (req, res) => {
       },
     ];
 
-    if (req.query.rating !== undefined) {
+    if (hasQueryValue(req.query.rating)) {
       pipeline.push({ $match: { averageRating: { $gte: number(req.query.rating) } } });
     }
 
-    pipeline.push({ $project: { reviewRows: 0 } });
+    pipeline.push({ $project: { reviewRows: 0, categoryRows: 0, categoryLookupId: 0 } });
 
     const countRows = await Product.collection.aggregate([...pipeline, { $count: "total" }]).toArray();
     const totalCount = countRows[0]?.total || 0;

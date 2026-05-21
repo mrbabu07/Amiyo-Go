@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Camera,
@@ -63,7 +63,7 @@ function SectionHeader({ icon: Icon, title, description }) {
   return (
     <div className="mb-5 flex items-start gap-3">
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-200">
-        <Icon className="h-5 w-5" />
+        {Icon ? createElement(Icon, { className: "h-5 w-5" }) : null}
       </span>
       <div>
         <h1 className="text-xl font-black text-slate-950 dark:text-white">{title}</h1>
@@ -436,7 +436,7 @@ export default function VendorShopSettings() {
             </div>
             <div>
               <p className="mb-2 text-sm font-extrabold text-slate-800 dark:text-white">Banner</p>
-              <div className="flex aspect-[5/2] min-h-48 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-r from-primary-700 to-orange-500 ring-1 ring-slate-200 dark:ring-slate-700">
+              <div className="flex aspect-[4/1] min-h-40 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-r from-primary-800 via-primary-600 to-slate-900 ring-1 ring-slate-200 dark:ring-slate-700">
                 {previewBanner ? <img src={previewBanner} alt="Shop banner preview" className="h-full w-full object-cover" /> : <Image className="h-12 w-12 text-white/75" />}
               </div>
               <label className="mt-4 inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 px-4 text-sm font-extrabold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">

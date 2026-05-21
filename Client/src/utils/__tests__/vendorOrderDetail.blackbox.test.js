@@ -57,6 +57,23 @@ describe("vendor order detail black-box behavior", () => {
     });
   });
 
+  test("shows customer payable after a vendor voucher even when legacy totalAmount is gross", () => {
+    const financials = getVendorOrderFinancials({
+      paymentMethod: "cod",
+      vendorSubtotal: 10000,
+      totalAmount: 10000,
+      totalDiscount: 4999,
+      products: [{ price: 10000, quantity: 1 }],
+    });
+
+    expect(financials).toMatchObject({
+      vendorSubtotal: 10000,
+      discount: 4999,
+      payableTotal: 5001,
+      codAmount: 5001,
+    });
+  });
+
   test("shows correct available actions for a pickup-ready COD order", () => {
     expect(
       getVendorOrderActionPlan({

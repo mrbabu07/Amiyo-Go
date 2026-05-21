@@ -234,8 +234,241 @@ const deriveVendorOrderStatus = (statuses = []) => {
   return "pending";
 };
 
+const VENDOR_ORDER_ALLOWED_TRANSITIONS = {
+  pending: ["processing", "packed", "ready_to_ship", "cancelled"],
+  accepted: ["processing", "packed", "ready_to_ship", "cancelled"],
+  processing: ["packed", "ready_to_ship", "cancelled"],
+  packed: ["ready_to_ship", "pickup_ready", "cancelled"],
+  ready_to_ship: ["pickup_ready", "shipped", "cancelled"],
+  pickup_ready: ["shipped", "cancelled"],
+  shipped: ["delivered", "cancelled"],
+  delivered: [],
+  returned: [],
+  cancelled: [],
+};
+
+const canApplyVendorStatus = (vendorItems = [], nextStatus = "") =>
+  vendorItems.every((item) => {
+    const currentStatus = normalizeStatus(item.itemStatus || "pending") || "pending";
+    if (currentStatus === nextStatus) return true;
+    return (VENDOR_ORDER_ALLOWED_TRANSITIONS[currentStatus] || []).includes(nextStatus);
+  });
+
 const firstVendorField = (products, field) =>
   products.find((product) => product[field] !== undefined && product[field] !== null)?.[field];
+
+const sameId = (left, right) => {
+  if (left === undefined || left === null || right === undefined || right === null) return false;
+  return left.toString() === right.toString();
+};
+
+const getItemLineTotal = (product = {}) => {
+  const price = Number(product.price) || 0;
+  const quantity = Number(product.quantity);
+  return price * (Number.isFinite(quantity) ? quantity : 1);
+};
+
+const sumProducts = (products = [], mapper) =>
+  products.reduce((sum, product) => sum + (Number(mapper(product)) || 0), 0);
+
+const getOrderSubtotal = (order = {}) => {
+  const storedSubtotal = Number(order.subtotal);
+  if (Number.isFinite(storedSubtotal) && storedSubtotal > 0) return storedSubtotal;
+  return sumProducts(order.products || [], getItemLineTotal);
+};
+
+const getVendorDeliveryCharge = (order = {}, vendorId) => {
+  const deliveryBreakdown = Array.isArray(order.deliveryBreakdown) ? order.deliveryBreakdown : [];
+  const deliveryShare = deliveryBreakdown.find((item) =>
+    sameId(item.vendorId || item.vendor_id || item.id || "platform", vendorId),
+  );
+
+  if (deliveryShare) {
+    return round2(
+      deliveryShare.deliveryFee ??
+      deliveryShare.deliveryCharge ??
+      deliveryShare.shippingFee ??
+      deliveryShare.amount ??
+      deliveryShare.fee ??
+      0,
+    );
+  }
+
+  const isFullVendorOrder = order.isPartialOrder === false || (
+    Array.isArray(order.products) &&
+    order.products.length > 0 &&
+    order.products.every((product) => sameId(product.vendorId, vendorId))
+  );
+
+  return isFullVendorOrder
+    ? round2(order.deliveryCharge ?? order.deliveryFee ?? order.shippingFee ?? 0)
+    : 0;
+};
+
+const getDiscountAmount = (value) => round2(Number(value) || 0);
+
+const getLineScopeVendorId = (line = {}) =>
+  line.scopeVendorId ||
+  line.vendorId ||
+  line.vendor_id ||
+  line.metadata?.scopeVendorId ||
+  line.metadata?.vendorId ||
+  null;
+
+const isVendorVoucherType = (line = {}) => {
+  const type = normalizeStatus(line.type || line.source || "");
+  return type === "vendor_voucher" || type === "seller_voucher" || type === "store_voucher";
+};
+
+const addDiscountLine = (totals, line = {}, amount) => {
+  const type = normalizeStatus(line.type || line.source || "");
+  totals.totalDiscount += amount;
+
+  if (isVendorVoucherType(line)) {
+    totals.vendorVoucherDiscount += amount;
+    totals.couponDiscount += amount;
+    totals.sellerFundedDiscount += amount;
+    return;
+  }
+
+  if (type.includes("loyalty") || type.includes("point")) {
+    totals.pointsDiscount += amount;
+    return;
+  }
+
+  if (type.includes("flash")) {
+    totals.flashDiscount += amount;
+    return;
+  }
+
+  totals.couponDiscount += amount;
+};
+
+const calculateVendorDiscounts = ({ order = {}, vendorId, vendorSubtotal = 0 } = {}) => {
+  const orderSubtotal = getOrderSubtotal(order);
+  const ratio = orderSubtotal > 0 ? vendorSubtotal / orderSubtotal : 0;
+  const totals = {
+    couponDiscount: 0,
+    vendorVoucherDiscount: 0,
+    pointsDiscount: 0,
+    flashDiscount: 0,
+    totalDiscount: 0,
+    sellerFundedDiscount: 0,
+  };
+  const lines = Array.isArray(order.discountBreakdown?.lines) ? order.discountBreakdown.lines : [];
+
+  if (lines.length > 0) {
+    const orderLineDiscountTotal = lines.reduce(
+      (sum, line) => sum + getDiscountAmount(line.amount ?? line.discountAmount),
+      0,
+    );
+
+    lines.forEach((line) => {
+      const amount = getDiscountAmount(line.amount ?? line.discountAmount);
+      if (amount <= 0) return;
+
+      const scopeVendorId = getLineScopeVendorId(line);
+      if (scopeVendorId) {
+        if (sameId(scopeVendorId, vendorId)) addDiscountLine(totals, line, amount);
+        return;
+      }
+
+      if (isVendorVoucherType(line)) {
+        const appliedScope = order.couponApplied?.scopeVendorId || order.couponApplied?.vendorId;
+        if (sameId(appliedScope, vendorId)) addDiscountLine(totals, line, amount);
+        return;
+      }
+
+      addDiscountLine(totals, line, round2(amount * ratio));
+    });
+
+    const explicitTotal = getDiscountAmount(
+      order.totalDiscount ??
+      order.discountAmount ??
+      order.discount ??
+      order.discountBreakdown?.totals?.discountTotal,
+    );
+    const residual = round2(Math.max(0, explicitTotal - orderLineDiscountTotal));
+    if (residual > 0) {
+      addDiscountLine(totals, { type: "order_discount" }, round2(residual * ratio));
+    }
+  } else {
+    const couponAmount = getDiscountAmount(order.couponDiscount ?? order.couponApplied?.discountAmount);
+    const couponType = normalizeStatus(order.couponApplied?.source || order.couponApplied?.type || "");
+    const couponScopeVendorId = order.couponApplied?.scopeVendorId || order.couponApplied?.vendorId;
+
+    if (couponAmount > 0) {
+      if (couponType === "vendor_voucher" || couponType === "seller_voucher" || couponScopeVendorId) {
+        if (sameId(couponScopeVendorId, vendorId)) {
+          addDiscountLine(totals, { type: "vendor_voucher" }, couponAmount);
+        }
+      } else {
+        addDiscountLine(totals, { type: "platform_voucher" }, round2(couponAmount * ratio));
+      }
+    }
+
+    const pointsDiscount = round2(getDiscountAmount(order.pointsDiscount) * ratio);
+    if (pointsDiscount > 0) addDiscountLine(totals, { type: "loyalty_points" }, pointsDiscount);
+
+    const flashDiscount = round2(getDiscountAmount(order.flashDiscount ?? order.flashSaleDiscount) * ratio);
+    if (flashDiscount > 0) addDiscountLine(totals, { type: "flash_sale" }, flashDiscount);
+
+    const explicitTotal = getDiscountAmount(order.totalDiscount ?? order.discountAmount ?? order.discount);
+    const explicitComponents =
+      couponAmount +
+      getDiscountAmount(order.pointsDiscount) +
+      getDiscountAmount(order.flashDiscount ?? order.flashSaleDiscount);
+    const residual = round2(Math.max(0, explicitTotal - explicitComponents));
+    if (residual > 0) addDiscountLine(totals, { type: "order_discount" }, round2(residual * ratio));
+  }
+
+  return Object.fromEntries(
+    Object.entries(totals).map(([key, value]) => [key, round2(value)]),
+  );
+};
+
+const calculateVendorOrderFinancials = (order = {}, vendorProducts = [], vendorId, overrides = {}) => {
+  const productSubtotal = sumProducts(vendorProducts, getItemLineTotal);
+  const vendorSubtotal = round2(
+    overrides.vendorSubtotal ??
+    order.vendorSubtotal ??
+    (productSubtotal > 0 ? productSubtotal : order.subtotal),
+  );
+  const vendorCommission = round2(
+    overrides.vendorCommission ??
+    order.vendorCommission ??
+    sumProducts(vendorProducts, (product) => product.adminCommissionAmount || 0),
+  );
+  const productEarnings = sumProducts(
+    vendorProducts,
+    (product) => product.vendorEarningAmount ?? (getItemLineTotal(product) - (Number(product.adminCommissionAmount) || 0)),
+  );
+  const explicitVendorEarnings = Number(
+    overrides.vendorEarnings ??
+    order.grossVendorEarnings ??
+    order.vendorEarnings,
+  );
+  const grossVendorEarnings = round2(
+    Number.isFinite(explicitVendorEarnings) && explicitVendorEarnings > 0
+      ? explicitVendorEarnings
+      : productEarnings,
+  );
+  const deliveryCharge = getVendorDeliveryCharge(order, vendorId);
+  const discounts = calculateVendorDiscounts({ order, vendorId, vendorSubtotal });
+  const payableTotal = round2(Math.max(0, vendorSubtotal + deliveryCharge - discounts.totalDiscount));
+  const vendorEarnings = round2(Math.max(0, grossVendorEarnings - discounts.sellerFundedDiscount));
+
+  return {
+    vendorSubtotal,
+    vendorCommission,
+    grossVendorEarnings,
+    vendorEarnings,
+    deliveryCharge,
+    ...discounts,
+    payableTotal,
+    totalAmount: payableTotal,
+  };
+};
 
 const vendorStaffCan = (req, permission) => {
   if (!req.vendorStaff) return true;
@@ -295,15 +528,20 @@ const getVendorOrderRows = async (db, vendorId) => {
       ),
       0,
     );
-    const deliveredEarnings = products.reduce((sum, product) => {
+    const statuses = products.map((product) => product.itemStatus || order.status || "pending");
+    const status = deriveVendorOrderStatus(statuses);
+    const financials = calculateVendorOrderFinancials(order, products, vendorId, {
+      vendorSubtotal: gross,
+      vendorCommission: commission,
+      vendorEarnings: earnings,
+    });
+    const deliveredEarnings = status === "delivered" ? financials.vendorEarnings : products.reduce((sum, product) => {
       if ((product.itemStatus || order.status) !== "delivered") return sum;
       return sum + (
         Number(product.vendorEarningAmount) ||
         ((Number(product.price) || 0) * (Number(product.quantity) || 0))
       );
     }, 0);
-    const statuses = products.map((product) => product.itemStatus || order.status || "pending");
-    const status = deriveVendorOrderStatus(statuses);
 
     return {
       order,
@@ -311,8 +549,10 @@ const getVendorOrderRows = async (db, vendorId) => {
       status,
       gross: round2(gross),
       commission: round2(commission),
-      earnings: round2(earnings),
+      earnings: financials.vendorEarnings,
       deliveredEarnings: round2(deliveredEarnings),
+      totalDiscount: financials.totalDiscount,
+      payableTotal: financials.payableTotal,
       createdAt: new Date(order.createdAt || Date.now()),
     };
   }).filter(Boolean);
@@ -1120,6 +1360,11 @@ exports.getVendorOrders = async (req, res) => {
       const vendorSubtotal = vendorProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
       const vendorCommission = vendorProducts.reduce((sum, p) => sum + (p.adminCommissionAmount || 0), 0);
       const vendorEarnings = vendorProducts.reduce((sum, p) => sum + (p.vendorEarningAmount || 0), 0);
+      const financials = calculateVendorOrderFinancials(order, vendorProducts, vendorId, {
+        vendorSubtotal,
+        vendorCommission,
+        vendorEarnings,
+      });
 
       // Determine vendor-specific order status from item statuses.
       const itemStatuses = vendorProducts.map(p => p.itemStatus || 'pending');
@@ -1158,10 +1403,18 @@ exports.getVendorOrders = async (req, res) => {
         codCollected: vendorProducts.length > 0 && vendorProducts.every((product) => product.codCollected === true),
         codCollectedAt: firstVendorField(vendorProducts, "codCollectedAt"),
         codCollectionStatus: order.codCollectionStatus || null,
-        vendorSubtotal,
-        vendorCommission,
-        vendorEarnings,
-        totalAmount: vendorSubtotal, // Add totalAmount for display
+        vendorSubtotal: financials.vendorSubtotal,
+        vendorCommission: financials.vendorCommission,
+        grossVendorEarnings: financials.grossVendorEarnings,
+        vendorEarnings: financials.vendorEarnings,
+        deliveryCharge: financials.deliveryCharge,
+        couponDiscount: financials.couponDiscount,
+        vendorVoucherDiscount: financials.vendorVoucherDiscount,
+        pointsDiscount: financials.pointsDiscount,
+        flashDiscount: financials.flashDiscount,
+        totalDiscount: financials.totalDiscount,
+        payableTotal: financials.payableTotal,
+        totalAmount: financials.totalAmount,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
         isPartialOrder: vendorProducts.length < (order.products || []).length,
@@ -1254,6 +1507,12 @@ exports.updateOrderStatus = async (req, res) => {
 
     if (vendorItems.length === 0) {
       return res.status(403).json({ error: "No items for this vendor in order" });
+    }
+
+    if (!canApplyVendorStatus(vendorItems, status)) {
+      return res.status(400).json({
+        error: `Cannot mark vendor items ${status.replace(/_/g, " ")} from their current status`,
+      });
     }
 
     // Update item statuses for vendor's products
@@ -1349,6 +1608,15 @@ exports.bulkUpdateVendorOrders = async (req, res) => {
         const vendorItems = getVendorProductsFromOrder(order, vendorId);
         if (vendorItems.length === 0) {
           results.push({ orderId, success: false, error: "No vendor items in order" });
+          continue;
+        }
+
+        if (!canApplyVendorStatus(vendorItems, status)) {
+          results.push({
+            orderId,
+            success: false,
+            error: `Cannot mark vendor items ${status.replace(/_/g, " ")} from their current status`,
+          });
           continue;
         }
 
@@ -1714,16 +1982,29 @@ exports.getVendorOrderDetail = async (req, res) => {
       }
     }
 
-    const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+    const financials = calculateVendorOrderFinancials(orderData, orderData.products || [], vendorId, {
+      vendorSubtotal: orderData.vendorSubtotal,
+      vendorCommission: orderData.vendorCommission,
+      vendorEarnings: orderData.vendorEarnings,
+    });
 
     res.json({
       success: true,
       data: {
         ...orderData,
         products: enrichedProducts,
-        vendorSubtotal: round2(orderData.vendorSubtotal),
-        vendorCommission: round2(orderData.vendorCommission),
-        vendorEarnings: round2(orderData.vendorEarnings),
+        vendorSubtotal: financials.vendorSubtotal,
+        vendorCommission: financials.vendorCommission,
+        grossVendorEarnings: financials.grossVendorEarnings,
+        vendorEarnings: financials.vendorEarnings,
+        deliveryCharge: financials.deliveryCharge,
+        couponDiscount: financials.couponDiscount,
+        vendorVoucherDiscount: financials.vendorVoucherDiscount,
+        pointsDiscount: financials.pointsDiscount,
+        flashDiscount: financials.flashDiscount,
+        totalDiscount: financials.totalDiscount,
+        payableTotal: financials.payableTotal,
+        totalAmount: financials.totalAmount,
         statusHistory: orderData.statusHistory || [],
       },
     });
@@ -1896,6 +2177,7 @@ exports._private = {
   buildVendorFinanceCommand,
   buildVendorFulfillmentCommand,
   buildVendorReadiness,
+  calculateVendorOrderFinancials,
   deriveVendorOrderStatus,
   getStock,
 };

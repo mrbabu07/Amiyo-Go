@@ -74,6 +74,45 @@ describe("vendorMarketingVoucher utils", () => {
     expect(result.vendorSubtotal).toBe(250);
   });
 
+  test("calculateVendorVoucherDiscount scopes free shipping to the matching vendor delivery fee", () => {
+    const result = calculateVendorVoucherDiscount({
+      voucher: {
+        _id: "voucher-ship",
+        vendorId: "vendor-1",
+        discountType: "free_shipping",
+      },
+      items: [
+        { vendorId: "vendor-1", price: 250, quantity: 1 },
+        { vendorId: "vendor-2", price: 300, quantity: 1 },
+      ],
+      deliveryCharge: 140,
+      deliveryBreakdown: [
+        { vendorId: "vendor-1", deliveryFee: 45 },
+        { vendorId: "vendor-2", deliveryFee: 95 },
+      ],
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.discountAmount).toBe(45);
+    expect(result.vendorDeliveryCharge).toBe(45);
+  });
+
+  test("calculateVendorVoucherDiscount applies a configured maximum discount", () => {
+    const result = calculateVendorVoucherDiscount({
+      voucher: {
+        _id: "voucher-cap",
+        vendorId: "vendor-1",
+        discountType: "percentage",
+        discountValue: 50,
+        maxDiscountAmount: 80,
+      },
+      items: [{ vendorId: "vendor-1", price: 300, quantity: 1 }],
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.discountAmount).toBe(80);
+  });
+
   test("calculateVendorVoucherDiscount blocks mismatched vendor carts and exhausted vouchers", () => {
     const mismatch = calculateVendorVoucherDiscount({
       voucher: {

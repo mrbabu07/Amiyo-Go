@@ -387,6 +387,7 @@ class Order {
               voucher: vendorVoucher,
               items: orderData.products || [],
               deliveryCharge,
+              deliveryBreakdown: orderData.deliveryBreakdown || [],
             });
 
             if (voucherValidation.valid) {
@@ -427,6 +428,7 @@ class Order {
                 scopeVendorName: vendorVoucher.vendorName || "",
                 minOrderAmount: Number(vendorVoucher.minOrderAmount || 0),
                 vendorSubtotal: voucherValidation.vendorSubtotal,
+                vendorDeliveryCharge: voucherValidation.vendorDeliveryCharge,
               };
             }
           }

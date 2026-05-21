@@ -97,6 +97,49 @@ const calculateTotals = (rows = []) =>
     },
   );
 
+const toNumber = (value, fallback = 0) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
+
+const normalizeFinanceRows = (rows = []) =>
+  rows.map((row) => {
+    const saleAmount = toNumber(row.saleAmount ?? row.subtotal);
+    const commissionAmount = toNumber(row.platformCommissionAmount ?? row.adminCommissionAmount);
+    const shippingFeeCredited = toNumber(row.shippingFeeCredited ?? row.shippingFeeCredit);
+    const shippingFeeDebited = toNumber(row.shippingFeeDebited ?? row.shippingFeeDebit);
+    const refundDeducted = toNumber(row.refundDeducted ?? row.refundAmount);
+    const fallbackNet =
+      toNumber(row.vendorEarningAmount, Math.max(0, saleAmount - commissionAmount)) +
+      shippingFeeCredited -
+      shippingFeeDebited -
+      refundDeducted;
+    const itemCount = toNumber(
+      row.itemCount ??
+      row.qty ??
+      row.quantity,
+      Array.isArray(row.items)
+        ? row.items.reduce((sum, item) => sum + toNumber(item.quantity), 0)
+        : 0,
+    );
+
+    return {
+      ...row,
+      orderNumber: row.orderNumber || (row.orderId ? String(row.orderId).slice(-8).toUpperCase() : ""),
+      orderDate: row.orderDate || row.date || row.createdAt || row.updatedAt || null,
+      productsSummary: row.productsSummary || row.productName || row.product || row.title || "Order items",
+      itemCount,
+      saleAmount,
+      platformCommissionRate: toNumber(row.platformCommissionRate ?? row.commissionRateSnapshot),
+      platformCommissionAmount: commissionAmount,
+      shippingFeeCredited,
+      shippingFeeDebited,
+      refundDeducted,
+      netPayout: row.netPayout === undefined || row.netPayout === null ? fallbackNet : toNumber(row.netPayout),
+      itemStatus: row.itemStatus || row.settlementStatus || row.orderStatus || row.status || "pending_clearance",
+    };
+  });
+
 const downloadBlob = (response, fallbackName) => {
   const disposition = response.headers?.["content-disposition"] || "";
   const match = disposition.match(/filename="?([^"]+)"?/);
@@ -153,7 +196,7 @@ export default function VendorFinance() {
       ]);
 
       setStats(summaryRes.data?.data || null);
-      setTransactions(txRes.data?.data || []);
+      setTransactions(normalizeFinanceRows(txRes.data?.data || []));
       setPayouts(payoutsRes.data?.data || []);
       setCommissionRates(rateRes.data?.data || []);
       setReconciliation(reconciliationRes.data?.data || null);
@@ -174,7 +217,7 @@ export default function VendorFinance() {
         month: statementMonth,
         limit: 1000,
       });
-      setStatementRows(response.data?.data || []);
+      setStatementRows(normalizeFinanceRows(response.data?.data || []));
     } catch (error) {
       console.error("Failed to load statement preview:", error);
       toast.error("Failed to load statement preview");

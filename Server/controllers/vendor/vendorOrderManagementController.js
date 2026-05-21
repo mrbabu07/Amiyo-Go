@@ -40,6 +40,11 @@ const updateVendorOrderSnapshot = async (db, orderId, vendorId, update) => {
 const belongsToVendor = (product, vendorId) =>
   product?.vendorId && product.vendorId.toString() === vendorId.toString();
 
+const normalizeItemStatus = (value) => String(value || "pending").trim().toLowerCase();
+
+const allVendorItemsInStatus = (items = [], statuses = []) =>
+  items.every((item) => statuses.includes(normalizeItemStatus(item.itemStatus)));
+
 const getVendorArrayFilter = (vendorId) => {
   const vendorKey = vendorId.toString();
   const filters = [{ "elem.vendorId": vendorKey }];
@@ -303,12 +308,8 @@ exports.markReadyToShip = async (req, res) => {
       return res.status(403).json({ error: "No items for this vendor in order" });
     }
 
-    // Check if items are accepted
-    const notAccepted = vendorItems.some(
-      item => item.itemStatus !== 'accepted'
-    );
-    if (notAccepted) {
-      return res.status(400).json({ error: "Order must be accepted first" });
+    if (!allVendorItemsInStatus(vendorItems, ["pending", "accepted", "processing", "packed", "ready_to_ship"])) {
+      return res.status(400).json({ error: "Only open packed or processing items can be marked ready to ship" });
     }
 
     // Update to ready_to_ship
@@ -400,12 +401,8 @@ exports.shipOrder = async (req, res) => {
       return res.status(403).json({ error: "No items for this vendor in order" });
     }
 
-    // Check if items are ready to ship
-    const notReady = vendorItems.some(
-      item => item.itemStatus !== 'ready_to_ship' && item.itemStatus !== 'accepted'
-    );
-    if (notReady) {
-      return res.status(400).json({ error: "Items must be ready to ship first" });
+    if (!allVendorItemsInStatus(vendorItems, ["ready_to_ship", "pickup_ready"])) {
+      return res.status(400).json({ error: "Items must be ready for courier handover before shipping" });
     }
 
     // Update to shipped
@@ -575,11 +572,8 @@ exports.markPickupReady = async (req, res) => {
     const db = req.app.locals.db;
     const { Order, order, vendor, vendorId, vendorItems } = await getVendorOrderContext(req, orderId);
 
-    const invalidItems = vendorItems.some((item) =>
-      ["cancelled", "delivered", "returned"].includes(item.itemStatus),
-    );
-    if (invalidItems) {
-      return res.status(400).json({ error: "Cancelled, returned, or delivered items cannot be marked pickup ready" });
+    if (!allVendorItemsInStatus(vendorItems, ["packed", "ready_to_ship", "pickup_ready"])) {
+      return res.status(400).json({ error: "Items must be packed or ready to ship before pickup handover" });
     }
 
     const now = new Date();
@@ -640,11 +634,8 @@ exports.schedulePickup = async (req, res) => {
 
     const db = req.app.locals.db;
     const { Order, order, vendor, vendorId, vendorItems } = await getVendorOrderContext(req, orderId);
-    const invalidItems = vendorItems.some((item) =>
-      ["cancelled", "delivered", "returned"].includes(item.itemStatus),
-    );
-    if (invalidItems) {
-      return res.status(400).json({ error: "Cancelled, returned, or delivered items cannot be scheduled for pickup" });
+    if (!allVendorItemsInStatus(vendorItems, ["packed", "ready_to_ship", "pickup_ready"])) {
+      return res.status(400).json({ error: "Items must be packed or ready to ship before pickup scheduling" });
     }
 
     const now = new Date();
@@ -796,11 +787,16 @@ exports.markCodCollected = async (req, res) => {
     const { orderId } = req.params;
     const { note = "" } = req.body;
     const db = req.app.locals.db;
-    const { order, vendor, vendorId } = await getVendorOrderContext(req, orderId);
+    const { order, vendor, vendorId, vendorItems } = await getVendorOrderContext(req, orderId);
     const paymentMethod = String(order.paymentMethod || "").toLowerCase();
 
     if (!["cod", "cash_on_delivery", "cash on delivery"].includes(paymentMethod)) {
       return res.status(400).json({ error: "COD collection can only be marked for cash-on-delivery orders" });
+    }
+
+    const notDelivered = vendorItems.some((item) => item.itemStatus !== "delivered");
+    if (notDelivered) {
+      return res.status(400).json({ error: "COD collection can only be confirmed after delivery" });
     }
 
     const now = new Date();

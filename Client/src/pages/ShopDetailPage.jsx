@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   BadgeCheck,
@@ -41,6 +41,10 @@ const shortDate = (value) => {
   return date.toLocaleDateString("en-BD", { month: "short", day: "numeric", year: "numeric" });
 };
 
+const cropPosition = (crop = {}) => `${crop.x ?? 50}% ${crop.y ?? 50}%`;
+
+const cropScale = (crop = {}) => Math.max(1, Number(crop.zoom || 100) / 100);
+
 function Stars({ rating = 0, size = "h-4 w-4" }) {
   const score = Number(rating || 0);
   return (
@@ -76,7 +80,7 @@ function PolicyBlock({ icon: Icon, title, children }) {
     <section className="rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
       <div className="mb-3 flex items-center gap-2">
         <span className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-          <Icon className="h-5 w-5" />
+          {Icon ? createElement(Icon, { className: "h-5 w-5" }) : null}
         </span>
         <h3 className="text-base font-extrabold text-slate-950 dark:text-white">{title}</h3>
       </div>
@@ -306,15 +310,28 @@ export default function ShopDetailPage() {
         </nav>
 
         <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="relative h-48 bg-gradient-to-r from-[#1e7098] to-orange-500 md:h-64">
-            {shop.banner ? <img src={shop.banner} alt={shop.shopName} className="h-full w-full object-cover" /> : null}
+          <div className="relative h-40 overflow-hidden bg-gradient-to-r from-primary-800 via-primary-600 to-slate-900 sm:h-52 lg:h-64 xl:h-72">
+            {shop.banner ? (
+              <img
+                src={shop.banner}
+                alt={shop.shopName}
+                className="h-full w-full object-cover"
+                style={{
+                  objectPosition: cropPosition(shop.shopDecoration?.bannerCrop),
+                  transform: `scale(${cropScale(shop.shopDecoration?.bannerCrop)})`,
+                  transformOrigin: cropPosition(shop.shopDecoration?.bannerCrop),
+                }}
+                loading="eager"
+                decoding="async"
+              />
+            ) : null}
             <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
           </div>
 
           <div className="px-4 pb-6 sm:px-6 lg:px-8">
-            <div className="-mt-14 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <div className="-mt-12 flex flex-col gap-5 sm:-mt-14 md:flex-row md:items-end md:justify-between">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-                <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-slate-100 shadow-xl dark:border-slate-900 dark:bg-slate-800">
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-slate-100 shadow-xl sm:h-28 sm:w-28 lg:h-32 lg:w-32 dark:border-slate-900 dark:bg-slate-800">
                   {shop.logo ? <img src={shop.logo} alt={shop.shopName} className="h-full w-full object-cover" /> : <Store className="h-10 w-10 text-slate-400" />}
                 </div>
                 <div className="pt-2">

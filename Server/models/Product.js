@@ -1,5 +1,27 @@
 const { ObjectId } = require("mongodb");
 
+const normalizeId = (value) => {
+  if (!value) return "";
+  if (typeof value === "object" && typeof value.toHexString === "function") return value.toHexString();
+  if (typeof value === "object" && value.$oid) return String(value.$oid);
+  return value.toString();
+};
+
+const idVariants = (value) => {
+  const ids = Array.isArray(value) ? value : [value];
+  const seen = new Set();
+  return ids.flatMap((item) => {
+    const id = normalizeId(item);
+    if (!id) return [];
+    return ObjectId.isValid(id) ? [id, new ObjectId(id)] : [id];
+  }).filter((item) => {
+    const key = `${item instanceof ObjectId ? "objectId" : typeof item}:${normalizeId(item)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 class Product {
   constructor(db) {
     this.collection = db.collection("products");
@@ -51,20 +73,12 @@ class Product {
 
     // Vendor filter
     if (vendorId) {
-      query.vendorId = new ObjectId(vendorId);
+      query.vendorId = { $in: idVariants(vendorId) };
     }
-
-    const normalizeCategoryId = (value) => (
-      value instanceof ObjectId ? value : new ObjectId(value)
-    );
 
     // Category filter
     if (category) {
-      if (Array.isArray(category)) {
-        query.categoryId = { $in: category.map(normalizeCategoryId) };
-      } else {
-        query.categoryId = normalizeCategoryId(category);
-      }
+      query.categoryId = { $in: idVariants(category) };
     }
 
     // Price range filter
@@ -112,11 +126,33 @@ class Product {
     // Rating filter (requires aggregation with reviews)
     let pipeline = [{ $match: query }];
 
+    pipeline.push({
+      $addFields: {
+        categoryLookupId: {
+          $switch: {
+            branches: [
+              { case: { $eq: [{ $type: "$categoryId" }, "objectId"] }, then: "$categoryId" },
+              {
+                case: {
+                  $and: [
+                    { $eq: [{ $type: "$categoryId" }, "string"] },
+                    { $regexMatch: { input: "$categoryId", regex: /^[a-fA-F0-9]{24}$/ } },
+                  ],
+                },
+                then: { $toObjectId: "$categoryId" },
+              },
+            ],
+            default: null,
+          },
+        },
+      },
+    });
+
     // Lookup category name
     pipeline.push({
       $lookup: {
         from: "categories",
-        localField: "categoryId",
+        localField: "categoryLookupId",
         foreignField: "_id",
         as: "categoryInfo"
       }
@@ -194,6 +230,7 @@ class Product {
 
     pipeline.push({
       $project: {
+        categoryLookupId: 0,
         categoryInfo: 0,
         vendorInfo: 0 // Remove vendor info from output
       }

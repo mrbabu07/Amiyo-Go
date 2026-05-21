@@ -125,7 +125,18 @@ export const getVendorOrderFinancials = (order = {}) => {
     Math.max(vendorSubtotal - vendorCommission, 0),
   );
   const deliveryFee = toNumber(order.deliveryFee || order.shippingFee || order.deliveryCharge);
-  const discount = toNumber(order.discount || order.vendorDiscount || order.couponDiscount);
+  const discount = toNumber(
+    order.totalDiscount ??
+    order.vendorVoucherDiscount ??
+    order.sellerVoucherDiscount ??
+    order.discount ??
+    order.vendorDiscount ??
+    order.couponDiscount ??
+    order.couponApplied?.discountAmount,
+  );
+  const computedPayableTotal = Math.max(vendorSubtotal + deliveryFee - discount, 0);
+  const storedPayableTotal = toNumber(order.payableTotal ?? order.customerPayableTotal);
+  const payableTotal = storedPayableTotal > 0 ? storedPayableTotal : computedPayableTotal;
 
   return {
     itemCount: products.length,
@@ -136,8 +147,8 @@ export const getVendorOrderFinancials = (order = {}) => {
     vendorEarnings,
     deliveryFee,
     discount,
-    payableTotal: Math.max(vendorSubtotal + deliveryFee - discount, 0),
-    codAmount: isVendorCodOrder(order) ? Math.max(vendorSubtotal + deliveryFee - discount, 0) : 0,
+    payableTotal,
+    codAmount: isVendorCodOrder(order) ? payableTotal : 0,
   };
 };
 
@@ -146,7 +157,18 @@ export const getVendorOrderProductPricingSummaries = (order = {}) => {
   const lineTotals = products.map((item) =>
     Math.max(0, toNumber(item.price) * Math.max(1, toNumber(item.quantity, 1))),
   );
-  const totalDiscount = Math.max(0, toNumber(order.totalDiscount || order.discount || order.vendorDiscount || order.couponDiscount));
+  const totalDiscount = Math.max(
+    0,
+    toNumber(
+      order.totalDiscount ??
+      order.vendorVoucherDiscount ??
+      order.sellerVoucherDiscount ??
+      order.discount ??
+      order.vendorDiscount ??
+      order.couponDiscount ??
+      order.couponApplied?.discountAmount,
+    ),
+  );
   const base = lineTotals.reduce((sum, value) => sum + value, 0);
   let assigned = 0;
 

@@ -22,7 +22,7 @@ describe("vendorMarketingController", () => {
     jest.restoreAllMocks();
   });
 
-  test("createVendorMarketingItem rejects duplicate pending/approved voucher codes for the same vendor", async () => {
+  test("createVendorMarketingItem rejects duplicate pending/approved voucher codes globally", async () => {
     const findOne = jest.fn().mockResolvedValue({ _id: "existing-voucher" });
     const req = {
       body: {
@@ -47,7 +47,6 @@ describe("vendorMarketingController", () => {
     await createVendorMarketingItem(req, res);
 
     expect(findOne).toHaveBeenCalledWith({
-      vendorId: "vendor-1",
       type: "voucher",
       code: "SAVE10",
       status: { $in: ["pending", "approved"] },
@@ -55,7 +54,7 @@ describe("vendorMarketingController", () => {
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({
       success: false,
-      error: "This voucher code is already in use for your store.",
+      error: "This voucher code is already reserved. Use a unique seller voucher code.",
     });
   });
 
@@ -166,6 +165,41 @@ describe("vendorMarketingController", () => {
         vendorId: "vendor-1",
       }),
       message: "Vendor marketing submission approved.",
+    });
+  });
+
+  test("reviewAdminMarketingItem blocks approving a seller voucher with a reserved code", async () => {
+    const collection = {
+      findOne: jest.fn()
+        .mockResolvedValueOnce({
+          _id: new ObjectId("507f1f77bcf86cd799439011"),
+          type: "voucher",
+          code: "SAVE10",
+          status: "pending",
+        })
+        .mockResolvedValueOnce({
+          _id: new ObjectId("507f1f77bcf86cd799439012"),
+          type: "voucher",
+          code: "SAVE10",
+          status: "approved",
+        }),
+      updateOne: jest.fn(),
+    };
+    const req = {
+      params: { id: "507f1f77bcf86cd799439011" },
+      body: { status: "approved", adminNotes: "Looks good" },
+      user: { _id: "admin-1" },
+      app: { locals: { db: { collection: jest.fn(() => collection) } } },
+    };
+    const res = createRes();
+
+    await reviewAdminMarketingItem(req, res);
+
+    expect(collection.updateOne).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: "Cannot approve this voucher because the code is already reserved.",
     });
   });
 

@@ -4,6 +4,8 @@ import { validateCoupon } from "../services/api";
 export default function CouponInput({
   orderTotal,
   items = [],
+  deliveryCharge = 0,
+  deliveryBreakdown = [],
   onCouponApplied,
   onCouponRemoved,
   appliedCoupon,
@@ -25,8 +27,11 @@ export default function CouponInput({
       if (onApplyCode) {
         await onApplyCode(couponCode.trim());
       } else {
-        const response = await validateCoupon(couponCode.trim(), orderTotal, items);
-        const { coupon, discountAmount, finalTotal, scopeVendorId, vendorSubtotal } =
+        const response = await validateCoupon(couponCode.trim(), orderTotal, items, {
+          deliveryCharge,
+          deliveryBreakdown,
+        });
+        const { coupon, discountAmount, finalTotal, scopeVendorId, vendorSubtotal, vendorDeliveryCharge } =
           response.data.data;
 
         onCouponApplied({
@@ -36,6 +41,7 @@ export default function CouponInput({
           coupon,
           scopeVendorId: scopeVendorId || coupon.vendorId || null,
           vendorSubtotal: vendorSubtotal || null,
+          vendorDeliveryCharge: vendorDeliveryCharge || null,
         });
       }
 
@@ -83,7 +89,7 @@ export default function CouponInput({
                   : `Coupon Applied: ${appliedCoupon.code}`}
               </p>
               <p className="text-xs text-green-600">
-                You saved ৳{appliedCoupon.discountAmount}!
+                You saved BDT {appliedCoupon.discountAmount}!
               </p>
               {isVendorVoucher && (
                 <p className="text-xs text-green-700">

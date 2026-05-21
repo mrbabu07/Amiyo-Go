@@ -231,6 +231,66 @@ describe("vendor finance controller", () => {
     });
   });
 
+  test("getTransactions ignores orders that do not contain this vendor's items", async () => {
+    const vendorId = new ObjectId();
+    const otherVendorId = new ObjectId();
+    const deliveredOrderId = new ObjectId();
+    const unrelatedOrderId = new ObjectId();
+    const req = buildFinanceReq({
+      vendorId,
+      orders: [
+        {
+          _id: deliveredOrderId,
+          createdAt: new Date("2026-05-04T10:00:00.000Z"),
+          subtotal: 700,
+          products: [
+            {
+              vendorId: vendorId.toString(),
+              title: "Delivered item",
+              price: 700,
+              quantity: 1,
+              itemStatus: "delivered",
+              adminCommissionAmount: 70,
+              vendorEarningAmount: 630,
+            },
+          ],
+        },
+        {
+          _id: unrelatedOrderId,
+          createdAt: new Date("2026-05-05T10:00:00.000Z"),
+          subtotal: 500,
+          products: [
+            {
+              vendorId: otherVendorId.toString(),
+              title: "Other seller item",
+              price: 500,
+              quantity: 1,
+              itemStatus: "delivered",
+              adminCommissionAmount: 50,
+              vendorEarningAmount: 450,
+            },
+          ],
+        },
+      ],
+      query: { limit: "20" },
+    });
+    const res = createRes();
+
+    await getTransactions(req, res);
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.data).toHaveLength(1);
+    expect(payload.data[0]).toEqual(expect.objectContaining({
+      orderId: deliveredOrderId,
+      orderNumber: deliveredOrderId.toString().slice(-8).toUpperCase(),
+      productsSummary: "Delivered item",
+      itemCount: 1,
+      saleAmount: 700,
+      netPayout: 630,
+      itemStatus: "released",
+    }));
+  });
+
   test("getReconciliation exposes COD exposure, payout holds, and available balance", async () => {
     const vendorId = new ObjectId();
     const deliveredOrderId = new ObjectId();

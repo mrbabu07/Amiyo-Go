@@ -575,6 +575,28 @@ const VendorActivityDashboard = () => {
     return classes[status] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
   };
 
+  const getMarketingTypeLabel = (type = '') => {
+    const labels = {
+      voucher: 'Seller voucher',
+      campaign: 'Campaign request',
+      campaign_nomination: 'Campaign nomination',
+      promotion: 'Promotion',
+      bundle: 'Bundle deal',
+      free_shipping: 'Free shipping',
+      seller_pick: 'Seller picks',
+    };
+    return labels[type] || type || 'Marketing request';
+  };
+
+  const getMarketingDiscountLabel = (item = {}) => {
+    if (item.discountType === 'free_shipping' || item.type === 'free_shipping') {
+      return 'Free delivery';
+    }
+    if (!item.discountValue) return null;
+    if (item.discountType === 'percentage') return `${item.discountValue}% off`;
+    return `${formatPrice(item.discountValue)} off`;
+  };
+
   const moderationFilters = [
     { value: 'pending', label: 'Pending' },
     { value: 'approved', label: 'Approved' },
@@ -926,7 +948,7 @@ const VendorActivityDashboard = () => {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                            {item.type}
+                            {getMarketingTypeLabel(item.type)}
                           </span>
                           <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize ${getApprovalClass(item.status || 'pending')}`}>
                             {item.status || 'pending'}
@@ -941,12 +963,14 @@ const VendorActivityDashboard = () => {
                         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                           <span>Vendor: {item.vendorName || 'Vendor'}</span>
                           {item.code && <span>Code: {item.code}</span>}
-                          {item.discountValue ? (
+                          {getMarketingDiscountLabel(item) ? (
                             <span>
-                              Discount: {item.discountType === 'percentage' ? `${item.discountValue}%` : formatPrice(item.discountValue)}
+                              Discount: {getMarketingDiscountLabel(item)}
                             </span>
                           ) : null}
+                          {item.maxDiscountAmount ? <span>Max discount: {formatPrice(item.maxDiscountAmount)}</span> : null}
                           {item.minOrderAmount ? <span>Min order: {formatPrice(item.minOrderAmount)}</span> : null}
+                          {item.usageLimit ? <span>Used: {item.usedCount || 0}/{item.usageLimit}</span> : null}
                           <span>Start: {new Date(item.startDate).toLocaleDateString()}</span>
                           <span>End: {new Date(item.endDate).toLocaleDateString()}</span>
                         </div>

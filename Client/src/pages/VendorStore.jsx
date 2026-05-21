@@ -510,14 +510,15 @@ export default function VendorStore() {
 
       {/* Banner Image */}
       {vendor.banner && (
-        <div className="relative h-48 md:h-64 bg-gradient-to-r from-orange-400 to-orange-600 overflow-hidden">
+        <div className="relative h-40 overflow-hidden bg-gradient-to-r from-primary-800 via-primary-600 to-slate-900 sm:h-52 lg:h-64 xl:h-72">
           <img
             src={vendor.banner}
             alt={`${vendor.shopName} Banner`}
-            className="w-full h-full object-cover"
+            className="h-full w-full object-cover"
             style={{
               objectPosition: cropPosition(shopDecoration.bannerCrop),
               transform: `scale(${cropScale(shopDecoration.bannerCrop)})`,
+              transformOrigin: cropPosition(shopDecoration.bannerCrop),
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
@@ -529,7 +530,7 @@ export default function VendorStore() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {!vendor.banner && <BackButton className="text-white hover:text-orange-100 pt-6 mb-4" />}
           
-          <div className={`flex flex-col md:flex-row items-start md:items-end gap-6 ${vendor.banner ? '-mt-16 pb-6' : 'py-6'}`}>
+          <div className={`flex flex-col md:flex-row items-start md:items-end gap-6 ${vendor.banner ? '-mt-14 pb-6 sm:-mt-16' : 'py-6'}`}>
             {/* Vendor Logo */}
             <div className="flex-shrink-0">
               {vendor.logo ? (

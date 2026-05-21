@@ -394,6 +394,8 @@ async function run() {
     console.log("✅ Delivery Settings routes registered");
 
     app.use("/api/vendors/staff", vendorStaffRoutes);
+    app.use("/api/vendors/finance", vendorFinanceRoutes);
+    console.log("✅ Vendor Finance routes registered");
     app.use("/api/vendors", vendorRoutes);
     console.log("✅ Vendor routes registered");
 
@@ -405,9 +407,6 @@ async function run() {
 
     app.use("/api/vendor/products", vendorProductRoutes);
     console.log("✅ Vendor Product routes registered");
-
-    app.use("/api/vendors/finance", vendorFinanceRoutes);
-    console.log("✅ Vendor Finance routes registered");
 
     app.use("/api/vendors", vendorOrderManagementRoutes);
     console.log("✅ Vendor Order Management routes registered");

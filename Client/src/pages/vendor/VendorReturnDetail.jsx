@@ -41,21 +41,21 @@ const actionOptions = [
     title: "Approve return",
     description: "Accept the case and allow the refund workflow.",
     icon: CheckCircle2,
-    tone: "border-emerald-500 bg-emerald-50 text-emerald-700",
+    tone: "border-success-500 bg-success-50 text-success-700",
   },
   {
     value: "disputed",
     title: "Dispute with evidence",
     description: "Ask admin to review your proof before a decision.",
     icon: AlertTriangle,
-    tone: "border-orange-500 bg-orange-50 text-orange-700",
+    tone: "border-primary-500 bg-primary-50 text-primary-700",
   },
   {
     value: "rejected",
     title: "Reject request",
     description: "Reject when the request is invalid for this order.",
     icon: XCircle,
-    tone: "border-red-500 bg-red-50 text-red-700",
+    tone: "border-error-500 bg-error-50 text-error-700",
   },
 ];
 
@@ -138,7 +138,7 @@ function TimelineList({ events }) {
           {events.map((event, index) => (
             <div key={`${event.type}-${event.at.toISOString()}-${index}`} className="flex gap-3">
               <div className="flex flex-col items-center">
-                <span className="mt-1 h-2.5 w-2.5 rounded-full bg-orange-500" />
+                <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary-500" />
                 {index < events.length - 1 && <span className="mt-1 h-full min-h-10 w-px bg-slate-200" />}
               </div>
               <div className="min-w-0 flex-1 pb-2">
@@ -300,13 +300,13 @@ export default function VendorReturnDetail() {
   if (error || !returnItem) {
     return (
       <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
-        <div className="mx-auto max-w-3xl rounded-xl border border-red-200 bg-white p-8 text-center shadow-sm">
-          <AlertTriangle className="mx-auto h-10 w-10 text-red-500" aria-hidden="true" />
+        <div className="mx-auto max-w-3xl rounded-xl border border-error-200 bg-white p-8 text-center shadow-sm">
+          <AlertTriangle className="mx-auto h-10 w-10 text-error-500" aria-hidden="true" />
           <h1 className="mt-4 text-xl font-semibold text-slate-950">Return detail unavailable</h1>
           <p className="mt-2 text-slate-600">{error || "This return could not be loaded."}</p>
           <Link
             to="/vendor/returns"
-            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back to returns
@@ -324,7 +324,7 @@ export default function VendorReturnDetail() {
             <div>
               <Link
                 to="/vendor/returns"
-                className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-orange-600"
+                className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-primary-700"
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Back to returns
@@ -366,7 +366,7 @@ export default function VendorReturnDetail() {
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-medium text-slate-500">Customer refund</p>
-              <Banknote className="h-5 w-5 text-emerald-500" aria-hidden="true" />
+              <Banknote className="h-5 w-5 text-success-600" aria-hidden="true" />
             </div>
             <p className="mt-3 text-2xl font-bold text-slate-950">{formatPrice(financials.customerRefund)}</p>
             <p className="mt-1 text-sm text-slate-500">Requested amount</p>
@@ -374,7 +374,7 @@ export default function VendorReturnDetail() {
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-medium text-slate-500">Vendor deduction</p>
-              <AlertTriangle className="h-5 w-5 text-orange-500" aria-hidden="true" />
+              <AlertTriangle className="h-5 w-5 text-primary-600" aria-hidden="true" />
             </div>
             <p className="mt-3 text-2xl font-bold text-slate-950">{formatPrice(financials.vendorDeduction)}</p>
             <p className="mt-1 text-sm text-slate-500">
@@ -500,7 +500,7 @@ export default function VendorReturnDetail() {
                         value={reason}
                         onChange={(event) => setReason(event.target.value)}
                         rows={4}
-                        className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                        className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                         placeholder="Explain the seller-side reason clearly for admin review."
                       />
                     </label>
@@ -512,13 +512,13 @@ export default function VendorReturnDetail() {
                       value={notes}
                       onChange={(event) => setNotes(event.target.value)}
                       rows={4}
-                      className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                      className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                       placeholder="Add packing, QC, or communication context."
                     />
                   </label>
 
                   <div>
-                    <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-orange-300 hover:bg-orange-50/40">
+                    <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-primary-300 hover:bg-primary-50">
                       <Upload className="h-7 w-7 text-slate-400" aria-hidden="true" />
                       <span className="mt-2 text-sm font-semibold text-slate-700">Upload evidence images</span>
                       <span className="mt-1 text-xs text-slate-500">Up to 5 images from packing, QC, or delivery handover.</span>
@@ -533,7 +533,7 @@ export default function VendorReturnDetail() {
                             <button
                               type="button"
                               onClick={() => removeFile(index)}
-                              className="absolute right-1 top-1 rounded-full bg-slate-950/80 p-1 text-white hover:bg-red-600"
+                              className="absolute right-1 top-1 rounded-full bg-slate-950/80 p-1 text-white hover:bg-error-600"
                               aria-label={`Remove ${preview.name}`}
                             >
                               <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -548,7 +548,7 @@ export default function VendorReturnDetail() {
                     type="button"
                     onClick={submitResponse}
                     disabled={submitting || (needsReason && !reason.trim())}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-3 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {submitting ? (
                       <>
@@ -577,7 +577,7 @@ export default function VendorReturnDetail() {
                     <p className="mt-3 whitespace-pre-line text-sm text-slate-700">{returnItem.vendorResponseNotes}</p>
                   )}
                   {returnItem.disputeReason && (
-                    <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
+                    <div className="mt-3 rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900">
                       <span className="font-semibold">Reason:</span> {returnItem.disputeReason}
                     </div>
                   )}

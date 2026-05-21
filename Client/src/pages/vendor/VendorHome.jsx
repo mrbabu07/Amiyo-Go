@@ -136,20 +136,21 @@ const EmptyInline = ({ text }) => (
 
 const MetricCard = ({ label, value, detail, icon, tone = "gray" }) => {
   const toneClasses = {
-    orange: "bg-orange-50 text-orange-700",
-    blue: "bg-blue-50 text-blue-700",
-    green: "bg-green-50 text-green-700",
-    red: "bg-red-50 text-red-700",
-    gray: "bg-gray-50 text-gray-700",
+    primary: "bg-primary-50 text-primary-700",
+    blue: "bg-secondary-50 text-secondary-700",
+    green: "bg-success-50 text-success-700",
+    red: "bg-error-50 text-error-700",
+    yellow: "bg-yellow-50 text-yellow-700",
+    gray: "bg-slate-50 text-slate-700",
   };
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
-          <p className="mt-2 text-2xl font-bold text-gray-950">{value}</p>
-          <p className="mt-1 text-sm text-gray-500">{detail}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
+          <p className="mt-1 text-sm text-slate-500">{detail}</p>
         </div>
         <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${toneClasses[tone]}`}>
           {createElement(icon, { className: "h-5 w-5" })}
@@ -168,10 +169,10 @@ const HealthMetric = ({ label, value, detail, tone }) => (
 );
 
 const actionPriorityTone = {
-  critical: "border-red-200 bg-red-50 text-red-800",
-  high: "border-orange-200 bg-orange-50 text-orange-800",
+  critical: "border-error-200 bg-error-50 text-error-800",
+  high: "border-primary-200 bg-primary-50 text-primary-800",
   medium: "border-yellow-200 bg-yellow-50 text-yellow-800",
-  low: "border-blue-200 bg-blue-50 text-blue-800",
+  low: "border-secondary-200 bg-secondary-50 text-secondary-800",
 };
 
 const SellerActionCenter = ({ actionCenter, formatPrice }) => {
@@ -179,35 +180,35 @@ const SellerActionCenter = ({ actionCenter, formatPrice }) => {
   const items = actionCenter?.items || [];
 
   return (
-    <section data-testid="vendor-action-center" className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="border-b border-gray-100 p-5">
+    <section data-testid="vendor-action-center" className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-100 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-sm font-bold text-orange-600">
+            <div className="flex items-center gap-2 text-sm font-bold text-primary-700">
               <AlertTriangle className="h-4 w-4" />
               Seller action center
             </div>
-            <h2 className="mt-2 text-xl font-bold text-gray-950">What needs work now</h2>
-            <p className="mt-1 max-w-3xl text-sm text-gray-500">
+            <h2 className="mt-2 text-xl font-bold text-slate-950">What needs work now</h2>
+            <p className="mt-1 max-w-3xl text-sm text-slate-500">
               Fulfillment, returns, listings, finance, category access, and marketing actions are grouped here so your team can work from one queue.
             </p>
           </div>
           <div className="grid min-w-full gap-2 sm:grid-cols-4 lg:min-w-[520px]">
-            <div className="rounded-lg bg-gray-50 px-3 py-2">
-              <p className="text-xs font-bold uppercase text-gray-500">Open</p>
-              <p className="text-xl font-black text-gray-950">{summary.total}</p>
+            <div className="rounded-lg bg-slate-50 px-3 py-2">
+              <p className="text-xs font-bold uppercase text-slate-500">Open</p>
+              <p className="text-xl font-black text-slate-950">{summary.total}</p>
             </div>
-            <div className="rounded-lg bg-red-50 px-3 py-2">
-              <p className="text-xs font-bold uppercase text-red-600">Critical</p>
-              <p className="text-xl font-black text-red-700">{summary.critical}</p>
+            <div className="rounded-lg bg-error-50 px-3 py-2">
+              <p className="text-xs font-bold uppercase text-error-600">Critical</p>
+              <p className="text-xl font-black text-error-700">{summary.critical}</p>
             </div>
-            <div className="rounded-lg bg-orange-50 px-3 py-2">
-              <p className="text-xs font-bold uppercase text-orange-600">High</p>
-              <p className="text-xl font-black text-orange-700">{summary.high}</p>
+            <div className="rounded-lg bg-primary-50 px-3 py-2">
+              <p className="text-xs font-bold uppercase text-primary-700">High</p>
+              <p className="text-xl font-black text-primary-800">{summary.high}</p>
             </div>
-            <div className="rounded-lg bg-green-50 px-3 py-2">
-              <p className="text-xs font-bold uppercase text-green-600">Exposure</p>
-              <p className="truncate text-xl font-black text-green-700">{formatPrice(summary.financeExposure)}</p>
+            <div className="rounded-lg bg-success-50 px-3 py-2">
+              <p className="text-xs font-bold uppercase text-success-600">Exposure</p>
+              <p className="truncate text-xl font-black text-success-700">{formatPrice(summary.financeExposure)}</p>
             </div>
           </div>
         </div>
@@ -215,36 +216,36 @@ const SellerActionCenter = ({ actionCenter, formatPrice }) => {
 
       <div className="grid gap-3 p-4">
         {items.length ? items.map((item) => (
-          <article key={item.key} className="grid gap-3 rounded-lg border border-gray-100 p-4 transition hover:border-orange-200 hover:bg-orange-50/40 lg:grid-cols-[minmax(0,1fr)_180px_auto] lg:items-center">
+          <article key={item.key} className="grid gap-3 rounded-lg border border-slate-100 p-4 transition hover:border-primary-200 hover:bg-primary-50/40 lg:grid-cols-[minmax(0,1fr)_180px_auto] lg:items-center">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-black text-gray-950">{item.title}</h3>
+                <h3 className="text-sm font-black text-slate-950">{item.title}</h3>
                 <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold capitalize ${actionPriorityTone[item.priority] || actionPriorityTone.low}`}>
                   {item.priority}
                 </span>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-bold text-gray-600">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
                   {item.workflow}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-gray-600">{item.detail}</p>
+              <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
             </div>
-            <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm">
-              <p className="font-bold text-gray-950">{item.count} item{Number(item.count) === 1 ? "" : "s"}</p>
-              {item.amount ? <p className="text-xs font-semibold text-gray-500">{formatPrice(item.amount)}</p> : null}
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
+              <p className="font-bold text-slate-950">{item.count} item{Number(item.count) === 1 ? "" : "s"}</p>
+              {item.amount ? <p className="text-xs font-semibold text-slate-500">{formatPrice(item.amount)}</p> : null}
             </div>
             <Link
               to={item.path}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-bold text-white transition hover:bg-orange-700"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700"
             >
               {item.actionLabel}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </article>
         )) : (
-          <div className="flex min-h-32 flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 px-4 py-8 text-center">
-            <CheckCircle2 className="h-10 w-10 text-green-600" />
-            <p className="mt-3 text-sm font-bold text-gray-950">No urgent seller actions</p>
-            <p className="mt-1 text-sm text-gray-500">Keep stock, fulfillment, returns, and campaigns healthy.</p>
+          <div className="flex min-h-32 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center">
+            <CheckCircle2 className="h-10 w-10 text-success-600" />
+            <p className="mt-3 text-sm font-bold text-slate-950">No urgent seller actions</p>
+            <p className="mt-1 text-sm text-slate-500">Keep stock, fulfillment, returns, and campaigns healthy.</p>
           </div>
         )}
       </div>
@@ -264,48 +265,48 @@ const VendorCommandPanels = ({ stats, formatPrice }) => {
 
   return (
     <section data-testid="vendor-command-panels" className="grid gap-5 xl:grid-cols-3">
-      <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Finance control</p>
-            <h2 className="mt-1 text-lg font-black text-gray-950">Payout and COD</h2>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Finance control</p>
+            <h2 className="mt-1 text-lg font-black text-slate-950">Payout and COD</h2>
           </div>
-          <Wallet className="h-5 w-5 text-green-600" />
+          <Wallet className="h-5 w-5 text-success-600" />
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          <div className="rounded-lg bg-gray-50 p-3">
-            <p className="text-xs font-bold text-gray-500">Available estimate</p>
-            <p className="text-base font-black text-gray-950">{formatPrice(finance.availableEstimate)}</p>
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="text-xs font-bold text-slate-500">Available estimate</p>
+            <p className="text-base font-black text-slate-950">{formatPrice(finance.availableEstimate)}</p>
           </div>
-          <div className="rounded-lg bg-gray-50 p-3">
-            <p className="text-xs font-bold text-gray-500">Pending payout</p>
-            <p className="text-base font-black text-gray-950">{formatPrice(finance.pendingPayouts)}</p>
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="text-xs font-bold text-slate-500">Pending payout</p>
+            <p className="text-base font-black text-slate-950">{formatPrice(finance.pendingPayouts)}</p>
           </div>
-          <div className="rounded-lg bg-gray-50 p-3">
-            <p className="text-xs font-bold text-gray-500">COD pending</p>
-            <p className="text-base font-black text-gray-950">{formatPrice(finance.codPending)}</p>
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="text-xs font-bold text-slate-500">COD pending</p>
+            <p className="text-base font-black text-slate-950">{formatPrice(finance.codPending)}</p>
           </div>
-          <div className="rounded-lg bg-gray-50 p-3">
-            <p className="text-xs font-bold text-gray-500">Deductions</p>
-            <p className="text-base font-black text-gray-950">{formatPrice(finance.vendorDeductions)}</p>
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="text-xs font-bold text-slate-500">Deductions</p>
+            <p className="text-base font-black text-slate-950">{formatPrice(finance.vendorDeductions)}</p>
           </div>
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Fulfillment control</p>
-            <h2 className="mt-1 text-lg font-black text-gray-950">Packing and pickup</h2>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Fulfillment control</p>
+            <h2 className="mt-1 text-lg font-black text-slate-950">Packing and pickup</h2>
           </div>
-          <Truck className="h-5 w-5 text-orange-600" />
+          <Truck className="h-5 w-5 text-primary-600" />
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2">
-          <div className="rounded-lg bg-orange-50 p-3 text-orange-800">
+          <div className="rounded-lg bg-primary-50 p-3 text-primary-800">
             <p className="text-xs font-bold">Active</p>
             <p className="text-xl font-black">{fulfillment.active || 0}</p>
           </div>
-          <div className="rounded-lg bg-red-50 p-3 text-red-800">
+          <div className="rounded-lg bg-error-50 p-3 text-error-800">
             <p className="text-xs font-bold">Late</p>
             <p className="text-xl font-black">{fulfillment.breached || 0}</p>
           </div>
@@ -315,9 +316,9 @@ const VendorCommandPanels = ({ stats, formatPrice }) => {
           </div>
         </div>
         {fulfillment.nextDeadline ? (
-          <Link to={`/vendor/orders/${fulfillment.nextDeadline.orderId}`} className="mt-4 block rounded-lg border border-orange-100 bg-orange-50 p-3 text-sm transition hover:bg-orange-100">
-            <p className="font-bold text-gray-950">Next deadline</p>
-            <p className="mt-1 text-gray-600">
+          <Link to={`/vendor/orders/${fulfillment.nextDeadline.orderId}`} className="mt-4 block rounded-lg border border-primary-100 bg-primary-50 p-3 text-sm transition hover:bg-primary-100">
+            <p className="font-bold text-slate-950">Next deadline</p>
+            <p className="mt-1 text-slate-600">
               Order #{String(fulfillment.nextDeadline.orderId).slice(-8)} / {fulfillment.nextDeadline.hoursRemaining < 0 ? "late" : `${fulfillment.nextDeadline.hoursRemaining}h left`}
             </p>
           </Link>
@@ -326,22 +327,22 @@ const VendorCommandPanels = ({ stats, formatPrice }) => {
         )}
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Seller readiness</p>
-            <h2 className="mt-1 text-lg font-black text-gray-950">Business setup</h2>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Seller readiness</p>
+            <h2 className="mt-1 text-lg font-black text-slate-950">Business setup</h2>
           </div>
-          <ShieldCheck className="h-5 w-5 text-blue-600" />
+          <ShieldCheck className="h-5 w-5 text-secondary-600" />
         </div>
         <div className={`mt-4 rounded-lg border px-3 py-2 text-sm font-bold capitalize ${readinessTone}`}>
           {readiness.status} / {readiness.score || 0}% ready
         </div>
         <div className="mt-4 grid gap-2">
           {(readiness.checks || []).slice(0, 6).map((check) => (
-            <Link key={check.key} to={check.path} className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 text-sm transition hover:border-orange-200 hover:bg-orange-50">
-              <span className="font-semibold text-gray-800">{check.label}</span>
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${check.ready ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
+            <Link key={check.key} to={check.path} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm transition hover:border-primary-200 hover:bg-primary-50">
+              <span className="font-semibold text-slate-800">{check.label}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${check.ready ? "bg-success-100 text-success-700" : "bg-slate-100 text-slate-600"}`}>
                 {check.ready ? "Ready" : check.required ? "Required" : "Improve"}
               </span>
             </Link>
@@ -355,19 +356,73 @@ const VendorCommandPanels = ({ stats, formatPrice }) => {
 const ChecklistRow = ({ done, title, text, to }) => (
   <Link
     to={to}
-    className="flex items-start gap-3 rounded-lg border border-gray-100 p-3 transition hover:border-orange-200 hover:bg-orange-50"
+    className="flex items-start gap-3 rounded-lg border border-slate-100 p-3 transition hover:border-primary-200 hover:bg-primary-50"
   >
     <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-      done ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"
+      done ? "bg-success-100 text-success-700" : "bg-slate-100 text-slate-400"
     }`}>
       {done ? <CheckCircle2 className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
     </span>
     <span className="min-w-0 flex-1">
-      <span className="block text-sm font-semibold text-gray-950">{title}</span>
-      <span className="mt-0.5 block text-xs text-gray-500">{text}</span>
+      <span className="block text-sm font-semibold text-slate-950">{title}</span>
+      <span className="mt-0.5 block text-xs text-slate-500">{text}</span>
     </span>
   </Link>
 );
+
+const getPrimaryDashboardAction = ({ dashboard, stats }) => {
+  const queuedAction = stats?.actionCenter?.items?.[0];
+  if (queuedAction) {
+    return {
+      label: queuedAction.actionLabel || "Open task",
+      title: queuedAction.title,
+      text: queuedAction.detail,
+      to: queuedAction.path || "/vendor/orders",
+      tone: queuedAction.priority || "high",
+    };
+  }
+
+  const lateOrder = dashboard.slaOrders.find((order) => order.breached);
+  if (lateOrder) {
+    return {
+      label: "Process order",
+      title: "Late shipment needs attention",
+      text: `Order #${String(lateOrder._id || "").slice(-8)} is past the ${SHIP_SLA_HOURS}h SLA.`,
+      to: `/vendor/orders/${lateOrder._id}`,
+      tone: "critical",
+    };
+  }
+
+  const listing = dashboard.advisorProducts[0];
+  if (listing) {
+    return {
+      label: "Fix listing",
+      title: "Improve a listing",
+      text: `${getProductTitle(listing)} has ${listing.issues.slice(0, 2).join(", ").toLowerCase()}.`,
+      to: `/vendor/products/edit/${listing._id}`,
+      tone: "medium",
+    };
+  }
+
+  const checklistItem = dashboard.checklist.find((item) => !item.done);
+  if (checklistItem) {
+    return {
+      label: "Continue setup",
+      title: checklistItem.title,
+      text: checklistItem.text,
+      to: checklistItem.to,
+      tone: "low",
+    };
+  }
+
+  return {
+    label: "View reports",
+    title: "Shop is steady",
+    text: "No urgent seller action is waiting right now.",
+    to: "/vendor/reports/sales",
+    tone: "low",
+  };
+};
 
 const VendorHome = () => {
   const { user } = useAuth();
@@ -532,7 +587,7 @@ const VendorHome = () => {
         id: "pending-moderation",
         title: "Pending moderation",
         count: products.filter((product) => getProductApprovalStatus(product) === "pending").length,
-        tone: "orange",
+        tone: "primary",
         text: "Track approval before planning promotion.",
       },
     ];
@@ -620,51 +675,116 @@ const VendorHome = () => {
     pendingModeration: pendingModerationCount,
     marketingItems: marketingItems.length,
   });
+  const shopName = vendorProfile?.shopName || vendorProfile?.businessName || vendorProfile?.name || "your shop";
+  const primaryAction = getPrimaryDashboardAction({ dashboard, stats });
+  const quickActions = [
+    {
+      label: "Add product",
+      detail: "Create a new listing",
+      to: "/vendor/products/add",
+      icon: PackagePlus,
+    },
+    {
+      label: "Process orders",
+      detail: `${dashboard.actionableOrders.length} active`,
+      to: "/vendor/orders",
+      icon: Truck,
+    },
+    {
+      label: "Check finance",
+      detail: stats?.financeCommand?.availableEstimate ? "Balance ready" : "Finance center",
+      to: "/vendor/finance",
+      icon: Wallet,
+    },
+    {
+      label: "Shop settings",
+      detail: shopStatus?.isShopOpen ? "Open now" : "Check status",
+      to: "/vendor/settings",
+      icon: Store,
+    },
+  ];
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-orange-600" />
-          <p className="mt-4 text-sm font-medium text-gray-600">Loading seller dashboard...</p>
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-primary-600" />
+          <p className="mt-4 text-sm font-medium text-slate-600">Loading seller dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-5 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-orange-600">Seller Center</p>
-            <h1 className="mt-1 text-2xl font-bold text-gray-950 sm:text-3xl">
-              Business command center
-            </h1>
-            <p className="mt-1 text-sm text-gray-600">
-              See sales health, fulfillment risk, listing quality, and next actions in one place.
-            </p>
+        <section className="rounded-lg border border-primary-100 bg-white p-5 shadow-sm">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-stretch">
+            <div className="flex min-w-0 flex-col justify-between gap-5">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-primary-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary-700">
+                    Seller dashboard
+                  </span>
+                  <span className={`rounded-full px-3 py-1 text-xs font-bold ${
+                    shopStatus?.isShopOpen && !shopStatus?.isCurrentlyOnVacation
+                      ? "bg-success-50 text-success-700"
+                      : "bg-yellow-50 text-yellow-700"
+                  }`}>
+                    {shopStatus?.isCurrentlyOnVacation
+                      ? "Vacation mode"
+                      : shopStatus?.isShopOpen
+                        ? "Shop open"
+                        : "Shop closed"}
+                  </span>
+                </div>
+                <h1 className="mt-3 text-2xl font-bold text-slate-950 sm:text-3xl">
+                  Welcome back, {shopName}
+                </h1>
+                <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                  Orders, stock, payments, and shop health are grouped by priority so daily work starts faster.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {quickActions.map((action) => (
+                  <Link
+                    key={action.to}
+                    to={action.to}
+                    className="group flex min-h-24 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-primary-200 hover:bg-primary-50"
+                  >
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-primary-700 shadow-sm ring-1 ring-slate-200 transition group-hover:ring-primary-200">
+                      {createElement(action.icon, { className: "h-5 w-5" })}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold text-slate-950">{action.label}</span>
+                      <span className="mt-0.5 block truncate text-xs font-medium text-slate-500">{action.detail}</span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-between rounded-lg border border-primary-100 bg-primary-50 p-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-primary-700">Next best action</p>
+                <h2 className="mt-2 text-lg font-black text-slate-950">Start with this task</h2>
+                <p className="mt-1 text-sm font-bold text-primary-800">Priority: {primaryAction.title}</p>
+                <p className="mt-2 text-sm text-slate-600">{primaryAction.text}</p>
+              </div>
+              <Link
+                to={primaryAction.to}
+                className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700"
+              >
+                {primaryAction.label}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              to="/vendor/products/add"
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700"
-            >
-              <PackagePlus className="h-4 w-4" />
-              Add product
-            </Link>
-            <Link
-              to="/vendor/orders"
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 transition hover:bg-gray-100"
-            >
-              <Truck className="h-4 w-4" />
-              Process orders
-            </Link>
-          </div>
-        </div>
+        </section>
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <div className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm font-medium text-error-700">
             {error}
           </div>
         )}
@@ -675,7 +795,7 @@ const VendorHome = () => {
             value={dashboard.todayOrders.length}
             detail={`${stats?.pendingOrders || 0} total pending orders`}
             icon={ShoppingBag}
-            tone="orange"
+            tone="primary"
           />
           <MetricCard
             label="Pending shipments"
@@ -768,7 +888,7 @@ const VendorHome = () => {
                 </div>
                 <p className="mt-1 text-sm text-gray-500">Ship within {SHIP_SLA_HOURS}h.</p>
               </div>
-              <Link to="/vendor/orders" className="text-sm font-semibold text-orange-600 hover:text-orange-700">
+              <Link to="/vendor/orders" className="text-sm font-semibold text-primary-700 hover:text-primary-800">
                 View all
               </Link>
             </div>
@@ -784,17 +904,17 @@ const VendorHome = () => {
                       key={order._id}
                       to={`/vendor/orders/${order._id}`}
                       className={`block rounded-lg border p-3 transition hover:bg-gray-50 ${
-                        breached ? "border-red-200 bg-red-50" : "border-gray-200 bg-white"
+                        breached ? "border-error-200 bg-error-50" : "border-slate-200 bg-white"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-gray-950">
+                          <p className="truncate text-sm font-semibold text-slate-950">
                             Order #{String(order._id || "").slice(-8)}
                           </p>
-                          <p className="text-xs capitalize text-gray-500">{getOrderStatus(order)}</p>
+                          <p className="text-xs capitalize text-slate-500">{getOrderStatus(order)}</p>
                         </div>
-                        <div className={`text-right text-sm font-bold ${breached ? "text-red-700" : "text-orange-700"}`}>
+                        <div className={`text-right text-sm font-bold ${breached ? "text-error-700" : "text-primary-700"}`}>
                           {breached ? "Late " : ""}
                           {formatDuration(order.remainingMs)}
                         </div>
@@ -812,14 +932,14 @@ const VendorHome = () => {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <Package className="h-5 w-5 text-blue-600" />
-                  <h2 className="text-lg font-bold text-gray-950">Product Advisor</h2>
+                  <Package className="h-5 w-5 text-primary-600" />
+                  <h2 className="text-lg font-bold text-slate-950">Product Advisor</h2>
                 </div>
-                <p className="mt-1 text-sm text-gray-500">
+                <p className="mt-1 text-sm text-slate-500">
                   Fix listings that block sales, moderation, or search visibility.
                 </p>
               </div>
-              <Link to="/vendor/products" className="text-sm font-semibold text-orange-600 hover:text-orange-700">
+              <Link to="/vendor/products" className="text-sm font-semibold text-primary-700 hover:text-primary-800">
                 Manage products
               </Link>
             </div>
@@ -827,10 +947,10 @@ const VendorHome = () => {
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {dashboard.productIssues.map((issue) => {
                 const issueTone = {
-                  red: "border-red-200 bg-red-50 text-red-800",
+                  red: "border-error-200 bg-error-50 text-error-800",
                   yellow: "border-yellow-200 bg-yellow-50 text-yellow-800",
-                  blue: "border-blue-200 bg-blue-50 text-blue-800",
-                  orange: "border-orange-200 bg-orange-50 text-orange-800",
+                  blue: "border-secondary-200 bg-secondary-50 text-secondary-800",
+                  primary: "border-primary-200 bg-primary-50 text-primary-800",
                 }[issue.tone];
                 return (
                   <div key={issue.id} className={`rounded-lg border p-3 ${issueTone}`}>
@@ -888,10 +1008,10 @@ const VendorHome = () => {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <Megaphone className="h-5 w-5 text-orange-600" />
-                  <h2 className="text-lg font-bold text-gray-950">Admin announcements</h2>
+                  <Megaphone className="h-5 w-5 text-primary-600" />
+                  <h2 className="text-lg font-bold text-slate-950">Admin announcements</h2>
                 </div>
-                <p className="mt-1 text-sm text-gray-500">Campaigns, policy, and payout notices.</p>
+                <p className="mt-1 text-sm text-slate-500">Campaigns, policy, and payout notices.</p>
               </div>
               <div className="flex gap-1">
                 <button
@@ -899,7 +1019,7 @@ const VendorHome = () => {
                   onClick={() => setAnnouncementIndex((current) => (
                     current === 0 ? announcements.length - 1 : current - 1
                   ))}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-100"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100"
                   aria-label="Previous announcement"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -907,7 +1027,7 @@ const VendorHome = () => {
                 <button
                   type="button"
                   onClick={() => setAnnouncementIndex((current) => (current + 1) % announcements.length)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-100"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100"
                   aria-label="Next announcement"
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -915,15 +1035,15 @@ const VendorHome = () => {
               </div>
             </div>
 
-            <div className="mt-4 rounded-lg border border-orange-100 bg-orange-50 p-4">
-              <span className="inline-flex rounded-full bg-white px-2 py-1 text-xs font-semibold text-orange-700">
+            <div className="mt-4 rounded-lg border border-primary-100 bg-primary-50 p-4">
+              <span className="inline-flex rounded-full bg-white px-2 py-1 text-xs font-semibold text-primary-700">
                 {currentAnnouncement.type}
               </span>
-              <h3 className="mt-3 text-base font-bold text-gray-950">{currentAnnouncement.title}</h3>
-              <p className="mt-2 text-sm text-gray-600">{currentAnnouncement.text}</p>
+              <h3 className="mt-3 text-base font-bold text-slate-950">{currentAnnouncement.title}</h3>
+              <p className="mt-2 text-sm text-slate-600">{currentAnnouncement.text}</p>
               <Link
                 to={currentAnnouncement.to}
-                className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-orange-700 hover:text-orange-800"
+                className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary-700 hover:text-primary-800"
               >
                 {currentAnnouncement.action}
                 <ArrowRight className="h-4 w-4" />
@@ -935,7 +1055,7 @@ const VendorHome = () => {
                   key={item.title}
                   type="button"
                   onClick={() => setAnnouncementIndex(index)}
-                  className={`h-2 flex-1 rounded-full ${index === announcementIndex ? "bg-orange-600" : "bg-gray-200"}`}
+                  className={`h-2 flex-1 rounded-full ${index === announcementIndex ? "bg-primary-600" : "bg-slate-200"}`}
                   aria-label={`Announcement ${index + 1}`}
                 />
               ))}
@@ -1029,7 +1149,7 @@ const VendorHome = () => {
                     <div key={`${stats.salesChart.labels[index]}-${index}`} className="flex flex-1 flex-col items-center gap-2">
                       <div className="flex h-32 w-full items-end">
                         <div
-                          className="w-full rounded-t bg-orange-500 transition hover:bg-orange-600"
+                          className="w-full rounded-t bg-primary-500 transition hover:bg-primary-600"
                           style={{ height: `${height}%` }}
                           title={formatPrice(value)}
                         />
@@ -1044,25 +1164,25 @@ const VendorHome = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-          <Link to="/vendor/products" className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:border-orange-200 hover:bg-orange-50">
-            <PackageCheck className="h-5 w-5 text-orange-600" />
-            <p className="mt-3 font-semibold text-gray-950">Manage listings</p>
-            <p className="text-sm text-gray-500">{stats?.totalProducts || 0} products</p>
+          <Link to="/vendor/products" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-primary-200 hover:bg-primary-50">
+            <PackageCheck className="h-5 w-5 text-primary-600" />
+            <p className="mt-3 font-semibold text-slate-950">Manage listings</p>
+            <p className="text-sm text-slate-500">{stats?.totalProducts || 0} products</p>
           </Link>
-          <Link to="/vendor/finance" className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:border-orange-200 hover:bg-orange-50">
-            <Wallet className="h-5 w-5 text-green-600" />
-            <p className="mt-3 font-semibold text-gray-950">Finance</p>
-            <p className="text-sm text-gray-500">Payouts and earnings</p>
+          <Link to="/vendor/finance" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-primary-200 hover:bg-primary-50">
+            <Wallet className="h-5 w-5 text-success-600" />
+            <p className="mt-3 font-semibold text-slate-950">Finance</p>
+            <p className="text-sm text-slate-500">Payouts and earnings</p>
           </Link>
-          <Link to="/vendor/reviews" className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:border-orange-200 hover:bg-orange-50">
+          <Link to="/vendor/reviews" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-primary-200 hover:bg-primary-50">
             <Star className="h-5 w-5 text-yellow-600" />
-            <p className="mt-3 font-semibold text-gray-950">Reviews</p>
-            <p className="text-sm text-gray-500">{stats?.totalReviews || 0} customer reviews</p>
+            <p className="mt-3 font-semibold text-slate-950">Reviews</p>
+            <p className="text-sm text-slate-500">{stats?.totalReviews || 0} customer reviews</p>
           </Link>
-          <Link to="/vendor/marketing/promotions" className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:border-orange-200 hover:bg-orange-50">
-            <Megaphone className="h-5 w-5 text-blue-600" />
-            <p className="mt-3 font-semibold text-gray-950">Marketing</p>
-            <p className="text-sm text-gray-500">Campaigns and vouchers</p>
+          <Link to="/vendor/marketing/promotions" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-primary-200 hover:bg-primary-50">
+            <Megaphone className="h-5 w-5 text-secondary-600" />
+            <p className="mt-3 font-semibold text-slate-950">Marketing</p>
+            <p className="text-sm text-slate-500">Campaigns and vouchers</p>
           </Link>
         </div>
       </div>

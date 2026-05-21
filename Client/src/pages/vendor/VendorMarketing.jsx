@@ -103,6 +103,7 @@ const initialVoucherForm = () => ({
   code: "",
   discountType: "percentage",
   discountValue: "",
+  maxDiscountAmount: "",
   minOrderAmount: "",
   usageLimit: "",
   startDate: nowInput(),
@@ -729,6 +730,11 @@ export default function VendorMarketing() {
                   <input required type="number" min="1" value={voucherForm.discountValue} onChange={(event) => setVoucherForm({ ...voucherForm, discountValue: event.target.value })} className="input-control" />
                 </Field>
               )}
+              {voucherForm.discountType === "percentage" && (
+                <Field label="Max discount">
+                  <input type="number" min="0" value={voucherForm.maxDiscountAmount} onChange={(event) => setVoucherForm({ ...voucherForm, maxDiscountAmount: event.target.value })} className="input-control" />
+                </Field>
+              )}
               <Field label="Minimum order">
                 <input type="number" min="0" value={voucherForm.minOrderAmount} onChange={(event) => setVoucherForm({ ...voucherForm, minOrderAmount: event.target.value })} className="input-control" />
               </Field>
@@ -1082,6 +1088,12 @@ function SubmissionList({ items, onDelete, formatPrice }) {
               {item.minOrderAmount !== null && item.minOrderAmount !== undefined && (
                 <Fact label="Minimum" value={formatPrice(item.minOrderAmount || 0)} />
               )}
+              {item.maxDiscountAmount ? (
+                <Fact label="Max discount" value={formatPrice(item.maxDiscountAmount)} />
+              ) : null}
+              {item.usageLimit ? (
+                <Fact label="Used" value={`${item.usedCount || 0}/${item.usageLimit}`} />
+              ) : null}
               <Fact label="End" value={dateLabel(item.endDate)} />
             </div>
             {item.productNominations?.length > 0 && (

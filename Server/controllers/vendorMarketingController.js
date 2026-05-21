@@ -58,6 +58,50 @@ const toObjectIds = (ids = []) =>
     .filter((id) => ObjectId.isValid(id))
     .map((id) => new ObjectId(id));
 
+const activeVoucherQuery = (code, excludeId = "") => {
+  const query = {
+    type: "voucher",
+    code,
+    status: { $in: ["pending", "approved"] },
+  };
+
+  if (excludeId && ObjectId.isValid(excludeId)) {
+    query._id = { $ne: new ObjectId(excludeId) };
+  }
+
+  return query;
+};
+
+const findVoucherCodeConflict = async (db, code, { excludeId = "" } = {}) => {
+  if (!db?.collection || !code) return null;
+
+  const vendorVoucher = await db
+    .collection("vendorMarketingItems")
+    .findOne(activeVoucherQuery(code, excludeId));
+
+  if (vendorVoucher) {
+    return { source: "vendor_voucher", item: vendorVoucher };
+  }
+
+  const platformCoupon = await db.collection("coupons").findOne({
+    code,
+    isActive: { $ne: false },
+  });
+  if (platformCoupon) {
+    return { source: "platform_coupon", item: platformCoupon };
+  }
+
+  const platformOffer = await db.collection("offers").findOne({
+    couponCode: code,
+    isActive: { $ne: false },
+  });
+  if (platformOffer) {
+    return { source: "platform_offer", item: platformOffer };
+  }
+
+  return null;
+};
+
 const productBelongsToVendor = (product, vendorId) =>
   product?.vendorId && product.vendorId.toString() === vendorId.toString();
 
@@ -195,6 +239,7 @@ const validateMarketingPayload = async (payload, context = {}) => {
   const code = payload.code ? String(payload.code).trim().toUpperCase() : "";
   const discountType = payload.discountType ? String(payload.discountType).trim().toLowerCase() : "";
   const discountValue = parseOptionalNumber(payload.discountValue);
+  const maxDiscountAmount = parseOptionalNumber(payload.maxDiscountAmount);
   const minOrderAmount = parseOptionalNumber(payload.minOrderAmount);
   const usageLimit = parseOptionalInteger(payload.usageLimit);
   const expectedProducts = parseOptionalInteger(payload.expectedProducts);
@@ -261,6 +306,10 @@ const validateMarketingPayload = async (payload, context = {}) => {
 
     if (usageLimit !== null && (Number.isNaN(usageLimit) || usageLimit < 1)) {
       errors.push("Usage limit must be at least 1.");
+    }
+
+    if (maxDiscountAmount !== null && (Number.isNaN(maxDiscountAmount) || maxDiscountAmount < 0)) {
+      errors.push("Maximum discount amount must be zero or more.");
     }
   }
 
@@ -360,6 +409,7 @@ const validateMarketingPayload = async (payload, context = {}) => {
       code,
       discountType,
       discountValue,
+      maxDiscountAmount,
       minOrderAmount,
       usageLimit,
       startDate,
@@ -421,17 +471,12 @@ exports.createVendorMarketingItem = async (req, res) => {
     }
 
     if (normalized.type === "voucher") {
-      const duplicate = await db.collection("vendorMarketingItems").findOne({
-        vendorId: identity.vendorId,
-        type: "voucher",
-        code: normalized.code,
-        status: { $in: ["pending", "approved"] },
-      });
+      const duplicate = await findVoucherCodeConflict(db, normalized.code);
 
       if (duplicate) {
         return res.status(400).json({
           success: false,
-          error: "This voucher code is already in use for your store.",
+          error: "This voucher code is already reserved. Use a unique seller voucher code.",
         });
       }
     }
@@ -502,6 +547,16 @@ exports.updateVendorMarketingItem = async (req, res) => {
 
     if (errors.length > 0) {
       return res.status(400).json({ success: false, error: errors[0] });
+    }
+
+    if (normalized.type === "voucher") {
+      const duplicate = await findVoucherCodeConflict(db, normalized.code, { excludeId: id });
+      if (duplicate) {
+        return res.status(400).json({
+          success: false,
+          error: "This voucher code is already reserved. Use a unique seller voucher code.",
+        });
+      }
     }
 
     await db.collection("vendorMarketingItems").updateOne(
@@ -641,6 +696,16 @@ exports.reviewAdminMarketingItem = async (req, res) => {
     const existing = await collection.findOne({ _id: new ObjectId(id) });
     if (!existing) {
       return res.status(404).json({ success: false, error: "Marketing item not found." });
+    }
+
+    if (normalizedStatus === "approved" && existing.type === "voucher") {
+      const duplicate = await findVoucherCodeConflict(db, existing.code, { excludeId: id });
+      if (duplicate) {
+        return res.status(400).json({
+          success: false,
+          error: "Cannot approve this voucher because the code is already reserved.",
+        });
+      }
     }
 
     const now = new Date();

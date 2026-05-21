@@ -2,10 +2,12 @@ import { Fragment, createElement, useCallback, useEffect, useMemo, useState } fr
 import { Link } from "react-router-dom";
 import {
   ArrowLeft,
+  ArrowRight,
   Barcode,
   Banknote,
   CalendarClock,
   CheckCircle2,
+  ClipboardList,
   Clock,
   Copy,
   Download,
@@ -49,39 +51,39 @@ import { getVendorOrderBulkWorkflow } from "../../utils/vendorOrderBulkActions";
 const STATUS_META = {
   pending: {
     label: "Pending",
-    className: "border-amber-200 bg-amber-50 text-amber-700",
+    className: "border-primary-200 bg-primary-50 text-primary-700",
   },
   accepted: {
     label: "Accepted",
-    className: "border-blue-200 bg-blue-50 text-blue-700",
+    className: "border-primary-200 bg-primary-50 text-primary-700",
   },
   processing: {
     label: "Processing",
-    className: "border-blue-200 bg-blue-50 text-blue-700",
+    className: "border-primary-200 bg-primary-50 text-primary-700",
   },
   packed: {
     label: "Packed",
-    className: "border-indigo-200 bg-indigo-50 text-indigo-700",
+    className: "border-secondary-200 bg-secondary-50 text-secondary-700",
   },
   ready_to_ship: {
     label: "Ready to Ship",
-    className: "border-cyan-200 bg-cyan-50 text-cyan-700",
+    className: "border-secondary-200 bg-secondary-50 text-secondary-700",
   },
   pickup_ready: {
     label: "Pickup Ready",
-    className: "border-teal-200 bg-teal-50 text-teal-700",
+    className: "border-success-200 bg-success-50 text-success-700",
   },
   shipped: {
     label: "Shipped",
-    className: "border-violet-200 bg-violet-50 text-violet-700",
+    className: "border-secondary-200 bg-secondary-50 text-secondary-700",
   },
   delivered: {
     label: "Delivered",
-    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    className: "border-success-200 bg-success-50 text-success-700",
   },
   cancelled: {
     label: "Cancelled",
-    className: "border-red-200 bg-red-50 text-red-700",
+    className: "border-error-200 bg-error-50 text-error-700",
   },
   returned: {
     label: "Returned",
@@ -165,6 +167,13 @@ const isCodOrder = (order) => {
   return ["cod", "cash_on_delivery", "cash on delivery"].includes(method);
 };
 
+const getCodStatusLabel = (order) => {
+  if (!isCodOrder(order)) return "Prepaid";
+  if (order.codCollected) return "COD collected";
+  if (order.status === "delivered") return "COD ready to confirm";
+  return "COD after delivery";
+};
+
 const buildAddress = (shippingInfo = {}) =>
   [
     shippingInfo.name,
@@ -195,15 +204,134 @@ const orderProductsTotal = (order) =>
   );
 
 const orderDiscountTotal = (order) =>
-  Number(order.totalDiscount ?? order.discount ?? order.vendorDiscount ?? order.couponDiscount ?? 0) || 0;
+  Number(
+    order.totalDiscount ??
+    order.vendorVoucherDiscount ??
+    order.sellerVoucherDiscount ??
+    order.discount ??
+    order.vendorDiscount ??
+    order.couponDiscount ??
+    order.couponApplied?.discountAmount ??
+    0,
+  ) || 0;
 
 const orderPayableTotal = (order) => {
-  const stored = Number(order.payableTotal ?? order.totalAmount ?? order.total ?? 0);
-  if (stored > 0) return stored;
-
   const gross = Number(order.vendorSubtotal ?? order.subtotal ?? orderProductsTotal(order)) || 0;
   const delivery = Number(order.deliveryCharge ?? order.deliveryFee ?? order.shippingFee ?? 0) || 0;
-  return Math.max(0, gross + delivery - orderDiscountTotal(order));
+  const discount = orderDiscountTotal(order);
+  const computed = Math.max(0, gross + delivery - discount);
+  const storedPayable = Number(order.payableTotal ?? order.customerPayableTotal ?? 0);
+  if (storedPayable > 0) return storedPayable;
+
+  const storedTotal = Number(order.totalAmount ?? order.total ?? 0);
+  if (discount > 0) return computed;
+  return storedTotal > 0 ? storedTotal : computed;
+};
+
+const getOrderNextStep = (order) => {
+  if (order.hasReturnRequest) {
+    return {
+      label: "Review return",
+      detail: "Return request is waiting for vendor response.",
+      className: "border-error-200 bg-error-50 text-error-700",
+    };
+  }
+
+  if (isCodOrder(order) && !order.codCollected && order.status === "delivered") {
+    return {
+      label: "Confirm COD",
+      detail: "Delivery is complete. Record the collected cash.",
+      className: "border-primary-200 bg-primary-50 text-primary-700",
+    };
+  }
+
+  const steps = {
+    pending: ["Pack order", "Print the slip and prepare the package."],
+    accepted: ["Pack order", "Print the slip and prepare the package."],
+    processing: ["Pack order", "Print the slip and prepare the package."],
+    packed: ["Ready to ship", "Move this package to courier handover."],
+    ready_to_ship: ["Schedule pickup", "Set pickup time or mark courier handover."],
+    pickup_ready: ["Mark shipped", "Courier pickup is ready to confirm."],
+    shipped: ["Mark delivered", "Confirm delivery when the courier completes it."],
+    delivered: ["Completed", "No vendor action is required right now."],
+    cancelled: ["Cancelled", "Order is closed."],
+    returned: ["Returned", "Return flow is closed."],
+  };
+  const [label, detail] = steps[order.status] || steps.pending;
+
+  return {
+    label,
+    detail,
+    className: terminalStatuses.includes(order.status)
+      ? "border-slate-200 bg-slate-50 text-slate-600"
+      : "border-primary-200 bg-primary-50 text-primary-700",
+  };
+};
+
+const getQueueAction = (stats) => {
+  if (stats.returnRequested > 0) {
+    return {
+      tab: "return_requested",
+      label: "Review returns",
+      title: `${stats.returnRequested} return request${stats.returnRequested === 1 ? "" : "s"} waiting`,
+      detail: "Open return cases first so buyer refunds and disputes do not sit idle.",
+      icon: RotateCcw,
+      tone: "error",
+    };
+  }
+
+  if (stats.pending > 0) {
+    return {
+      tab: "pending",
+      label: "Start packing",
+      title: `${stats.pending} order${stats.pending === 1 ? "" : "s"} need packing`,
+      detail: "Print packing slips, check items, and move orders to ready to ship.",
+      icon: PackageCheck,
+      tone: "primary",
+    };
+  }
+
+  if (stats.ready > 0 || stats.packed > 0) {
+    return {
+      tab: stats.ready > 0 ? "ready_to_ship" : "packed",
+      label: "Prepare courier handover",
+      title: `${stats.ready + stats.packed} package${stats.ready + stats.packed === 1 ? "" : "s"} need courier action`,
+      detail: "Schedule pickup, confirm handover, and keep customers updated.",
+      icon: Truck,
+      tone: "secondary",
+    };
+  }
+
+  if (stats.shipped > 0) {
+    return {
+      tab: "shipped",
+      label: "Check deliveries",
+      title: `${stats.shipped} shipment${stats.shipped === 1 ? "" : "s"} in transit`,
+      detail: "Mark delivered as soon as the courier confirms completion.",
+      icon: Send,
+      tone: "primary",
+    };
+  }
+
+  if (stats.codReady > 0) {
+    return {
+      tab: "delivered",
+      label: "Confirm COD",
+      title: `${stats.codReady} delivered COD payment${stats.codReady === 1 ? "" : "s"} ready`,
+      detail: "Delivery is complete. Confirm collected cash before reconciliation.",
+      icon: Banknote,
+      tone: "success",
+    };
+  }
+
+  return {
+    tab: "all",
+    label: "View all orders",
+    title: "Order queue is clear",
+    detail: "No urgent fulfillment action is waiting. Review recent orders when needed.",
+    icon: CheckCircle2,
+    tone: "success",
+  };
 };
 
 const exportOrdersCsv = (orders, moneyFormatter) => {
@@ -435,18 +563,27 @@ export default function VendorOrders() {
     return counts;
   }, [enrichedOrders, matchesTab]);
 
-  const stats = useMemo(
-    () => ({
+  const stats = useMemo(() => {
+    const codPendingOrders = enrichedOrders.filter(
+      (order) => isCodOrder(order) && !order.codCollected && !["cancelled", "returned"].includes(order.status),
+    );
+    const codReadyOrders = codPendingOrders.filter((order) => order.status === "delivered");
+
+    return {
+      total: tabCounts.all || enrichedOrders.length,
       pending: tabCounts.pending || 0,
       packed: tabCounts.packed || 0,
       ready: tabCounts.ready_to_ship || 0,
+      shipped: tabCounts.shipped || 0,
+      delivered: tabCounts.delivered || 0,
+      cancelled: tabCounts.cancelled || 0,
       returnRequested: tabCounts.return_requested || 0,
-      codPending: enrichedOrders.filter(
-        (order) => isCodOrder(order) && !order.codCollected && !["cancelled", "returned"].includes(order.status),
-      ).length,
-    }),
-    [enrichedOrders, tabCounts],
-  );
+      codPending: codPendingOrders.length,
+      codPendingValue: codPendingOrders.reduce((sum, order) => sum + orderPayableTotal(order), 0),
+      codReady: codReadyOrders.length,
+      codReadyValue: codReadyOrders.reduce((sum, order) => sum + orderPayableTotal(order), 0),
+    };
+  }, [enrichedOrders, tabCounts]);
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -860,18 +997,19 @@ export default function VendorOrders() {
     }
   };
 
-  const renderOrderActions = (order, { align = "end" } = {}) => {
+  const renderOrderActions = (order, { align = "end", compact = false } = {}) => {
     const orderId = getOrderId(order);
     const isBusy = busyOrderId === orderId;
     const canMove = !terminalStatuses.includes(order.status);
     const alignClass = align === "start" ? "justify-start" : "justify-end";
+    const actionWrapClass = compact ? "max-w-64" : "";
 
     return (
       <>
-        <div className={`flex flex-wrap gap-2 ${alignClass}`}>
+        <div className={`flex flex-wrap gap-2 ${alignClass} ${actionWrapClass}`}>
           <Link
             to={`/vendor/orders/${orderId}`}
-            className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+            className="inline-flex min-h-8 items-center justify-center whitespace-nowrap rounded-lg border border-primary-100 bg-primary-50 px-3 text-xs font-semibold text-primary-700 transition hover:bg-primary-100"
           >
             Details
           </Link>
@@ -888,38 +1026,40 @@ export default function VendorOrders() {
             <Barcode className="h-4 w-4" />
           </IconButton>
         </div>
-        <div className={`mt-2 flex flex-wrap gap-2 ${alignClass}`}>
+        <div className={`mt-2 flex flex-wrap gap-2 ${alignClass} ${actionWrapClass}`}>
           {canMove && !["packed", "ready_to_ship", "pickup_ready", "shipped"].includes(order.status) && (
             <SmallActionButton disabled={isBusy || !canManageOrders} onClick={() => handleStatusUpdate(order, "packed")}>
-              Pack
+              {compact ? "Pack" : "Pack order"}
             </SmallActionButton>
           )}
           {canMove && ["packed", "processing", "pending"].includes(order.status) && (
             <SmallActionButton disabled={isBusy || !canManageOrders} onClick={() => handleStatusUpdate(order, "ready_to_ship")}>
-              Ready
+              {compact ? "Ready" : "Ready to ship"}
             </SmallActionButton>
           )}
           {canMove && ["packed", "ready_to_ship", "pickup_ready"].includes(order.status) && (
             <SmallActionButton disabled={isBusy || !canManageOrders} onClick={() => openPickupSchedule(order)}>
-              Schedule
+              {compact ? "Pickup" : "Schedule pickup"}
             </SmallActionButton>
           )}
           {canMove && ["ready_to_ship", "pickup_ready"].includes(order.status) && (
             <SmallActionButton disabled={isBusy || !canManageOrders} onClick={() => handleStatusUpdate(order, "shipped")}>
-              Ship
+              {compact ? "Ship" : "Mark shipped"}
             </SmallActionButton>
           )}
           {order.status === "shipped" && (
             <SmallActionButton disabled={isBusy || !canManageOrders} onClick={() => handleStatusUpdate(order, "delivered")}>
-              Deliver
+              {compact ? "Deliver" : "Mark delivered"}
             </SmallActionButton>
           )}
-          {isCodOrder(order) && !order.codCollected && order.status !== "cancelled" && (
+          {isCodOrder(order) && !order.codCollected && order.status === "delivered" && (
             <SmallActionButton disabled={isBusy || !canManageOrders} onClick={() => markCodCollected(order)}>
-              COD
+              {compact ? "COD" : "Confirm COD"}
             </SmallActionButton>
           )}
-          <SmallActionButton disabled={!canManageOrders} onClick={() => openBuyerMessage(order)}>Message</SmallActionButton>
+          <SmallActionButton disabled={!canManageOrders} onClick={() => openBuyerMessage(order)}>
+            {compact ? "Message" : "Message buyer"}
+          </SmallActionButton>
           {canMove && (
             <SmallDangerButton disabled={isBusy || !canManageOrders} onClick={() => openCancelOrder(order)}>
               Cancel
@@ -939,9 +1079,48 @@ export default function VendorOrders() {
 
   const allVisibleSelected =
     filteredOrders.length > 0 && filteredOrders.every((order) => selectedIds.has(getOrderId(order)));
+  const queueAction = getQueueAction(stats);
+  const queueActionTone =
+    queueAction.tone === "error"
+      ? "border-error-200 bg-error-50 text-error-700"
+      : queueAction.tone === "success"
+        ? "border-success-200 bg-success-50 text-success-700"
+        : queueAction.tone === "secondary"
+          ? "border-secondary-200 bg-secondary-50 text-secondary-700"
+          : "border-primary-200 bg-primary-50 text-primary-700";
+  const workflowSteps = [
+    {
+      label: "Pack",
+      count: stats.pending,
+      detail: "Print and prepare",
+      icon: PackageCheck,
+      tab: "pending",
+    },
+    {
+      label: "Handover",
+      count: stats.packed + stats.ready,
+      detail: "Pickup or ship",
+      icon: Truck,
+      tab: stats.ready > 0 ? "ready_to_ship" : "packed",
+    },
+    {
+      label: "Delivery",
+      count: stats.shipped,
+      detail: "Courier tracking",
+      icon: Send,
+      tab: "shipped",
+    },
+    {
+      label: "COD",
+      count: stats.codReady,
+      detail: `${formatPrice(stats.codReadyValue)} ready`,
+      icon: Banknote,
+      tab: "delivered",
+    },
+  ];
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 font-sans">
       <Toaster position="top-right" />
 
       <header className="border-b border-slate-200 bg-white">
@@ -949,21 +1128,21 @@ export default function VendorOrders() {
           <div className="flex min-w-0 items-center gap-3">
             <Link
               to="/vendor/dashboard"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-primary-100 bg-primary-50 text-primary-700 transition hover:bg-primary-100"
               title="Back to dashboard"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <div className="min-w-0">
-              <h1 className="text-2xl font-semibold text-slate-950">Orders</h1>
-              <p className="text-sm text-slate-500">Manage customer orders</p>
+              <h1 className="text-2xl font-bold leading-tight text-slate-950">Vendor orders</h1>
+              <p className="mt-1 max-w-2xl text-sm leading-5 text-slate-500">Pack, ship, deliver, and confirm COD from one queue.</p>
             </div>
           </div>
           <button
             type="button"
             onClick={loadData}
             disabled={refreshing}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary-100 bg-white px-3 py-2 text-sm font-semibold text-primary-700 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
@@ -978,31 +1157,105 @@ export default function VendorOrders() {
           </div>
         )}
 
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <MetricCard label="Pending" value={stats.pending} tone="amber" icon={Clock} />
-          <MetricCard label="Packed" value={stats.packed} tone="indigo" icon={PackageCheck} />
-          <MetricCard label="Ready to Ship" value={stats.ready} tone="cyan" icon={Truck} />
-          <MetricCard label="Return Requested" value={stats.returnRequested} tone="rose" icon={RotateCcw} />
-          <MetricCard label="COD Pending" value={stats.codPending} tone="emerald" icon={Banknote} />
+        <section className="rounded-lg border border-primary-100 bg-white p-4 shadow-sm sm:p-5">
+          <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="min-w-0">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary-700">
+                      <ClipboardList className="h-3.5 w-3.5" />
+                      Order center
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                      {stats.total} total
+                    </span>
+                  </div>
+                  <h2 className="mt-3 text-xl font-bold leading-tight text-slate-950 sm:text-2xl">Active order workflow</h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                    Work from packing to courier handover, delivery, and COD confirmation.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {workflowSteps.map((step) => (
+                  <button
+                    key={step.label}
+                    type="button"
+                    onClick={() => setActiveTab(step.tab)}
+                    className={`group min-h-28 min-w-0 rounded-lg border px-4 py-3 text-left transition ${
+                      activeTab === step.tab
+                        ? "border-primary-300 bg-primary-50 shadow-sm"
+                        : "border-slate-200 bg-slate-50 hover:border-primary-200 hover:bg-primary-50"
+                    }`}
+                  >
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-primary-700 shadow-sm ring-1 ring-slate-200 transition group-hover:ring-primary-200">
+                          {createElement(step.icon, { className: "h-4 w-4" })}
+                        </span>
+                        <span className="min-w-0 truncate text-sm font-bold text-slate-950">{step.label}</span>
+                      </span>
+                      <span className="shrink-0 text-2xl font-black leading-none text-primary-700">{step.count}</span>
+                    </span>
+                    <span className="mt-3 block text-xs font-semibold leading-5 text-slate-500">{step.detail}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={`flex flex-col justify-between rounded-lg border p-4 ${queueActionTone}`}>
+              <div>
+                <div className="flex items-center gap-2">
+                  {createElement(queueAction.icon, { className: "h-5 w-5" })}
+                  <p className="text-xs font-bold uppercase tracking-wide">Start here</p>
+                </div>
+                <h3 className="mt-3 break-words text-lg font-black leading-6 text-slate-950">{queueAction.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{queueAction.detail}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab(queueAction.tab)}
+                className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700"
+              >
+                {queueAction.label}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <MetricCard label="Need Packing" value={stats.pending} helper="New and processing" tone="primary" icon={Clock} />
+          <MetricCard label="Courier Handover" value={stats.packed + stats.ready} helper="Packed or ready" tone="secondary" icon={PackageCheck} />
+          <MetricCard label="In Transit" value={stats.shipped} helper="Waiting delivery" tone="primary" icon={Truck} />
+          <MetricCard label="Return Requested" value={stats.returnRequested} helper="Needs review" tone="error" icon={RotateCcw} />
+          <MetricCard label="COD Pending" value={stats.codPending} helper={formatPrice(stats.codPendingValue)} tone="success" icon={Banknote} />
         </section>
 
         <section className="mt-6 rounded-lg border border-slate-200 bg-white">
           <div className="border-b border-slate-200 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="relative w-full lg:max-w-md">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search order, customer, phone, product"
-                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
-                />
+              <div className="w-full lg:max-w-md">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search order, customer, phone, product"
+                    className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                  />
+                </div>
+                <p className="mt-2 text-xs font-medium text-slate-500">
+                  Showing {filteredOrders.length} of {stats.total} orders. Select rows to print, export, or update in bulk.
+                </p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex max-w-full flex-wrap gap-2 lg:justify-end">
                 {bulkWorkflow.selectedCount > 0 && (
-                  <span className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600">
+                  <span className="inline-flex min-h-10 items-center rounded-lg bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-700">
                     {bulkWorkflow.selectedCount} selected
                   </span>
                 )}
@@ -1010,7 +1263,7 @@ export default function VendorOrders() {
                   type="button"
                   onClick={printBatchPackingSlips}
                   disabled={bulkWorkflow.printableOrders.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Printer className="h-4 w-4" />
                   Print Slips
@@ -1019,7 +1272,7 @@ export default function VendorOrders() {
                   type="button"
                   onClick={exportSelectedOrders}
                   disabled={filteredOrders.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Download className="h-4 w-4" />
                   Export CSV
@@ -1028,7 +1281,7 @@ export default function VendorOrders() {
                   type="button"
                   onClick={handleBatchPack}
                   disabled={!canManageOrders || bulkWorkflow.packableOrders.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <PackageCheck className="h-4 w-4" />
                   Pack {bulkWorkflow.counts.pack ? `(${bulkWorkflow.counts.pack})` : ""}
@@ -1037,7 +1290,7 @@ export default function VendorOrders() {
                   type="button"
                   onClick={handleBatchReadyToShip}
                   disabled={!canManageOrders || bulkWorkflow.readyToShipOrders.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-700 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-secondary-200 bg-secondary-50 px-3 py-2 text-sm font-semibold text-secondary-700 transition hover:bg-secondary-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Truck className="h-4 w-4" />
                   Ready {bulkWorkflow.counts.ready_to_ship ? `(${bulkWorkflow.counts.ready_to_ship})` : ""}
@@ -1046,7 +1299,7 @@ export default function VendorOrders() {
                   type="button"
                   onClick={handleBatchPickupReady}
                   disabled={!canManageOrders || bulkWorkflow.pickupReadyOrders.length === 0}
-                  className="inline-flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-700 transition hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-success-200 bg-success-50 px-3 py-2 text-sm font-semibold text-success-700 transition hover:bg-success-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Truck className="h-4 w-4" />
                   Pickup Ready {bulkWorkflow.counts.pickup_ready ? `(${bulkWorkflow.counts.pickup_ready})` : ""}
@@ -1054,7 +1307,7 @@ export default function VendorOrders() {
               </div>
             </div>
 
-            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            <div className="mt-4 flex max-w-full gap-2 overflow-x-auto pb-1">
               {FILTER_TABS.map((tab) => (
                 <button
                   key={tab.key}
@@ -1062,12 +1315,12 @@ export default function VendorOrders() {
                   onClick={() => setActiveTab(tab.key)}
                   className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition ${
                     activeTab === tab.key
-                      ? "bg-orange-500 text-white"
-                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                      ? "bg-primary-600 text-white shadow-sm"
+                      : "border border-slate-200 bg-white text-slate-600 hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"
                   }`}
                 >
                   {tab.label}
-                  <span className={activeTab === tab.key ? "ml-2 text-orange-100" : "ml-2 text-slate-400"}>
+                  <span className={activeTab === tab.key ? "ml-2 text-primary-100" : "ml-2 text-slate-400"}>
                     {tabCounts[tab.key] || 0}
                   </span>
                 </button>
@@ -1077,18 +1330,37 @@ export default function VendorOrders() {
 
           {filteredOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-50 text-primary-600">
                 <Inbox className="h-7 w-7" />
               </div>
               <h2 className="mt-4 text-lg font-semibold text-slate-950">No orders found</h2>
               <p className="mt-1 text-sm text-slate-500">Try another tab or search term.</p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("all")}
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white transition hover:bg-primary-700"
+                >
+                  View all orders
+                </button>
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    Clear search
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <>
-            <div className="divide-y divide-slate-200 lg:hidden">
+            <div className="divide-y divide-slate-200 xl:hidden">
               {filteredOrders.map((order) => {
                 const orderId = getOrderId(order);
                 const statusMeta = STATUS_META[order.status] || STATUS_META.pending;
+                const nextStep = getOrderNextStep(order);
                 const products = order.products || [];
                 const primaryProduct = products[0];
                 const isExpanded = expandedOrderId === orderId;
@@ -1100,14 +1372,14 @@ export default function VendorOrders() {
                         type="checkbox"
                         checked={selectedIds.has(orderId)}
                         onChange={() => toggleSelection(orderId)}
-                        className="mt-1 h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-400"
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                         aria-label={`Select order ${shortId(orderId)}`}
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <Link
                             to={`/vendor/orders/${orderId}`}
-                            className="font-mono text-sm font-semibold text-orange-600 hover:text-orange-700 hover:underline"
+                            className="font-mono text-sm font-semibold text-primary-700 hover:text-primary-800 hover:underline"
                           >
                             #{shortId(orderId)}
                           </Link>
@@ -1142,7 +1414,7 @@ export default function VendorOrders() {
                         <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
                           <div className="rounded-lg border border-slate-100 p-3">
                             <p className="text-xs font-semibold uppercase text-slate-400">Customer</p>
-                            <p className="mt-1 font-semibold text-slate-950">{order.shippingInfo?.name || "Customer"}</p>
+                            <p className="mt-1 break-words font-semibold text-slate-950">{order.shippingInfo?.name || "Customer"}</p>
                             <p className="text-xs text-slate-500">{order.shippingInfo?.phone || "No phone"}</p>
                           </div>
                           <div className="rounded-lg border border-slate-100 p-3">
@@ -1151,16 +1423,20 @@ export default function VendorOrders() {
                               {formatPrice(orderPayableTotal(order))}
                             </p>
                             {orderDiscountTotal(order) > 0 && (
-                              <p className="text-xs font-semibold text-emerald-700">
+                              <p className="text-xs font-semibold text-success-700">
                                 {formatPrice(order.vendorSubtotal || orderProductsTotal(order))} subtotal - {formatPrice(orderDiscountTotal(order))} discount
                               </p>
                             )}
                             <p className="text-xs text-slate-500">
-                              {isCodOrder(order) ? (order.codCollected ? "COD collected" : "COD pending") : "Prepaid"}
+                              {getCodStatusLabel(order)}
                             </p>
                           </div>
                         </div>
                         <div className="mt-3 rounded-lg border border-slate-100 p-3 text-xs text-slate-600">
+                          <div className={`mb-2 rounded-lg border px-3 py-2 ${nextStep.className}`}>
+                            <p className="text-xs font-bold">{nextStep.label}</p>
+                            <p className="mt-0.5 text-xs text-slate-600">{nextStep.detail}</p>
+                          </div>
                           <div className="flex items-center gap-1.5">
                             <CalendarClock className="h-3.5 w-3.5 text-slate-400" />
                             {order.pickupSchedule
@@ -1168,7 +1444,7 @@ export default function VendorOrders() {
                               : "No pickup slot"}
                           </div>
                           {order.hasReturnRequest && (
-                            <span className="mt-2 inline-flex rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                            <span className="mt-2 inline-flex rounded-full border border-error-200 bg-error-50 px-2.5 py-1 text-xs font-semibold text-error-700">
                               Return requested
                             </span>
                           )}
@@ -1192,8 +1468,8 @@ export default function VendorOrders() {
                 );
               })}
             </div>
-            <div className="hidden overflow-x-auto lg:block">
-              <table className="min-w-full divide-y divide-slate-200">
+            <div className="hidden overflow-x-auto xl:block">
+              <table className="min-w-[1180px] divide-y divide-slate-200">
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="w-12 px-4 py-3 text-left">
@@ -1201,7 +1477,7 @@ export default function VendorOrders() {
                         type="checkbox"
                         checked={allVisibleSelected}
                         onChange={toggleSelectVisible}
-                        className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-400"
+                        className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                         aria-label="Select visible orders"
                       />
                     </th>
@@ -1218,6 +1494,7 @@ export default function VendorOrders() {
                   {filteredOrders.map((order) => {
                     const orderId = getOrderId(order);
                     const statusMeta = STATUS_META[order.status] || STATUS_META.pending;
+                    const nextStep = getOrderNextStep(order);
                     const products = order.products || [];
                     const primaryProduct = products[0];
                     const isExpanded = expandedOrderId === orderId;
@@ -1225,19 +1502,19 @@ export default function VendorOrders() {
                     return (
                       <Fragment key={orderId}>
                         <tr className="align-top transition hover:bg-slate-50">
-                          <td className="px-4 py-4">
+                          <td className="w-28 px-4 py-4">
                             <input
                               type="checkbox"
                               checked={selectedIds.has(orderId)}
                               onChange={() => toggleSelection(orderId)}
-                              className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-400"
+                              className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                               aria-label={`Select order ${shortId(orderId)}`}
                             />
                           </td>
                           <td className="px-4 py-4">
                             <Link
                               to={`/vendor/orders/${orderId}`}
-                              className="font-mono text-sm font-semibold text-orange-600 hover:text-orange-700 hover:underline"
+                              className="font-mono text-sm font-semibold text-primary-700 hover:text-primary-800 hover:underline"
                             >
                               #{shortId(orderId)}
                             </Link>
@@ -1248,11 +1525,11 @@ export default function VendorOrders() {
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-4">
-                            <div className="text-sm font-medium text-slate-950">{order.shippingInfo?.name || "Customer"}</div>
+                          <td className="w-44 px-4 py-4">
+                            <div className="break-words text-sm font-medium text-slate-950">{order.shippingInfo?.name || "Customer"}</div>
                             <div className="mt-1 text-sm text-slate-500">{order.shippingInfo?.phone || "No phone"}</div>
                           </td>
-                          <td className="px-4 py-4">
+                          <td className="w-72 px-4 py-4">
                             <div className="flex max-w-xs items-start gap-3">
                               <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
                                 {primaryProduct?.image || primaryProduct?.productDetails?.images?.[0] ? (
@@ -1277,17 +1554,20 @@ export default function VendorOrders() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-4">
+                          <td className="w-44 px-4 py-4">
                             <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusMeta.className}`}>
                               {statusMeta.label}
                             </span>
                             {order.hasReturnRequest && (
-                              <span className="mt-2 flex w-fit rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                              <span className="mt-2 flex w-fit rounded-full border border-error-200 bg-error-50 px-2.5 py-1 text-xs font-semibold text-error-700">
                                 Return requested
                               </span>
                             )}
+                            <span className={`mt-2 flex w-fit rounded-full border px-2.5 py-1 text-xs font-semibold ${nextStep.className}`}>
+                              {nextStep.label}
+                            </span>
                           </td>
-                          <td className="px-4 py-4">
+                          <td className="w-52 px-4 py-4">
                             <div className="space-y-2 text-xs text-slate-600">
                               <div className="flex items-center gap-1.5">
                                 <CalendarClock className="h-3.5 w-3.5 text-slate-400" />
@@ -1297,20 +1577,20 @@ export default function VendorOrders() {
                               </div>
                               <div className="flex items-center gap-1.5">
                                 <Banknote className="h-3.5 w-3.5 text-slate-400" />
-                                {isCodOrder(order) ? (order.codCollected ? "COD collected" : "COD pending") : "Prepaid"}
+                                {getCodStatusLabel(order)}
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-right text-sm font-semibold text-slate-950">
+                          <td className="w-32 px-4 py-4 text-right text-sm font-semibold text-slate-950">
                             {formatPrice(orderPayableTotal(order))}
                             {orderDiscountTotal(order) > 0 && (
-                              <div className="text-xs font-semibold text-emerald-700">
+                              <div className="text-xs font-semibold text-success-700">
                                 -{formatPrice(orderDiscountTotal(order))} discount
                               </div>
                             )}
                           </td>
-                          <td className="px-4 py-4">
-                            {renderOrderActions(order)}
+                          <td className="w-72 px-4 py-4">
+                            {renderOrderActions(order, { compact: true })}
                           </td>
                         </tr>
                         {isExpanded && (
@@ -1355,7 +1635,7 @@ export default function VendorOrders() {
                 min={todayInputValue()}
                 value={pickupModal.pickupDate}
                 onChange={(event) => setPickupModal((current) => ({ ...current, pickupDate: event.target.value }))}
-                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
               />
             </label>
             <label className="block text-sm font-medium text-slate-700">
@@ -1363,7 +1643,7 @@ export default function VendorOrders() {
               <select
                 value={pickupModal.timeSlot}
                 onChange={(event) => setPickupModal((current) => ({ ...current, timeSlot: event.target.value }))}
-                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
               >
                 {PICKUP_SLOTS.map((slot) => (
                   <option key={slot} value={slot}>
@@ -1379,7 +1659,7 @@ export default function VendorOrders() {
                 required
                 value={pickupModal.courierName}
                 onChange={(event) => setPickupModal((current) => ({ ...current, courierName: event.target.value }))}
-                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
               />
             </label>
             <label className="block text-sm font-medium text-slate-700">
@@ -1388,7 +1668,7 @@ export default function VendorOrders() {
                 value={pickupModal.notes}
                 onChange={(event) => setPickupModal((current) => ({ ...current, notes: event.target.value }))}
                 rows={3}
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
               />
             </label>
             <ModalActions onCancel={() => setPickupModal(null)} submitLabel="Schedule pickup" icon={CalendarClock} />
@@ -1408,7 +1688,7 @@ export default function VendorOrders() {
                 onChange={(event) => setMessageModal((current) => ({ ...current, message: event.target.value }))}
                 rows={5}
                 placeholder="Example: Your order is packed and will be handed to courier today."
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
               />
             </label>
             <ModalActions onCancel={() => setMessageModal(null)} submitLabel="Send message" icon={Send} />
@@ -1425,7 +1705,7 @@ export default function VendorOrders() {
                 required
                 value={cancelModal.reason}
                 onChange={(event) => setCancelModal((current) => ({ ...current, reason: event.target.value }))}
-                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
               >
                 <option value="">Select reason</option>
                 <option value="Out of stock">Out of stock</option>
@@ -1441,7 +1721,7 @@ export default function VendorOrders() {
                 value={cancelModal.notes}
                 onChange={(event) => setCancelModal((current) => ({ ...current, notes: event.target.value }))}
                 rows={3}
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
               />
             </label>
             <div className="flex justify-end gap-2">
@@ -1454,7 +1734,7 @@ export default function VendorOrders() {
               </button>
               <button
                 type="submit"
-                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
+                className="inline-flex items-center gap-2 rounded-lg bg-error-600 px-3 py-2 text-sm font-medium text-white hover:bg-error-700"
               >
                 <XCircle className="h-4 w-4" />
                 Cancel items
@@ -1478,7 +1758,7 @@ export default function VendorOrders() {
                   value={returnModal.reason}
                   onChange={(event) => setReturnModal((current) => ({ ...current, reason: event.target.value }))}
                   rows={3}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                 />
               </label>
             )}
@@ -1488,7 +1768,7 @@ export default function VendorOrders() {
                 value={returnModal.notes}
                 onChange={(event) => setReturnModal((current) => ({ ...current, notes: event.target.value }))}
                 rows={3}
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
               />
             </label>
             <label className="block text-sm font-medium text-slate-700">
@@ -1498,7 +1778,7 @@ export default function VendorOrders() {
                 onChange={(event) => setReturnModal((current) => ({ ...current, evidence: event.target.value }))}
                 rows={3}
                 placeholder="One image or document URL per line"
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
               />
             </label>
             <ModalActions
@@ -1532,7 +1812,7 @@ function IconButton({ title, onClick, children }) {
       type="button"
       title={title}
       onClick={onClick}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 hover:text-slate-950"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"
     >
       {children}
     </button>
@@ -1545,7 +1825,7 @@ function SmallActionButton({ children, disabled, onClick }) {
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+      className="min-h-8 whitespace-nowrap rounded-md border border-primary-200 bg-primary-50 px-2.5 py-1.5 text-xs font-semibold text-primary-700 transition hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
@@ -1558,22 +1838,31 @@ function SmallDangerButton({ children, disabled, onClick }) {
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+      className="min-h-8 whitespace-nowrap rounded-md border border-error-200 px-2.5 py-1.5 text-xs font-semibold text-error-700 transition hover:bg-error-50 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
   );
 }
 
-function MetricCard({ label, value, icon }) {
+function MetricCard({ label, value, helper, icon, tone = "primary" }) {
+  const toneClasses = {
+    primary: "bg-primary-50 text-primary-700 ring-primary-100",
+    secondary: "bg-secondary-50 text-secondary-700 ring-secondary-100",
+    success: "bg-success-50 text-success-700 ring-success-100",
+    error: "bg-error-50 text-error-700 ring-error-100",
+  };
+  const iconClass = toneClasses[tone] || toneClasses.primary;
+
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-950">{value}</p>
+          <p className="text-sm font-semibold text-slate-500">{label}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-950">{value}</p>
+          {helper && <p className="mt-1 text-xs font-medium text-slate-500">{helper}</p>}
         </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ring-1 ${iconClass}`}>
           {createElement(icon, { className: "h-5 w-5" })}
         </div>
       </div>
@@ -1590,10 +1879,10 @@ function OrderDetail({ order, timeline = [], formatPrice, onCopyAddress, onMessa
     <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
       <div className="space-y-4">
         {cancellationText && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <div className="rounded-lg border border-error-200 bg-error-50 p-4 text-sm text-error-800">
             <div className="font-semibold">Cancellation reason</div>
             <p className="mt-1">{cancellationText}</p>
-            {order.cancellationNotes && <p className="mt-1 text-red-700">{order.cancellationNotes}</p>}
+            {order.cancellationNotes && <p className="mt-1 text-error-700">{order.cancellationNotes}</p>}
           </div>
         )}
 
@@ -1692,7 +1981,7 @@ function OrderDetail({ order, timeline = [], formatPrice, onCopyAddress, onMessa
             ) : (
               timeline.map((event, index) => (
                 <div key={`${event.status || event.label}-${event.timestamp || event.at || index}`} className="flex gap-3">
-                  <div className="mt-1 h-2.5 w-2.5 rounded-full bg-orange-500" />
+                  <div className="mt-1 h-2.5 w-2.5 rounded-full bg-primary-500" />
                   <div>
                     <div className="text-sm font-medium text-slate-950">{event.label || event.status}</div>
                     <div className="text-xs text-slate-500">{formatDateTime(event.timestamp || event.at || event.createdAt)}</div>
@@ -1740,7 +2029,7 @@ function OrderDetail({ order, timeline = [], formatPrice, onCopyAddress, onMessa
                       <button
                         type="button"
                         onClick={() => onReturnAction(returnItem, "approved")}
-                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                        className="inline-flex items-center gap-2 rounded-lg bg-success-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-success-700"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         Approve
@@ -1748,7 +2037,7 @@ function OrderDetail({ order, timeline = [], formatPrice, onCopyAddress, onMessa
                       <button
                         type="button"
                         onClick={() => onReturnAction(returnItem, "rejected")}
-                        className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                        className="inline-flex items-center gap-2 rounded-lg border border-error-200 px-3 py-1.5 text-xs font-semibold text-error-700 hover:bg-error-50"
                       >
                         <XCircle className="h-3.5 w-3.5" />
                         Reject
@@ -1775,7 +2064,7 @@ function OrderDetail({ order, timeline = [], formatPrice, onCopyAddress, onMessa
             <div className="flex justify-between gap-3">
               <span>COD</span>
               <span className="font-medium text-slate-950">
-                {isCodOrder(order) ? (order.codCollected ? "Collected" : "Pending") : "Not COD"}
+                {getCodStatusLabel(order)}
               </span>
             </div>
           </div>
@@ -1819,7 +2108,7 @@ function ModalActions({ onCancel, submitLabel, icon, danger = false }) {
       <button
         type="submit"
         className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white ${
-          danger ? "bg-red-600 hover:bg-red-700" : "bg-slate-900 hover:bg-slate-800"
+          danger ? "bg-error-600 hover:bg-error-700" : "bg-primary-600 hover:bg-primary-700"
         }`}
       >
         {createElement(icon, { className: "h-4 w-4" })}

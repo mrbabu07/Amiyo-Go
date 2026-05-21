@@ -132,4 +132,63 @@ describe("couponController.validateCoupon vendor voucher flow", () => {
     });
     expect(Offer.findOne).not.toHaveBeenCalled();
   });
+
+  test("validates store free-shipping vouchers against the matching vendor delivery fee", async () => {
+    const Coupon = {
+      validateCoupon: jest.fn().mockResolvedValue({ valid: false }),
+    };
+    const findOne = jest.fn().mockResolvedValue({
+      _id: "voucher-ship",
+      code: "FREESHIP",
+      title: "Store Free Shipping",
+      description: "Delivery covered by seller",
+      discountType: "free_shipping",
+      discountValue: 0,
+      vendorId: "vendor-1",
+      vendorName: "Village Store",
+      status: "approved",
+      startDate: new Date(Date.now() - 1000),
+      endDate: new Date(Date.now() + 60_000),
+    });
+
+    const req = {
+      body: {
+        code: "FREESHIP",
+        orderTotal: 500,
+        deliveryCharge: 120,
+        deliveryBreakdown: [
+          { vendorId: "vendor-1", deliveryFee: 40 },
+          { vendorId: "vendor-2", deliveryFee: 80 },
+        ],
+        items: [
+          { vendorId: "vendor-1", price: 200, quantity: 1 },
+          { vendorId: "vendor-2", price: 300, quantity: 1 },
+        ],
+      },
+      app: {
+        locals: {
+          db: { collection: jest.fn(() => ({ findOne })) },
+          models: { Coupon },
+        },
+      },
+    };
+    const res = createRes();
+
+    await validateCoupon(req, res);
+
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: expect.objectContaining({
+        discountAmount: 40,
+        finalTotal: 580,
+        scopeVendorId: "vendor-1",
+        vendorDeliveryCharge: 40,
+        coupon: expect.objectContaining({
+          code: "FREESHIP",
+          type: "vendor_voucher",
+          discountType: "free_shipping",
+        }),
+      }),
+    });
+  });
 });

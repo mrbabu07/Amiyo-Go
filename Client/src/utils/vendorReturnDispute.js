@@ -1,42 +1,42 @@
 const statusMeta = {
   needs_response: {
     label: "Needs response",
-    tone: "border-amber-200 bg-amber-50 text-amber-800",
+    tone: "border-primary-200 bg-primary-50 text-primary-700",
     nextAction: "Respond with approval, rejection, or evidence",
   },
   pending: {
     label: "Pending admin review",
-    tone: "border-sky-200 bg-sky-50 text-sky-800",
+    tone: "border-secondary-200 bg-secondary-50 text-secondary-700",
     nextAction: "Wait for admin decision",
   },
   disputed: {
     label: "Disputed",
-    tone: "border-orange-200 bg-orange-50 text-orange-800",
+    tone: "border-primary-200 bg-primary-50 text-primary-700",
     nextAction: "Admin will compare both sides",
   },
   approved: {
     label: "Approved",
-    tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    tone: "border-success-200 bg-success-50 text-success-700",
     nextAction: "Deduction will apply to payout",
   },
   rejected: {
     label: "Rejected",
-    tone: "border-red-200 bg-red-50 text-red-800",
+    tone: "border-error-200 bg-error-50 text-error-700",
     nextAction: "No refund deduction is expected",
   },
   processing: {
     label: "Processing",
-    tone: "border-violet-200 bg-violet-50 text-violet-800",
+    tone: "border-secondary-200 bg-secondary-50 text-secondary-700",
     nextAction: "Return is being processed",
   },
   completed: {
     label: "Completed",
-    tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    tone: "border-success-200 bg-success-50 text-success-700",
     nextAction: "Return case is closed",
   },
   refunded: {
     label: "Refunded",
-    tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    tone: "border-success-200 bg-success-50 text-success-700",
     nextAction: "Refund has been processed",
   },
 };
