@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Banknote,
@@ -75,6 +75,20 @@ const formatDate = (value) => {
 };
 
 const shortId = (value = "") => value.toString().slice(-8).toUpperCase();
+const toNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+};
+
+const orderRef = (order = {}) =>
+  order.orderNumber || order.orderNo || `#${shortId(order.orderId || order._id || "")}`;
+
+const productSummary = (order = {}) => {
+  const names = Array.isArray(order.productNames) ? order.productNames.filter(Boolean) : [];
+  if (names.length === 0) return "Order items";
+  const remaining = Math.max(0, toNumber(order.itemsCount) - names.length);
+  return `${names.join(", ")}${remaining > 0 ? ` +${remaining} more` : ""}`;
+};
 
 const statusClass = {
   pending: "border-yellow-200 bg-yellow-50 text-yellow-800",
@@ -94,12 +108,12 @@ function Badge({ value }) {
   );
 }
 
-function Metric({ icon: Icon, label, value, tone = "text-gray-900" }) {
+function Metric({ icon, label, value, tone = "text-gray-900" }) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-gray-500">{label}</p>
-        <Icon className="h-4 w-4 text-gray-400" />
+        {createElement(icon, { className: "h-4 w-4 text-gray-400" })}
       </div>
       <p className={`mt-2 text-2xl font-bold ${tone}`}>{value}</p>
     </div>
@@ -304,6 +318,9 @@ export default function AdminPayouts() {
     }
   };
 
+  const payModalOrders = payModal?.payoutOrders || payModal?.eligibleOrders || [];
+  const payModalOrderCount = payModal?.payoutOrdersCount || payModal?.eligibleOrdersCount || payModalOrders.length;
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="border-b border-gray-200 bg-white">
@@ -327,12 +344,12 @@ export default function AdminPayouts() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Metric icon={Landmark} label="Platform Commission" value={formatPrice(topMetrics.commission)} tone="text-blue-700" />
           <Metric icon={Wallet} label="Payable Queue" value={formatPrice(topMetrics.payable)} tone="text-green-700" />
-          <Metric icon={LockKeyhole} label="Withheld / Escrow" value={formatPrice(topMetrics.withheld)} tone="text-amber-700" />
+          <Metric icon={LockKeyhole} label="Withheld / Escrow" value={formatPrice(topMetrics.withheld)} tone="text-indigo-700" />
           <Metric icon={ListChecks} label="Refund Reviews" value={topMetrics.refunds} tone="text-red-700" />
         </div>
 
         <div className="mt-6 flex flex-wrap gap-2">
-          {tabs.map(({ key, label, icon: Icon }) => (
+          {tabs.map(({ key, label, icon }) => (
             <button
               key={key}
               type="button"
@@ -341,7 +358,7 @@ export default function AdminPayouts() {
                 activeTab === key ? "bg-gray-900 text-white" : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
               }`}
             >
-              <Icon className="h-4 w-4" />
+              {createElement(icon, { className: "h-4 w-4" })}
               {label}
             </button>
           ))}
@@ -365,6 +382,8 @@ export default function AdminPayouts() {
                       <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
                         <tr>
                           <th className="px-4 py-3">Vendor</th>
+                          <th className="px-4 py-3 text-right">Net sale</th>
+                          <th className="px-4 py-3 text-right">Seller discount</th>
                           <th className="px-4 py-3 text-right">Payable</th>
                           <th className="px-4 py-3 text-right">Withheld</th>
                           <th className="px-4 py-3 text-right">Pending</th>
@@ -381,8 +400,10 @@ export default function AdminPayouts() {
                               </Link>
                               <div className="text-xs text-gray-500">{vendor.vendorTier} tier, {vendor.ordersCount} orders</div>
                             </td>
+                            <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatPrice(vendor.netOrderSales || 0)}</td>
+                            <td className="px-4 py-3 text-right text-blue-700">-{formatPrice(vendor.sellerFundedDiscount || 0)}</td>
                             <td className="px-4 py-3 text-right font-bold text-green-700">{formatPrice(vendor.payableBalance || 0)}</td>
-                            <td className="px-4 py-3 text-right text-amber-700">{formatPrice(vendor.withheldAmount || 0)}</td>
+                            <td className="px-4 py-3 text-right text-indigo-700">{formatPrice(vendor.withheldAmount || 0)}</td>
                             <td className="px-4 py-3 text-right text-gray-600">{formatPrice(vendor.pendingClearance || 0)}</td>
                             <td className="px-4 py-3 text-gray-600">{vendor.payoutMethodLabel || "Not configured"}</td>
                             <td className="px-4 py-3 text-right">
@@ -392,7 +413,7 @@ export default function AdminPayouts() {
                                 onClick={() => setPayModal(vendor)}
                                 className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
                               >
-                                Mark Paid
+                                Review & Pay
                               </button>
                             </td>
                           </tr>
@@ -658,21 +679,117 @@ export default function AdminPayouts() {
 
       {payModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
-            <div className="flex items-center gap-3">
-              <Banknote className="h-5 w-5 text-green-700" />
-              <div>
-                <h2 className="font-semibold text-gray-900">Mark Vendor Paid</h2>
-                <p className="text-sm text-gray-500">{payModal.vendorName} - {formatPrice(payModal.payableBalance)}</p>
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
+            <div className="flex flex-col gap-3 border-b border-gray-200 pb-4 md:flex-row md:items-start md:justify-between">
+              <div className="flex items-center gap-3">
+                <Banknote className="h-5 w-5 text-green-700" />
+                <div>
+                  <h2 className="font-semibold text-gray-900">Review Vendor Payout</h2>
+                  <p className="text-sm text-gray-500">{payModal.vendorName} - final payable {formatPrice(payModal.payableBalance)}</p>
+                </div>
+              </div>
+              <div className="rounded-lg bg-green-50 px-4 py-2 text-right">
+                <p className="text-xs font-semibold uppercase text-green-700">Payable now</p>
+                <p className="text-xl font-bold text-green-800">{formatPrice(payModal.payableBalance || 0)}</p>
               </div>
             </div>
-            <div className="mt-4 space-y-3">
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-gray-200 p-3">
+                <p className="text-xs font-semibold uppercase text-gray-500">Original product sales</p>
+                <p className="mt-1 text-lg font-bold text-gray-900">{formatPrice(payModal.grossOrderSales || 0)}</p>
+              </div>
+              <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                <p className="text-xs font-semibold uppercase text-blue-700">Vendor discounts</p>
+                <p className="mt-1 text-lg font-bold text-blue-800">-{formatPrice(payModal.sellerFundedDiscount || 0)}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <p className="text-xs font-semibold uppercase text-gray-500">Net seller sale</p>
+                <p className="mt-1 text-lg font-bold text-gray-900">{formatPrice(payModal.netOrderSales || 0)}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <p className="text-xs font-semibold uppercase text-gray-500">Commission deducted</p>
+                <p className="mt-1 text-lg font-bold text-gray-900">-{formatPrice(payModal.commissionDeducted || 0)}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <p className="text-xs font-semibold uppercase text-gray-500">Order earnings</p>
+                <p className="mt-1 text-lg font-bold text-gray-900">{formatPrice(payModal.orderEarnings || 0)}</p>
+              </div>
+              <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3">
+                <p className="text-xs font-semibold uppercase text-indigo-700">Escrow withheld</p>
+                <p className="mt-1 text-lg font-bold text-indigo-800">{formatPrice(payModal.withheldAmount || 0)}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <p className="text-xs font-semibold uppercase text-gray-500">Returns deducted</p>
+                <p className="mt-1 text-lg font-bold text-gray-900">-{formatPrice(payModal.refundDeductions || 0)}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <p className="text-xs font-semibold uppercase text-gray-500">Paid or pending payouts</p>
+                <p className="mt-1 text-lg font-bold text-gray-900">-{formatPrice(payModal.paidOrPendingPayouts || 0)}</p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-lg border border-gray-200">
+              <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+                <div>
+                  <h3 className="font-semibold text-gray-900">Orders included in this payable</h3>
+                  <p className="text-xs text-gray-500">
+                    Showing {Math.min(payModalOrders.length, 12)} of {payModalOrderCount} linked order(s).
+                  </p>
+                </div>
+                <ReceiptText className="h-5 w-5 text-gray-400" />
+              </div>
+              {payModalOrders.length ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                      <tr>
+                        <th className="px-4 py-3">Order</th>
+                        <th className="px-4 py-3">Products</th>
+                        <th className="px-4 py-3 text-right">Original</th>
+                        <th className="px-4 py-3 text-right">Discount</th>
+                        <th className="px-4 py-3 text-right">Net sale</th>
+                        <th className="px-4 py-3 text-right">Commission</th>
+                        <th className="px-4 py-3 text-right">Withheld</th>
+                        <th className="px-4 py-3 text-right">Payable</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {payModalOrders.slice(0, 12).map((order) => (
+                        <tr key={order.orderId || order.orderNumber} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <p className="font-mono text-xs font-bold text-gray-700">{orderRef(order)}</p>
+                            <p className="text-xs text-gray-500">{formatDate(order.deliveredAt || order.orderDate)}</p>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">
+                            <p className="max-w-56 truncate">{productSummary(order)}</p>
+                            <p className="text-xs text-gray-500">{order.itemsCount || 0} item(s)</p>
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-700">{formatPrice(order.grossSaleAmount || 0)}</td>
+                          <td className="px-4 py-3 text-right text-blue-700">-{formatPrice(order.sellerFundedDiscount || 0)}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatPrice(order.netSaleAmount || 0)}</td>
+                          <td className="px-4 py-3 text-right text-gray-700">-{formatPrice(order.commissionAmount || 0)}</td>
+                          <td className="px-4 py-3 text-right text-indigo-700">{formatPrice(order.withheldAmount || 0)}</td>
+                          <td className="px-4 py-3 text-right font-bold text-green-700">{formatPrice(order.payableAmount ?? order.earnings ?? 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-6 text-center text-sm text-gray-500">
+                  No linked order breakdown is available for this payout row.
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
               <input value={paymentForm.transactionId} onChange={(e) => setPaymentForm({ ...paymentForm, transactionId: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="Transaction reference" />
-              <textarea value={paymentForm.note} onChange={(e) => setPaymentForm({ ...paymentForm, note: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" rows={3} placeholder="Payment note" />
+              <textarea value={paymentForm.note} onChange={(e) => setPaymentForm({ ...paymentForm, note: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" rows={2} placeholder="Payment note" />
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={() => setPayModal(null)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700">Cancel</button>
-              <button type="button" onClick={payQueuedVendor} className="rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white">Confirm Paid</button>
+              <button type="button" onClick={payQueuedVendor} className="rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white">Confirm Payable Paid</button>
             </div>
           </div>
         </div>

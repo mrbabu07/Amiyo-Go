@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const PDFDocument = require("pdfkit");
+const { buildVendorSettlement } = require("../../utils/vendorSettlement");
 
 const PLATFORM_NAME = "HnilaBazar";
 const MINIMUM_PAYOUT = 1000;
@@ -163,22 +164,10 @@ const buildLedgerRows = ({ orders = [], returns = [], vendorId }) => {
     const vendorProducts = (order.products || []).filter((product) => matchesVendor(product, vendorId));
     if (vendorProducts.length === 0) return null;
 
-    const saleAmount = vendorProducts.reduce(
-      (sum, product) => sum + Number(product.price || 0) * Number(product.quantity || 0),
-      0,
-    );
-    const platformCommissionAmount = vendorProducts.reduce(
-      (sum, product) => sum + Number(product.adminCommissionAmount || 0),
-      0,
-    );
-    const vendorEarning = vendorProducts.reduce(
-      (sum, product) => {
-        const fallback = Number(product.price || 0) * Number(product.quantity || 0) -
-          Number(product.adminCommissionAmount || 0);
-        return sum + Number(product.vendorEarningAmount ?? fallback);
-      },
-      0,
-    );
+    const settlement = buildVendorSettlement({ order, vendorId, products: vendorProducts });
+    const saleAmount = settlement.saleAmount;
+    const platformCommissionAmount = settlement.commissionAmount;
+    const vendorEarning = settlement.vendorEarning;
     const platformCommissionRate = saleAmount > 0
       ? round2((platformCommissionAmount / saleAmount) * 100)
       : 0;
@@ -187,12 +176,12 @@ const buildLedgerRows = ({ orders = [], returns = [], vendorId }) => {
       (sum, item) => sum + Number(item.vendorDeduction ?? item.deduction ?? 0),
       0,
     );
-    const delivery = getVendorDeliveryBreakdown(order, vendorId, saleAmount);
+    const delivery = getVendorDeliveryBreakdown(order, vendorId, settlement.grossSaleAmount);
     const settlementStatus = getOrderSettlementStatus(vendorProducts);
     const isVoid = settlementStatus === "void";
     const netPayout = isVoid
       ? 0
-      : vendorEarning + delivery.shippingFeeCredit - delivery.shippingFeeDebit - refundDeducted;
+      : vendorEarning + delivery.shippingFeeCredit - delivery.shippingFeeDebit - refundDeducted - settlement.sellerShippingDiscount;
 
     return {
       orderId: order._id,
@@ -203,6 +192,10 @@ const buildLedgerRows = ({ orders = [], returns = [], vendorId }) => {
       itemStatus: settlementStatus,
       productsSummary: vendorProducts.map((product) => product.title || product.name || "Product").join(", "),
       itemCount: vendorProducts.reduce((sum, product) => sum + Number(product.quantity || 0), 0),
+      grossSaleAmount: round2(settlement.grossSaleAmount),
+      sellerFundedDiscount: round2(settlement.sellerFundedDiscount),
+      sellerProductDiscount: round2(settlement.sellerProductDiscount),
+      sellerShippingDiscount: round2(settlement.sellerShippingDiscount),
       saleAmount: round2(saleAmount),
       platformCommissionRate,
       platformCommissionAmount: round2(platformCommissionAmount),
@@ -220,20 +213,20 @@ const buildLedgerRows = ({ orders = [], returns = [], vendorId }) => {
         deduction: round2(item.vendorDeduction ?? item.deduction ?? 0),
         approvedAt: item.approvedAt || item.updatedAt || null,
       })),
-      items: vendorProducts.map((product) => {
-        const itemSaleAmount = Number(product.price || 0) * Number(product.quantity || 0);
-        const itemCommission = Number(product.adminCommissionAmount || 0);
-        const fallbackEarning = itemSaleAmount - itemCommission;
+      items: settlement.items.map((settledItem) => {
+        const { product } = settledItem;
         return {
           productId: product.productId || product._id || null,
           sku: product.sku || product.variantSku || "",
           productName: product.title || product.name || product.productName || "Product",
           quantity: Number(product.quantity || 0),
           unitPrice: round2(product.price || 0),
-          saleAmount: round2(itemSaleAmount),
-          commissionRate: round2(product.commissionRateSnapshot || 0),
-          commissionAmount: round2(itemCommission),
-          vendorEarning: round2(product.vendorEarningAmount ?? fallbackEarning),
+          grossSaleAmount: round2(settledItem.grossSaleAmount),
+          sellerFundedDiscount: round2(settledItem.sellerFundedDiscount),
+          saleAmount: round2(settledItem.saleAmount),
+          commissionRate: round2(settledItem.commissionRate),
+          commissionAmount: round2(settledItem.commissionAmount),
+          vendorEarning: round2(settledItem.vendorEarning),
           itemStatus: product.itemStatus || "pending",
         };
       }),
@@ -264,6 +257,8 @@ const summarizeLedger = ({ ledgerRows = [], payouts = [], returnDeductions = {},
 
   return {
     grossSales: round2(ledgerRows.reduce((sum, row) => sum + Number(row.saleAmount || 0), 0)),
+    grossOrderSales: round2(ledgerRows.reduce((sum, row) => sum + Number(row.grossSaleAmount || row.saleAmount || 0), 0)),
+    sellerFundedDiscount: round2(ledgerRows.reduce((sum, row) => sum + Number(row.sellerFundedDiscount || 0), 0)),
     totalCommission: round2(ledgerRows.reduce((sum, row) => sum + Number(row.platformCommissionAmount || 0), 0)),
     netEarnings: round2(ledgerRows.reduce((sum, row) => sum + Number(row.vendorEarning || 0), 0)),
     pendingBalance: round2(pendingBalance),
@@ -317,6 +312,8 @@ const buildFinanceReconciliation = ({ ledgerRows = [], payouts = [], returnDeduc
   const shippingCredit = ledgerRows.reduce((sum, row) => sum + Number(row.shippingFeeCredited || 0), 0);
   const shippingDebit = ledgerRows.reduce((sum, row) => sum + Number(row.shippingFeeDebited || 0), 0);
   const grossSales = ledgerRows.reduce((sum, row) => sum + Number(row.saleAmount || 0), 0);
+  const grossOrderSales = ledgerRows.reduce((sum, row) => sum + Number(row.grossSaleAmount || row.saleAmount || 0), 0);
+  const sellerFundedDiscount = ledgerRows.reduce((sum, row) => sum + Number(row.sellerFundedDiscount || 0), 0);
   const commission = ledgerRows.reduce((sum, row) => sum + Number(row.platformCommissionAmount || 0), 0);
   const vendorEarnings = ledgerRows.reduce((sum, row) => sum + Number(row.vendorEarning || 0), 0);
   const returnDeduction = Number(returnDeductions.totalDeduction || 0);
@@ -333,6 +330,13 @@ const buildFinanceReconciliation = ({ ledgerRows = [], payouts = [], returnDeduc
       amount: round2(grossSales),
       type: "credit",
       description: "Vendor item sales before commission, shipping, returns, and payout movement.",
+    },
+    {
+      key: "seller_discounts",
+      label: "Seller voucher/campaign discounts",
+      amount: round2(sellerFundedDiscount),
+      type: "debit",
+      description: "Seller-funded discounts deducted before admin calculates payout.",
     },
     {
       key: "commission",
@@ -381,6 +385,8 @@ const buildFinanceReconciliation = ({ ledgerRows = [], payouts = [], returnDeduc
   return {
     summary: {
       grossSales: round2(grossSales),
+      grossOrderSales: round2(grossOrderSales),
+      sellerFundedDiscount: round2(sellerFundedDiscount),
       vendorEarnings: round2(vendorEarnings),
       commission: round2(commission),
       shippingCredit: round2(shippingCredit),
@@ -489,12 +495,15 @@ const streamStatementPdf = ({ res, title, month, vendor, summary, transactions, 
   const rows = invoiceMode
     ? [
         ["Platform commission", summary.totalCommission],
+        ["Seller voucher/campaign discounts", summary.sellerFundedDiscount],
         ["Shipping fees debited", summary.shippingFeeDebited],
         ["Return deductions", summary.refundDeducted],
         ["Total platform charges", summary.platformCharges],
       ]
     : [
-        ["Gross sales", summary.grossSales],
+        ["Original product sales", summary.grossOrderSales || summary.grossSales],
+        ["Seller voucher/campaign discounts", summary.sellerFundedDiscount],
+        ["Net seller sales", summary.grossSales],
         ["Platform commission", summary.totalCommission],
         ["Shipping credited", summary.shippingFeeCredited],
         ["Shipping debited", summary.shippingFeeDebited],
@@ -535,6 +544,8 @@ const streamStatementPdf = ({ res, title, month, vendor, summary, transactions, 
 
 const getStatementSummary = (transactions = []) => ({
   grossSales: round2(transactions.reduce((sum, row) => sum + Number(row.saleAmount || 0), 0)),
+  grossOrderSales: round2(transactions.reduce((sum, row) => sum + Number(row.grossSaleAmount || row.saleAmount || 0), 0)),
+  sellerFundedDiscount: round2(transactions.reduce((sum, row) => sum + Number(row.sellerFundedDiscount || 0), 0)),
   totalCommission: round2(transactions.reduce((sum, row) => sum + Number(row.platformCommissionAmount || 0), 0)),
   shippingFeeCredited: round2(transactions.reduce((sum, row) => sum + Number(row.shippingFeeCredited || 0), 0)),
   shippingFeeDebited: round2(transactions.reduce((sum, row) => sum + Number(row.shippingFeeDebited || 0), 0)),
@@ -675,7 +686,9 @@ exports.downloadStatement = async (req, res) => {
       "Order ID",
       "Date",
       "Products",
-      "Sale Amount",
+      "Original Product Sales",
+      "Seller Voucher/Campaign Discount",
+      "Net Sale Amount",
       "Commission Rate",
       "Commission Amount",
       "Shipping Fee Credited",
@@ -688,6 +701,8 @@ exports.downloadStatement = async (req, res) => {
       normalizeId(row.orderId),
       row.orderDate ? new Date(row.orderDate).toISOString().slice(0, 10) : "",
       row.productsSummary,
+      row.grossSaleAmount,
+      row.sellerFundedDiscount,
       row.saleAmount,
       row.platformCommissionRate,
       row.platformCommissionAmount,

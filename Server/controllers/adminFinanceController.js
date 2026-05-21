@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const PDFDocument = require("pdfkit");
+const { buildVendorSettlement } = require("../utils/vendorSettlement");
 
 /**
  * GET /api/admin/finance/overview
@@ -55,10 +56,29 @@ exports.getFinanceOverview = async (req, res) => {
       { $group: { _id: null, gross: { $sum: "$total" }, orders: { $sum: 1 } } },
     ]).toArray();
 
+    const financeOrders = await ordersCol.find({ status: { $nin: ["cancelled"] } }).toArray();
+    const settlementTotals = financeOrders.reduce(
+      (totals, order) => {
+        const vendorGroups = (order.products || []).reduce((groups, product) => {
+          const vendorId = normalizeId(product.vendorId) || "platform";
+          if (!groups[vendorId]) groups[vendorId] = [];
+          groups[vendorId].push(product);
+          return groups;
+        }, {});
+        Object.entries(vendorGroups).forEach(([vendorId, vendorProducts]) => {
+          const settlement = buildVendorSettlement({ order, vendorId, products: vendorProducts });
+          totals.commission += settlement.commissionAmount;
+          totals.vendorEarnings += settlement.vendorEarning;
+        });
+        return totals;
+      },
+      { commission: 0, vendorEarnings: 0 },
+    );
+
     const gross          = grossAgg[0]?.gross      || 0;
     const totalOrders    = grossAgg[0]?.orders     || 0;
-    const commission     = overview[0]?.totalAdminCommission  || 0;
-    const vendorEarnings = overview[0]?.totalVendorEarnings   || 0;
+    const commission     = financeOrders.length > 0 ? settlementTotals.commission : (overview[0]?.totalAdminCommission || 0);
+    const vendorEarnings = financeOrders.length > 0 ? settlementTotals.vendorEarnings : (overview[0]?.totalVendorEarnings || 0);
 
     res.json({
       success: true,
@@ -98,55 +118,52 @@ exports.getCommissionSummary = async (req, res) => {
     const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-    const [summaryRows, categoryRows] = await Promise.all([
-      ordersCol.aggregate([
-        { $match: { createdAt: { $gte: from }, status: { $nin: ["cancelled"] } } },
-        { $unwind: "$products" },
-        {
-          $group: {
-            _id: null,
-            grossSales: { $sum: { $multiply: ["$products.price", "$products.quantity"] } },
-            totalCommission: { $sum: "$products.adminCommissionAmount" },
-            vendorEarnings: { $sum: "$products.vendorEarningAmount" },
-            orderIds: { $addToSet: "$_id" },
-            items: { $sum: "$products.quantity" },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            grossSales: 1,
-            totalCommission: 1,
-            vendorEarnings: 1,
-            orders: { $size: "$orderIds" },
-            items: 1,
-          },
-        },
-      ]).toArray(),
-
-      ordersCol.aggregate([
-        { $match: { createdAt: { $gte: from }, status: { $nin: ["cancelled"] } } },
-        { $unwind: "$products" },
-        {
-          $group: {
-            _id: "$products.categoryId",
-            grossSales: { $sum: { $multiply: ["$products.price", "$products.quantity"] } },
-            totalCommission: { $sum: "$products.adminCommissionAmount" },
-            items: { $sum: "$products.quantity" },
-          },
-        },
-        { $sort: { totalCommission: -1 } },
-        { $limit: 6 },
-      ]).toArray(),
-    ]);
-
-    const summary = summaryRows[0] || {
+    const orders = await ordersCol
+      .find({ createdAt: { $gte: from }, status: { $nin: ["cancelled"] } })
+      .toArray();
+    const summary = {
       grossSales: 0,
       totalCommission: 0,
       vendorEarnings: 0,
       orders: 0,
       items: 0,
     };
+    const orderIds = new Set();
+    const categories = {};
+
+    orders.forEach((order) => {
+      const vendorGroups = (order.products || []).reduce((groups, product) => {
+        const vendorId = normalizeId(product.vendorId) || "platform";
+        if (!groups[vendorId]) groups[vendorId] = [];
+        groups[vendorId].push(product);
+        return groups;
+      }, {});
+
+      Object.entries(vendorGroups).forEach(([vendorId, vendorProducts]) => {
+        const settlement = buildVendorSettlement({ order, vendorId, products: vendorProducts });
+        settlement.items.forEach((item) => {
+          const categoryId = item.product.categoryId || "uncategorized";
+          categories[categoryId] = categories[categoryId] || {
+            _id: categoryId,
+            grossSales: 0,
+            totalCommission: 0,
+            items: 0,
+          };
+          summary.grossSales += item.saleAmount;
+          summary.totalCommission += item.commissionAmount;
+          summary.vendorEarnings += item.vendorEarning;
+          summary.items += Number(item.product.quantity || 0);
+          categories[categoryId].grossSales += item.saleAmount;
+          categories[categoryId].totalCommission += item.commissionAmount;
+          categories[categoryId].items += Number(item.product.quantity || 0);
+        });
+      });
+      orderIds.add(order._id?.toString?.() || String(order._id));
+    });
+    summary.orders = orderIds.size;
+    const categoryRows = Object.values(categories)
+      .sort((left, right) => right.totalCommission - left.totalCommission)
+      .slice(0, 6);
 
     res.json({
       success: true,
@@ -234,13 +251,10 @@ exports.getVendorFinanceSummary = async (req, res) => {
           if (vendorProducts.length === 0) return acc;
 
           acc.ordersList.add(order._id?.toString?.() || String(order._id));
-          vendorProducts.forEach((product) => {
-            const gross = Number(product.price || 0) * Number(product.quantity || 0);
-            const commission = Number(product.adminCommissionAmount || 0);
-            acc.grossSales += gross;
-            acc.totalCommission += commission;
-            acc.netEarningsBeforeReturns += Number(product.vendorEarningAmount ?? Math.max(0, gross - commission));
-          });
+          const settlement = buildVendorSettlement({ order, vendorId, products: vendorProducts });
+          acc.grossSales += settlement.saleAmount;
+          acc.totalCommission += settlement.commissionAmount;
+          acc.netEarningsBeforeReturns += settlement.vendorEarning;
           return acc;
         },
         { grossSales: 0, totalCommission: 0, netEarningsBeforeReturns: 0, ordersList: new Set() },
@@ -296,49 +310,38 @@ exports.getVendorFinanceTransactions = async (req, res) => {
     const vendorIdValues = [vendorId.toString()];
     if (ObjectId.isValid(vendorId)) vendorIdValues.push(new ObjectId(vendorId));
 
-    const match = { "products.vendorId": { $in: vendorIdValues } };
+    const idStrings = new Set(vendorIdValues.map((value) => value.toString()));
+    const match = { "products.vendorId": { $in: vendorIdValues }, status: { $ne: "cancelled" } };
     if (from || to) {
       match.createdAt = {};
       if (from) match.createdAt.$gte = new Date(from);
       if (to)   match.createdAt.$lte = new Date(to);
     }
 
-    const pipeline = [
-      { $match: match },
-      { $unwind: "$products" },
-      { $match: { "products.vendorId": { $in: vendorIdValues } } },
-      { $sort: { createdAt: -1 } },
-      { $skip: (pageNum - 1) * limitNum },
-      { $limit: limitNum },
-      {
-        $project: {
-          _id: 0,
-          orderId: "$_id",
-          date: "$createdAt",
-          product: { $ifNull: ["$products.title", "$products.name"] },
-          qty: "$products.quantity",
-          subtotal: { $multiply: ["$products.price", "$products.quantity"] },
-          commissionRateSnapshot: "$products.commissionRateSnapshot",
-          adminCommissionAmount:  "$products.adminCommissionAmount",
-          vendorEarningAmount:    "$products.vendorEarningAmount",
-          orderStatus: "$status",
-        },
-      },
-    ];
+    const orders = await db.collection("orders").find(match).sort({ createdAt: -1 }).toArray();
+    const rows = orders.flatMap((order) => {
+      const vendorProducts = (order.products || []).filter((product) =>
+        idStrings.has(product.vendorId?.toString?.() || String(product.vendorId || "")),
+      );
+      const settlement = buildVendorSettlement({ order, vendorId, products: vendorProducts });
 
-    const countPipeline = [
-      { $match: match },
-      { $unwind: "$products" },
-      { $match: { "products.vendorId": { $in: vendorIdValues } } },
-      { $count: "total" },
-    ];
+      return settlement.items.map((item) => ({
+        orderId: order._id,
+        date: order.createdAt,
+        product: item.product.title || item.product.name || item.product.productName || "Product",
+        qty: item.product.quantity,
+        grossSubtotal: item.grossSaleAmount,
+        sellerFundedDiscount: item.sellerFundedDiscount,
+        subtotal: item.saleAmount,
+        commissionRateSnapshot: item.commissionRate,
+        adminCommissionAmount: item.commissionAmount,
+        vendorEarningAmount: item.vendorEarning,
+        orderStatus: order.status,
+      }));
+    });
 
-    const [transactions, countResult] = await Promise.all([
-      db.collection("orders").aggregate(pipeline).toArray(),
-      db.collection("orders").aggregate(countPipeline).toArray(),
-    ]);
-
-    const total = countResult[0]?.total || 0;
+    const total = rows.length;
+    const transactions = rows.slice((pageNum - 1) * limitNum, pageNum * limitNum);
     res.json({
       success: true,
       data: transactions,
@@ -560,78 +563,98 @@ const buildFinanceLedgerRows = ({ orders = [], returns = [], payouts = [], vendo
 
   orders.forEach((order) => {
     if (order.status === "cancelled") return;
-    (order.products || []).forEach((product) => {
+    const vendorGroups = (order.products || []).reduce((groups, product) => {
       const vendorId = normalizeId(product.vendorId);
-      if (!vendorId || vendorId === "platform") return;
-      if (product.itemStatus === "cancelled") return;
+      if (!vendorId || vendorId === "platform" || product.itemStatus === "cancelled") return groups;
+      if (!groups[vendorId]) groups[vendorId] = [];
+      groups[vendorId].push(product);
+      return groups;
+    }, {});
 
+    Object.entries(vendorGroups).forEach(([vendorId, vendorProducts]) => {
       const vendor = vendorById.get(vendorId) || {};
-      const amounts = getVendorProductAmounts({ product, vendor, order, rules });
       const orderId = normalizeId(order._id);
-      const itemKey = `${orderId}:${normalizeId(product.productId || product._id || product.sku || product.title)}`;
-      const occurredAt = product.deliveredAt || order.deliveredAt || order.createdAt || order.updatedAt;
-
-      pushLedgerEvent(events, {
-        eventKey: `sale:${itemKey}`,
+      const settlement = buildVendorSettlement({
+        order,
         vendorId,
-        vendorName: product.vendorName || product.shopName || getVendorName(vendor),
-        type: "sale",
-        label: "Sale booked",
-        amount: amounts.gross,
-        orderId,
-        categoryId: normalizeId(product.categoryId),
-        paymentMethod: order.paymentMethod || "",
-        occurredAt,
-        metadata: { productName: product.title || product.name || "", status: product.itemStatus || order.status },
+        products: vendorProducts,
+        vendor,
+        rules,
+        findCommissionRule: findBestCommissionRule,
       });
 
-      pushLedgerEvent(events, {
-        eventKey: `commission:${itemKey}`,
-        vendorId,
-        vendorName: product.vendorName || product.shopName || getVendorName(vendor),
-        type: "commission",
-        label: "Platform commission deducted",
-        amount: -amounts.commissionAmount,
-        orderId,
-        categoryId: normalizeId(product.categoryId),
-        paymentMethod: order.paymentMethod || "",
-        occurredAt,
-        metadata: { commissionRate: amounts.commissionRate, appliedRule: amounts.appliedRule },
-      });
-
-      if (["delivered", "partially_delivered"].includes(product.itemStatus || order.status) && holdRate > 0) {
-        const deliveredAt = asDate(product.deliveredAt || order.deliveredAt || order.updatedAt || order.createdAt);
-        const holdAmount = roundMoney(amounts.vendorEarning * holdRate);
-        const releaseAt = deliveredAt ? new Date(deliveredAt.getTime() + holdDays * 24 * 60 * 60 * 1000) : null;
+      settlement.items.forEach((settledItem, index) => {
+        const { product } = settledItem;
+        const itemKey = `${orderId}:${normalizeId(product.productId || product._id || product.sku || product.title || index)}:${index}`;
+        const occurredAt = product.deliveredAt || order.deliveredAt || order.createdAt || order.updatedAt;
 
         pushLedgerEvent(events, {
-          eventKey: `escrow_hold:${itemKey}`,
+          eventKey: `sale:${itemKey}`,
           vendorId,
           vendorName: product.vendorName || product.shopName || getVendorName(vendor),
-          type: "escrow_hold",
-          label: "Return-window escrow hold",
-          amount: -holdAmount,
+          type: "sale",
+          label: settledItem.sellerFundedDiscount > 0 ? "Sale booked after seller discount" : "Sale booked",
+          amount: settledItem.saleAmount,
           orderId,
           categoryId: normalizeId(product.categoryId),
-          occurredAt: deliveredAt,
-          metadata: { holdPercentage: escrowRules.holdPercentage, releaseAt },
+          paymentMethod: order.paymentMethod || "",
+          occurredAt,
+          metadata: {
+            productName: product.title || product.name || "",
+            status: product.itemStatus || order.status,
+            grossSaleAmount: settledItem.grossSaleAmount,
+            sellerFundedDiscount: settledItem.sellerFundedDiscount,
+          },
         });
 
-        if (releaseAt && releaseAt <= now) {
+        pushLedgerEvent(events, {
+          eventKey: `commission:${itemKey}`,
+          vendorId,
+          vendorName: product.vendorName || product.shopName || getVendorName(vendor),
+          type: "commission",
+          label: "Platform commission deducted",
+          amount: -settledItem.commissionAmount,
+          orderId,
+          categoryId: normalizeId(product.categoryId),
+          paymentMethod: order.paymentMethod || "",
+          occurredAt,
+          metadata: { commissionRate: settledItem.commissionRate, appliedRule: settledItem.appliedRule },
+        });
+
+        if (["delivered", "partially_delivered"].includes(product.itemStatus || order.status) && holdRate > 0) {
+          const deliveredAt = asDate(product.deliveredAt || order.deliveredAt || order.updatedAt || order.createdAt);
+          const holdAmount = roundMoney(settledItem.vendorEarning * holdRate);
+          const releaseAt = deliveredAt ? new Date(deliveredAt.getTime() + holdDays * 24 * 60 * 60 * 1000) : null;
+
           pushLedgerEvent(events, {
-            eventKey: `escrow_release:${itemKey}`,
+            eventKey: `escrow_hold:${itemKey}`,
             vendorId,
             vendorName: product.vendorName || product.shopName || getVendorName(vendor),
-            type: "escrow_release",
-            label: "Escrow released",
-            amount: holdAmount,
+            type: "escrow_hold",
+            label: "Return-window escrow hold",
+            amount: -holdAmount,
             orderId,
             categoryId: normalizeId(product.categoryId),
-            occurredAt: releaseAt,
-            metadata: { holdPercentage: escrowRules.holdPercentage },
+            occurredAt: deliveredAt,
+            metadata: { holdPercentage: escrowRules.holdPercentage, releaseAt },
           });
+
+          if (releaseAt && releaseAt <= now) {
+            pushLedgerEvent(events, {
+              eventKey: `escrow_release:${itemKey}`,
+              vendorId,
+              vendorName: product.vendorName || product.shopName || getVendorName(vendor),
+              type: "escrow_release",
+              label: "Escrow released",
+              amount: holdAmount,
+              orderId,
+              categoryId: normalizeId(product.categoryId),
+              occurredAt: releaseAt,
+              metadata: { holdPercentage: escrowRules.holdPercentage },
+            });
+          }
         }
-      }
+      });
     });
   });
 
@@ -729,8 +752,14 @@ const buildPayoutQueueRows = ({ orders = [], returns = [], payouts = [], vendors
       withheldAmount: 0,
       refundDeductions: 0,
       paidOrPendingPayouts: 0,
+      grossOrderSales: 0,
+      sellerFundedDiscount: 0,
+      netOrderSales: 0,
+      commissionDeducted: 0,
+      orderEarnings: 0,
       ordersCount: 0,
       itemsCount: 0,
+      payoutOrders: [],
       payoutMethodLabel: vendor.mobileBankingProvider
         ? `${vendor.mobileBankingProvider} ${vendor.mobileBankingNumber || ""}`.trim()
         : vendor.bankName
@@ -743,28 +772,85 @@ const buildPayoutQueueRows = ({ orders = [], returns = [], payouts = [], vendors
   orders.forEach((order) => {
     if (order.status === "cancelled") return;
     const countedOrders = new Set();
-    (order.products || []).forEach((product) => {
+    const vendorGroups = (order.products || []).reduce((groups, product) => {
       const vendorId = normalizeId(product.vendorId);
-      if (!vendorId || vendorId === "platform" || product.itemStatus === "cancelled") return;
+      if (!vendorId || vendorId === "platform" || product.itemStatus === "cancelled") return groups;
+      if (!groups[vendorId]) groups[vendorId] = [];
+      groups[vendorId].push(product);
+      return groups;
+    }, {});
+
+    Object.entries(vendorGroups).forEach(([vendorId, vendorProducts]) => {
       const row = ensureVendor(vendorId);
       const vendor = vendorById.get(vendorId) || {};
-      const amounts = getVendorProductAmounts({ product, vendor, order, rules });
-      const deliveredAt = asDate(product.deliveredAt || order.deliveredAt);
-      const isDelivered = ["delivered", "partially_delivered"].includes(product.itemStatus || order.status);
-      const holdAmount = roundMoney(amounts.vendorEarning * holdRate);
-      const releaseAt = deliveredAt ? new Date(deliveredAt.getTime() + holdDays * 24 * 60 * 60 * 1000) : null;
-      row.itemsCount += Number(product.quantity || 1);
       countedOrders.add(vendorId);
+      const settlement = buildVendorSettlement({
+        order,
+        vendorId,
+        products: vendorProducts,
+        vendor,
+        rules,
+        findCommissionRule: findBestCommissionRule,
+      });
 
-      if (isDelivered && (!releaseAt || releaseAt <= now)) {
-        row.payableBalance += amounts.vendorEarning;
-      } else if (isDelivered) {
-        row.payableBalance += roundMoney(amounts.vendorEarning - holdAmount);
-        row.withheldAmount += holdAmount;
-        row.pendingClearance += holdAmount;
-      } else {
-        row.pendingClearance += amounts.vendorEarning;
-      }
+      settlement.items.forEach((settledItem) => {
+        const { product } = settledItem;
+        const deliveredAt = asDate(product.deliveredAt || order.deliveredAt);
+        const isDelivered = ["delivered", "partially_delivered"].includes(product.itemStatus || order.status);
+        const holdAmount = roundMoney(settledItem.vendorEarning * holdRate);
+        const releaseAt = deliveredAt ? new Date(deliveredAt.getTime() + holdDays * 24 * 60 * 60 * 1000) : null;
+        const quantity = Number(product.quantity || 1);
+        const orderLine = row.payoutOrders.find((item) => item.orderId === normalizeId(order._id)) || {
+          orderId: normalizeId(order._id),
+          orderNumber: order.orderNumber || order.orderNo || "",
+          orderDate: order.createdAt || order.orderedAt || null,
+          deliveredAt: product.deliveredAt || order.deliveredAt || null,
+          paymentMethod: order.paymentMethod || "",
+          status: product.itemStatus || order.status || "",
+          itemsCount: 0,
+          productNames: [],
+          grossSaleAmount: 0,
+          sellerFundedDiscount: 0,
+          netSaleAmount: 0,
+          commissionAmount: 0,
+          vendorEarning: 0,
+          withheldAmount: 0,
+          pendingAmount: 0,
+          payableAmount: 0,
+        };
+        if (!row.payoutOrders.includes(orderLine)) row.payoutOrders.push(orderLine);
+
+        row.grossOrderSales += settledItem.grossSaleAmount;
+        row.sellerFundedDiscount += settledItem.sellerFundedDiscount;
+        row.netOrderSales += settledItem.saleAmount;
+        row.commissionDeducted += settledItem.commissionAmount;
+        row.orderEarnings += settledItem.vendorEarning;
+        orderLine.itemsCount += quantity;
+        const productName = product.title || product.name || product.productName;
+        if (productName && orderLine.productNames.length < 3) orderLine.productNames.push(productName);
+        orderLine.grossSaleAmount += settledItem.grossSaleAmount;
+        orderLine.sellerFundedDiscount += settledItem.sellerFundedDiscount;
+        orderLine.netSaleAmount += settledItem.saleAmount;
+        orderLine.commissionAmount += settledItem.commissionAmount;
+        orderLine.vendorEarning += settledItem.vendorEarning;
+        row.itemsCount += Number(product.quantity || 1);
+
+        if (isDelivered && (!releaseAt || releaseAt <= now)) {
+          row.payableBalance += settledItem.vendorEarning;
+          orderLine.payableAmount += settledItem.vendorEarning;
+        } else if (isDelivered) {
+          const releasedAmount = roundMoney(settledItem.vendorEarning - holdAmount);
+          row.payableBalance += releasedAmount;
+          row.withheldAmount += holdAmount;
+          row.pendingClearance += holdAmount;
+          orderLine.payableAmount += releasedAmount;
+          orderLine.withheldAmount += holdAmount;
+          orderLine.pendingAmount += holdAmount;
+        } else {
+          row.pendingClearance += settledItem.vendorEarning;
+          orderLine.pendingAmount += settledItem.vendorEarning;
+        }
+      });
     });
     countedOrders.forEach((vendorId) => {
       ensureVendor(vendorId).ordersCount += 1;
@@ -802,6 +888,25 @@ const buildPayoutQueueRows = ({ orders = [], returns = [], payouts = [], vendors
       withheldAmount: roundMoney(Math.max(0, row.withheldAmount)),
       refundDeductions: roundMoney(row.refundDeductions),
       paidOrPendingPayouts: roundMoney(row.paidOrPendingPayouts),
+      grossOrderSales: roundMoney(row.grossOrderSales),
+      sellerFundedDiscount: roundMoney(row.sellerFundedDiscount),
+      netOrderSales: roundMoney(row.netOrderSales),
+      commissionDeducted: roundMoney(row.commissionDeducted),
+      orderEarnings: roundMoney(row.orderEarnings),
+      payoutOrdersCount: row.payoutOrders.length,
+      payoutOrders: row.payoutOrders
+        .map((order) => ({
+          ...order,
+          grossSaleAmount: roundMoney(order.grossSaleAmount),
+          sellerFundedDiscount: roundMoney(order.sellerFundedDiscount),
+          netSaleAmount: roundMoney(order.netSaleAmount),
+          commissionAmount: roundMoney(order.commissionAmount),
+          vendorEarning: roundMoney(order.vendorEarning),
+          withheldAmount: roundMoney(order.withheldAmount),
+          pendingAmount: roundMoney(order.pendingAmount),
+          payableAmount: roundMoney(order.payableAmount),
+        }))
+        .sort((left, right) => Number(right.payableAmount || 0) - Number(left.payableAmount || 0)),
       canPayout: row.payableBalance > 0,
     }))
     .sort((left, right) => right.payableBalance - left.payableBalance);
@@ -842,30 +947,44 @@ const buildRevenueReport = ({ orders = [], returns = [], vendors = [], categorie
     const countedCategories = new Set();
     day.orders += 1;
     payment.orders += 1;
-    (order.products || []).forEach((product) => {
-      const gross = Number(product.price || 0) * Number(product.quantity || 0);
-      const commission = Number(product.adminCommissionAmount || 0);
-      const earning = Number(product.vendorEarningAmount ?? gross - commission);
-      const vendor = vendorById.get(normalizeId(product.vendorId));
-      const category = categoryById.get(normalizeId(product.categoryId));
-      const vendorKey = normalizeId(product.vendorId) || "platform";
-      const categoryKey = normalizeId(product.categoryId) || "uncategorized";
-      const vendorRow = bump(byVendor, vendorKey, { vendorName: getVendorName(vendor) });
-      const categoryRow = bump(byCategory, categoryKey, { categoryName: category?.name || "Uncategorized" });
+    const vendorGroups = (order.products || []).reduce((groups, product) => {
+      const vendorId = normalizeId(product.vendorId) || "platform";
+      if (!groups[vendorId]) groups[vendorId] = [];
+      groups[vendorId].push(product);
+      return groups;
+    }, {});
 
-      if (!countedVendors.has(vendorKey)) {
-        vendorRow.orders += 1;
-        countedVendors.add(vendorKey);
-      }
-      if (!countedCategories.has(categoryKey)) {
-        categoryRow.orders += 1;
-        countedCategories.add(categoryKey);
-      }
+    Object.entries(vendorGroups).forEach(([vendorKey, vendorProducts]) => {
+      const vendor = vendorById.get(vendorKey);
+      const settlement = buildVendorSettlement({
+        order,
+        vendorId: vendorKey,
+        products: vendorProducts,
+        vendor: vendor || {},
+        rules: [],
+      });
 
-      [summary, day, payment, vendorRow, categoryRow].forEach((row) => {
-        row.gmv += gross;
-        row.commission += commission;
-        row.vendorEarnings += earning;
+      settlement.items.forEach((settledItem) => {
+        const { product } = settledItem;
+        const category = categoryById.get(normalizeId(product.categoryId));
+        const categoryKey = normalizeId(product.categoryId) || "uncategorized";
+        const vendorRow = bump(byVendor, vendorKey, { vendorName: getVendorName(vendor) });
+        const categoryRow = bump(byCategory, categoryKey, { categoryName: category?.name || "Uncategorized" });
+
+        if (!countedVendors.has(vendorKey)) {
+          vendorRow.orders += 1;
+          countedVendors.add(vendorKey);
+        }
+        if (!countedCategories.has(categoryKey)) {
+          categoryRow.orders += 1;
+          countedCategories.add(categoryKey);
+        }
+
+        [summary, day, payment, vendorRow, categoryRow].forEach((row) => {
+          row.gmv += settledItem.saleAmount;
+          row.commission += settledItem.commissionAmount;
+          row.vendorEarnings += settledItem.vendorEarning;
+        });
       });
     });
   });

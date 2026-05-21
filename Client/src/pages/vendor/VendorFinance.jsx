@@ -81,6 +81,8 @@ const calculateTotals = (rows = []) =>
   rows.reduce(
     (total, row) => ({
       saleAmount: total.saleAmount + Number(row.saleAmount || 0),
+      grossSaleAmount: total.grossSaleAmount + Number(row.grossSaleAmount || row.saleAmount || 0),
+      sellerFundedDiscount: total.sellerFundedDiscount + Number(row.sellerFundedDiscount || 0),
       platformCommissionAmount: total.platformCommissionAmount + Number(row.platformCommissionAmount || 0),
       shippingFeeCredited: total.shippingFeeCredited + Number(row.shippingFeeCredited || 0),
       shippingFeeDebited: total.shippingFeeDebited + Number(row.shippingFeeDebited || 0),
@@ -89,6 +91,8 @@ const calculateTotals = (rows = []) =>
     }),
     {
       saleAmount: 0,
+      grossSaleAmount: 0,
+      sellerFundedDiscount: 0,
       platformCommissionAmount: 0,
       shippingFeeCredited: 0,
       shippingFeeDebited: 0,
@@ -105,6 +109,8 @@ const toNumber = (value, fallback = 0) => {
 const normalizeFinanceRows = (rows = []) =>
   rows.map((row) => {
     const saleAmount = toNumber(row.saleAmount ?? row.subtotal);
+    const grossSaleAmount = toNumber(row.grossSaleAmount ?? row.grossSubtotal, saleAmount);
+    const sellerFundedDiscount = toNumber(row.sellerFundedDiscount ?? row.sellerProductDiscount);
     const commissionAmount = toNumber(row.platformCommissionAmount ?? row.adminCommissionAmount);
     const shippingFeeCredited = toNumber(row.shippingFeeCredited ?? row.shippingFeeCredit);
     const shippingFeeDebited = toNumber(row.shippingFeeDebited ?? row.shippingFeeDebit);
@@ -129,6 +135,8 @@ const normalizeFinanceRows = (rows = []) =>
       orderDate: row.orderDate || row.date || row.createdAt || row.updatedAt || null,
       productsSummary: row.productsSummary || row.productName || row.product || row.title || "Order items",
       itemCount,
+      grossSaleAmount,
+      sellerFundedDiscount,
       saleAmount,
       platformCommissionRate: toNumber(row.platformCommissionRate ?? row.commissionRateSnapshot),
       platformCommissionAmount: commissionAmount,
@@ -703,7 +711,9 @@ function StatementsTab({
       <Panel>
         <PanelTitle icon={Banknote} title="Statement Totals" />
         <div className="mt-4 space-y-3">
-          <BreakdownRow label="Sales" value={formatPrice(statementTotals.saleAmount)} />
+          <BreakdownRow label="Original product sales" value={formatPrice(statementTotals.grossSaleAmount || statementTotals.saleAmount)} />
+          <BreakdownRow label="Seller voucher/campaign discount" value={`-${formatPrice(statementTotals.sellerFundedDiscount || 0)}`} />
+          <BreakdownRow label="Net seller sales" value={formatPrice(statementTotals.saleAmount)} />
           <BreakdownRow label="Commission" value={`-${formatPrice(statementTotals.platformCommissionAmount)}`} />
           <BreakdownRow label="Shipping credited" value={formatPrice(statementTotals.shippingFeeCredited)} />
           <BreakdownRow label="Shipping debited" value={`-${formatPrice(statementTotals.shippingFeeDebited)}`} />
@@ -840,7 +850,8 @@ function TransactionTable({ rows, formatPrice, compact = false }) {
               {!compact && <StatusBadge status={row.itemStatus} />}
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-sm">
-              <MiniLedger label="Sale" value={formatPrice(row.saleAmount || 0)} />
+              <MiniLedger label="Net sale" value={formatPrice(row.saleAmount || 0)} />
+              <MiniLedger label="Seller discount" value={`-${formatPrice(row.sellerFundedDiscount || 0)}`} warning />
               <MiniLedger label="Commission" value={`-${formatPrice(row.platformCommissionAmount || 0)}`} danger />
               <MiniLedger label="Ship credit" value={formatPrice(row.shippingFeeCredited || 0)} success />
               <MiniLedger label="Ship debit" value={`-${formatPrice(row.shippingFeeDebited || 0)}`} warning />
@@ -851,12 +862,13 @@ function TransactionTable({ rows, formatPrice, compact = false }) {
         ))}
       </div>
 
-      <table className="hidden w-full min-w-[980px] text-sm md:table">
+      <table className="hidden w-full min-w-[1100px] text-sm md:table">
         <thead>
           <tr className="border-b border-slate-200 text-left text-xs font-bold uppercase text-slate-500">
             <th className="px-3 py-3">Order</th>
             <th className="px-3 py-3">Products</th>
-            <th className="px-3 py-3 text-right">Sale</th>
+            <th className="px-3 py-3 text-right">Net sale</th>
+            <th className="px-3 py-3 text-right">Seller discount</th>
             <th className="px-3 py-3 text-right">Commission</th>
             <th className="px-3 py-3 text-right">Ship credit</th>
             <th className="px-3 py-3 text-right">Ship debit</th>
@@ -876,7 +888,13 @@ function TransactionTable({ rows, formatPrice, compact = false }) {
                 <p className="truncate font-semibold text-slate-900">{row.productsSummary || "Order items"}</p>
                 <p className="mt-1 text-xs text-slate-500">{row.itemCount || 0} item(s)</p>
               </td>
-              <td className="px-3 py-3 text-right text-slate-700">{formatPrice(row.saleAmount || 0)}</td>
+              <td className="px-3 py-3 text-right text-slate-700">
+                <p>{formatPrice(row.saleAmount || 0)}</p>
+                {Number(row.sellerFundedDiscount || 0) > 0 && (
+                  <p className="text-xs text-slate-400 line-through">{formatPrice(row.grossSaleAmount || row.saleAmount || 0)}</p>
+                )}
+              </td>
+              <td className="px-3 py-3 text-right text-amber-700">-{formatPrice(row.sellerFundedDiscount || 0)}</td>
               <td className="px-3 py-3 text-right text-rose-700">
                 -{formatPrice(row.platformCommissionAmount || 0)}
                 <span className="ml-1 text-xs text-slate-400">({row.platformCommissionRate || 0}%)</span>

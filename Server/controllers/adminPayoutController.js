@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongodb");
 const emailService = require("../services/emailService");
+const { buildVendorSettlement, normalizeId, roundMoney, sameId } = require("../utils/vendorSettlement");
 
 const ACTIVE_PAYOUT_STATUSES = ["pending", "approved", "paid", "completed"];
 const PAYOUT_STATUS_PRIORITY = {
@@ -17,6 +18,53 @@ const toDateKey = (value) => {
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(0, 10);
 };
+
+const asDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const isInDateRange = (value, startDate, endDate) => {
+  const date = asDate(value);
+  if (!date) return !startDate && !endDate;
+  if (startDate && date < startDate) return false;
+  if (endDate && date > endDate) return false;
+  return true;
+};
+
+const getVendorIdValues = (vendorId) => {
+  const vendorKey = normalizeId(vendorId);
+  const values = [vendorKey];
+  if (ObjectId.isValid(vendorKey)) values.push(new ObjectId(vendorKey));
+  return values;
+};
+
+const getVendorName = (vendor) =>
+  vendor?.shopName || vendor?.businessName || vendor?.storeName || vendor?.name || "Unknown Vendor";
+
+const getPayoutMethodLabel = (vendor) =>
+  vendor?.mobileBankingProvider
+    ? `${vendor.mobileBankingProvider} ${vendor.mobileBankingNumber || ""}`.trim()
+    : vendor?.bankName
+      ? `${vendor.bankName}${vendor.bankAccountNumber ? ` (${vendor.bankAccountNumber})` : ""}`
+      : "";
+
+const findBestCommissionRule = ({ rules = [], product = {}, vendor = {}, order = {}, now = new Date() }) =>
+  rules
+    .filter((rule) => rule.status !== "inactive")
+    .filter((rule) => {
+      const from = asDate(rule.effectiveFrom);
+      const to = asDate(rule.effectiveTo);
+      return (!from || from <= now) && (!to || to >= now);
+    })
+    .filter((rule) => {
+      if (rule.categoryId && normalizeId(rule.categoryId) !== normalizeId(product.categoryId)) return false;
+      if (rule.vendorTier && rule.vendorTier !== "all" && rule.vendorTier !== (vendor.sellerTier || vendor.tier || "normal")) return false;
+      if (rule.campaignType && rule.campaignType !== "all" && rule.campaignType !== (order.campaignType || product.campaignType || "standard")) return false;
+      return true;
+    })
+    .sort((left, right) => Number(right.priority || 0) - Number(left.priority || 0))[0] || null;
 
 const buildPayoutDedupKey = (payout) => {
   const vendorKey = payout.vendorId?.toString?.() || "";
@@ -119,6 +167,168 @@ const appendPayoutAudit = async (req, action, payout, changes = {}) => {
   }
 };
 
+const getDeliveredPayoutEligibility = async (req, vendorId, options = {}) => {
+  const {
+    startDate = null,
+    endDate = null,
+    subtractPaidWithinPeriod = false,
+    excludePayoutId = null,
+  } = options;
+  const Order = req.app.locals.models.Order;
+  const VendorPayout = req.app.locals.models.VendorPayout;
+  const Return = req.app.locals.models.Return;
+  const Vendor = req.app.locals.models.Vendor;
+  const db = req.app.locals.db || VendorPayout?.collection?.db || Order?.collection?.db;
+  const vendorKey = normalizeId(vendorId);
+  const vendorIdValues = getVendorIdValues(vendorKey);
+
+  const orderQuery = {
+    "products.vendorId": { $in: vendorIdValues },
+    "products.itemStatus": "delivered",
+  };
+  if (startDate || endDate) {
+    orderQuery["products.deliveredAt"] = {};
+    if (startDate) orderQuery["products.deliveredAt"].$gte = startDate;
+    if (endDate) orderQuery["products.deliveredAt"].$lte = endDate;
+  }
+
+  const [orders, vendor, rules] = await Promise.all([
+    Order.collection.find(orderQuery).toArray(),
+    Vendor.findById(vendorKey),
+    db?.collection ? db.collection("commission_rules").find({}).toArray() : Promise.resolve([]),
+  ]);
+
+  let totalDeliveredEarnings = 0;
+  let grossDeliveredSales = 0;
+  let sellerFundedDiscount = 0;
+  let netDeliveredSales = 0;
+  let adminCommission = 0;
+  let totalItems = 0;
+  const eligibleOrders = [];
+
+  orders.forEach((order) => {
+    if (order.status === "cancelled") return;
+
+    const vendorProducts = (order.products || []).filter(
+      (product) =>
+        sameId(product.vendorId, vendorKey) &&
+        product.itemStatus !== "cancelled",
+    );
+    if (vendorProducts.length === 0) return;
+
+    const settlement = buildVendorSettlement({
+      order,
+      vendorId: vendorKey,
+      products: vendorProducts,
+      vendor,
+      rules,
+      findCommissionRule: findBestCommissionRule,
+    });
+
+    const orderSummary = {
+      orderId: normalizeId(order._id),
+      orderNumber: order.orderNumber || order.orderNo || "",
+      orderDate: order.createdAt || order.orderedAt || null,
+      deliveredAt: order.deliveredAt || null,
+      paymentMethod: order.paymentMethod || "",
+      itemsCount: 0,
+      productNames: [],
+      grossSaleAmount: 0,
+      sellerFundedDiscount: 0,
+      netSaleAmount: 0,
+      commissionAmount: 0,
+      earnings: 0,
+    };
+
+    settlement.items.forEach((settledItem) => {
+      const { product } = settledItem;
+      const deliveredAt = product.deliveredAt || order.deliveredAt || order.updatedAt || order.createdAt;
+      const isDelivered = ["delivered", "partially_delivered"].includes(product.itemStatus || order.status);
+      if (!isDelivered || !isInDateRange(deliveredAt, startDate, endDate)) return;
+
+      const quantity = Number(product.quantity || 1);
+      totalItems += quantity;
+      totalDeliveredEarnings += settledItem.vendorEarning;
+      grossDeliveredSales += settledItem.grossSaleAmount;
+      sellerFundedDiscount += settledItem.sellerFundedDiscount;
+      netDeliveredSales += settledItem.saleAmount;
+      adminCommission += settledItem.commissionAmount;
+
+      orderSummary.deliveredAt = orderSummary.deliveredAt || deliveredAt;
+      orderSummary.itemsCount += quantity;
+      const productName = product.title || product.name || product.productName;
+      if (productName && orderSummary.productNames.length < 3) orderSummary.productNames.push(productName);
+      orderSummary.grossSaleAmount += settledItem.grossSaleAmount;
+      orderSummary.sellerFundedDiscount += settledItem.sellerFundedDiscount;
+      orderSummary.netSaleAmount += settledItem.saleAmount;
+      orderSummary.commissionAmount += settledItem.commissionAmount;
+      orderSummary.earnings += settledItem.vendorEarning;
+    });
+
+    if (orderSummary.itemsCount > 0) {
+      eligibleOrders.push({
+        ...orderSummary,
+        grossSaleAmount: roundMoney(orderSummary.grossSaleAmount),
+        sellerFundedDiscount: roundMoney(orderSummary.sellerFundedDiscount),
+        netSaleAmount: roundMoney(orderSummary.netSaleAmount),
+        commissionAmount: roundMoney(orderSummary.commissionAmount),
+        earnings: roundMoney(orderSummary.earnings),
+      });
+    }
+  });
+
+  const payoutQueryBase = { vendorId: { $in: vendorIdValues } };
+  if (subtractPaidWithinPeriod && (startDate || endDate)) {
+    payoutQueryBase.periodStart = {};
+    payoutQueryBase.periodEnd = {};
+    if (startDate) payoutQueryBase.periodStart.$gte = startDate;
+    if (endDate) payoutQueryBase.periodEnd.$lte = endDate;
+  }
+
+  const [paidPayoutRows, pendingPayoutRows, returnDeductions] = await Promise.all([
+    VendorPayout.collection
+      .find({ ...payoutQueryBase, status: { $in: ["approved", "paid", "completed"] } })
+      .toArray(),
+    VendorPayout.collection
+      .find({ ...payoutQueryBase, status: "pending" })
+      .toArray(),
+    Return.getVendorDeductions(vendorKey, startDate, endDate),
+  ]);
+
+  const excludedPayoutKey = normalizeId(excludePayoutId);
+  const isExcludedPayout = (payout) =>
+    excludedPayoutKey && normalizeId(payout._id) === excludedPayoutKey;
+  const paidPayouts = paidPayoutRows.filter((payout) => !isExcludedPayout(payout));
+  const pendingPayouts = pendingPayoutRows.filter((payout) => !isExcludedPayout(payout));
+  const alreadyPaid = paidPayouts.reduce((sum, payout) => sum + Number(payout.amount || 0), 0);
+  const pendingAmount = pendingPayouts.reduce((sum, payout) => sum + Number(payout.amount || 0), 0);
+  const totalReturnDeductions = Number(returnDeductions.totalDeduction || 0);
+  const eligibleAmount = Math.max(
+    0,
+    totalDeliveredEarnings - alreadyPaid - pendingAmount - totalReturnDeductions,
+  );
+
+  return {
+    vendor,
+    totalDeliveredEarnings: roundMoney(totalDeliveredEarnings),
+    grossDeliveredSales: roundMoney(grossDeliveredSales),
+    sellerFundedDiscount: roundMoney(sellerFundedDiscount),
+    netDeliveredSales: roundMoney(netDeliveredSales),
+    adminCommission: roundMoney(adminCommission),
+    alreadyPaid: roundMoney(alreadyPaid),
+    pendingPayouts: roundMoney(pendingAmount),
+    returnDeductions: roundMoney(totalReturnDeductions),
+    returnsCount: returnDeductions.returnsCount || 0,
+    eligibleAmount: roundMoney(eligibleAmount),
+    totalItems,
+    eligibleOrdersCount: eligibleOrders.length,
+    eligibleOrders: eligibleOrders.sort(
+      (left, right) => new Date(right.deliveredAt || right.orderDate || 0) - new Date(left.deliveredAt || left.orderDate || 0),
+    ),
+    returns: returnDeductions.returns || [],
+  };
+};
+
 /**
  * Calculate eligible payout for a vendor
  * Shows delivered items that haven't been paid yet, minus return deductions
@@ -126,84 +336,25 @@ const appendPayoutAudit = async (req, action, payout, changes = {}) => {
 exports.calculateEligiblePayout = async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const Order = req.app.locals.models.Order;
-    const VendorPayout = req.app.locals.models.VendorPayout;
-    const Return = req.app.locals.models.Return;
-    const vendorIdValues = [vendorId.toString()];
-    if (ObjectId.isValid(vendorId)) vendorIdValues.push(new ObjectId(vendorId));
-
-    // Get all orders with delivered items for this vendor
-    const orders = await Order.collection
-      .find({
-        "products.vendorId": { $in: vendorIdValues },
-        "products.itemStatus": "delivered",
-      })
-      .toArray();
-
-    let eligibleAmount = 0;
-    let totalItems = 0;
-    const eligibleOrders = [];
-
-    orders.forEach((order) => {
-      const deliveredProducts = order.products.filter(
-        (p) =>
-          p.vendorId &&
-          p.vendorId.toString() === vendorId &&
-          p.itemStatus === "delivered"
-      );
-
-      if (deliveredProducts.length > 0) {
-        let orderEarnings = 0;
-        deliveredProducts.forEach((product) => {
-          eligibleAmount += product.vendorEarningAmount || 0;
-          orderEarnings += product.vendorEarningAmount || 0;
-          totalItems++;
-        });
-
-        eligibleOrders.push({
-          orderId: order._id,
-          orderDate: order.createdAt,
-          itemsCount: deliveredProducts.length,
-          earnings: orderEarnings,
-        });
-      }
-    });
-
-    // Get already paid amount
-    const paidPayouts = await VendorPayout.collection
-      .find({ vendorId: { $in: vendorIdValues }, status: { $in: ["approved", "paid", "completed"] } })
-      .toArray();
-    const alreadyPaid = paidPayouts.reduce((sum, p) => sum + (p.amount || 0), 0);
-
-    // Get pending payouts
-    const pendingPayouts = await VendorPayout.collection
-      .find({ vendorId: { $in: vendorIdValues }, status: "pending" })
-      .toArray();
-    const pendingAmount = pendingPayouts.reduce((sum, p) => sum + (p.amount || 0), 0);
-
-    // Get return deductions (approved/completed returns)
-    const returnDeductions = await Return.getVendorDeductions(vendorId);
-    const totalReturnDeductions = returnDeductions.totalDeduction || 0;
-
-    // Calculate final eligible amount (earnings - paid - pending - returns)
-    const finalEligibleAmount = Math.max(
-      0,
-      eligibleAmount - alreadyPaid - pendingAmount - totalReturnDeductions
-    );
+    const eligibility = await getDeliveredPayoutEligibility(req, vendorId);
 
     res.json({
       success: true,
       data: {
-        totalDeliveredEarnings: Math.round(eligibleAmount * 100) / 100,
-        alreadyPaid: Math.round(alreadyPaid * 100) / 100,
-        pendingPayouts: Math.round(pendingAmount * 100) / 100,
-        returnDeductions: Math.round(totalReturnDeductions * 100) / 100,
-        returnsCount: returnDeductions.returnsCount,
-        eligibleAmount: Math.round(finalEligibleAmount * 100) / 100,
-        totalItems,
-        eligibleOrdersCount: eligibleOrders.length,
-        eligibleOrders: eligibleOrders.slice(0, 10), // Show first 10
-        returns: returnDeductions.returns.slice(0, 10), // Show first 10 returns
+        totalDeliveredEarnings: eligibility.totalDeliveredEarnings,
+        grossDeliveredSales: eligibility.grossDeliveredSales,
+        sellerFundedDiscount: eligibility.sellerFundedDiscount,
+        netDeliveredSales: eligibility.netDeliveredSales,
+        adminCommission: eligibility.adminCommission,
+        alreadyPaid: eligibility.alreadyPaid,
+        pendingPayouts: eligibility.pendingPayouts,
+        returnDeductions: eligibility.returnDeductions,
+        returnsCount: eligibility.returnsCount,
+        eligibleAmount: eligibility.eligibleAmount,
+        totalItems: eligibility.totalItems,
+        eligibleOrdersCount: eligibility.eligibleOrdersCount,
+        eligibleOrders: eligibility.eligibleOrders.slice(0, 25),
+        returns: eligibility.returns.slice(0, 10),
       },
     });
   } catch (error) {
@@ -267,16 +418,44 @@ exports.createPayout = async (req, res) => {
       }
     }
 
+    const eligibility = await getDeliveredPayoutEligibility(req, vendorId);
+    const requestedAmount = roundMoney(amount);
+    if (requestedAmount > eligibility.eligibleAmount + 0.01) {
+      return res.status(400).json({
+        success: false,
+        error: `Payout amount exceeds the current payable balance of ${eligibility.eligibleAmount}`,
+        data: {
+          eligibleAmount: eligibility.eligibleAmount,
+          requestedAmount,
+          eligibleOrders: eligibility.eligibleOrders.slice(0, 25),
+        },
+      });
+    }
+
     // Create payout record
     const payout = await VendorPayout.create({
       vendorId,
-      amount: Math.round(amount * 100) / 100,
+      amount: requestedAmount,
       note: note || "",
       periodStart: periodStart ? new Date(periodStart) : null,
       periodEnd: periodEnd ? new Date(periodEnd) : null,
       createdBy: req.user._id,
       vendorName: vendor.shopName,
       vendorPhone: vendor.phone,
+      linkedOrders: eligibility.eligibleOrders
+        .filter((order) => Number(order.earnings || 0) > 0)
+        .slice(0, 50),
+      payoutSnapshot: {
+        grossDeliveredSales: eligibility.grossDeliveredSales,
+        sellerFundedDiscount: eligibility.sellerFundedDiscount,
+        netDeliveredSales: eligibility.netDeliveredSales,
+        adminCommission: eligibility.adminCommission,
+        totalDeliveredEarnings: eligibility.totalDeliveredEarnings,
+        alreadyPaid: eligibility.alreadyPaid,
+        pendingPayouts: eligibility.pendingPayouts,
+        returnDeductions: eligibility.returnDeductions,
+        eligibleAmount: eligibility.eligibleAmount,
+      },
     });
 
     await appendPayoutAudit(req, "finance.payout.created", payout, {
@@ -601,8 +780,6 @@ exports.getVendorPayouts = async (req, res) => {
 exports.getWeeklyPayoutList = async (req, res) => {
   try {
     const Order = req.app.locals.models.Order;
-    const Vendor = req.app.locals.models.Vendor;
-    const VendorPayout = req.app.locals.models.VendorPayout;
 
     // Calculate date range (last 7 days)
     const endDate = new Date();
@@ -624,75 +801,29 @@ exports.getWeeklyPayoutList = async (req, res) => {
 
     console.log(`📦 Found ${orders.length} orders with delivered items in last 7 days`);
 
-    // Group earnings by vendor
-    const vendorEarnings = {};
+    const vendorIds = new Set();
 
     orders.forEach((order) => {
-      order.products.forEach((product) => {
+      (order.products || []).forEach((product) => {
         if (
           product.itemStatus === "delivered" &&
-          product.deliveredAt &&
-          new Date(product.deliveredAt) >= startDate &&
-          new Date(product.deliveredAt) <= endDate &&
-          product.vendorId
+          product.vendorId &&
+          isInDateRange(product.deliveredAt, startDate, endDate)
         ) {
-          const vendorId = product.vendorId.toString();
-          
-          if (!vendorEarnings[vendorId]) {
-            vendorEarnings[vendorId] = {
-              vendorId,
-              totalEarnings: 0,
-              itemsCount: 0,
-              ordersCount: 0,
-              orderIds: new Set(),
-            };
-          }
-
-          vendorEarnings[vendorId].totalEarnings += product.vendorEarningAmount || 0;
-          vendorEarnings[vendorId].itemsCount++;
-          vendorEarnings[vendorId].orderIds.add(order._id.toString());
+          vendorIds.add(normalizeId(product.vendorId));
         }
       });
     });
 
-    // Convert to array and get vendor details
     const vendorsList = await Promise.all(
-      Object.values(vendorEarnings).map(async (earning) => {
-        earning.ordersCount = earning.orderIds.size;
-        delete earning.orderIds;
-
-        // Get vendor details
-        const vendor = await Vendor.findById(earning.vendorId);
-        
-        // Get already paid amount for this period
-        const existingPayouts = await VendorPayout.collection
-          .find({
-            vendorId: new ObjectId(earning.vendorId),
-            periodStart: { $gte: startDate },
-            periodEnd: { $lte: endDate },
-            status: { $in: ["paid", "pending"] },
-          })
-          .toArray();
-
-        const alreadyPaidOrPending = existingPayouts.reduce(
-          (sum, p) => sum + (p.amount || 0),
-          0
-        );
-
-        // Get return deductions for this period
-        const Return = req.app.locals.models.Return;
-        const returnDeductions = await Return.getVendorDeductions(
-          earning.vendorId,
+      Array.from(vendorIds).map(async (vendorId) => {
+        const eligibility = await getDeliveredPayoutEligibility(req, vendorId, {
           startDate,
-          endDate
-        );
-
-        const eligibleAmount = Math.max(
-          0,
-          earning.totalEarnings - alreadyPaidOrPending - returnDeductions.totalDeduction
-        );
-
-        const hasPendingPayout = existingPayouts.some((p) => p.status === "pending");
+          endDate,
+          subtractPaidWithinPeriod: true,
+        });
+        const { vendor } = eligibility;
+        const hasPendingPayout = eligibility.pendingPayouts > 0;
         const hasPayoutMethod = Boolean(
           (vendor?.bankName && vendor?.bankAccountNumber) ||
           (vendor?.mobileBankingProvider && vendor?.mobileBankingNumber)
@@ -703,36 +834,38 @@ exports.getWeeklyPayoutList = async (req, res) => {
           blockingReason = "Vendor record no longer exists";
         } else if (hasPendingPayout) {
           blockingReason = "Vendor already has a pending payout for this cycle";
-        } else if (eligibleAmount <= 0) {
+        } else if (eligibility.eligibleAmount <= 0) {
           blockingReason = "No remaining eligible balance for this cycle";
         }
 
         return {
-          vendorId: earning.vendorId,
-          vendorName: vendor?.shopName || "Unknown Vendor",
+          vendorId,
+          vendorName: getVendorName(vendor),
           vendorEmail: vendor?.email || "",
           vendorPhone: vendor?.phone || "",
-          // Bank info for payout
           bankName: vendor?.bankName || "",
           bankAccountNumber: vendor?.bankAccountNumber || "",
           bankAccountName: vendor?.bankAccountName || "",
           bankBranch: vendor?.bankBranch || "",
           mobileBankingProvider: vendor?.mobileBankingProvider || "",
           mobileBankingNumber: vendor?.mobileBankingNumber || "",
-          totalEarnings: Math.round(earning.totalEarnings * 100) / 100,
-          alreadyPaidOrPending: Math.round(alreadyPaidOrPending * 100) / 100,
-          returnDeductions: Math.round(returnDeductions.totalDeduction * 100) / 100,
-          returnsCount: returnDeductions.returnsCount,
-          eligibleAmount: Math.round(eligibleAmount * 100) / 100,
-          itemsCount: earning.itemsCount,
-          ordersCount: earning.ordersCount,
+          grossDeliveredSales: eligibility.grossDeliveredSales,
+          sellerFundedDiscount: eligibility.sellerFundedDiscount,
+          netDeliveredSales: eligibility.netDeliveredSales,
+          adminCommission: eligibility.adminCommission,
+          totalEarnings: eligibility.totalDeliveredEarnings,
+          alreadyPaidOrPending: roundMoney(eligibility.alreadyPaid + eligibility.pendingPayouts),
+          alreadyPaid: eligibility.alreadyPaid,
+          pendingPayouts: eligibility.pendingPayouts,
+          returnDeductions: eligibility.returnDeductions,
+          returnsCount: eligibility.returnsCount,
+          eligibleAmount: eligibility.eligibleAmount,
+          itemsCount: eligibility.totalItems,
+          ordersCount: eligibility.eligibleOrdersCount,
+          eligibleOrders: eligibility.eligibleOrders.slice(0, 10),
           hasPendingPayout,
           hasPayoutMethod,
-          payoutMethodLabel: vendor?.mobileBankingProvider
-            ? `${vendor.mobileBankingProvider} ${vendor.mobileBankingNumber || ""}`.trim()
-            : vendor?.bankName
-              ? `${vendor.bankName}${vendor.bankAccountNumber ? ` (${vendor.bankAccountNumber})` : ""}`
-              : "",
+          payoutMethodLabel: getPayoutMethodLabel(vendor),
           canCreatePayout: !blockingReason,
           blockingReason,
           periodStart: startDate,
@@ -761,7 +894,7 @@ exports.getWeeklyPayoutList = async (req, res) => {
         blockedVendors,
         totalVendors: eligibleVendors.length,
         totalBlockedVendors: blockedVendors.length,
-        totalEligibleAmount: Math.round(totalEligibleAmount * 100) / 100,
+        totalEligibleAmount: roundMoney(totalEligibleAmount),
       },
     });
   } catch (error) {
@@ -831,16 +964,44 @@ exports.createBulkPayouts = async (req, res) => {
           continue;
         }
 
+        const eligibility = await getDeliveredPayoutEligibility(req, vendorId, {
+          startDate: periodStart ? new Date(periodStart) : null,
+          endDate: periodEnd ? new Date(periodEnd) : null,
+          subtractPaidWithinPeriod: true,
+        });
+        const requestedAmount = roundMoney(amount);
+        if (requestedAmount > eligibility.eligibleAmount + 0.01) {
+          errors.push({
+            vendorId,
+            error: `Payout amount exceeds the current payable balance of ${eligibility.eligibleAmount}`,
+            eligibleAmount: eligibility.eligibleAmount,
+            requestedAmount,
+          });
+          continue;
+        }
+
         // Create payout record
         const payout = await VendorPayout.create({
           vendorId,
-          amount: Math.round(amount * 100) / 100,
+          amount: requestedAmount,
           note: note || `Weekly payout for ${new Date(periodStart).toLocaleDateString()} - ${new Date(periodEnd).toLocaleDateString()}`,
           periodStart: periodStart ? new Date(periodStart) : null,
           periodEnd: periodEnd ? new Date(periodEnd) : null,
           createdBy: req.user._id,
           vendorName: vendor.shopName,
           vendorPhone: vendor.phone,
+          linkedOrders: eligibility.eligibleOrders.slice(0, 50),
+          payoutSnapshot: {
+            grossDeliveredSales: eligibility.grossDeliveredSales,
+            sellerFundedDiscount: eligibility.sellerFundedDiscount,
+            netDeliveredSales: eligibility.netDeliveredSales,
+            adminCommission: eligibility.adminCommission,
+            totalDeliveredEarnings: eligibility.totalDeliveredEarnings,
+            alreadyPaid: eligibility.alreadyPaid,
+            pendingPayouts: eligibility.pendingPayouts,
+            returnDeductions: eligibility.returnDeductions,
+            eligibleAmount: eligibility.eligibleAmount,
+          },
         });
 
         await appendPayoutAudit(req, "finance.payout.bulk_created", payout, {
@@ -956,16 +1117,45 @@ exports.approvePayoutRequest = async (req, res) => {
       });
     }
 
+    const eligibility = await getDeliveredPayoutEligibility(req, payout.vendorId, {
+      excludePayoutId: payout._id,
+    });
+    const requestedAmount = roundMoney(payout.amount);
+    if (requestedAmount > eligibility.eligibleAmount + 0.01) {
+      return res.status(400).json({
+        success: false,
+        error: `Requested payout exceeds the current payable balance of ${eligibility.eligibleAmount}`,
+        data: {
+          eligibleAmount: eligibility.eligibleAmount,
+          requestedAmount,
+          eligibleOrders: eligibility.eligibleOrders.slice(0, 25),
+        },
+      });
+    }
+
     // Approve the request
     await VendorPayout.approvePayout(payoutId, req.user._id);
 
-    // Update note if provided
-    if (note) {
-      await VendorPayout.collection.updateOne(
-        { _id: new ObjectId(payoutId) },
-        { $set: { adminNote: note } }
-      );
-    }
+    await VendorPayout.collection.updateOne(
+      { _id: new ObjectId(payoutId) },
+      {
+        $set: {
+          ...(note ? { adminNote: note } : {}),
+          linkedOrders: eligibility.eligibleOrders.slice(0, 50),
+          payoutSnapshot: {
+            grossDeliveredSales: eligibility.grossDeliveredSales,
+            sellerFundedDiscount: eligibility.sellerFundedDiscount,
+            netDeliveredSales: eligibility.netDeliveredSales,
+            adminCommission: eligibility.adminCommission,
+            totalDeliveredEarnings: eligibility.totalDeliveredEarnings,
+            alreadyPaid: eligibility.alreadyPaid,
+            pendingPayouts: eligibility.pendingPayouts,
+            returnDeductions: eligibility.returnDeductions,
+            eligibleAmount: eligibility.eligibleAmount,
+          },
+        },
+      }
+    );
 
     await notifyVendorPayout(req, payout, "approved", {
       note: note || "",
@@ -1076,6 +1266,22 @@ exports.markRequestPaid = async (req, res) => {
       });
     }
 
+    const eligibility = await getDeliveredPayoutEligibility(req, payout.vendorId, {
+      excludePayoutId: payout._id,
+    });
+    const requestedAmount = roundMoney(payout.amount);
+    if (requestedAmount > eligibility.eligibleAmount + 0.01) {
+      return res.status(400).json({
+        success: false,
+        error: `Requested payout exceeds the current payable balance of ${eligibility.eligibleAmount}`,
+        data: {
+          eligibleAmount: eligibility.eligibleAmount,
+          requestedAmount,
+          eligibleOrders: eligibility.eligibleOrders.slice(0, 25),
+        },
+      });
+    }
+
     // Mark as paid
     await VendorPayout.collection.updateOne(
       { _id: new ObjectId(payoutId) },
@@ -1086,6 +1292,18 @@ exports.markRequestPaid = async (req, res) => {
           paidBy: req.user._id,
           transactionId: transactionId || "",
           paymentNote: note || "",
+          linkedOrders: eligibility.eligibleOrders.slice(0, 50),
+          payoutSnapshot: {
+            grossDeliveredSales: eligibility.grossDeliveredSales,
+            sellerFundedDiscount: eligibility.sellerFundedDiscount,
+            netDeliveredSales: eligibility.netDeliveredSales,
+            adminCommission: eligibility.adminCommission,
+            totalDeliveredEarnings: eligibility.totalDeliveredEarnings,
+            alreadyPaid: eligibility.alreadyPaid,
+            pendingPayouts: eligibility.pendingPayouts,
+            returnDeductions: eligibility.returnDeductions,
+            eligibleAmount: eligibility.eligibleAmount,
+          },
         },
       }
     );

@@ -237,6 +237,92 @@ describe("adminFinanceController operations", () => {
     expect(rows.find((row) => row.type === "payout")).toMatchObject({ amount: -500, balanceAfter: 1000 });
   });
 
+  test("calculates admin payout amounts after seller voucher discounts", () => {
+    const order = {
+      _id: "order-voucher-1",
+      status: "delivered",
+      paymentMethod: "cod",
+      createdAt: new Date("2026-05-20T09:00:00.000Z"),
+      deliveredAt: new Date("2026-05-20T09:00:00.000Z"),
+      subtotal: 1000,
+      couponApplied: {
+        source: "vendor_voucher",
+        scopeVendorId: "vendor-1",
+        discountAmount: 200,
+        discountType: "fixed",
+      },
+      discountBreakdown: {
+        lines: [
+          {
+            type: "vendor_voucher",
+            amount: 200,
+            scopeVendorId: "vendor-1",
+            discountType: "fixed",
+          },
+        ],
+        totals: { subtotal: 1000, discountTotal: 200, payableTotal: 800 },
+      },
+      products: [
+        {
+          productId: "phone-1",
+          title: "Smartphone",
+          vendorId: "vendor-1",
+          categoryId: "electronics",
+          price: 1000,
+          quantity: 1,
+          itemStatus: "delivered",
+          commissionRateSnapshot: 10,
+          adminCommissionAmount: 100,
+          vendorEarningAmount: 900,
+        },
+      ],
+    };
+
+    const ledgerRows = _financeTestUtils.buildFinanceLedgerRows({
+      vendors: [{ _id: "vendor-1", shopName: "Tech World" }],
+      orders: [order],
+      escrowRules: { holdPercentage: 0, holdDaysAfterDelivery: 0 },
+    });
+    const payoutRows = _financeTestUtils.buildPayoutQueueRows({
+      vendors: [{ _id: "vendor-1", shopName: "Tech World" }],
+      orders: [order],
+      escrowRules: { holdPercentage: 0, holdDaysAfterDelivery: 0 },
+    });
+    const report = _financeTestUtils.buildRevenueReport({
+      vendors: [{ _id: "vendor-1", shopName: "Tech World" }],
+      orders: [order],
+      categories: [{ _id: "electronics", name: "Electronics" }],
+    });
+
+    expect(ledgerRows.find((row) => row.type === "sale")).toMatchObject({
+      amount: 800,
+      metadata: expect.objectContaining({ grossSaleAmount: 1000, sellerFundedDiscount: 200 }),
+    });
+    expect(ledgerRows.find((row) => row.type === "commission")).toMatchObject({ amount: -80 });
+    expect(payoutRows[0]).toEqual(
+      expect.objectContaining({
+        payableBalance: 720,
+        grossOrderSales: 1000,
+        sellerFundedDiscount: 200,
+        netOrderSales: 800,
+        commissionDeducted: 80,
+        orderEarnings: 720,
+      }),
+    );
+    expect(payoutRows[0].payoutOrders[0]).toEqual(
+      expect.objectContaining({
+        orderId: "order-voucher-1",
+        grossSaleAmount: 1000,
+        sellerFundedDiscount: 200,
+        netSaleAmount: 800,
+        commissionAmount: 80,
+        vendorEarning: 720,
+        payableAmount: 720,
+      }),
+    );
+    expect(report.summary).toEqual(expect.objectContaining({ gmv: 800, commission: 80, vendorEarnings: 720 }));
+  });
+
   test("builds payout queue rows with escrow holds, refund deductions, and existing payouts", () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-05-17T08:00:00.000Z"));
 
@@ -284,8 +370,21 @@ describe("adminFinanceController operations", () => {
         pendingClearance: 180,
         refundDeductions: 100,
         paidOrPendingPayouts: 200,
+        grossOrderSales: 1000,
+        netOrderSales: 1000,
+        commissionDeducted: 100,
+        orderEarnings: 900,
         ordersCount: 1,
+        payoutOrdersCount: 1,
         payoutMethodLabel: "bKash 01700000000",
+      }),
+    );
+    expect(row.payoutOrders[0]).toEqual(
+      expect.objectContaining({
+        orderId: "order-1",
+        grossSaleAmount: 1000,
+        payableAmount: 720,
+        withheldAmount: 180,
       }),
     );
   });

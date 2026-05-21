@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
@@ -66,9 +66,24 @@ export default function AdminPayoutRequests() {
     [drawerFinanceContext.history, selectedQueueRequest?._id],
   );
 
+  const loadRequests = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await getAdminPayoutRequests({ status: statusFilter });
+      if (res.data.success) {
+        setRequests(res.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading requests:', error);
+      toast.error('Failed to load payout requests');
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
   useEffect(() => {
     loadRequests();
-  }, [statusFilter]);
+  }, [loadRequests]);
 
   useEffect(() => {
     const urlStatus = searchParams.get('status');
@@ -119,21 +134,6 @@ export default function AdminPayoutRequests() {
       cancelled = true;
     };
   }, [selectedQueueRequest?.vendorId]);
-
-  const loadRequests = async () => {
-    try {
-      setLoading(true);
-      const res = await getAdminPayoutRequests({ status: statusFilter });
-      if (res.data.success) {
-        setRequests(res.data.data || []);
-      }
-    } catch (error) {
-      console.error('Error loading requests:', error);
-      toast.error('Failed to load payout requests');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const openModal = (request, action) => {
     setSelectedQueueRequest(null);
@@ -743,14 +743,21 @@ export default function AdminPayoutRequests() {
                     {(drawerFinanceContext.eligible.eligibleOrders || []).length ? (
                       <div className="mt-2 space-y-2">
                         {drawerFinanceContext.eligible.eligibleOrders.slice(0, 4).map((order) => (
-                          <div key={order.orderId} className="flex items-center justify-between gap-3 text-xs">
-                            <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
-                              #{String(order.orderId || '').slice(-8)}
-                            </span>
-                            <span className="text-slate-500">{order.itemsCount || 0} item(s)</span>
-                            <span className="font-bold text-slate-900 dark:text-white">
-                              BDT {Number(order.earnings || 0).toLocaleString('en-US')}
-                            </span>
+                          <div key={order.orderId} className="rounded-md border border-slate-200 bg-white p-2 text-xs dark:border-slate-700 dark:bg-slate-900">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
+                                #{String(order.orderNumber || order.orderId || '').slice(-8)}
+                              </span>
+                              <span className="text-slate-500">{order.itemsCount || 0} item(s)</span>
+                              <span className="font-bold text-slate-900 dark:text-white">
+                                BDT {Number(order.earnings || 0).toLocaleString('en-US')}
+                              </span>
+                            </div>
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-slate-500">
+                              <span>Original BDT {Number(order.grossSaleAmount || 0).toLocaleString('en-US')}</span>
+                              <span className="text-blue-700">Discount -BDT {Number(order.sellerFundedDiscount || 0).toLocaleString('en-US')}</span>
+                              <span>Net BDT {Number(order.netSaleAmount || 0).toLocaleString('en-US')}</span>
+                            </div>
                           </div>
                         ))}
                       </div>

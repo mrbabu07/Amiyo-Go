@@ -231,6 +231,79 @@ describe("vendor finance controller", () => {
     });
   });
 
+  test("getTransactions uses net seller sale after a vendor voucher", async () => {
+    const vendorId = new ObjectId();
+    const orderId = new ObjectId();
+    const req = buildFinanceReq({
+      vendorId,
+      orders: [
+        {
+          _id: orderId,
+          createdAt: new Date("2026-05-21T10:00:00.000Z"),
+          subtotal: 1000,
+          couponApplied: {
+            source: "vendor_voucher",
+            scopeVendorId: vendorId.toString(),
+            discountType: "fixed",
+            discountAmount: 200,
+          },
+          discountBreakdown: {
+            lines: [
+              {
+                type: "vendor_voucher",
+                amount: 200,
+                scopeVendorId: vendorId.toString(),
+                discountType: "fixed",
+              },
+            ],
+            totals: { subtotal: 1000, discountTotal: 200, payableTotal: 800 },
+          },
+          products: [
+            {
+              vendorId: vendorId.toString(),
+              title: "Bluetooth speaker",
+              price: 1000,
+              quantity: 1,
+              itemStatus: "delivered",
+              commissionRateSnapshot: 10,
+              adminCommissionAmount: 100,
+              vendorEarningAmount: 900,
+            },
+          ],
+        },
+      ],
+      query: { limit: "20" },
+    });
+    const res = createRes();
+
+    await getTransactions(req, res);
+
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: [
+        expect.objectContaining({
+          grossSaleAmount: 1000,
+          sellerFundedDiscount: 200,
+          saleAmount: 800,
+          platformCommissionAmount: 80,
+          netPayout: 720,
+          items: [
+            expect.objectContaining({
+              grossSaleAmount: 1000,
+              sellerFundedDiscount: 200,
+              saleAmount: 800,
+              commissionAmount: 80,
+              vendorEarning: 720,
+            }),
+          ],
+        }),
+      ],
+      total: 1,
+      page: 1,
+      pages: 1,
+    });
+  });
+
   test("getTransactions ignores orders that do not contain this vendor's items", async () => {
     const vendorId = new ObjectId();
     const otherVendorId = new ObjectId();
@@ -421,7 +494,8 @@ describe("vendor finance controller", () => {
 
     expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "text/csv; charset=utf-8");
     expect(res.setHeader).toHaveBeenCalledWith("Content-Disposition", 'attachment; filename="statement-2026-05.csv"');
-    expect(res.send.mock.calls[0][0]).toContain("Order ID,Date,Products,Sale Amount");
+    expect(res.send.mock.calls[0][0]).toContain("Order ID,Date,Products,Original Product Sales");
+    expect(res.send.mock.calls[0][0]).toContain("Seller Voucher/Campaign Discount,Net Sale Amount");
     expect(res.send.mock.calls[0][0]).toContain("Local honey");
   });
 
