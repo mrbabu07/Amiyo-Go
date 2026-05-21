@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
 import {
   AlertTriangle,
@@ -40,6 +40,9 @@ const statusStyles = {
   "Out of Stock": "bg-rose-100 text-rose-700",
   Delisted: "bg-slate-200 text-slate-700",
 };
+
+const getProductStatusParam = (value) =>
+  value && Object.keys(statusStyles).includes(value) ? value : "all";
 
 const getProductStatus = (product) => {
   if (product.isActive === false || product.status === "inactive" || product.status === "delisted") {
@@ -92,11 +95,12 @@ const exportProductsCsv = (products, categoryMap, moneyFormatter) => {
 export default function VendorProducts() {
   const { user, dbUser, role, permissions, isAdmin } = useAuth();
   const { formatPrice } = useCurrency();
+  const [searchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState({});
   const [activeTab, setActiveTab] = useState("listings");
-  const [selectedStatus, setSelectedStatus] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState(() => getProductStatusParam(searchParams.get("status")));
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") || "");
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkRows, setBulkRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -150,6 +154,14 @@ export default function VendorProducts() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    const nextSearch = searchParams.get("search") || "";
+    const nextStatus = getProductStatusParam(searchParams.get("status"));
+
+    setSearchTerm((current) => (current === nextSearch ? current : nextSearch));
+    setSelectedStatus((current) => (current === nextStatus ? current : nextStatus));
+  }, [searchParams]);
 
   useEffect(() => {
     if (!visibleTabs.some((tab) => tab.id === activeTab)) {

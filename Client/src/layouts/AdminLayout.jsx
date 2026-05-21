@@ -94,6 +94,7 @@ const navigation = [
       { name: 'COD Delivery', path: '/admin/cod-delivery', exact: true, alertKey: 'payments' },
       { name: 'Returns', path: '/admin/returns', exact: true, alertKey: 'returns' },
       { name: 'Logistics', path: '/admin/logistics', exact: true },
+      { name: 'Ready Pickup', path: '/admin/logistics?tab=ready', exact: true },
       { name: 'Parcel Assignment', path: '/admin/logistics?tab=parcels', exact: true },
       { name: 'Support Tickets', path: '/admin/support', exact: true, alertKey: 'support' },
     ],

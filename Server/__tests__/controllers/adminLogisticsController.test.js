@@ -182,6 +182,101 @@ describe("adminLogisticsController", () => {
     expect(manifest.rows[0]).toEqual(expect.objectContaining({ trackingNumber: "PX-1", zoneName: "Dhaka" }));
   });
 
+  test("builds ready-to-ship collection queue with vendor pickup location", () => {
+    const orderId = new ObjectId();
+    const vendorId = new ObjectId();
+    const queue = _logisticsTestUtils.buildReadyToShipCollectionQueue({
+      orders: [
+        {
+          _id: orderId,
+          status: "ready_to_ship",
+          paymentMethod: "cod",
+          shippingInfo: {
+            name: "Buyer",
+            phone: "018",
+            district: "Dhaka",
+            address: "Dhanmondi",
+          },
+          products: [
+            {
+              productId: "product-1",
+              vendorId,
+              vendorName: "Tech World Bangladesh",
+              title: "Wireless Mouse",
+              price: 900,
+              quantity: 2,
+              itemStatus: "pickup_ready",
+              pickupReadyAt: "2026-05-21T08:00:00.000Z",
+            },
+            {
+              productId: "product-2",
+              vendorId,
+              title: "Keyboard",
+              price: 1200,
+              quantity: 1,
+              itemStatus: "packed",
+            },
+          ],
+        },
+      ],
+      vendorOrders: [
+        {
+          parentOrderId: orderId.toString(),
+          vendorId: vendorId.toString(),
+          status: "pickup_ready",
+          courierPickupStatus: "ready",
+          totalAmount: 3000,
+        },
+      ],
+      vendors: [
+        {
+          _id: vendorId,
+          shopName: "Tech World Bangladesh",
+          phone: "01710000000",
+          pickupAddresses: [
+            {
+              label: "Main pickup",
+              street: "House 12, Road 4",
+              area: "Mirpur",
+              district: "Dhaka",
+              phone: "01710000000",
+              isDefault: true,
+              lat: 23.8041,
+              lng: 90.3667,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(queue.summary).toEqual(
+      expect.objectContaining({
+        totalPackages: 1,
+        vendorCount: 1,
+        pickupReady: 1,
+        codToCollect: 3000,
+      }),
+    );
+    expect(queue.rows[0]).toEqual(
+      expect.objectContaining({
+        orderId: orderId.toString(),
+        vendorId: vendorId.toString(),
+        vendorName: "Tech World Bangladesh",
+        pickupStatus: "ready",
+        codAmount: 3000,
+        itemCount: 1,
+        pickupAddress: expect.objectContaining({
+          addressText: expect.stringContaining("House 12"),
+        }),
+        location: expect.objectContaining({
+          lat: 23.8041,
+          lng: 90.3667,
+          mapUrl: expect.stringContaining("google.com/maps"),
+        }),
+      }),
+    );
+  });
+
   test("creates a delivery zone with COD availability and audit trail", async () => {
     const db = buildDb();
     const res = createRes();

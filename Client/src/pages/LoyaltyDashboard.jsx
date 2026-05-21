@@ -11,6 +11,7 @@ import {
   getLoyaltyTierBenefits,
 } from "../services/api";
 import { notifyLoyaltyBalanceChanged } from "../utils/loyaltyBalance";
+import { usePlatformConfig } from "../context/PlatformConfigContext";
 
 const tierThresholds = {
   bronze: { min: 0, next: "silver", nextThreshold: 1000, badge: "BR" },
@@ -39,6 +40,10 @@ export default function LoyaltyDashboard() {
   const { formatPrice } = useCurrency();
   const { user } = useAuth();
   const { success, error } = useToast();
+  const { isFeatureEnabled, loading: platformConfigLoading } = usePlatformConfig();
+  const coinRewardsEnabled = isFeatureEnabled("loyaltyCoins");
+  const dailyCheckInEnabled = coinRewardsEnabled && isFeatureEnabled("dailyCheckInRewards");
+  const coinRedemptionEnabled = coinRewardsEnabled && isFeatureEnabled("coinRedemption");
   const [loyalty, setLoyalty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -54,14 +59,22 @@ export default function LoyaltyDashboard() {
     formatPrice((Number(points) || 0) * Number(loyalty?.redemption?.valuePerPoint || 0.01));
 
   useEffect(() => {
-    if (!user) return;
+    if (platformConfigLoading || !user) return;
+    if (!coinRewardsEnabled) {
+      setLoading(false);
+      return;
+    }
     fetchLoyaltyData();
     fetchLeaderboard();
     fetchPointsHistory();
-    fetchDailyCheckIn();
+    if (dailyCheckInEnabled) {
+      fetchDailyCheckIn();
+    } else {
+      setDailyCheckIn(null);
+    }
     fetchTierBenefits();
     fetchMultiplierEvents();
-  }, [user]);
+  }, [user, platformConfigLoading, coinRewardsEnabled, dailyCheckInEnabled]);
 
   const fetchLoyaltyData = async () => {
     try {
@@ -138,6 +151,8 @@ export default function LoyaltyDashboard() {
   };
 
   const handleDailyCheckIn = async () => {
+    if (!dailyCheckInEnabled) return;
+
     try {
       const response = await claimDailyCheckInReward();
       const data = response.data?.data;
@@ -185,6 +200,11 @@ export default function LoyaltyDashboard() {
   };
 
   const handleRedeemPoints = async (pointsToRedeem) => {
+    if (!coinRedemptionEnabled) {
+      error("Coin redemption is currently turned off.");
+      return;
+    }
+
     if (!pointsToRedeem || pointsToRedeem < 100) {
       error("Minimum 100 points required to redeem");
       return;
@@ -268,7 +288,20 @@ export default function LoyaltyDashboard() {
 
   const visibleHistory = showFullHistory ? pointsHistory : pointsHistory.slice(0, 5);
 
-  if (loading) return <Loading />;
+  if (platformConfigLoading || loading) return <Loading />;
+
+  if (!coinRewardsEnabled) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-bold text-slate-950">Coin rewards are not available</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            The admin team has turned off the customer coin feature for now.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -335,26 +368,28 @@ export default function LoyaltyDashboard() {
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-          <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-700">Daily check-in</div>
-          <div className="mb-1 text-2xl font-bold text-emerald-950">
-            {dailyCheckIn?.claimedToday ? `Streak ${dailyCheckIn?.streak || 1}` : `Earn ${dailyCheckIn?.points || 5} coins today`}
+        {dailyCheckInEnabled && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+            <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-700">Daily check-in</div>
+            <div className="mb-1 text-2xl font-bold text-emerald-950">
+              {dailyCheckIn?.claimedToday ? `Streak ${dailyCheckIn?.streak || 1}` : `Earn ${dailyCheckIn?.points || 5} coins today`}
+            </div>
+            <p className="mb-4 text-sm text-emerald-800">
+              {dailyCheckIn?.claimedToday
+                ? `Come back tomorrow. Next streak bonus: ${dailyCheckIn?.nextBonus || 0} coins.`
+                : `Keep checking in daily. Current streak: ${dailyCheckIn?.streak || 0}.`}
+            </p>
+            <button
+              onClick={handleDailyCheckIn}
+              disabled={!dailyCheckIn?.canClaim}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {dailyCheckIn?.claimedToday ? "Claimed Today" : "Claim Coins"}
+            </button>
           </div>
-          <p className="mb-4 text-sm text-emerald-800">
-            {dailyCheckIn?.claimedToday
-              ? `Come back tomorrow. Next streak bonus: ${dailyCheckIn?.nextBonus || 0} coins.`
-              : `Keep checking in daily. Current streak: ${dailyCheckIn?.streak || 0}.`}
-          </p>
-          <button
-            onClick={handleDailyCheckIn}
-            disabled={!dailyCheckIn?.canClaim}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {dailyCheckIn?.claimedToday ? "Claimed Today" : "Claim Coins"}
-          </button>
-        </div>
+        )}
 
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm lg:col-span-2">
+        <div className={`rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm ${dailyCheckInEnabled ? "lg:col-span-2" : "lg:col-span-3"}`}>
           <div className="mb-3 flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold uppercase tracking-wide text-indigo-700">Coin multiplier events</div>
@@ -533,43 +568,45 @@ export default function LoyaltyDashboard() {
             )}
           </div>
 
-          <div className="rounded-xl bg-white p-6 shadow-md">
-            <h3 className="mb-4 text-xl font-bold text-gray-900">Redeem Points</h3>
-            <p className="mb-4 text-sm text-gray-600">Convert your points to store credit. 100 points = {pointsToCurrency(100)}.</p>
+          {coinRedemptionEnabled && (
+            <div className="rounded-xl bg-white p-6 shadow-md">
+              <h3 className="mb-4 text-xl font-bold text-gray-900">Redeem Points</h3>
+              <p className="mb-4 text-sm text-gray-600">Convert your points to store credit. 100 points = {pointsToCurrency(100)}.</p>
 
-            <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm text-green-700">Available Points</span>
-                <span className="text-2xl font-bold text-green-800">{loyalty?.points || 0}</span>
+              <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm text-green-700">Available Points</span>
+                  <span className="text-2xl font-bold text-green-800">{loyalty?.points || 0}</span>
+                </div>
+                <div className="text-sm text-green-600">Worth {pointsToCurrency(loyalty?.points || 0)} in discounts</div>
               </div>
-              <div className="text-sm text-green-600">Worth {pointsToCurrency(loyalty?.points || 0)} in discounts</div>
-            </div>
 
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                {quickRedeemOptions.map((points) => (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  {quickRedeemOptions.map((points) => (
+                    <button
+                      key={points}
+                      onClick={() => handleRedeemPoints(points)}
+                      disabled={!loyalty?.points || loyalty.points < points}
+                      className="rounded-lg border border-gray-300 p-3 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <div className="font-semibold">{points} pts</div>
+                      <div className="text-sm text-gray-600">{pointsToCurrency(points)}</div>
+                    </button>
+                  ))}
                   <button
-                    key={points}
-                    onClick={() => handleRedeemPoints(points)}
-                    disabled={!loyalty?.points || loyalty.points < points}
-                    className="rounded-lg border border-gray-300 p-3 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => handleRedeemPoints(loyalty?.points || 0)}
+                    disabled={!loyalty?.points || loyalty.points < 100}
+                    className="rounded-lg border border-primary-500 p-3 text-primary-600 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <div className="font-semibold">{points} pts</div>
-                    <div className="text-sm text-gray-600">{pointsToCurrency(points)}</div>
+                    <div className="font-semibold">All</div>
+                    <div className="text-sm">{pointsToCurrency(loyalty?.points || 0)}</div>
                   </button>
-                ))}
-                <button
-                  onClick={() => handleRedeemPoints(loyalty?.points || 0)}
-                  disabled={!loyalty?.points || loyalty.points < 100}
-                  className="rounded-lg border border-primary-500 p-3 text-primary-600 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <div className="font-semibold">All</div>
-                  <div className="text-sm">{pointsToCurrency(loyalty?.points || 0)}</div>
-                </button>
+                </div>
+                <div className="text-center text-xs text-gray-500">Redeemed points are added as store credit to your account.</div>
               </div>
-              <div className="text-center text-xs text-gray-500">Redeemed points are added as store credit to your account.</div>
             </div>
-          </div>
+          )}
 
           <div className="rounded-xl bg-white p-6 shadow-md">
             <h3 className="mb-4 text-xl font-bold text-gray-900">Top Members</h3>
@@ -605,9 +642,11 @@ export default function LoyaltyDashboard() {
               <p>- {loyalty?.benefits?.pointsMultiplier || 1}x multiplier for your tier</p>
               <p>- 500 points per referral</p>
               <p>- {loyalty?.benefits?.birthdayBonus || 0} birthday bonus points</p>
-              <p className="border-t border-blue-200 pt-2">
-                <strong>Redeem:</strong> 100 points = {pointsToCurrency(100)}
-              </p>
+              {coinRedemptionEnabled && (
+                <p className="border-t border-blue-200 pt-2">
+                  <strong>Redeem:</strong> 100 points = {pointsToCurrency(100)}
+                </p>
+              )}
             </div>
           </div>
         </div>

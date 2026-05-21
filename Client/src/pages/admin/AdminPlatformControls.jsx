@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Bell,
   CheckCircle2,
+  Coins,
   FileText,
   Flag,
   KeyRound,
@@ -107,7 +108,13 @@ const featureFlagLabels = {
   cod: "Cash on delivery",
   reviews: "Customer reviews",
   referrals: "Referrals",
+  loyaltyCoins: "Customer coin feature",
+  coinRedemption: "Checkout coin redemption",
+  dailyCheckInRewards: "Daily check-in coins",
+  spinRewards: "Spin reward button",
 };
+
+const coinFlagKeys = ["loyaltyCoins", "coinRedemption", "dailyCheckInRewards", "spinRewards"];
 
 const formatFeatureFlagLabel = (key) =>
   featureFlagLabels[key] || key.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase());
@@ -650,11 +657,12 @@ export default function AdminPlatformControls() {
 
         {activeTab === "configuration" && (
           <div className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
               <Metric icon={TreePine} label="Categories" value={configuration.categories?.length || 0} />
               <Metric icon={Settings} label="Commission rules" value={configuration.commissionRules?.length || 0} />
               <Metric icon={CheckCircle2} label="Payment methods" value={Object.keys(configuration.paymentMethods || {}).length} />
               <Metric icon={Store} label="Shops section" value={configuration.featureFlags?.shopDirectory === false ? "Hidden" : "Visible"} />
+              <Metric icon={Coins} label="Coin rewards" value={configuration.featureFlags?.loyaltyCoins === false ? "Hidden" : "Active"} />
             </div>
 
             <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
@@ -674,9 +682,37 @@ export default function AdminPlatformControls() {
                     Controls the public Shops navigation, shop listing page, shop detail page, and product-card shop links.
                   </p>
                 </div>
+                <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700">
+                      <Coins className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-950">Coin rewards control</h3>
+                      <p className="mt-1 text-sm font-medium text-slate-600">
+                        Hide or enable the customer coin wallet, checkout redemption, daily rewards, and spin rewards from one place.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {coinFlagKeys.map((key) => (
+                      <Toggle
+                        key={key}
+                        label={formatFeatureFlagLabel(key)}
+                        checked={configPatch.featureFlags?.[key] !== false}
+                        onChange={(checked) =>
+                          setConfigPatch((form) => ({
+                            ...form,
+                            featureFlags: { ...form.featureFlags, [key]: checked },
+                          }))
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {Object.entries(configPatch.featureFlags || {})
-                    .filter(([key]) => key !== "shopDirectory")
+                    .filter(([key]) => key !== "shopDirectory" && !coinFlagKeys.includes(key))
                     .map(([key, value]) => (
                     <Toggle
                       key={key}

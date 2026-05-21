@@ -12,6 +12,10 @@ const MarketplaceEventBus = require("../services/marketplaceEventBus");
 const {
   buildCustomerOrderExperience,
 } = require("../utils/customerOrderExperience");
+const {
+  COIN_FEATURE_DISABLED_MESSAGE,
+  areCoinRewardsEnabled,
+} = require("../utils/platformFeatures");
 
 const normalizeId = (id) => {
   if (!id) return null;
@@ -602,7 +606,19 @@ const createOrder = async (req, res) => {
       deliveryMethod = "standard",
       isGuest = false,
     } = req.body;
+    const requestedRedeemedPoints = Math.max(0, Number(req.body.redeemedPoints || 0));
+    const requestedPointsDiscount = Math.max(0, Number(req.body.pointsDiscount || 0));
     const sanitizedVendorNotes = sanitizeVendorNotes(vendorNotes);
+
+    if (
+      (requestedRedeemedPoints > 0 || requestedPointsDiscount > 0) &&
+      !(await areCoinRewardsEnabled(req.app.locals.db || Product.collection?.db, "coinRedemption"))
+    ) {
+      return res.status(403).json({
+        success: false,
+        error: COIN_FEATURE_DISABLED_MESSAGE,
+      });
+    }
 
     // Log the received data for debugging
     console.log("📦 Creating order with data:", {
@@ -765,6 +781,8 @@ const createOrder = async (req, res) => {
       specialInstructions,
       vendorNotes: sanitizedVendorNotes,
       couponCode,
+      pointsDiscount: requestedPointsDiscount,
+      redeemedPoints: requestedRedeemedPoints,
       deliveryMethod,
       deliveryCharge: delivery.totalDeliveryFee,
       deliveryBreakdown: delivery.breakdown,
@@ -972,18 +990,18 @@ const createOrder = async (req, res) => {
     console.log("✅ Product stock updated successfully");
 
     // Redeem loyalty points if used
-    if (req.body.redeemedPoints && req.body.redeemedPoints > 0) {
+    if (requestedRedeemedPoints > 0) {
       try {
         console.log("🎁 Redeeming loyalty points for order:", {
           orderId: orderId.toString(),
           userId: req.user.uid,
-          points: req.body.redeemedPoints,
+          points: requestedRedeemedPoints,
         });
 
         const loyaltyService = require("../services/loyaltyService");
         await loyaltyService.redeemPoints(
           req.user.uid,
-          req.body.redeemedPoints,
+          requestedRedeemedPoints,
           orderId.toString(),
         );
 
@@ -1174,8 +1192,13 @@ const updateOrderStatus = async (req, res) => {
       // Don't fail the status update if notification fails
     }
 
+    const deliveredCoinRewardsEnabled =
+      status === "delivered"
+        ? await areCoinRewardsEnabled(req.app.locals.db || Order.collection?.db)
+        : false;
+
     // Award loyalty points when order is delivered
-    if (status === "delivered" && order.userId) {
+    if (status === "delivered" && order.userId && deliveredCoinRewardsEnabled) {
       try {
         console.log("🎁 Awarding loyalty points for delivered order:", {
           orderId: id,

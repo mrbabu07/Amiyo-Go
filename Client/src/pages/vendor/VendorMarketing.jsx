@@ -1,5 +1,5 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import {
   BadgePercent,
   BarChart3,
@@ -154,9 +154,30 @@ const entityTone = (entityType = "") => {
   return "text-slate-700 bg-slate-100";
 };
 
+const marketingItemMatchesQuery = (item = {}, term = "") => {
+  if (!term) return true;
+
+  return [
+    item.title,
+    item.code,
+    item.type,
+    item.status,
+    item.description,
+    item.campaignName,
+    item.discountType,
+    ...(item.productTitles || []),
+    ...(item.productIds || []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(term);
+};
+
 export default function VendorMarketing() {
   const { user } = useAuth();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { formatPrice } = useCurrency();
 
   const initialTool = useMemo(() => {
@@ -173,7 +194,7 @@ export default function VendorMarketing() {
   const [analytics, setAnalytics] = useState({ summary: {}, rows: [] });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => searchParams.get("search") || "");
   const [joiningCampaignId, setJoiningCampaignId] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -186,6 +207,11 @@ export default function VendorMarketing() {
   useEffect(() => {
     setActiveTool(initialTool);
   }, [initialTool]);
+
+  useEffect(() => {
+    const nextSearch = searchParams.get("search") || "";
+    setQuery((current) => (current === nextSearch ? current : nextSearch));
+  }, [searchParams]);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -249,6 +275,7 @@ export default function VendorMarketing() {
   }, [campaigns, query]);
 
   const submissionsByType = useMemo(() => {
+    const term = query.trim().toLowerCase();
     const groups = {
       campaign_nomination: [],
       voucher: [],
@@ -259,11 +286,12 @@ export default function VendorMarketing() {
       campaign: [],
     };
     marketingItems.forEach((item) => {
+      if (!marketingItemMatchesQuery(item, term)) return;
       const group = groups[item.type] ? item.type : "promotion";
       groups[group].push(item);
     });
     return groups;
-  }, [marketingItems]);
+  }, [marketingItems, query]);
 
   const stats = useMemo(() => {
     const pending = marketingItems.filter((item) => item.status === "pending").length;

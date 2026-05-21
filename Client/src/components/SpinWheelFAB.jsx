@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import SpinWheel from "./SpinWheel";
 import useAuth from "../hooks/useAuth";
+import { usePlatformConfig } from "../context/PlatformConfigContext";
 import { getSpinRewardStatus } from "../services/api";
 
 export default function SpinWheelFAB() {
@@ -11,12 +12,14 @@ export default function SpinWheelFAB() {
     segments: [],
   });
   const { user } = useAuth();
+  const { isFeatureEnabled, loading: platformConfigLoading } = usePlatformConfig();
+  const spinRewardsEnabled = isFeatureEnabled("loyaltyCoins") && isFeatureEnabled("spinRewards");
 
   useEffect(() => {
     let active = true;
 
     const loadStatus = async () => {
-      if (!user) {
+      if (!user || platformConfigLoading || !spinRewardsEnabled) {
         setStatus({ loading: false, canSpin: false, segments: [] });
         return;
       }
@@ -45,13 +48,13 @@ export default function SpinWheelFAB() {
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [user, platformConfigLoading, spinRewardsEnabled]);
 
   const handleWin = () => {
     setStatus((current) => ({ ...current, canSpin: false }));
   };
 
-  if (!user || status.loading || !status.canSpin) {
+  if (!user || !spinRewardsEnabled || status.loading || !status.canSpin) {
     return null;
   }
 

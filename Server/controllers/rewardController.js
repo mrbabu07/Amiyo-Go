@@ -1,3 +1,8 @@
+const {
+  COIN_FEATURE_DISABLED_MESSAGE,
+  areCoinRewardsEnabled,
+} = require("../utils/platformFeatures");
+
 const getTodayKey = () => new Date().toISOString().slice(0, 10);
 
 const couponToSegment = (coupon) => ({
@@ -23,6 +28,19 @@ const getActiveSpinCoupons = async (req) => {
 
 const getStatus = async (req, res) => {
   try {
+    if (!(await areCoinRewardsEnabled(req.app.locals.db, "spinRewards"))) {
+      return res.json({
+        success: true,
+        data: {
+          canSpin: false,
+          hasSpunToday: false,
+          disabledReason: COIN_FEATURE_DISABLED_MESSAGE,
+          segments: [],
+          lastSpin: null,
+        },
+      });
+    }
+
     const userId = req.user.uid;
     const today = getTodayKey();
     const [spin, couponSegments] = await Promise.all([
@@ -48,6 +66,10 @@ const getStatus = async (req, res) => {
 
 const spin = async (req, res) => {
   try {
+    if (!(await areCoinRewardsEnabled(req.app.locals.db, "spinRewards"))) {
+      return res.status(403).json({ success: false, error: COIN_FEATURE_DISABLED_MESSAGE });
+    }
+
     const userId = req.user.uid;
     const today = getTodayKey();
     const spins = req.app.locals.db.collection("rewardSpins");

@@ -7,12 +7,14 @@ import {
   CheckCircle2,
   ClipboardList,
   Download,
+  ExternalLink,
   MapPin,
   Package,
   PackageCheck,
   RefreshCw,
   RotateCcw,
   Save,
+  Search,
   Truck,
   Users,
 } from "lucide-react";
@@ -32,6 +34,7 @@ import {
   getLogisticsAuditLog,
   getLogisticsOverview,
   getPickupStaff,
+  getReadyToShipCollections,
   recordCodRemittance,
   returnFailedDeliveryToSeller,
   assignLogisticsShipmentCourier,
@@ -49,6 +52,7 @@ const dateTimeInput = (days = 1) =>
 const TABS = [
   { key: "zones", label: "Zones", icon: MapPin },
   { key: "couriers", label: "Couriers", icon: Truck },
+  { key: "ready", label: "Ready to Ship", icon: PackageCheck },
   { key: "manifest", label: "Manifest", icon: ClipboardList },
   { key: "parcels", label: "Parcels", icon: Package },
   { key: "staff", label: "Pickup Staff", icon: Users },
@@ -223,6 +227,10 @@ function StatusPill({ status }) {
     remitted: "border-blue-200 bg-blue-50 text-blue-700",
     discrepancy: "border-red-200 bg-red-50 text-red-700",
     pending: "border-amber-200 bg-amber-50 text-amber-700",
+    ready: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    ready_to_ship: "border-primary-200 bg-primary-50 text-primary-700",
+    pickup_ready: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    scheduled: "border-blue-200 bg-blue-50 text-blue-700",
   }[status] || "border-slate-200 bg-slate-50 text-slate-600";
 
   return (
@@ -253,6 +261,9 @@ export default function AdminLogistics() {
   const [couriers, setCouriers] = useState([]);
   const [providerStatus, setProviderStatus] = useState({ providers: {}, mode: "manual" });
   const [manifest, setManifest] = useState({ groups: [], rows: [] });
+  const [readyQueue, setReadyQueue] = useState({ summary: {}, groups: [], rows: [] });
+  const [readyStatusFilter, setReadyStatusFilter] = useState("all");
+  const [readySearch, setReadySearch] = useState("");
   const [shipments, setShipments] = useState([]);
   const [shipmentStateFilter, setShipmentStateFilter] = useState("all");
   const [pickupStaff, setPickupStaff] = useState([]);
@@ -325,6 +336,8 @@ export default function AdminLogistics() {
     [shipments, parcelAssignment.shipmentId],
   );
 
+  const readyRows = useMemo(() => readyQueue.rows || [], [readyQueue]);
+
   const getZoneCourierNames = (zone) =>
     (zone.courierPartnerIds || [])
       .map((id) => courierById.get(String(id))?.name)
@@ -364,6 +377,7 @@ export default function AdminLogistics() {
         couriersRes,
         providerRes,
         manifestRes,
+        readyRes,
         shipmentsRes,
         staffRes,
         rulesRes,
@@ -376,6 +390,7 @@ export default function AdminLogistics() {
         getCourierPartners(),
         getCourierProviderStatus(),
         getDispatchManifest({ date: manifestDate }),
+        getReadyToShipCollections({ status: readyStatusFilter, q: readySearch }),
         getLogisticsShipments({ state: shipmentStateFilter }),
         getPickupStaff(),
         getDeliveryFeeRules(),
@@ -389,6 +404,7 @@ export default function AdminLogistics() {
       setCouriers(couriersRes.data.data || []);
       setProviderStatus(providerRes.data.data || { providers: {}, mode: "manual" });
       setManifest(manifestRes.data.data || { groups: [], rows: [] });
+      setReadyQueue(readyRes.data.data || { summary: {}, groups: [], rows: [] });
       setShipments(shipmentsRes.data.data || []);
       setPickupStaff(staffRes.data.data || []);
       setFeeRules(rulesRes.data.data || []);
@@ -431,6 +447,19 @@ export default function AdminLogistics() {
   useEffect(() => {
     if (!loading) refreshManifest();
   }, [manifestDate]);
+
+  const refreshReadyQueue = async () => {
+    try {
+      const response = await getReadyToShipCollections({ status: readyStatusFilter, q: readySearch });
+      setReadyQueue(response.data.data || { summary: {}, groups: [], rows: [] });
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to load ready-to-ship queue");
+    }
+  };
+
+  useEffect(() => {
+    if (!loading) refreshReadyQueue();
+  }, [readyStatusFilter]);
 
   const refreshShipments = async () => {
     try {
@@ -650,6 +679,11 @@ export default function AdminLogistics() {
     ).then(() => setParcelAssignment(emptyParcelAssignment));
   };
 
+  const submitReadySearch = (event) => {
+    event.preventDefault();
+    refreshReadyQueue();
+  };
+
   const exportManifest = async () => {
     try {
       const response = await downloadDispatchManifestCsv({ date: manifestDate });
@@ -686,7 +720,7 @@ export default function AdminLogistics() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Metric icon={PackageCheck} label="Ready to dispatch" value={overview?.dispatch?.readyOrders || 0} />
+          <Metric icon={PackageCheck} label="Ready vendor pickups" value={readyQueue.summary?.totalPackages ?? overview?.dispatch?.readyOrders ?? 0} />
           <Metric icon={Truck} label="Active couriers" value={overview?.couriers?.active || 0} tone="text-emerald-700" />
           <Metric icon={Banknote} label="COD outstanding" value={formatPrice(overview?.codFloat?.outstandingWithCouriers || 0)} tone="text-primary-700" />
           <Metric icon={AlertTriangle} label="Failed deliveries" value={overview?.failedDeliveries?.total || 0} tone="text-red-700" />
@@ -933,6 +967,150 @@ export default function AdminLogistics() {
                   >
                     Edit
                   </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "ready" && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-950">Ready to Ship Collection</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Vendor packages marked ready for admin pickup before local delivery handover.
+                  </p>
+                </div>
+                <form onSubmit={submitReadySearch} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <select
+                    className="input-control sm:w-44"
+                    value={readyStatusFilter}
+                    onChange={(event) => setReadyStatusFilter(event.target.value)}
+                  >
+                    <option value="all">All ready orders</option>
+                    <option value="ready_to_ship">Ready to ship</option>
+                    <option value="pickup_ready">Pickup ready</option>
+                  </select>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      className="input-control pl-9 sm:w-72"
+                      value={readySearch}
+                      onChange={(event) => setReadySearch(event.target.value)}
+                      placeholder="Search order, vendor, area"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <Metric icon={PackageCheck} label="Ready packages" value={readyQueue.summary?.totalPackages || 0} tone="text-primary-700" />
+              <Metric icon={Users} label="Vendors" value={readyQueue.summary?.vendorCount || 0} />
+              <Metric icon={Truck} label="Pickup ready" value={readyQueue.summary?.pickupReady || 0} tone="text-emerald-700" />
+              <Metric icon={Banknote} label="COD value" value={formatPrice(readyQueue.summary?.codToCollect || 0)} tone="text-primary-700" />
+              <Metric icon={MapPin} label="Need location" value={readyQueue.summary?.missingPickupLocation || 0} tone={readyQueue.summary?.missingPickupLocation ? "text-amber-700" : "text-slate-950"} />
+            </div>
+
+            {readyRows.length === 0 && <EmptyPanel>No vendor packages are ready for collection right now.</EmptyPanel>}
+
+            <div className="grid gap-4">
+              {readyRows.map((row) => (
+                <div key={`${row.orderId}-${row.vendorId}`} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-950">#{shortId(row.orderNumber || row.orderId)}</h3>
+                        <StatusPill status={row.status} />
+                        <StatusPill status={row.pickupStatus || "pending"} />
+                      </div>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Ready {formatDate(row.readyAt)} / {row.quantity || 0} item(s) / {formatPrice(row.payableAmount || 0)}
+                      </p>
+                    </div>
+                    <div className="text-left lg:text-right">
+                      <p className="text-xs font-bold uppercase text-slate-400">COD amount</p>
+                      <p className="text-lg font-bold text-primary-700">{formatPrice(row.codAmount || 0)}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-[1.3fr_1fr_1fr]">
+                    <div className="min-w-0 rounded-lg bg-slate-50 p-4">
+                      <div className="flex items-start gap-3">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-950">{row.vendorName}</p>
+                          <p className="mt-1 break-words text-sm text-slate-600">
+                            {row.pickupAddress?.addressText || "Pickup address not set"}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">{row.vendorPhone || "No phone saved"}</p>
+                          {row.location?.mapUrl && (
+                            <a
+                              href={row.location.mapUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary-700 hover:text-primary-800"
+                            >
+                              Open map
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 rounded-lg bg-slate-50 p-4">
+                      <p className="text-xs font-bold uppercase text-slate-400">Deliver to</p>
+                      <p className="mt-2 font-semibold text-slate-950">{row.customerName}</p>
+                      <p className="mt-1 text-sm text-slate-600">{row.customerPhone || "No phone"}</p>
+                      <p className="mt-1 break-words text-sm text-slate-600">{row.deliveryAddress || "Delivery address missing"}</p>
+                    </div>
+
+                    <div className="min-w-0 rounded-lg bg-slate-50 p-4">
+                      <p className="text-xs font-bold uppercase text-slate-400">Parcel details</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-950">{row.itemCount || 0} product line(s)</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {row.assignment?.courierName ? `Courier: ${row.assignment.courierName}` : "Courier not assigned yet"}
+                      </p>
+                      {row.pickupSchedule?.pickupDate && (
+                        <p className="mt-1 text-sm text-slate-600">
+                          Pickup: {formatDate(row.pickupSchedule.pickupDate)} {row.pickupSchedule.timeSlot || ""}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-100 text-sm">
+                      <thead className="text-left text-xs uppercase text-slate-400">
+                        <tr>
+                          <th className="py-2 pr-4">Product</th>
+                          <th className="py-2 pr-4">SKU</th>
+                          <th className="py-2 pr-4">Qty</th>
+                          <th className="py-2 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {(row.items || []).map((item) => (
+                          <tr key={`${item.productId}-${item.sku}-${item.title}`}>
+                            <td className="max-w-xs py-2 pr-4 font-medium text-slate-900">{item.title}</td>
+                            <td className="py-2 pr-4 text-slate-500">{item.sku || "N/A"}</td>
+                            <td className="py-2 pr-4 text-slate-600">{item.quantity}</td>
+                            <td className="py-2 text-right font-semibold text-slate-900">{formatPrice(item.amount || 0)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ))}
             </div>

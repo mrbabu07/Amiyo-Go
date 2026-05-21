@@ -7,6 +7,7 @@ const {
   getDispatchManifest,
   getLogisticsAuditLog,
   getLogisticsOverview,
+  getReadyToShipCollections,
   listCourierPartners,
   listDeliveryFeeRules,
   listDeliveryZones,
@@ -80,6 +81,7 @@ router.patch("/courier-partners/:courierId", verifyToken, verifyAdmin, upsertCou
 
 router.get("/dispatch-manifest", verifyToken, verifyAdmin, getDispatchManifest);
 router.get("/dispatch-manifest/export", verifyToken, verifyAdmin, downloadDispatchManifestCsv);
+router.get("/ready-to-ship", verifyToken, verifyAdmin, getReadyToShipCollections);
 
 router.get("/pickup-staff", verifyToken, verifyAdmin, listPickupStaff);
 router.post("/pickup-staff", verifyToken, verifyAdmin, upsertPickupStaff);

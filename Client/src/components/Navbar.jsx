@@ -20,9 +20,10 @@ export default function Navbar() {
   const { cartCount } = useCart();
   const { wishlistCount } = useWishlist();
   const { compareCount } = useComparison();
-  const { isShopDirectoryVisible } = usePlatformConfig();
+  const { isFeatureEnabled, isShopDirectoryVisible } = usePlatformConfig();
   const navigate = useNavigate();
   const loyaltyUserKey = user?.uid || user?.email || "";
+  const coinRewardsEnabled = isFeatureEnabled("loyaltyCoins");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -31,7 +32,9 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [loyaltyBalance, setLoyaltyBalance] = useState({ userKey: "", points: null });
   const loyaltyPoints =
-    loyaltyUserKey && loyaltyBalance.userKey === loyaltyUserKey ? loyaltyBalance.points : null;
+    coinRewardsEnabled && loyaltyUserKey && loyaltyBalance.userKey === loyaltyUserKey
+      ? loyaltyBalance.points
+      : null;
   const loyaltyPointsLabel =
     loyaltyPoints === null ? "..." : Number(loyaltyPoints || 0).toLocaleString();
 
@@ -62,7 +65,7 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    if (!loyaltyUserKey) return;
+    if (!loyaltyUserKey || !coinRewardsEnabled) return;
 
     let cancelled = false;
     const loadLoyaltyPoints = async ({ silent = true } = {}) => {
@@ -106,7 +109,7 @@ export default function Navbar() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.clearInterval(refreshTimer);
     };
-  }, [loyaltyUserKey]);
+  }, [loyaltyUserKey, coinRewardsEnabled]);
 
   const handleSearch = (query) => {
     if (query.trim()) {
@@ -208,7 +211,7 @@ export default function Navbar() {
                 {/* Theme Toggle */}
                 <ThemeToggle />
 
-                {user && (
+                {user && coinRewardsEnabled && (
                   <Link
                     to="/loyalty"
                     className="inline-flex h-10 items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-3 text-sm font-semibold text-yellow-800 transition-colors hover:bg-yellow-100 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
@@ -371,28 +374,30 @@ export default function Navbar() {
                             </span>
                           </Link>
 
-                          <Link
-                            to="/loyalty"
-                            onClick={() => setUserMenuOpen(false)}
-                            className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <svg
-                              className="w-5 h-5 text-gray-400"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                          {coinRewardsEnabled && (
+                            <Link
+                              to="/loyalty"
+                              onClick={() => setUserMenuOpen(false)}
+                              className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              {t("navbar.loyalty_rewards")}
-                            </span>
-                          </Link>
+                              <svg
+                                className="w-5 h-5 text-gray-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
+                              </svg>
+                              <span className="text-sm text-gray-700 dark:text-gray-300">
+                                {t("navbar.loyalty_rewards")}
+                              </span>
+                            </Link>
+                          )}
 
                           <Link
                             to="/vendor/register"
@@ -983,7 +988,7 @@ export default function Navbar() {
                   </Link>
                 )}
 
-                {user && (
+                {user && coinRewardsEnabled && (
                   <Link
                     to="/loyalty"
                     onClick={() => setMobileMenuOpen(false)}

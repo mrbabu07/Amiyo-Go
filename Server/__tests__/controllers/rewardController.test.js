@@ -20,11 +20,14 @@ const activeCoupon = {
   expiresAt: new Date("2030-01-01T00:00:00.000Z"),
 };
 
-const buildRequest = ({ spin = null, coupons = [activeCoupon] } = {}) => {
+const buildRequest = ({ spin = null, coupons = [activeCoupon], platformSettings = null } = {}) => {
   const rewardSpins = {
     createIndex: jest.fn().mockResolvedValue(undefined),
     findOne: jest.fn().mockResolvedValue(spin),
     insertOne: jest.fn().mockResolvedValue({ insertedId: "spin-1" }),
+  };
+  const platformSettingsCollection = {
+    findOne: jest.fn().mockResolvedValue(platformSettings),
   };
 
   const Coupon = {
@@ -36,14 +39,16 @@ const buildRequest = ({ spin = null, coupons = [activeCoupon] } = {}) => {
     app: {
       locals: {
         db: {
-          collection: jest.fn(() => rewardSpins),
+          collection: jest.fn((name) =>
+            name === "platform_settings" ? platformSettingsCollection : rewardSpins,
+          ),
         },
         models: { Coupon },
       },
     },
   };
 
-  return { req, rewardSpins, Coupon };
+  return { req, rewardSpins, platformSettingsCollection, Coupon };
 };
 
 describe("rewardController", () => {
@@ -90,6 +95,29 @@ describe("rewardController", () => {
         canSpin: false,
         hasSpunToday: false,
         disabledReason: "No active admin coupons are available for spin rewards.",
+        segments: [],
+      }),
+    });
+  });
+
+  test("getStatus hides spin rewards when admin turns off coins", async () => {
+    const { req, Coupon } = buildRequest({
+      platformSettings: {
+        _id: "platform_control",
+        featureFlags: { loyaltyCoins: false },
+      },
+    });
+    const res = buildResponse();
+
+    await rewardController.getStatus(req, res);
+
+    expect(Coupon.getActiveCoupons).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: expect.objectContaining({
+        canSpin: false,
+        hasSpunToday: false,
+        disabledReason: "Coin rewards are currently turned off by admin.",
         segments: [],
       }),
     });
@@ -163,6 +191,25 @@ describe("rewardController", () => {
       success: false,
       error: "You already used today's spin.",
       data: existingSpin,
+    });
+  });
+
+  test("spin rejects when admin disables spin rewards", async () => {
+    const { req, rewardSpins } = buildRequest({
+      platformSettings: {
+        _id: "platform_control",
+        featureFlags: { spinRewards: false },
+      },
+    });
+    const res = buildResponse();
+
+    await rewardController.spin(req, res);
+
+    expect(rewardSpins.insertOne).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: "Coin rewards are currently turned off by admin.",
     });
   });
 });

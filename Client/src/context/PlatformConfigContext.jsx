@@ -9,6 +9,10 @@ const defaultConfig = {
     cod: true,
     reviews: true,
     referrals: true,
+    loyaltyCoins: true,
+    coinRedemption: true,
+    dailyCheckInRewards: true,
+    spinRewards: true,
   },
   storefront: {
     shopsVisible: true,

@@ -18,6 +18,7 @@ import BackButton from "../components/BackButton";
 import Breadcrumb from "../components/Breadcrumb";
 import AddressLocationFields from "../components/AddressLocationFields";
 import DeliveryEstimateWidget from "../components/DeliveryEstimateWidget";
+import { usePlatformConfig } from "../context/PlatformConfigContext";
 import {
   CART_COUPON_STORAGE_KEY,
   checkoutSteps,
@@ -35,6 +36,7 @@ const CHECKOUT_VOUCHER_KEY = "hnilabazar_selected_voucher";
 export default function Checkout() {
   const { cart, cartTotal, clearCart } = useCart();
   const { formatPrice } = useCurrency();
+  const { isFeatureEnabled } = usePlatformConfig();
   const navigate = useNavigate();
   const location = useLocation();
   const { addNotification } = useNotifications();
@@ -88,6 +90,8 @@ export default function Checkout() {
     specialInstructions: "",
     transactionId: "",
   }));
+  const coinRedemptionEnabled =
+    isFeatureEnabled("loyaltyCoins") && isFeatureEnabled("coinRedemption");
 
   // Fetch delivery settings
   useEffect(() => {
@@ -382,23 +386,25 @@ export default function Checkout() {
         }));
 
         // Fetch user loyalty data
-        try {
-          const token = await user.getIdToken();
-          const loyaltyResponse = await fetch(
-            `${import.meta.env.VITE_API_URL}/loyalty/my-points`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
+        if (coinRedemptionEnabled) {
+          try {
+            const token = await user.getIdToken();
+            const loyaltyResponse = await fetch(
+              `${import.meta.env.VITE_API_URL}/loyalty/my-points`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
               },
-            },
-          );
-          if (loyaltyResponse.ok) {
-            const loyaltyData = await loyaltyResponse.json();
-            setUserLoyalty(loyaltyData.data);
-            notifyLoyaltyBalanceChanged(loyaltyData.data);
+            );
+            if (loyaltyResponse.ok) {
+              const loyaltyData = await loyaltyResponse.json();
+              setUserLoyalty(loyaltyData.data);
+              notifyLoyaltyBalanceChanged(loyaltyData.data);
+            }
+          } catch (loyaltyError) {
+            console.error("Failed to fetch loyalty data:", loyaltyError);
           }
-        } catch (loyaltyError) {
-          console.error("Failed to fetch loyalty data:", loyaltyError);
         }
 
         // Try to get default address
@@ -425,7 +431,14 @@ export default function Checkout() {
     };
 
     fetchDefaultAddress();
-  }, []);
+  }, [coinRedemptionEnabled]);
+
+  useEffect(() => {
+    if (!coinRedemptionEnabled) {
+      setUserLoyalty(null);
+      setAppliedPoints(null);
+    }
+  }, [coinRedemptionEnabled]);
 
   // Auto-fill form with default address
   const loadAddress = (address) => {
@@ -2374,15 +2387,17 @@ export default function Checkout() {
               )}
 
               {/* Points Redemption */}
-              <div className="mb-6">
-                <PointsRedemption
-                  userLoyalty={userLoyalty}
-                  orderTotal={subtotal - couponDiscount} // Apply points after coupon discount
-                  onPointsApplied={handlePointsApplied}
-                  onPointsRemoved={handlePointsRemoved}
-                  appliedPoints={appliedPoints}
-                />
-              </div>
+              {coinRedemptionEnabled && (
+                <div className="mb-6">
+                  <PointsRedemption
+                    userLoyalty={userLoyalty}
+                    orderTotal={subtotal - couponDiscount} // Apply points after coupon discount
+                    onPointsApplied={handlePointsApplied}
+                    onPointsRemoved={handlePointsRemoved}
+                    appliedPoints={appliedPoints}
+                  />
+                </div>
+              )}
 
               <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
                 <p className="text-sm font-semibold text-gray-900 mb-3">

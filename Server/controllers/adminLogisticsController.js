@@ -6,6 +6,7 @@ const {
 } = require("../services/courierProviderService");
 
 const READY_FOR_DISPATCH_STATUSES = ["packed", "ready_to_ship", "pickup_ready"];
+const READY_FOR_COLLECTION_STATUSES = ["ready_to_ship", "pickup_ready"];
 const FAILED_DELIVERY_STATUSES = ["failed_delivery", "delivery_failed", "reattempt_scheduled", "return_to_seller"];
 const FEE_RULE_TYPES = ["free_shipping", "weight_based", "zone_rate", "cod_fee", "redelivery_fee"];
 const COURIER_STATUSES = ["active", "paused", "disabled"];
@@ -180,6 +181,357 @@ const extractVendorNames = (order) => {
     if (name) names.add(name);
   });
   return [...names];
+};
+
+const compactText = (...values) =>
+  values
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+const getNumberOrNull = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getLocationFrom = (...sources) => {
+  for (const source of sources.filter(Boolean)) {
+    const lat = getNumberOrNull(source.lat ?? source.latitude);
+    const lng = getNumberOrNull(source.lng ?? source.longitude);
+    if (lat !== null && lng !== null) return { lat, lng };
+  }
+  return { lat: null, lng: null };
+};
+
+const buildMapUrl = ({ lat, lng, addressText }) => {
+  if (lat !== null && lat !== undefined && lng !== null && lng !== undefined) {
+    return `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}`;
+  }
+  if (addressText) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressText)}`;
+  }
+  return "";
+};
+
+const getVendorDisplayName = (vendor = {}, fallback = "") =>
+  compactText(vendor.shopName, vendor.businessName, vendor.name, vendor.storeName, fallback)[0] || "Vendor";
+
+const getVendorPhone = (vendor = {}) =>
+  compactText(vendor.phone, vendor.contactPhone, vendor.mobile, vendor.ownerPhone, vendor.pickupPhone)[0] || "";
+
+const getVendorEmail = (vendor = {}) =>
+  compactText(vendor.email, vendor.contactEmail, vendor.ownerEmail)[0] || "";
+
+const normalizeAddressObject = (address = {}) => {
+  if (!address || typeof address !== "object") return {};
+  return {
+    label: String(address.label || address.name || "").trim(),
+    contactName: String(address.contactName || address.contact || address.name || "").trim(),
+    phone: String(address.phone || address.mobile || "").trim(),
+    street: String(address.street || address.address || address.addressLine1 || address.line1 || "").trim(),
+    area: String(address.area || address.upazila || address.thana || "").trim(),
+    city: String(address.city || "").trim(),
+    district: String(address.district || address.state || "").trim(),
+    division: String(address.division || "").trim(),
+    postalCode: String(address.postalCode || address.zipCode || address.zip || "").trim(),
+    country: String(address.country || "").trim(),
+    notes: String(address.notes || address.instructions || "").trim(),
+    isDefault: Boolean(address.isDefault || address.default),
+  };
+};
+
+const formatPickupAddressText = (address = {}, vendor = {}) => {
+  if (typeof address === "string") return address.trim();
+  const normalized = normalizeAddressObject(address);
+  return compactText(
+    normalized.label,
+    normalized.contactName,
+    normalized.street,
+    normalized.area,
+    normalized.city,
+    normalized.district,
+    normalized.division,
+    normalized.postalCode,
+    normalized.country,
+    normalized.phone || getVendorPhone(vendor),
+  ).join(", ");
+};
+
+const getDefaultPickupAddress = (vendor = {}) => {
+  const pickupAddresses = Array.isArray(vendor.pickupAddresses) ? vendor.pickupAddresses.filter(Boolean) : [];
+  return (
+    pickupAddresses.find((address) => address.isDefault || address.default) ||
+    pickupAddresses[0] ||
+    vendor.pickupAddress ||
+    vendor.warehouseAddress ||
+    vendor.businessAddress ||
+    vendor.address ||
+    (vendor.location?.formattedAddress ? { street: vendor.location.formattedAddress } : null) ||
+    {}
+  );
+};
+
+const buildVendorPickupInfo = (vendor = {}, fallbackName = "") => {
+  const pickupAddress = getDefaultPickupAddress(vendor);
+  const addressText = formatPickupAddressText(pickupAddress, vendor);
+  const location = getLocationFrom(pickupAddress?.location, pickupAddress, vendor.location);
+  return {
+    vendorName: getVendorDisplayName(vendor, fallbackName),
+    phone: getVendorPhone(vendor),
+    email: getVendorEmail(vendor),
+    pickupAddress: {
+      ...normalizeAddressObject(pickupAddress),
+      addressText,
+    },
+    location: {
+      ...location,
+      formattedAddress: vendor.location?.formattedAddress || "",
+      mapUrl: buildMapUrl({ ...location, addressText }),
+    },
+    missingPickupLocation: !addressText && (location.lat === null || location.lng === null),
+  };
+};
+
+const getVendorKey = (value) => normalizeId(value || "platform") || "platform";
+
+const getProductVendorKey = (product = {}) =>
+  getVendorKey(product.vendorId || product.vendor_id || product.sellerId || product.vendor?._id || product.vendor?.id);
+
+const buildVendorLookup = (vendors = []) => {
+  const lookup = new Map();
+  vendors.forEach((vendor) => {
+    [
+      vendor._id,
+      vendor.id,
+      vendor.vendorId,
+      vendor.ownerUserId,
+    ]
+      .map((value) => (value ? normalizeId(value) : ""))
+      .filter(Boolean)
+      .forEach((key) => lookup.set(key, vendor));
+  });
+  return lookup;
+};
+
+const buildVendorOrderLookup = (vendorOrders = []) => {
+  const lookup = new Map();
+  vendorOrders.forEach((vendorOrder) => {
+    const parentOrderId = normalizeId(vendorOrder.parentOrderId || vendorOrder.orderId);
+    const vendorId = getVendorKey(vendorOrder.vendorId);
+    if (!parentOrderId) return;
+    lookup.set(`${parentOrderId}:${vendorId}`, vendorOrder);
+  });
+  return lookup;
+};
+
+const getVendorOrderSnapshot = (lookup, orderId, vendorId) =>
+  lookup.get(`${getVendorKey(orderId)}:${getVendorKey(vendorId)}`) || null;
+
+const getProductStatus = (product = {}, order = {}) =>
+  normalizeText(product.itemStatus || product.status || order.status || "pending");
+
+const isReadyForCollectionItem = (product = {}, order = {}) =>
+  READY_FOR_COLLECTION_STATUSES.includes(getProductStatus(product, order));
+
+const getProductTitle = (product = {}) =>
+  compactText(product.title, product.name, product.productName, product.productDetails?.title)[0] || "Order item";
+
+const getProductAmount = (product = {}) =>
+  roundMoney(
+    product.lineTotal ??
+      product.total ??
+      product.totalPrice ??
+      product.subtotal ??
+      Number(product.price || product.salePrice || product.unitPrice || 0) * Number(product.quantity || 1),
+  );
+
+const getFirstItemField = (items = [], field) => items.map((item) => item?.[field]).find(Boolean) || null;
+
+const deriveCollectionStatus = (items = [], vendorOrder = null) => {
+  const snapshotStatus = normalizeText(vendorOrder?.status);
+  if (READY_FOR_COLLECTION_STATUSES.includes(snapshotStatus)) return snapshotStatus;
+  const statuses = items.map((item) => getProductStatus(item));
+  if (statuses.includes("pickup_ready")) return "pickup_ready";
+  return "ready_to_ship";
+};
+
+const getReadyAt = (items = [], vendorOrder = {}, order = {}) =>
+  vendorOrder?.pickupReadyAt ||
+  vendorOrder?.readyToShipAt ||
+  getFirstItemField(items, "pickupReadyAt") ||
+  getFirstItemField(items, "readyToShipAt") ||
+  order.pickupReadyAt ||
+  order.readyToShipAt ||
+  order.updatedAt ||
+  order.createdAt ||
+  null;
+
+const getCollectionSearchText = (row) =>
+  [
+    row.orderId,
+    row.orderNumber,
+    row.vendorName,
+    row.vendorPhone,
+    row.vendorEmail,
+    row.pickupAddress?.addressText,
+    row.customerName,
+    row.customerPhone,
+    row.deliveryAddress,
+    ...(row.items || []).flatMap((item) => [item.title, item.sku]),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+const buildReadyToShipCollectionQueue = ({
+  orders = [],
+  vendorOrders = [],
+  vendors = [],
+  assignments = [],
+  filters = {},
+} = {}) => {
+  const vendorLookup = buildVendorLookup(vendors);
+  const vendorOrderLookup = buildVendorOrderLookup(vendorOrders);
+  const assignmentsByOrderId = new Map(
+    assignments.flatMap((assignment) => idValues(assignment.orderId).map((value) => [normalizeId(value), assignment])),
+  );
+
+  const rows = [];
+  orders.forEach((order) => {
+    const readyProducts = (order.products || []).filter((product) => isReadyForCollectionItem(product, order));
+    if (readyProducts.length === 0) return;
+
+    const productsByVendor = readyProducts.reduce((map, product) => {
+      const vendorId = getProductVendorKey(product);
+      if (!map.has(vendorId)) map.set(vendorId, []);
+      map.get(vendorId).push(product);
+      return map;
+    }, new Map());
+
+    const assignment = getAssignmentForOrder(order, assignmentsByOrderId);
+    const shipping = order.shippingInfo || {};
+
+    productsByVendor.forEach((items, vendorId) => {
+      const fallbackVendorName = compactText(items[0]?.vendorName, items[0]?.shopName, items[0]?.vendor?.shopName)[0] || "";
+      const vendor = vendorLookup.get(vendorId) || {};
+      const vendorOrder = getVendorOrderSnapshot(vendorOrderLookup, order._id, vendorId) || {};
+      const pickupInfo = buildVendorPickupInfo(vendor, fallbackVendorName);
+      const status = deriveCollectionStatus(items, vendorOrder);
+      const itemSubtotal = roundMoney(items.reduce((sum, item) => sum + getProductAmount(item), 0));
+      const discountTotal =
+        vendorOrder.totalDiscount ??
+        Number(vendorOrder.couponDiscount || 0) + Number(vendorOrder.pointsDiscount || 0);
+      const payableAmount = roundMoney(
+        vendorOrder.totalAmount ??
+          vendorOrder.payableTotal ??
+          Math.max(
+            0,
+            itemSubtotal + Number(vendorOrder.deliveryCharge || 0) - Number(discountTotal || 0),
+          ),
+      );
+
+      rows.push({
+        orderId: normalizeId(order._id),
+        orderNumber: order.orderNumber || order.invoiceNumber || "",
+        parentStatus: order.status || "",
+        status,
+        pickupStatus:
+          vendorOrder.courierPickupStatus ||
+          getFirstItemField(items, "courierPickupStatus") ||
+          (status === "pickup_ready" ? "ready" : "pending"),
+        readyAt: getReadyAt(items, vendorOrder, order),
+        pickupSchedule: vendorOrder.pickupSchedule || getFirstItemField(items, "pickupSchedule") || null,
+        vendorId,
+        vendorName: pickupInfo.vendorName,
+        vendorPhone: pickupInfo.phone,
+        vendorEmail: pickupInfo.email,
+        pickupAddress: pickupInfo.pickupAddress,
+        location: pickupInfo.location,
+        missingPickupLocation: pickupInfo.missingPickupLocation,
+        customerName: shipping.name || order.customerName || "Customer",
+        customerPhone: shipping.phone || "",
+        deliveryAddress: getAddressParts(shipping).join(", "),
+        paymentMethod: order.paymentMethod || order.payment?.method || "",
+        paymentStatus: order.paymentStatus || "",
+        payableAmount,
+        itemSubtotal,
+        codAmount: isCodOrder(order) ? payableAmount : 0,
+        deliveryMethod: vendorOrder.deliveryMethod || order.deliveryMethod || "",
+        assignment: assignment
+          ? {
+              courierName: assignment.courierName || "",
+              trackingNumber: assignment.trackingNumber || "",
+              pickupWindow: assignment.pickupWindow || "",
+              pickupDate: assignment.pickupDate || null,
+            }
+          : null,
+        items: items.map((item) => ({
+          productId: normalizeId(item.productId || item._id),
+          title: getProductTitle(item),
+          sku: item.sku || item.variantSku || "",
+          quantity: Number(item.quantity || 1),
+          status: getProductStatus(item, order),
+          readyToShipAt: item.readyToShipAt || null,
+          pickupReadyAt: item.pickupReadyAt || null,
+          amount: getProductAmount(item),
+        })),
+        itemCount: items.length,
+        quantity: items.reduce((sum, item) => sum + Number(item.quantity || 1), 0),
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+      });
+    });
+  });
+
+  const statusFilter = normalizeText(filters.status || "all");
+  const query = normalizeText(filters.q || filters.search || "");
+  const filteredRows = rows
+    .filter((row) => statusFilter === "all" || row.status === statusFilter)
+    .filter((row) => !query || getCollectionSearchText(row).includes(query))
+    .sort((left, right) => {
+      const statusWeight = { pickup_ready: 0, ready_to_ship: 1 };
+      const weightDiff = (statusWeight[left.status] ?? 9) - (statusWeight[right.status] ?? 9);
+      if (weightDiff !== 0) return weightDiff;
+      return new Date(left.readyAt || left.createdAt || 0) - new Date(right.readyAt || right.createdAt || 0);
+    });
+
+  const groupsMap = filteredRows.reduce((map, row) => {
+    if (!map.has(row.vendorId)) {
+      map.set(row.vendorId, {
+        vendorId: row.vendorId,
+        vendorName: row.vendorName,
+        vendorPhone: row.vendorPhone,
+        pickupAddress: row.pickupAddress,
+        location: row.location,
+        totalPackages: 0,
+        totalItems: 0,
+        codAmount: 0,
+        rows: [],
+      });
+    }
+    const group = map.get(row.vendorId);
+    group.totalPackages += 1;
+    group.totalItems += row.quantity;
+    group.codAmount = roundMoney(group.codAmount + row.codAmount);
+    group.rows.push(row);
+    return map;
+  }, new Map());
+
+  return {
+    summary: {
+      totalPackages: filteredRows.length,
+      vendorCount: groupsMap.size,
+      readyToShip: filteredRows.filter((row) => row.status === "ready_to_ship").length,
+      pickupReady: filteredRows.filter((row) => row.status === "pickup_ready").length,
+      codToCollect: roundMoney(filteredRows.reduce((sum, row) => sum + row.codAmount, 0)),
+      missingPickupLocation: filteredRows.filter((row) => row.missingPickupLocation).length,
+    },
+    filters: {
+      status: statusFilter,
+      q: query,
+    },
+    groups: [...groupsMap.values()],
+    rows: filteredRows,
+  };
 };
 
 const getZoneForOrder = (order, zones = []) => {
@@ -732,6 +1084,35 @@ exports.getDispatchManifest = async (req, res) => {
   }
 };
 
+exports.getReadyToShipCollections = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const [orders, vendorOrders, vendors, assignments] = await Promise.all([
+      collectionToArray(db, "orders", {}, { updatedAt: -1, createdAt: -1 }),
+      collectionToArray(db, "vendorOrders", {}, { updatedAt: -1, createdAt: -1 }),
+      collectionToArray(db, "vendors", {}, { shopName: 1 }),
+      collectionToArray(db, "dispatch_assignments", {}, { pickupDate: 1 }),
+    ]);
+
+    res.json({
+      success: true,
+      data: buildReadyToShipCollectionQueue({
+        orders,
+        vendorOrders,
+        vendors,
+        assignments,
+        filters: {
+          status: req.query.status,
+          q: req.query.q || req.query.search,
+        },
+      }),
+    });
+  } catch (error) {
+    console.error("Error loading ready-to-ship collection queue:", error);
+    res.status(500).json({ success: false, error: "Failed to load ready-to-ship collection queue" });
+  }
+};
+
 exports.downloadDispatchManifestCsv = async (req, res) => {
   try {
     const db = req.app.locals.db;
@@ -1208,6 +1589,7 @@ exports._logisticsTestUtils = {
   buildDispatchManifest,
   buildFailedDeliveryRows,
   buildLogisticsOverview,
+  buildReadyToShipCollectionQueue,
   getZoneForOrder,
   isReadyForDispatch,
   manifestToCsv,

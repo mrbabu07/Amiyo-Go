@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePlatformConfig } from "../context/PlatformConfigContext";
 
 export default function PointsRedemption({
   userLoyalty,
@@ -7,6 +8,7 @@ export default function PointsRedemption({
   onPointsRemoved,
   appliedPoints,
 }) {
+  const { isFeatureEnabled } = usePlatformConfig();
   const [pointsToRedeem, setPointsToRedeem] = useState("");
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [error, setError] = useState("");
@@ -22,6 +24,8 @@ export default function PointsRedemption({
     maxRedeemablePoints >= 100
       ? Math.min(200, Math.floor(maxRedeemablePoints / 100) * 100)
       : 0;
+  const coinRedemptionEnabled =
+    isFeatureEnabled("loyaltyCoins") && isFeatureEnabled("coinRedemption");
 
   const applyPoints = (points) => {
     onPointsApplied({
@@ -73,6 +77,10 @@ export default function PointsRedemption({
     const value = Math.floor(Number(event.target.value || 0) / 100) * 100;
     setPointsToRedeem(String(Math.min(Math.max(value, 100), maxRedeemablePoints)));
   };
+
+  if (!coinRedemptionEnabled) {
+    return null;
+  }
 
   if (!userLoyalty || userLoyalty.points < 100 || maxRedeemablePoints < 100) {
     return (

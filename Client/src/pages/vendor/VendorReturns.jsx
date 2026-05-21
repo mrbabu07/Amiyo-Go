@@ -1,5 +1,5 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -46,6 +46,9 @@ const FILTERS = [
   { key: "completed", label: "Completed" },
   { key: "rejected", label: "Rejected" },
 ];
+
+const getReturnFilterParam = (value) =>
+  FILTERS.some((filter) => filter.key === value) ? value : "all";
 
 const RESPONSE_ACTIONS = [
   {
@@ -154,14 +157,15 @@ const getReturnNextStep = (returnItem) => {
 export default function VendorReturns() {
   const { dbUser, role, permissions, isAdmin } = useAuth();
   const { formatPrice } = useCurrency();
+  const [searchParams] = useSearchParams();
   const canManageReturns = hasVendorPermission({ dbUser, role, permissions, isAdmin }, "returns:manage");
   const [returns, setReturns] = useState([]);
   const [stats, setStats] = useState(null);
   const [pendingResponses, setPendingResponses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState(() => getReturnFilterParam(searchParams.get("status")));
+  const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -211,6 +215,15 @@ export default function VendorReturns() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const nextSearch = searchParams.get("search") || "";
+    const nextStatus = getReturnFilterParam(searchParams.get("status"));
+
+    setSearch((current) => (current === nextSearch ? current : nextSearch));
+    setStatusFilter((current) => (current === nextStatus ? current : nextStatus));
+    setPage(1);
+  }, [searchParams]);
 
   const filterCounts = useMemo(() => ({
     all: getStatsValue(stats, "totalReturns"),

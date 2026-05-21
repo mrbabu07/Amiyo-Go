@@ -30,6 +30,7 @@ import {
 import useAuth from "../hooks/useAuth";
 import Loading from "../components/Loading";
 import RoleWorkflowPanel from "../components/workflow/RoleWorkflowPanel";
+import { usePlatformConfig } from "../context/PlatformConfigContext";
 import {
   addSavedPaymentMethod,
   cancelAccountDeletion,
@@ -160,6 +161,8 @@ function Toggle({ checked, onChange, label }) {
 export default function Profile() {
   const { t, i18n } = useTranslation();
   const { user, isAdmin, logout } = useAuth();
+  const { isFeatureEnabled } = usePlatformConfig();
+  const coinRewardsEnabled = isFeatureEnabled("loyaltyCoins");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
   const [account, setAccount] = useState(null);
@@ -219,6 +222,7 @@ export default function Profile() {
         description: "Balance and history",
         icon: WalletCards,
         color: "bg-violet-50 text-violet-700",
+        visible: coinRewardsEnabled,
       },
       {
         to: "/notifications",
@@ -248,8 +252,8 @@ export default function Profile() {
         icon: MessageSquare,
         color: "bg-slate-100 text-slate-700",
       },
-    ],
-    [],
+    ].filter((item) => item.visible !== false),
+    [coinRewardsEnabled],
   );
 
   const applyAccount = (nextAccount) => {

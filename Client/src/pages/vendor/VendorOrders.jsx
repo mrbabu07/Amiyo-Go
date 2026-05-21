@@ -1,5 +1,5 @@
 import { Fragment, createElement, useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -101,6 +101,8 @@ const FILTER_TABS = [
   { key: "cancelled", label: "Cancelled", statuses: ["cancelled"] },
   { key: "return_requested", label: "Return Requested" },
 ];
+
+const isOrderFilterTab = (value) => FILTER_TABS.some((tab) => tab.key === value);
 
 const PICKUP_SLOTS = [
   "09:00 AM - 12:00 PM",
@@ -463,6 +465,7 @@ const buildBatchPackingSlipHtml = (orders, vendorProfile, moneyFormatter) => {
 export default function VendorOrders() {
   const { user, dbUser, role, permissions, isAdmin } = useAuth();
   const { formatPrice } = useCurrency();
+  const [searchParams] = useSearchParams();
   const vendorAccess = useMemo(
     () => ({ dbUser, role, permissions, isAdmin }),
     [dbUser, role, permissions, isAdmin],
@@ -474,8 +477,10 @@ export default function VendorOrders() {
   const [vendorProfile, setVendorProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("pending");
-  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState(() =>
+    isOrderFilterTab(searchParams.get("status")) ? searchParams.get("status") : "pending",
+  );
+  const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [expandedOrderId, setExpandedOrderId] = useState(null);
   const [timelineByOrder, setTimelineByOrder] = useState({});
@@ -519,6 +524,16 @@ export default function VendorOrders() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const nextSearch = searchParams.get("search") || "";
+    const nextStatus = searchParams.get("status");
+
+    setSearch((current) => (current === nextSearch ? current : nextSearch));
+    if (isOrderFilterTab(nextStatus)) {
+      setActiveTab((current) => (current === nextStatus ? current : nextStatus));
+    }
+  }, [searchParams]);
 
   const returnsByOrder = useMemo(() => {
     const grouped = new Map();

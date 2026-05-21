@@ -3,6 +3,7 @@ const speakeasy = require("speakeasy");
 const { roleCan, STAFF_ROLES } = require("../../config/permissions");
 const {
   _platformTestUtils,
+  getPublicPlatformConfig,
   inviteStaffAccount,
   sendNotificationBroadcast,
   setupAdminTwoFactor,
@@ -310,6 +311,32 @@ describe("adminPlatformController", () => {
       commissionRate: 6.5,
       source: "platform_config",
     }));
+  });
+
+  test("public platform config exposes admin coin feature flags", async () => {
+    const db = buildDb({
+      platform_settings: [{
+        _id: "platform_control",
+        featureFlags: {
+          loyaltyCoins: false,
+          coinRedemption: false,
+          dailyCheckInRewards: true,
+          spinRewards: false,
+        },
+      }],
+    });
+    const res = createRes();
+
+    await getPublicPlatformConfig(buildReq({ db }), res);
+
+    expect(res.json.mock.calls[0][0].data.featureFlags).toEqual(
+      expect.objectContaining({
+        loyaltyCoins: false,
+        coinRedemption: false,
+        dailyCheckInRewards: true,
+        spinRewards: false,
+      }),
+    );
   });
 
   test("invites staff, verifies speakeasy 2FA, and saves session timeout policy", async () => {

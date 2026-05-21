@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import useAuth from "../hooks/useAuth";
 import { useClickOutside } from "../hooks/useClickOutside";
+import { useNotifications } from "../context/NotificationContext";
+import VendorGlobalSearch from "../components/vendor/VendorGlobalSearch";
 import {
   buildVendorActionItems,
   getVendorActionCount,
@@ -146,6 +148,42 @@ function isPathActive(pathname, path) {
   return pathname === path || pathname.startsWith(`${path}/`);
 }
 
+const getSearchTypeForPath = (path = "") => {
+  if (path.includes("/returns")) return "returns";
+  if (path.includes("/orders")) return "orders";
+  if (path.includes("/products") || path.includes("/category-requests")) return "products";
+  if (path.includes("/marketing")) return "marketing";
+  if (path.includes("/finance")) return "finance";
+  return "all";
+};
+
+const flattenVendorNavigation = (items = [], groupName = "") =>
+  items.flatMap((item) => {
+    if (item.children) return flattenVendorNavigation(item.children, item.name);
+    return item.path
+      ? [{
+          ...item,
+          group: groupName || item.name,
+          searchType: getSearchTypeForPath(item.path),
+        }]
+      : [];
+  });
+
+const formatNotificationTime = (timestamp) => {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString();
+};
+
 function SellerNavLink({ item, onClick, collapsed = false }) {
   const Icon = item.icon;
 
@@ -174,6 +212,7 @@ export default function VendorLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, dbUser, role, permissions, isAdmin, logout, vendorProfile } = useAuth();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const actionCenterRef = useRef(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => isDesktop());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getStoredSidebarCollapsed);
@@ -213,6 +252,20 @@ export default function VendorLayout() {
     [accessSource, vendorProfile],
   );
   const actionCount = getVendorActionCount(actionItems);
+  const searchTargets = useMemo(
+    () => flattenVendorNavigation([...visibleSingleLinks, ...visibleNavGroups]),
+    [visibleNavGroups, visibleSingleLinks],
+  );
+  const canAccessSearchPath = useCallback(
+    (path) => canAccessVendorPath(path, accessSource),
+    [accessSource],
+  );
+  const unreadNotifications = Math.max(0, Number(unreadCount || 0));
+  const notificationPreview = useMemo(
+    () => notifications.slice(0, 4),
+    [notifications],
+  );
+  const headerAlertCount = unreadNotifications + actionCount;
 
   useClickOutside(actionCenterRef, () => setActionCenterOpen(false));
 
@@ -281,6 +334,12 @@ export default function VendorLayout() {
             </Link>
           </div>
 
+          <VendorGlobalSearch
+            searchTargets={searchTargets}
+            canAccessPath={canAccessSearchPath}
+            closeSidebarOnMobile={closeSidebarOnMobile}
+          />
+
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
               to="/"
@@ -294,13 +353,13 @@ export default function VendorLayout() {
                 type="button"
                 onClick={() => setActionCenterOpen((open) => !open)}
                 className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:text-slate-300 dark:hover:bg-slate-800"
-                aria-label="Seller action center"
+                aria-label="Seller notifications and action center"
                 aria-expanded={actionCenterOpen}
               >
                 <Bell className="h-5 w-5" />
-                {actionCount > 0 ? (
+                {headerAlertCount > 0 ? (
                   <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-extrabold text-white">
-                    {actionCount > 9 ? "9+" : actionCount}
+                    {headerAlertCount > 9 ? "9+" : headerAlertCount}
                   </span>
                 ) : (
                   <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-emerald-500" />
@@ -310,54 +369,139 @@ export default function VendorLayout() {
               {actionCenterOpen ? (
                 <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] max-w-md rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:w-96">
                   <div className="border-b border-slate-200 p-4 dark:border-slate-800">
-                    <p className="text-sm font-extrabold text-slate-950 dark:text-white">
-                      Seller action center
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      Operational shortcuts for products, orders, KYC, finance, and support.
-                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-extrabold text-slate-950 dark:text-white">
+                          Notifications
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {unreadNotifications} unread, {actionCount} seller action{actionCount === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      {unreadNotifications > 0 ? (
+                        <button
+                          type="button"
+                          onClick={markAllAsRead}
+                          className="rounded-lg px-2 py-1 text-xs font-bold text-primary-700 transition hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-primary-950/30"
+                        >
+                          Mark read
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <div className="max-h-[28rem] overflow-y-auto p-3">
-                    {actionItems.length === 0 ? (
-                      <div className="rounded-lg border border-slate-100 bg-slate-50 p-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-                        No staff shortcuts are available for your current permissions.
-                      </div>
-                    ) : (
+                  <div className="max-h-[30rem] overflow-y-auto p-3">
                     <div className="space-y-2">
-                      {actionItems.map((item) => {
-                        const Icon = actionIconMap[item.icon] || Bell;
+                      <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/70">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-xs font-black uppercase tracking-wide text-slate-400">App notifications</p>
+                          {unreadNotifications > 0 ? (
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-extrabold text-red-700 dark:bg-red-950/40 dark:text-red-200">
+                              {unreadNotifications}
+                            </span>
+                          ) : null}
+                        </div>
 
-                        return (
-                          <Link
-                            key={item.id}
-                            to={item.path}
-                            onClick={() => setActionCenterOpen(false)}
-                            className="flex items-start gap-3 rounded-lg border border-slate-100 p-3 transition hover:border-primary-200 hover:bg-primary-50/50 dark:border-slate-800 dark:hover:border-primary-900 dark:hover:bg-primary-950/30"
-                          >
-                            <span className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${item.tone}`}>
-                              <Icon className="h-4 w-4" />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm font-extrabold text-slate-950 dark:text-white">
-                                  {item.label}
-                                </span>
-                                {["danger", "warning"].includes(item.severity) ? (
-                                  <span className={`rounded-full border px-2 py-0.5 text-[10px] font-extrabold uppercase ${item.tone}`}>
-                                    Action
+                        {notificationPreview.length === 0 ? (
+                          <p className="rounded-lg bg-white px-3 py-3 text-sm text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                            No notifications yet.
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {notificationPreview.map((notification) => {
+                              const content = (
+                                <>
+                                  <span className="flex items-start justify-between gap-3">
+                                    <span className="min-w-0">
+                                      <span className="block truncate text-sm font-extrabold text-slate-950 dark:text-white">
+                                        {notification.title}
+                                      </span>
+                                      <span className="mt-1 line-clamp-2 block text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                        {notification.message}
+                                      </span>
+                                    </span>
+                                    {!notification.read ? (
+                                      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-600" />
+                                    ) : null}
                                   </span>
-                                ) : null}
-                              </span>
-                              <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
-                                {item.description}
-                              </span>
-                            </span>
-                          </Link>
-                        );
-                      })}
+                                  <span className="mt-2 block text-[11px] font-semibold text-slate-400">
+                                    {formatNotificationTime(notification.timestamp)}
+                                  </span>
+                                </>
+                              );
+
+                              return notification.link ? (
+                                <Link
+                                  key={notification.id}
+                                  to={notification.link}
+                                  onClick={() => {
+                                    markAsRead(notification.id);
+                                    setActionCenterOpen(false);
+                                  }}
+                                  className="block rounded-lg bg-white px-3 py-2 transition hover:bg-primary-50 dark:bg-slate-900 dark:hover:bg-primary-950/30"
+                                >
+                                  {content}
+                                </Link>
+                              ) : (
+                                <button
+                                  key={notification.id}
+                                  type="button"
+                                  onClick={() => markAsRead(notification.id)}
+                                  className="block w-full rounded-lg bg-white px-3 py-2 text-left transition hover:bg-primary-50 dark:bg-slate-900 dark:hover:bg-primary-950/30"
+                                >
+                                  {content}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <p className="px-1 pb-2 text-xs font-black uppercase tracking-wide text-slate-400">
+                          Seller actions
+                        </p>
+                        {actionItems.length === 0 ? (
+                          <div className="rounded-lg border border-slate-100 bg-slate-50 p-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                            No staff shortcuts are available for your current permissions.
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {actionItems.map((item) => {
+                              const Icon = actionIconMap[item.icon] || Bell;
+
+                              return (
+                                <Link
+                                  key={item.id}
+                                  to={item.path}
+                                  onClick={() => setActionCenterOpen(false)}
+                                  className="flex items-start gap-3 rounded-lg border border-slate-100 p-3 transition hover:border-primary-200 hover:bg-primary-50/50 dark:border-slate-800 dark:hover:border-primary-900 dark:hover:bg-primary-950/30"
+                                >
+                                  <span className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${item.tone}`}>
+                                    <Icon className="h-4 w-4" />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="flex flex-wrap items-center gap-2">
+                                      <span className="text-sm font-extrabold text-slate-950 dark:text-white">
+                                        {item.label}
+                                      </span>
+                                      {["danger", "warning"].includes(item.severity) ? (
+                                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-extrabold uppercase ${item.tone}`}>
+                                          Action
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                    <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                      {item.description}
+                                    </span>
+                                  </span>
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    )}
                   </div>
 
                   <div className="border-t border-slate-200 p-3 dark:border-slate-800">

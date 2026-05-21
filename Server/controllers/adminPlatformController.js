@@ -6,6 +6,10 @@ const {
   STAFF_ROLES,
   getDefaultPermissions,
 } = require("../config/permissions");
+const {
+  DEFAULT_PLATFORM_FEATURE_FLAGS,
+  mergeFeatureFlags,
+} = require("../utils/platformFeatures");
 
 const ADMIN_ROLE_DEFINITIONS = [
   {
@@ -148,14 +152,7 @@ const DEFAULT_PLATFORM_CONFIG = {
     displayMode: "inclusive",
     vatByCategory: [],
   },
-  featureFlags: {
-    guestCheckout: true,
-    vendorSignups: true,
-    shopDirectory: true,
-    cod: true,
-    reviews: true,
-    referrals: true,
-  },
+  featureFlags: { ...DEFAULT_PLATFORM_FEATURE_FLAGS },
   maintenanceMode: {
     enabled: false,
     message: "We are improving the marketplace. Please check back soon.",
@@ -858,19 +855,12 @@ const getPublicPlatformConfig = async (req, res) => {
       .collection("platform_settings")
       .findOne({ _id: "platform_control" });
     const config = mergeConfig(saved);
-    const featureFlags = config.featureFlags || {};
+    const featureFlags = mergeFeatureFlags(config.featureFlags);
 
     res.json({
       success: true,
       data: {
-        featureFlags: {
-          guestCheckout: featureFlags.guestCheckout !== false,
-          vendorSignups: featureFlags.vendorSignups !== false,
-          shopDirectory: featureFlags.shopDirectory !== false,
-          cod: featureFlags.cod !== false,
-          reviews: featureFlags.reviews !== false,
-          referrals: featureFlags.referrals !== false,
-        },
+        featureFlags,
         storefront: {
           shopsVisible: featureFlags.shopDirectory !== false,
         },

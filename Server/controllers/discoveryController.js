@@ -1,4 +1,8 @@
 const { ObjectId } = require("mongodb");
+const {
+  COIN_FEATURE_DISABLED_MESSAGE,
+  areCoinRewardsEnabled,
+} = require("../utils/platformFeatures");
 
 const CHECK_IN_TIME_ZONE = "Asia/Dhaka";
 const DEFAULT_CHECK_IN_POINTS = 5;
@@ -691,6 +695,22 @@ const buildDailyCheckInPrompt = ({ checkIn = null, loyalty = null, now = new Dat
   };
 };
 
+const buildDisabledDailyCheckInPrompt = (now = new Date()) => ({
+  enabled: false,
+  dateKey: getTodayKey(now),
+  canClaim: false,
+  claimedToday: false,
+  points: 0,
+  basePoints: 0,
+  bonusPoints: 0,
+  streak: 0,
+  nextBonus: 0,
+  label: "Daily coin rewards are turned off",
+  totalPoints: 0,
+  lastClaim: null,
+  disabledReason: COIN_FEATURE_DISABLED_MESSAGE,
+});
+
 const buildPromotionStrip = (coupons = [], now = new Date()) =>
   coupons
     .filter((coupon) => coupon.isActive !== false)
@@ -795,6 +815,7 @@ const loadHomepageSource = async (req) => {
 const getHomepageDiscovery = async (req, res) => {
   try {
     const source = await loadHomepageSource(req);
+    const dailyCheckInEnabled = await areCoinRewardsEnabled(req.app.locals.db, "dailyCheckInRewards");
     const localRecentIds = unique(String(req.query.recentProductIds || "").split(","));
     const categoryId = normalizeId(req.query.categoryId);
     const catalogProducts = attachProductContext(source.products, source.categories, source.vendors)
@@ -857,9 +878,11 @@ const getHomepageDiscovery = async (req, res) => {
           user: { ...(source.user || {}), userId: source.userId },
         }),
         recentlyViewed,
-        dailyCheckIn: source.userId
-          ? buildDailyCheckInPrompt({ checkIn: source.checkIn, loyalty: source.loyalty, now: source.now })
-          : { enabled: true, requiresLogin: true, canClaim: false, points: DEFAULT_CHECK_IN_POINTS },
+        dailyCheckIn: dailyCheckInEnabled
+          ? source.userId
+            ? buildDailyCheckInPrompt({ checkIn: source.checkIn, loyalty: source.loyalty, now: source.now })
+            : { enabled: true, requiresLogin: true, canClaim: false, points: DEFAULT_CHECK_IN_POINTS }
+          : buildDisabledDailyCheckInPrompt(source.now),
         meta: {
           personalized: Boolean(source.userId || recentlyViewed.length > 0),
           recentProductIds: recentlyViewed.map((product) => product._id),
@@ -877,6 +900,13 @@ const getDailyCheckInStatus = async (req, res) => {
   try {
     const db = req.app.locals.db;
     const now = new Date();
+    if (!(await areCoinRewardsEnabled(db, "dailyCheckInRewards"))) {
+      return res.json({
+        success: true,
+        data: buildDisabledDailyCheckInPrompt(now),
+      });
+    }
+
     const userId = normalizeId(req.user?.uid);
     const [checkIn, loyalty] = await Promise.all([
       db.collection("dailyCheckins").findOne({ userId, dateKey: getTodayKey(now) }),
@@ -897,6 +927,14 @@ const claimDailyCheckInReward = async (req, res) => {
   try {
     const db = req.app.locals.db;
     const now = new Date();
+    if (!(await areCoinRewardsEnabled(db, "dailyCheckInRewards"))) {
+      return res.status(403).json({
+        success: false,
+        error: COIN_FEATURE_DISABLED_MESSAGE,
+        data: buildDisabledDailyCheckInPrompt(now),
+      });
+    }
+
     const userId = normalizeId(req.user?.uid);
     const userObjectId = req.user?._id || req.dbUser?._id || null;
     const dateKey = getTodayKey(now);
@@ -1041,6 +1079,7 @@ module.exports = {
     attachProductContext,
     buildCategoryQuickAccess,
     buildCuratedCollections,
+    buildDisabledDailyCheckInPrompt,
     buildDailyCheckInPrompt,
     buildFlashSaleStrip,
     buildFollowedVendorUpdates,

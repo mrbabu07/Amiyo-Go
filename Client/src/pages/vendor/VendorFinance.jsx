@@ -1,5 +1,5 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Banknote,
@@ -148,6 +148,20 @@ const normalizeFinanceRows = (rows = []) =>
     };
   });
 
+const filterRowsByQuery = (rows = [], query = "", fields = []) => {
+  const value = String(query || "").trim().toLowerCase();
+  if (!value) return rows;
+
+  return rows.filter((row) =>
+    fields
+      .map((field) => (typeof field === "function" ? field(row) : row[field]))
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(value),
+  );
+};
+
 const downloadBlob = (response, fallbackName) => {
   const disposition = response.headers?.["content-disposition"] || "";
   const match = disposition.match(/filename="?([^"]+)"?/);
@@ -169,6 +183,7 @@ export default function VendorFinance() {
   const { user, dbUser, role, permissions, isAdmin } = useAuth();
   const { formatPrice } = useCurrency();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const activeTab = tabs.find((tab) => location.pathname === tab.path)?.id || "overview";
   const vendorAccess = useMemo(
     () => ({ dbUser, role, permissions, isAdmin }),
@@ -245,6 +260,27 @@ export default function VendorFinance() {
   }, [activeTab, fetchStatementRows]);
 
   const statementTotals = useMemo(() => calculateTotals(statementRows), [statementRows]);
+  const financeSearch = searchParams.get("search") || "";
+  const visibleTransactions = useMemo(
+    () =>
+      filterRowsByQuery(transactions, financeSearch, [
+        "orderNumber",
+        "orderId",
+        "productsSummary",
+        "itemStatus",
+      ]),
+    [financeSearch, transactions],
+  );
+  const visiblePayouts = useMemo(
+    () =>
+      filterRowsByQuery(payouts, financeSearch, [
+        "_id",
+        "transactionId",
+        "note",
+        "status",
+      ]),
+    [financeSearch, payouts],
+  );
   const earnings = stats?.earningsSummary || {};
   const payoutSchedule = stats?.payoutSchedule || {};
   const refundImpact = stats?.refundImpact || {};
@@ -401,7 +437,7 @@ export default function VendorFinance() {
             <OverviewTab
               stats={stats}
               refundImpact={refundImpact}
-              transactions={transactions}
+              transactions={visibleTransactions}
               formatPrice={formatPrice}
             />
           )}
@@ -411,7 +447,7 @@ export default function VendorFinance() {
           )}
 
           {activeTab === "transactions" && (
-            <TransactionsTab transactions={transactions} formatPrice={formatPrice} />
+            <TransactionsTab transactions={visibleTransactions} formatPrice={formatPrice} />
           )}
 
           {activeTab === "statements" && (
@@ -433,7 +469,7 @@ export default function VendorFinance() {
 
           {activeTab === "payouts" && (
             <PayoutsTab
-              payouts={payouts}
+              payouts={visiblePayouts}
               stats={stats}
               refreshTrigger={refreshTrigger}
               onRequestSuccess={handleRefresh}

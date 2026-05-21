@@ -613,6 +613,8 @@ export const getDispatchManifest = (params = {}) =>
   api.get("/admin/logistics/dispatch-manifest", { params });
 export const downloadDispatchManifestCsv = (params = {}) =>
   api.get("/admin/logistics/dispatch-manifest/export", { params, responseType: "blob" });
+export const getReadyToShipCollections = (params = {}) =>
+  api.get("/admin/logistics/ready-to-ship", { params });
 export const getLogisticsShipments = (params = {}) =>
   api.get("/admin/logistics/shipments", { params });
 export const assignLogisticsShipmentCourier = (shipmentId, data) =>

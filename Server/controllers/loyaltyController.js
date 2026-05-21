@@ -1,9 +1,25 @@
 const Loyalty = require("../models/Loyalty");
 const loyaltyService = require("../services/loyaltyService");
+const {
+  COIN_FEATURE_DISABLED_MESSAGE,
+  areCoinRewardsEnabled,
+} = require("../utils/platformFeatures");
+
+const getFeatureDb = (req) => req.app?.locals?.db || Loyalty.db?.db;
+
+const sendCoinFeatureDisabled = (res) =>
+  res.status(403).json({
+    success: false,
+    message: COIN_FEATURE_DISABLED_MESSAGE,
+  });
 
 // Get user's loyalty account
 exports.getMyPoints = async (req, res) => {
   try {
+    if (!(await areCoinRewardsEnabled(getFeatureDb(req)))) {
+      return sendCoinFeatureDisabled(res);
+    }
+
     const userId = req.user?.uid;
     const email = req.user?.email || req.dbUser?.email || "customer@example.com";
 
@@ -58,6 +74,10 @@ exports.getMyPoints = async (req, res) => {
 // Get tier benefits page data
 exports.getTierBenefits = async (req, res) => {
   try {
+    if (!(await areCoinRewardsEnabled(getFeatureDb(req)))) {
+      return sendCoinFeatureDisabled(res);
+    }
+
     const rules = await loyaltyService.getRules();
     res.json({
       success: true,
@@ -82,6 +102,10 @@ exports.getTierBenefits = async (req, res) => {
 // Get active limited-time coin multiplier events
 exports.getMultiplierEvents = async (req, res) => {
   try {
+    if (!(await areCoinRewardsEnabled(getFeatureDb(req)))) {
+      return sendCoinFeatureDisabled(res);
+    }
+
     const events = await loyaltyService.getActiveMultiplierEvents();
     res.json({
       success: true,
@@ -99,6 +123,10 @@ exports.getMultiplierEvents = async (req, res) => {
 // Get points history
 exports.getPointsHistory = async (req, res) => {
   try {
+    if (!(await areCoinRewardsEnabled(getFeatureDb(req)))) {
+      return sendCoinFeatureDisabled(res);
+    }
+
     const userId = req.user?.uid;
 
     if (!userId) {
@@ -130,6 +158,10 @@ exports.getPointsHistory = async (req, res) => {
 // Redeem points
 exports.redeemPoints = async (req, res) => {
   try {
+    if (!(await areCoinRewardsEnabled(getFeatureDb(req), "coinRedemption"))) {
+      return sendCoinFeatureDisabled(res);
+    }
+
     const userId = req.user?.uid;
     const { points, orderId } = req.body;
 
@@ -162,6 +194,10 @@ exports.redeemPoints = async (req, res) => {
 // Apply referral code
 exports.applyReferralCode = async (req, res) => {
   try {
+    if (!(await areCoinRewardsEnabled(getFeatureDb(req)))) {
+      return sendCoinFeatureDisabled(res);
+    }
+
     const userId = req.user?.uid;
     const email = req.user?.email;
     const { referralCode } = req.body;
@@ -216,6 +252,10 @@ exports.applyReferralCode = async (req, res) => {
 // Get leaderboard
 exports.getLeaderboard = async (req, res) => {
   try {
+    if (!(await areCoinRewardsEnabled(getFeatureDb(req)))) {
+      return sendCoinFeatureDisabled(res);
+    }
+
     const limit = parseInt(req.query.limit) || 10;
     const leaderboard = await loyaltyService.getLeaderboard(limit);
 
@@ -253,6 +293,10 @@ exports.getStatistics = async (req, res) => {
 // Award birthday bonus (Admin only)
 exports.awardBirthdayBonus = async (req, res) => {
   try {
+    if (!(await areCoinRewardsEnabled(getFeatureDb(req)))) {
+      return sendCoinFeatureDisabled(res);
+    }
+
     const { userId } = req.body;
 
     if (!userId) {
