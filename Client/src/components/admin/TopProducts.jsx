@@ -155,7 +155,7 @@ export default function TopProducts() {
                       : index === 1
                         ? "bg-gray-400"
                         : index === 2
-                          ? "bg-orange-600"
+                          ? "bg-primary-600"
                           : "bg-gray-300"
                   }`}
                 >

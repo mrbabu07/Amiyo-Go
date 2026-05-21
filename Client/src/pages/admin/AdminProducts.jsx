@@ -48,7 +48,7 @@ const statusClass = {
   flagged: "bg-red-100 text-red-800 border-red-200",
   rejected: "bg-gray-100 text-gray-700 border-gray-200",
   delisted: "bg-black text-white border-black",
-  changes_requested: "bg-orange-100 text-orange-800 border-orange-200",
+  changes_requested: "bg-primary-100 text-primary-800 border-primary-200",
 };
 
 const guidanceOptions = [
@@ -381,7 +381,7 @@ export default function AdminProducts() {
               <Link to="/admin/categories" className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
                 Category Attributes
               </Link>
-              <Link to="/admin/products/add" className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">
+              <Link to="/admin/products/add" className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700">
                 Add Product
               </Link>
             </div>
@@ -414,7 +414,7 @@ export default function AdminProducts() {
                     key={tab.key}
                     onClick={() => setActiveStatus(tab.key)}
                     className={`rounded-lg px-4 py-2 text-sm font-semibold ${
-                      activeStatus === tab.key ? "bg-orange-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      activeStatus === tab.key ? "bg-primary-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
                     {tab.label}
@@ -426,7 +426,7 @@ export default function AdminProducts() {
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Search SKU, title, vendor, category, status"
-                  className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
                 />
                 <button className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black">
                   Search
@@ -435,8 +435,8 @@ export default function AdminProducts() {
             </div>
 
             {selectedIds.length > 0 && (
-              <div className="mt-4 flex flex-col gap-3 rounded-lg border border-orange-200 bg-orange-50 p-3 lg:flex-row lg:items-center lg:justify-between">
-                <p className="text-sm font-semibold text-orange-900">{selectedIds.length} selected</p>
+              <div className="mt-4 flex flex-col gap-3 rounded-lg border border-primary-200 bg-primary-50 p-3 lg:flex-row lg:items-center lg:justify-between">
+                <p className="text-sm font-semibold text-primary-900">{selectedIds.length} selected</p>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => handleBulk("approve")} className="rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700">
                     Bulk Approve
@@ -447,7 +447,7 @@ export default function AdminProducts() {
                   <button onClick={() => handleBulk("delist")} className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-black">
                     Bulk Delist
                   </button>
-                  <button onClick={() => setSelectedIds([])} className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-sm font-semibold text-orange-800 hover:bg-orange-100">
+                  <button onClick={() => setSelectedIds([])} className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm font-semibold text-primary-800 hover:bg-primary-100">
                     Clear
                   </button>
                 </div>
@@ -465,7 +465,7 @@ export default function AdminProducts() {
                         type="checkbox"
                         checked={products.length > 0 && selectedIds.length === products.length}
                         onChange={(event) => setSelectedIds(event.target.checked ? products.map((product) => product._id) : [])}
-                        className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                       />
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Product</th>
@@ -490,7 +490,7 @@ export default function AdminProducts() {
                             type="checkbox"
                             checked={selectedIds.includes(product._id)}
                             onChange={() => toggleProduct(product._id)}
-                            className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                           />
                         </td>
                         <td className="px-4 py-4">
@@ -543,7 +543,7 @@ export default function AdminProducts() {
                             <button onClick={() => openEdit(product)} className="rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100">
                               Quick Edit
                             </button>
-                            <button onClick={() => setSelectedQueueProduct(product)} className="rounded-lg bg-orange-50 px-3 py-1.5 text-sm font-semibold text-orange-700 hover:bg-orange-100">
+                            <button onClick={() => setSelectedQueueProduct(product)} className="rounded-lg bg-primary-50 px-3 py-1.5 text-sm font-semibold text-primary-700 hover:bg-primary-100">
                               Details
                             </button>
                             <Link to={`/admin/products/edit/${product._id}`} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
@@ -590,15 +590,15 @@ export default function AdminProducts() {
                 value={brandForm.name}
                 onChange={(event) => setBrandForm((prev) => ({ ...prev, name: event.target.value }))}
                 placeholder="Brand name"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
               />
               <input
                 value={brandForm.ownerVendorId}
                 onChange={(event) => setBrandForm((prev) => ({ ...prev, ownerVendorId: event.target.value }))}
                 placeholder="Owner vendor ID"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
               />
-              <button className="w-full rounded-lg bg-orange-600 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-700">
+              <button className="w-full rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700">
                 Add Brand
               </button>
             </form>
@@ -628,19 +628,19 @@ export default function AdminProducts() {
                 value={ipForm.productId}
                 onChange={(event) => setIpForm((prev) => ({ ...prev, productId: event.target.value }))}
                 placeholder="Product ID"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
               />
               <input
                 value={ipForm.brandName}
                 onChange={(event) => setIpForm((prev) => ({ ...prev, brandName: event.target.value }))}
                 placeholder="Brand"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
               />
               <input
                 value={ipForm.reason}
                 onChange={(event) => setIpForm((prev) => ({ ...prev, reason: event.target.value }))}
                 placeholder="Reason"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
               />
               <button className="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-black">
                 Add Report
@@ -768,7 +768,7 @@ export default function AdminProducts() {
                 type="checkbox"
                 checked={editForm.approveAfterEdit}
                 onChange={(event) => setEditForm((prev) => ({ ...prev, approveAfterEdit: event.target.checked }))}
-                className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               />
               Approve after saving
             </label>

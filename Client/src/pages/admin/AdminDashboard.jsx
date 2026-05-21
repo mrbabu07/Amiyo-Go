@@ -313,20 +313,20 @@ const exceptionFilters = [
 ];
 
 const activityStyles = {
-  order: "bg-[#FFF3EC] text-[#C64B11]",
+  order: "bg-[#eef8fb] text-[#1a6387]",
   vendor: "bg-[#E9FFF3] text-[#008A3D]",
   product: "bg-amber-50 text-amber-700",
   payment: "bg-rose-50 text-rose-700",
 };
 
 const adminSurface =
-  "rounded-lg border border-[#E0E0E0] bg-white shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none";
+  "rounded-lg border border-[#DDE3EA] bg-white shadow-sm shadow-[#1A1A2E]/5 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none";
 
 const adminInteractiveSurface =
-  "rounded-lg border border-[#E0E0E0] bg-white shadow-sm shadow-slate-200/50 transition hover:border-[#F57224]/50 hover:shadow-md hover:shadow-orange-100/60 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:border-[#F57224]/60";
+  "rounded-lg border border-[#DDE3EA] bg-white shadow-sm shadow-[#1A1A2E]/5 transition hover:border-[#1e7098]/50 hover:bg-[#f4fbfd] hover:shadow-md hover:shadow-primary-100/60 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:border-[#1e7098]/60 dark:hover:bg-[#1e7098]/10";
 
 const adminInput =
-  "rounded-lg border border-[#E0E0E0] bg-white text-sm text-slate-900 outline-none transition focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white";
+  "rounded-lg border border-[#DDE3EA] bg-white text-sm text-slate-900 outline-none transition focus:border-[#1e7098] focus:ring-2 focus:ring-[#1e7098]/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white";
 
 const compactNumber = (value) => {
   const number = Number(value || 0);
@@ -428,7 +428,7 @@ const exceptionToneClasses = {
   },
   sky: {
     card: "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900",
-    icon: "bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-200",
+    icon: "bg-primary-50 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200",
     pill: "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
   },
 };
@@ -472,8 +472,8 @@ function KpiCard({ label, value, detail, icon, tone = "sky", loading }) {
   const IconComponent = icon;
   const tones = {
     sky: {
-      icon: "bg-[#FFF3EC] text-[#C64B11] ring-[#F57224]/15 dark:bg-orange-950/40 dark:text-orange-200 dark:ring-orange-900/50",
-      accent: "bg-[#F57224]",
+      icon: "bg-[#eef8fb] text-[#1a6387] ring-[#1e7098]/15 dark:bg-primary-900/40 dark:text-primary-200 dark:ring-primary-900/50",
+      accent: "bg-[#1e7098]",
     },
     emerald: {
       icon: "bg-[#E9FFF3] text-[#008A3D] ring-[#00B14F]/15 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900/50",
@@ -563,9 +563,9 @@ const workflowToneStyles = {
     label: "Ready",
   },
   watch: {
-    panel: "border-[#F57224]/25 bg-[#FFF3EC] text-[#C64B11]",
-    icon: "bg-[#FFF3EC] text-[#C64B11]",
-    bar: "bg-[#F57224]",
+    panel: "border-[#1e7098]/25 bg-[#eef8fb] text-[#1a6387]",
+    icon: "bg-[#eef8fb] text-[#1a6387]",
+    bar: "bg-[#1e7098]",
     label: "Needs work",
   },
   risk: {
@@ -798,8 +798,8 @@ const buildAdminControlSections = ({ pendingActions, exceptionInbox, opsSummary,
 function WorkflowActionButton({ step, onFilterChange, children, variant = "primary" }) {
   const baseClass =
     variant === "primary"
-      ? "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#F57224] px-4 text-sm font-bold text-white transition hover:bg-[#d95f18] focus:outline-none focus:ring-2 focus:ring-[#F57224]/25"
-      : "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[#E0E0E0] bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-[#F57224]/40 hover:bg-[#FFF3EC] hover:text-[#C64B11] focus:outline-none focus:ring-2 focus:ring-[#F57224]/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200";
+      ? "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#1e7098] px-4 text-sm font-bold text-white transition hover:bg-[#17516f] focus:outline-none focus:ring-2 focus:ring-[#1e7098]/25"
+      : "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[#E0E0E0] bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-[#1e7098]/40 hover:bg-[#eef8fb] hover:text-[#1a6387] focus:outline-none focus:ring-2 focus:ring-[#1e7098]/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200";
 
   if (step.filter) {
     return (
@@ -842,7 +842,7 @@ function AdminWorkflowCenter({ workflow, pendingActions, onFilterChange, loading
         <div className="border-b border-[#E0E0E0] bg-[#1A1A2E] p-5 text-white dark:border-slate-800 xl:border-b-0 xl:border-r">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-orange-200">Admin workflow</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-primary-200">Admin workflow</p>
               <h2 className="mt-2 text-2xl font-black">Today&apos;s control flow</h2>
             </div>
             <span className={`rounded-full border px-3 py-1 text-xs font-black ${tone.panel}`}>
@@ -860,7 +860,7 @@ function AdminWorkflowCenter({ workflow, pendingActions, onFilterChange, loading
                 {workflow.completed}/{workflow.total} ready
               </p>
             </div>
-            <div className="mt-4 h-2 rounded-full bg-white/15">
+            <div className="mt-4 h-2 rounded-full bg-white/20">
               <div className={`h-full rounded-full ${tone.bar}`} style={{ width: `${workflow.score}%` }} />
             </div>
             <p className="mt-3 text-sm font-medium text-slate-200">
@@ -898,7 +898,7 @@ function AdminWorkflowCenter({ workflow, pendingActions, onFilterChange, loading
         <div className="p-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-[#F57224]">Operating sequence</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-[#1e7098]">Operating sequence</p>
               <h2 className="mt-1 text-xl font-black text-[#1A1A2E] dark:text-white">Run queues in priority order</h2>
             </div>
             <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
@@ -914,7 +914,7 @@ function AdminWorkflowCenter({ workflow, pendingActions, onFilterChange, loading
               return (
                 <article
                   key={step.key}
-                  className={`rounded-lg border p-4 transition hover:border-[#F57224]/40 hover:shadow-sm ${step.done ? "border-[#E0E0E0] bg-white dark:border-slate-800 dark:bg-slate-900" : stepTone.panel}`}
+                  className={`rounded-lg border p-4 transition hover:border-[#1e7098]/40 hover:shadow-sm ${step.done ? "border-[#E0E0E0] bg-white dark:border-slate-800 dark:bg-slate-900" : stepTone.panel}`}
                 >
                   <div className="flex items-start gap-3">
                     <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${stepTone.icon}`}>
@@ -967,7 +967,7 @@ function AdminWorkflowCenter({ workflow, pendingActions, onFilterChange, loading
 
 const controlMetricClasses = {
   critical: "bg-rose-600 text-white",
-  attention: "bg-[#FFF3EC] text-[#C64B11] ring-1 ring-[#F57224]/20",
+  attention: "bg-[#eef8fb] text-[#1a6387] ring-1 ring-[#1e7098]/20",
   ready: "bg-[#E9FFF3] text-[#008A3D] ring-1 ring-[#00B14F]/20",
   neutral: "bg-[#EEEEEE] text-slate-600 ring-1 ring-[#E0E0E0]",
 };
@@ -1000,7 +1000,7 @@ function AdminControlHub({ sections }) {
       <div className="border-b border-[#E0E0E0] p-5 dark:border-slate-800">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-[#F57224]">Overall admin control system</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-[#1e7098]">Overall admin control system</p>
             <h2 className="mt-1 text-xl font-black text-[#1A1A2E] dark:text-white">All Control Hub</h2>
             <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
               Every admin workspace is visible here first, grouped by system, vendors, catalog, orders, marketing, finance, and customer trust.
@@ -1011,9 +1011,9 @@ function AdminControlHub({ sections }) {
               <p className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Controls</p>
               <p className="text-xl font-black text-[#1A1A2E] dark:text-white">{formatCount(totalControls)}</p>
             </div>
-            <div className="rounded-lg border border-[#F57224]/20 bg-[#FFF3EC] px-3 py-2 dark:border-[#F57224]/40 dark:bg-[#F57224]/10">
-              <p className="text-xs font-bold uppercase text-[#C64B11] dark:text-orange-200">Needs attention</p>
-              <p className="text-xl font-black text-[#C64B11] dark:text-orange-200">{formatCount(attentionControls)}</p>
+            <div className="rounded-lg border border-[#1e7098]/20 bg-[#eef8fb] px-3 py-2 dark:border-[#1e7098]/40 dark:bg-[#1e7098]/10">
+              <p className="text-xs font-bold uppercase text-[#1a6387] dark:text-primary-200">Needs attention</p>
+              <p className="text-xl font-black text-[#1a6387] dark:text-primary-200">{formatCount(attentionControls)}</p>
             </div>
           </div>
         </div>
@@ -1036,8 +1036,8 @@ function AdminControlHub({ sections }) {
               onClick={() => setViewMode("focus")}
               className={`min-h-9 rounded-md px-3 text-xs font-black transition ${
                 viewMode === "focus"
-                  ? "bg-[#F57224] text-white"
-                  : "text-slate-600 hover:bg-white hover:text-[#C64B11] dark:text-slate-300 dark:hover:bg-slate-900"
+                  ? "bg-[#1e7098] text-white"
+                  : "text-slate-600 hover:bg-white hover:text-[#1a6387] dark:text-slate-300 dark:hover:bg-slate-900"
               }`}
             >
               Needs action {attentionControls ? `(${formatCount(attentionControls)})` : ""}
@@ -1050,8 +1050,8 @@ function AdminControlHub({ sections }) {
               onClick={() => setActiveSection("all")}
               className={`inline-flex min-h-10 shrink-0 items-center rounded-full border px-4 text-sm font-bold transition ${
                 activeSection === "all"
-                  ? "border-[#F57224] bg-[#F57224] text-white"
-                  : "border-[#E0E0E0] bg-white text-slate-600 hover:bg-[#FFF3EC] hover:text-[#C64B11] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                  ? "border-[#1e7098] bg-[#1e7098] text-white"
+                  : "border-[#E0E0E0] bg-white text-slate-600 hover:bg-[#eef8fb] hover:text-[#1a6387] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
               }`}
             >
               All
@@ -1063,8 +1063,8 @@ function AdminControlHub({ sections }) {
                 onClick={() => setActiveSection(section.key)}
                 className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-bold transition ${
                   activeSection === section.key
-                    ? "border-[#F57224] bg-[#F57224] text-white"
-                    : "border-[#E0E0E0] bg-white text-slate-600 hover:bg-[#FFF3EC] hover:text-[#C64B11] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                    ? "border-[#1e7098] bg-[#1e7098] text-white"
+                    : "border-[#E0E0E0] bg-white text-slate-600 hover:bg-[#eef8fb] hover:text-[#1a6387] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
                 }`}
               >
                 {section.title}
@@ -1098,7 +1098,7 @@ function AdminControlHub({ sections }) {
             <div key={section.key} className="grid gap-4 p-4 xl:grid-cols-[220px_minmax(0,1fr)] xl:p-5">
               <div>
                 <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FFF3EC] text-[#F57224] dark:bg-[#F57224]/10">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eef8fb] text-[#1e7098] dark:bg-[#1e7098]/10">
                     <SectionIcon className="h-5 w-5" />
                   </span>
                   <div>
@@ -1116,16 +1116,16 @@ function AdminControlHub({ sections }) {
                   <Link
                     key={`${section.key}-${control.path}-${control.label}`}
                     to={control.path}
-                    className="group flex min-h-[86px] flex-col justify-between rounded-lg border border-[#E0E0E0] bg-white p-3 transition hover:border-[#F57224]/50 hover:bg-[#FFF3EC]/50 hover:shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:hover:border-[#F57224]/50 dark:hover:bg-[#F57224]/10"
+                    className="group flex min-h-[86px] flex-col justify-between rounded-lg border border-[#E0E0E0] bg-white p-3 transition hover:border-[#1e7098]/50 hover:bg-[#eef8fb]/50 hover:shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:hover:border-[#1e7098]/50 dark:hover:bg-[#1e7098]/10"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate font-black text-[#1A1A2E] transition group-hover:text-[#C64B11] dark:text-white dark:group-hover:text-orange-200">
+                        <p className="truncate font-black text-[#1A1A2E] transition group-hover:text-[#1a6387] dark:text-white dark:group-hover:text-primary-200">
                           {control.label}
                         </p>
                         <p className="mt-1 line-clamp-1 text-sm text-slate-500 dark:text-slate-400">{control.detail}</p>
                       </div>
-                      <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-[#F57224]" />
+                      <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-[#1e7098]" />
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-2">
                       <span className={`rounded-full px-2 py-1 text-[11px] font-black ${controlMetricClasses[control.metric?.tone] || controlMetricClasses.neutral}`}>
@@ -1157,7 +1157,7 @@ function AdminControlHub({ sections }) {
               <button
                 type="button"
                 onClick={() => setViewMode("all")}
-                className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg bg-[#F57224] px-4 text-sm font-bold text-white transition hover:bg-[#d95f18]"
+                className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg bg-[#1e7098] px-4 text-sm font-bold text-white transition hover:bg-[#17516f]"
               >
                 Show all controls
               </button>
@@ -1177,13 +1177,13 @@ function DashboardGroup({ title, description, children, defaultOpen = true, badg
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className={`${adminSurface} flex w-full items-center justify-between gap-4 p-4 text-left transition hover:border-[#F57224]/40 hover:bg-[#FFF3EC]/40 dark:hover:border-[#F57224]/50 dark:hover:bg-[#F57224]/10`}
+        className={`${adminSurface} flex w-full items-center justify-between gap-4 p-4 text-left transition hover:border-[#1e7098]/40 hover:bg-[#eef8fb]/40 dark:hover:border-[#1e7098]/50 dark:hover:bg-[#1e7098]/10`}
       >
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-black text-[#1A1A2E] dark:text-white">{title}</h2>
             {badge ? (
-              <span className="rounded-full bg-[#FFF3EC] px-2 py-0.5 text-[11px] font-black text-[#C64B11] ring-1 ring-[#F57224]/20">
+              <span className="rounded-full bg-[#eef8fb] px-2 py-0.5 text-[11px] font-black text-[#1a6387] ring-1 ring-[#1e7098]/20">
                 {badge}
               </span>
             ) : null}
@@ -1193,7 +1193,7 @@ function DashboardGroup({ title, description, children, defaultOpen = true, badg
           ) : null}
         </div>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E0E0E0] bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
-          <ArrowRight className={`h-4 w-4 transition ${open ? "rotate-90 text-[#F57224]" : ""}`} />
+          <ArrowRight className={`h-4 w-4 transition ${open ? "rotate-90 text-[#1e7098]" : ""}`} />
         </span>
       </button>
       {open ? <div className="space-y-5">{children}</div> : null}
@@ -1227,11 +1227,68 @@ function SortButton({ active, children, onClick }) {
       type="button"
       onClick={onClick}
       className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-        active ? "bg-[#F57224] text-white" : "bg-[#EEEEEE] text-slate-600 hover:bg-[#FFF3EC] hover:text-[#C64B11]"
+        active ? "bg-[#1e7098] text-white" : "bg-[#EEEEEE] text-slate-600 hover:bg-[#eef8fb] hover:text-[#1a6387]"
       }`}
     >
       {children}
     </button>
+  );
+}
+
+function PriorityControlCard({
+  eyebrow,
+  title,
+  description,
+  to,
+  icon: Icon,
+  actionLabel,
+  tone = "primary",
+  metric,
+}) {
+  const tones = {
+    primary: {
+      icon: "bg-[#eef8fb] text-[#1a6387] ring-[#1e7098]/20",
+      action: "bg-[#1e7098] text-white hover:bg-[#1a6387]",
+      metric: "bg-[#eef8fb] text-[#1a6387] ring-[#1e7098]/20",
+      eyebrow: "text-[#1e7098]",
+    },
+    green: {
+      icon: "bg-[#E9FFF3] text-[#008A3D] ring-[#00B14F]/20",
+      action: "bg-[#00B14F] text-white hover:bg-[#008A3D]",
+      metric: "bg-[#E9FFF3] text-[#008A3D] ring-[#00B14F]/20",
+      eyebrow: "text-[#008A3D]",
+    },
+    navy: {
+      icon: "bg-[#1A1A2E] text-white ring-[#1A1A2E]/20",
+      action: "bg-[#1A1A2E] text-white hover:bg-black",
+      metric: "bg-[#EEEEEE] text-[#1A1A2E] ring-[#DDE3EA]",
+      eyebrow: "text-[#1A1A2E] dark:text-slate-200",
+    },
+  };
+  const toneClasses = tones[tone] || tones.primary;
+
+  return (
+    <Link to={to} className={`${adminInteractiveSurface} group flex min-h-[170px] flex-col justify-between p-4`}>
+      <div>
+        <div className="flex items-start justify-between gap-3">
+          <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ring-1 ${toneClasses.icon}`}>
+            <Icon className="h-5 w-5" />
+          </span>
+          {metric ? (
+            <span className={`rounded-full px-2.5 py-1 text-xs font-black ring-1 ${toneClasses.metric}`}>
+              {metric}
+            </span>
+          ) : null}
+        </div>
+        <p className={`mt-4 text-xs font-black uppercase tracking-wide ${toneClasses.eyebrow}`}>{eyebrow}</p>
+        <h3 className="mt-1 text-base font-black text-[#1A1A2E] dark:text-white">{title}</h3>
+        <p className="mt-2 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">{description}</p>
+      </div>
+      <span className={`mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg px-3 text-sm font-black transition ${toneClasses.action}`}>
+        {actionLabel}
+        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+      </span>
+    </Link>
   );
 }
 
@@ -1269,7 +1326,7 @@ function ExceptionInbox({
       <div className="border-b border-slate-100 p-5 dark:border-slate-800">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-sm font-bold text-[#F57224] dark:text-orange-300">
+            <div className="flex items-center gap-2 text-sm font-bold text-[#1e7098] dark:text-primary-300">
               <ShieldAlert className="h-4 w-4" />
               Admin command center
             </div>
@@ -1310,10 +1367,10 @@ function ExceptionInbox({
                   key={item.value}
                   type="button"
                   onClick={() => onFilterChange(item.value)}
-                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-orange-500/25 ${
+                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-primary-500/25 ${
                     active
-                      ? "border-[#F57224] bg-[#F57224] text-white"
-                      : "border-slate-200 text-slate-600 hover:border-[#F57224]/40 hover:bg-[#FFF3EC] hover:text-[#C64B11] dark:border-slate-700 dark:text-slate-300 dark:hover:border-orange-800 dark:hover:bg-orange-950/30 dark:hover:text-orange-200"
+                      ? "border-[#1e7098] bg-[#1e7098] text-white"
+                      : "border-slate-200 text-slate-600 hover:border-[#1e7098]/40 hover:bg-[#eef8fb] hover:text-[#1a6387] dark:border-slate-700 dark:text-slate-300 dark:hover:border-primary-800 dark:hover:bg-primary-900/30 dark:hover:text-primary-200"
                   }`}
                 >
                   <span>{item.label}</span>
@@ -1330,7 +1387,7 @@ function ExceptionInbox({
               <button
                 type="button"
                 onClick={() => onToggleAll(visibleCaseKeys, !allVisibleSelected)}
-                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 {allVisibleSelected ? "Clear visible" : "Select visible"}
               </button>
@@ -1338,7 +1395,7 @@ function ExceptionInbox({
             {nextAction ? (
               <Link
                 to={nextAction.path}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#F57224] px-4 text-sm font-bold text-white transition hover:bg-[#d95f18] focus:outline-none focus:ring-2 focus:ring-[#F57224]/30"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#1e7098] px-4 text-sm font-bold text-white transition hover:bg-[#17516f] focus:outline-none focus:ring-2 focus:ring-[#1e7098]/30"
               >
                 Work next issue
                 <ArrowRight className="h-4 w-4" />
@@ -1346,7 +1403,7 @@ function ExceptionInbox({
             ) : null}
             <Link
               to="/admin/operations"
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Operations center
             </Link>
@@ -1370,7 +1427,7 @@ function ExceptionInbox({
       {selectedCount ? (
         <div
           data-testid="admin-bulk-case-actions"
-          className="border-b border-[#F57224]/15 bg-[#FFF3EC] p-4 dark:border-orange-950 dark:bg-orange-950/20"
+          className="border-b border-[#1e7098]/15 bg-[#eef8fb] p-4 dark:border-primary-900 dark:bg-primary-900/20"
         >
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
@@ -1387,12 +1444,12 @@ function ExceptionInbox({
                 value={bulkForm.assignedTo}
                 onChange={(event) => onBulkFormChange("assignedTo", event.target.value)}
                 placeholder="Assign to"
-                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               />
               <select
                 value={bulkForm.status}
                 onChange={(event) => onBulkFormChange("status", event.target.value)}
-                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
                 <option value="">Status</option>
                 {caseStatusOptions.map((option) => (
@@ -1402,7 +1459,7 @@ function ExceptionInbox({
               <select
                 value={bulkForm.priority}
                 onChange={(event) => onBulkFormChange("priority", event.target.value)}
-                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
                 <option value="">Priority</option>
                 {casePriorityOptions.map((option) => (
@@ -1413,14 +1470,14 @@ function ExceptionInbox({
                 type="datetime-local"
                 value={bulkForm.dueAt}
                 onChange={(event) => onBulkFormChange("dueAt", event.target.value)}
-                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               />
               <input
                 type="text"
                 value={bulkForm.note}
                 onChange={(event) => onBulkFormChange("note", event.target.value)}
                 placeholder="Bulk note"
-                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               />
               <button
                 type="button"
@@ -1451,14 +1508,14 @@ function ExceptionInbox({
             return (
               <article
                 key={issue.id}
-                className={`grid gap-3 rounded-lg border p-4 transition hover:border-orange-300 hover:shadow-sm dark:hover:border-orange-800 ${tone.card} xl:grid-cols-[auto_minmax(0,1fr)_260px_190px] xl:items-center`}
+                className={`grid gap-3 rounded-lg border p-4 transition hover:border-primary-300 hover:shadow-sm dark:hover:border-primary-800 ${tone.card} xl:grid-cols-[auto_minmax(0,1fr)_260px_190px] xl:items-center`}
               >
                 <label className="flex items-start pt-2 xl:pt-0" aria-label={`Select ${issue.title}`}>
                   <input
                     type="checkbox"
                     checked={selectedCaseKeys.includes(issue.caseKey)}
                     onChange={(event) => onToggleCase(issue.caseKey, event.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                    className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                   />
                 </label>
                 <div className="flex min-w-0 gap-3">
@@ -1512,7 +1569,7 @@ function ExceptionInbox({
                   <button
                     type="button"
                     onClick={() => onOpenCase(issue)}
-                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 sm:flex-none"
+                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 sm:flex-none"
                   >
                     <ClipboardList className="h-4 w-4" />
                     Case
@@ -1520,7 +1577,7 @@ function ExceptionInbox({
                   {primaryAction ? (
                     <Link
                       to={primaryAction.path}
-                      className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-orange-600 px-3 text-sm font-bold text-white transition hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30 sm:flex-none"
+                      className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-primary-600 px-3 text-sm font-bold text-white transition hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500/30 sm:flex-none"
                     >
                       {issue.actionLabel || primaryAction.label}
                       <ArrowRight className="h-4 w-4" />
@@ -1530,7 +1587,7 @@ function ExceptionInbox({
                     <Link
                       key={`${issue.id}-${action.label}`}
                       to={action.path}
-                      className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 sm:flex-none"
+                      className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 sm:flex-none"
                     >
                       {action.label}
                     </Link>
@@ -1581,7 +1638,7 @@ function AdminCaseDrawer({
         <div className="border-b border-slate-200 p-5 dark:border-slate-800">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-300">
+              <p className="text-xs font-bold uppercase tracking-wide text-primary-600 dark:text-primary-300">
                 Admin Case
               </p>
               <h2 className="mt-1 text-xl font-black text-slate-950 dark:text-white">{issue.title}</h2>
@@ -1592,7 +1649,7 @@ function AdminCaseDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:hover:bg-slate-900 dark:hover:text-white"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:hover:bg-slate-900 dark:hover:text-white"
               aria-label="Close admin case"
             >
               <X className="h-5 w-5" />
@@ -1664,7 +1721,7 @@ function AdminCaseDrawer({
                       value={form.assignedTo}
                       onChange={(event) => onChange("assignedTo", event.target.value)}
                       placeholder="Staff name or email"
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                     />
                   </label>
                   <label className="block">
@@ -1674,7 +1731,7 @@ function AdminCaseDrawer({
                     <select
                       value={form.status}
                       onChange={(event) => onChange("status", event.target.value)}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                     >
                       {caseStatusOptions.map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>
@@ -1688,7 +1745,7 @@ function AdminCaseDrawer({
                     <select
                       value={form.priority}
                       onChange={(event) => onChange("priority", event.target.value)}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                     >
                       {casePriorityOptions.map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>
@@ -1703,7 +1760,7 @@ function AdminCaseDrawer({
                       type="datetime-local"
                       value={form.dueAt}
                       onChange={(event) => onChange("dueAt", event.target.value)}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                     />
                   </label>
                 </div>
@@ -1716,7 +1773,7 @@ function AdminCaseDrawer({
                     onChange={(event) => onChange("note", event.target.value)}
                     rows={4}
                     placeholder="Decision, follow-up, or handoff context"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                   />
                 </label>
               </section>
@@ -1724,7 +1781,7 @@ function AdminCaseDrawer({
               <section className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
                   <h3 className="flex items-center gap-2 text-sm font-black text-slate-950 dark:text-white">
-                    <CalendarClock className="h-4 w-4 text-orange-600 dark:text-orange-300" />
+                    <CalendarClock className="h-4 w-4 text-primary-600 dark:text-primary-300" />
                     Recent Notes
                   </h3>
                   <div className="mt-3 space-y-3">
@@ -1745,7 +1802,7 @@ function AdminCaseDrawer({
 
                 <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
                   <h3 className="flex items-center gap-2 text-sm font-black text-slate-950 dark:text-white">
-                    <ClipboardList className="h-4 w-4 text-orange-600 dark:text-orange-300" />
+                    <ClipboardList className="h-4 w-4 text-primary-600 dark:text-primary-300" />
                     Case History
                   </h3>
                   <div className="mt-3 space-y-3">
@@ -1788,7 +1845,7 @@ function AdminCaseDrawer({
               type="button"
               onClick={onSave}
               disabled={saving || loading}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-bold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
               Save case
@@ -1818,7 +1875,7 @@ function AdminHardeningPanels({ hardening, formatPrice }) {
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Staff workload</p>
             <h2 className="mt-1 text-lg font-black text-slate-950 dark:text-white">Queue ownership</h2>
           </div>
-          <Users className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+          <Users className="h-5 w-5 text-primary-600 dark:text-primary-300" />
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2">
           <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
@@ -1860,7 +1917,7 @@ function AdminHardeningPanels({ hardening, formatPrice }) {
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Finance reconciliation</p>
             <h2 className="mt-1 text-lg font-black text-slate-950 dark:text-white">COD, refunds, holds</h2>
           </div>
-          <Banknote className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+          <Banknote className="h-5 w-5 text-primary-600 dark:text-primary-300" />
         </div>
         <div className={`mt-4 rounded-lg border px-3 py-2 text-sm font-bold capitalize ${financeTone}`}>
           {finance.status} / {formatCount(finance.unresolvedBuckets)} unresolved bucket{Number(finance.unresolvedBuckets) === 1 ? "" : "s"}
@@ -1892,7 +1949,7 @@ function AdminHardeningPanels({ hardening, formatPrice }) {
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Integration readiness</p>
             <h2 className="mt-1 text-lg font-black text-slate-950 dark:text-white">Adapters and retries</h2>
           </div>
-          <BellRing className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+          <BellRing className="h-5 w-5 text-primary-600 dark:text-primary-300" />
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2">
           <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/30">
@@ -2225,9 +2282,9 @@ export default function AdminDashboard() {
   const activeAlerts = dashboard.healthAlerts || [];
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5] px-3 py-4 text-slate-950 dark:bg-slate-950 dark:text-white sm:px-4 sm:py-6 lg:px-8">
+    <div className="min-h-screen bg-[#F7F8FA] px-3 py-4 text-slate-950 dark:bg-slate-950 dark:text-white sm:px-4 sm:py-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-5">
-        <section className="overflow-hidden rounded-lg border border-[#E0E0E0] border-t-4 border-t-[#F57224] bg-white p-5 shadow-sm shadow-slate-200/60 dark:border-slate-800 dark:border-t-[#F57224] dark:bg-slate-900 dark:shadow-none">
+        <section className="overflow-hidden rounded-lg border border-[#101325] border-t-4 border-t-[#1e7098] bg-[#1A1A2E] p-5 text-white shadow-sm shadow-[#1A1A2E]/20 dark:border-slate-800 dark:border-t-[#1e7098] dark:bg-slate-900 dark:shadow-none">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -2235,43 +2292,43 @@ export default function AdminDashboard() {
                   <span className="h-2 w-2 rounded-full bg-[#00B14F]" />
                   Live
                 </span>
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-semibold text-slate-300">
                   Updated {formatDateTime(dashboard.updatedAt)}
                 </span>
-                {refreshing && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#F57224]" />}
+                {refreshing && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#1e7098]" />}
               </div>
               <div className="mt-3 flex items-center gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#F57224] text-sm font-black text-white">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#1e7098] text-sm font-black text-white shadow-sm shadow-primary-900/20">
                   AG
                 </span>
                 <div>
-                  <h1 className="text-2xl font-black text-[#1A1A2E] dark:text-white lg:text-3xl">Amiyo-Go Control Center</h1>
-                  <p className="text-xs font-bold uppercase tracking-wide text-[#F57224]">
+                  <h1 className="text-2xl font-black text-white lg:text-3xl">Amiyo-Go Control Center</h1>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[#1e7098]">
                     Marketplace operations
                   </p>
                 </div>
               </div>
-              <p className="mt-3 max-w-3xl text-sm font-medium text-slate-600 dark:text-slate-300">
+              <p className="mt-3 max-w-3xl text-sm font-medium text-slate-200">
                 Platform health, revenue, order flow, vendor performance, and pending action queues in one view.
               </p>
               <div className="mt-4 grid max-w-2xl gap-2 sm:grid-cols-3">
-                <div className="rounded-lg border border-[#E0E0E0] bg-[#FFF3EC] px-3 py-2">
-                  <p className="text-xs font-semibold text-slate-600">Pending actions</p>
-                  <p className="text-xl font-black text-[#C64B11]">{formatCount(totalPendingActions)}</p>
+                <div className="rounded-lg border border-[#1e7098]/30 bg-[#1e7098]/15 px-3 py-2">
+                  <p className="text-xs font-semibold text-primary-100">Pending actions</p>
+                  <p className="text-xl font-black text-white">{formatCount(totalPendingActions)}</p>
                 </div>
-                <div className="rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] px-3 py-2 dark:bg-slate-950">
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">Open exceptions</p>
-                  <p className="text-xl font-black text-[#1A1A2E] dark:text-white">{formatCount(exceptionInbox.summary?.total)}</p>
+                <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2">
+                  <p className="text-xs font-semibold text-slate-300">Open exceptions</p>
+                  <p className="text-xl font-black text-white">{formatCount(exceptionInbox.summary?.total)}</p>
                 </div>
-                <div className="rounded-lg border border-[#E0E0E0] bg-[#E9FFF3] px-3 py-2">
-                  <p className="text-xs font-semibold text-slate-600">Today GMV</p>
-                  <p className="text-xl font-black text-[#008A3D]">{formatPrice(kpis.todayGmv)}</p>
+                <div className="rounded-lg border border-[#00B14F]/30 bg-[#00B14F]/15 px-3 py-2">
+                  <p className="text-xs font-semibold text-emerald-100">Today GMV</p>
+                  <p className="text-xl font-black text-white">{formatPrice(kpis.todayGmv)}</p>
                 </div>
               </div>
             </div>
 
             <div className="flex flex-col gap-3 lg:min-w-[440px]">
-              <div className="flex flex-wrap gap-2 rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] p-2 dark:border-slate-800 dark:bg-slate-950">
+              <div className="flex flex-wrap gap-2 rounded-lg border border-white/10 bg-white/10 p-2">
                 {rangeOptions.map((option) => (
                   <button
                     key={option.value}
@@ -2279,8 +2336,8 @@ export default function AdminDashboard() {
                     onClick={() => setRange(option.value)}
                     className={`rounded-lg px-3 py-2 text-sm font-semibold ${
                       range === option.value
-                        ? "bg-[#F57224] text-white shadow-sm"
-                        : "bg-white text-slate-700 ring-1 ring-[#E0E0E0] hover:bg-[#FFF3EC] hover:text-[#C64B11] dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-800"
+                        ? "bg-[#1e7098] text-white shadow-sm"
+                        : "bg-white text-[#1A1A2E] ring-1 ring-white/20 hover:bg-[#eef8fb] hover:text-[#1a6387] dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-800"
                     }`}
                   >
                     {option.label}
@@ -2289,7 +2346,7 @@ export default function AdminDashboard() {
                 <button
                   type="button"
                   onClick={() => loadDashboard({ silent: true })}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#E0E0E0] bg-white px-3 py-2 text-sm font-semibold text-[#1A1A2E] transition hover:bg-[#FFF3EC] hover:text-[#C64B11] dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white px-3 py-2 text-sm font-semibold text-[#1A1A2E] transition hover:bg-[#eef8fb] hover:text-[#1a6387] dark:border-slate-800 dark:bg-slate-900 dark:text-white"
                 >
                   <RefreshCcw className="h-4 w-4" />
                   Refresh
@@ -2311,20 +2368,20 @@ export default function AdminDashboard() {
                   />
                 </div>
               )}
-              <div className="rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] p-3 dark:border-slate-800 dark:bg-slate-950">
+              <div className="rounded-lg border border-white/10 bg-white/10 p-3">
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <input
                     type="text"
                     value={savedViewName}
                     onChange={(event) => setSavedViewName(event.target.value)}
                     placeholder="Save this admin view"
-                    className="min-h-10 flex-1 rounded-lg border border-[#E0E0E0] bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20"
+                    className="min-h-10 flex-1 rounded-lg border border-[#E0E0E0] bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#1e7098] focus:ring-2 focus:ring-[#1e7098]/20"
                   />
                   <button
                     type="button"
                     onClick={saveCurrentView}
                     disabled={!savedViewName.trim() || savedViewsLoading}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#F57224] px-3 text-sm font-bold text-white transition hover:bg-[#d95f18] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#1e7098] px-3 text-sm font-bold text-white transition hover:bg-[#17516f] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {savedViewsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}
                     Save view
@@ -2340,7 +2397,7 @@ export default function AdminDashboard() {
                         <button
                           type="button"
                           onClick={() => applySavedView(view)}
-                          className="min-h-9 px-3 hover:bg-orange-50 hover:text-orange-700"
+                          className="min-h-9 px-3 hover:bg-primary-50 hover:text-primary-700"
                         >
                           {view.name}
                         </button>
@@ -2367,62 +2424,57 @@ export default function AdminDashboard() {
           )}
         </section>
 
-        <AdminControlHub sections={controlSections} />
-
-        <section className={`${adminSurface} p-5`}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#FFF3EC] text-[#C64B11] ring-1 ring-[#F57224]/20 dark:bg-[#F57224]/10 dark:text-orange-200">
-                <Store className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-wide text-[#F57224]">Homepage control</p>
-                <h2 className="mt-1 text-xl font-black text-[#1A1A2E] dark:text-white">Shop by brand visibility</h2>
-                <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
-                  Choose approved shops that appear in the Featured brands area on the homepage.
-                </p>
-              </div>
-            </div>
-            <Link
-              to="/admin/vendors"
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#F57224] px-4 text-sm font-black text-white transition hover:bg-[#C64B11] sm:w-auto"
-            >
-              Manage Shop by brand
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </section>
-
-        <section className={`${adminSurface} p-5`}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-400/20">
-                <Banknote className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-200">Payment control</p>
-                <h2 className="mt-1 text-xl font-black text-[#1A1A2E] dark:text-white">COD delivery payment confirmation</h2>
-                <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
-                  Review cash-on-delivery orders separately and confirm payment when the COD cash is received.
-                </p>
-              </div>
-            </div>
-            <Link
-              to="/admin/cod-delivery"
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700 sm:w-auto"
-            >
-              Manage COD delivery
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </section>
-
         <AdminWorkflowCenter
           workflow={adminWorkflow}
           pendingActions={pendingActions}
           onFilterChange={setExceptionFilter}
           loading={loading}
         />
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <PriorityControlCard
+            eyebrow="Homepage control"
+            title="Shop by brand visibility"
+            description="Choose approved shops that appear in the Featured brands area on the homepage."
+            to="/admin/vendors"
+            icon={Store}
+            actionLabel="Manage brands"
+            tone="primary"
+            metric="Homepage"
+          />
+          <PriorityControlCard
+            eyebrow="Payment control"
+            title="COD delivery confirmation"
+            description="Mark COD orders delivered first, then confirm cash after admin receives payment."
+            to="/admin/cod-delivery"
+            icon={Banknote}
+            actionLabel="Manage COD"
+            tone="green"
+            metric={`${formatCount(adminHardening.financeReconciliation?.codOrders || 0)} COD`}
+          />
+          <PriorityControlCard
+            eyebrow="Order control"
+            title="Global order queue"
+            description="Open the live order workspace for shipment status, notes, returns, and customer service."
+            to="/admin/orders"
+            icon={ShoppingCart}
+            actionLabel="Open orders"
+            tone="navy"
+            metric={`${formatCount(kpis.todayOrders)} today`}
+          />
+          <PriorityControlCard
+            eyebrow="Finance control"
+            title="Payout and payment desk"
+            description="Handle vendor payouts, payout requests, manual payment verification, and finance exposure."
+            to="/admin/payouts"
+            icon={CreditCard}
+            actionLabel="Open finance"
+            tone="primary"
+            metric={`${formatCount(kpis.pendingPayouts)} pending`}
+          />
+        </section>
+
+        <AdminControlHub sections={controlSections} />
 
         <DashboardGroup
           title="Marketplace Snapshot"
@@ -2541,7 +2593,7 @@ export default function AdminDashboard() {
                   <ChangePill label="Refunds" value={comparison.refundsChange} />
                 </div>
               </div>
-              <div className="inline-flex w-max items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700 ring-1 ring-orange-100 dark:bg-orange-950/30 dark:text-orange-200 dark:ring-orange-900/50">
+              <div className="inline-flex w-max items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-bold text-primary-700 ring-1 ring-primary-100 dark:bg-primary-900/30 dark:text-primary-200 dark:ring-primary-900/50">
                 <TrendingUp className="h-3.5 w-3.5" />
                 {rangeOptions.find((item) => item.value === range)?.label || "Range"}
               </div>
@@ -2552,8 +2604,8 @@ export default function AdminDashboard() {
                 <AreaChart data={dashboard.revenueSeries || []} margin={{ top: 10, right: 18, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="gmvFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#F57224" stopOpacity={0.28} />
-                      <stop offset="95%" stopColor="#F57224" stopOpacity={0.02} />
+                      <stop offset="5%" stopColor="#1e7098" stopOpacity={0.28} />
+                      <stop offset="95%" stopColor="#1e7098" stopOpacity={0.02} />
                     </linearGradient>
                     <linearGradient id="commissionFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.32} />
@@ -2569,7 +2621,7 @@ export default function AdminDashboard() {
                   <YAxis tickFormatter={compactNumber} tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 12 }} width={48} />
                   <Tooltip content={<ChartTooltip formatPrice={formatPrice} />} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Area type="monotone" dataKey="gmv" name="Vendor GMV" stroke="#F57224" fill="url(#gmvFill)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="gmv" name="Vendor GMV" stroke="#1e7098" fill="url(#gmvFill)" strokeWidth={2} />
                   <Area type="monotone" dataKey="commission" name="Commission" stroke="#10b981" fill="url(#commissionFill)" strokeWidth={2} />
                   <Area type="monotone" dataKey="refunds" name="Refunds" stroke="#f43f5e" fill="url(#refundFill)" strokeWidth={2} />
                 </AreaChart>
@@ -2590,7 +2642,7 @@ export default function AdminDashboard() {
                 <Link
                   key={category.categoryId || category.categoryName}
                   to={`/admin/categories?search=${encodeURIComponent(category.categoryName || "")}`}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 transition hover:border-orange-300 hover:bg-orange-50 dark:border-slate-800 dark:hover:border-orange-800 dark:hover:bg-orange-950/20"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 transition hover:border-primary-300 hover:bg-primary-50 dark:border-slate-800 dark:hover:border-primary-800 dark:hover:bg-primary-900/20"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
@@ -2628,7 +2680,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
                     <div
-                      className={`h-2 rounded-full ${item.key === "returned" ? "bg-rose-500" : "bg-orange-500"}`}
+                      className={`h-2 rounded-full ${item.key === "returned" ? "bg-rose-500" : "bg-primary-500"}`}
                       style={{ width: `${Math.max(6, (item.count / funnelMax) * 100)}%` }}
                     />
                   </div>
@@ -2659,7 +2711,7 @@ export default function AdminDashboard() {
               {(dashboard.activityFeed || []).map((activity) => {
                 const Icon = getActivityIcon(activity.type);
                 return (
-                  <div key={activity.id} className="flex gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-orange-200 hover:bg-orange-50/40 dark:border-slate-800 dark:hover:border-orange-900 dark:hover:bg-orange-950/10">
+                  <div key={activity.id} className="flex gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-primary-200 hover:bg-primary-50/40 dark:border-slate-800 dark:hover:border-primary-900 dark:hover:bg-primary-900/10">
                     <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${activityStyles[activity.type] || activityStyles.order}`}>
                       <Icon className="h-4 w-4" />
                     </div>
@@ -2762,7 +2814,7 @@ export default function AdminDashboard() {
                     <tr key={vendor.vendorId}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-xs font-bold text-orange-700 dark:bg-orange-950/40 dark:text-orange-200">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-50 text-xs font-bold text-primary-700 dark:bg-primary-900/40 dark:text-primary-200">
                             {index + 1}
                           </span>
                           <span className="font-semibold text-slate-900 dark:text-white">{vendor.vendorName}</span>
@@ -2793,13 +2845,13 @@ export default function AdminDashboard() {
                   <XAxis dataKey="sku" tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 11 }} />
                   <YAxis tickFormatter={compactNumber} tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 11 }} width={40} />
                   <Tooltip content={<ChartTooltip formatPrice={formatPrice} />} />
-                  <Bar dataKey="revenue" name="Revenue" fill="#F57224" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="revenue" name="Revenue" fill="#1e7098" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
             <div className="mt-4 space-y-3">
               {(dashboard.topProductsToday || []).slice(0, 5).map((product, index) => (
-                <div key={product.productId} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 transition hover:border-orange-300 hover:bg-orange-50 dark:border-slate-800 dark:hover:border-orange-800 dark:hover:bg-orange-950/20">
+                <div key={product.productId} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 transition hover:border-primary-300 hover:bg-primary-50 dark:border-slate-800 dark:hover:border-primary-800 dark:hover:bg-primary-900/20">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
                       {index + 1}. {product.productName}
@@ -2830,42 +2882,42 @@ export default function AdminDashboard() {
             <Link to="/admin/orders" className={`${adminInteractiveSurface} group p-4`}>
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-slate-950 dark:text-white">Order Operations</h3>
-                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-orange-600" />
+                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-primary-600" />
               </div>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Review order queues, shipment states, and payment issues.</p>
             </Link>
             <Link to="/admin/vendor-requests" className={`${adminInteractiveSurface} group p-4`}>
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-slate-950 dark:text-white">Approval Center</h3>
-                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-orange-600" />
+                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-primary-600" />
               </div>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Clear vendor, KYC, product, and category approval queues.</p>
             </Link>
             <Link to="/admin/support" className={`${adminInteractiveSurface} group p-4`}>
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-slate-950 dark:text-white">Support Desk</h3>
-                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-orange-600" />
+                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-primary-600" />
               </div>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Resolve customer tickets, SLA risks, and linked order issues.</p>
             </Link>
             <Link to="/admin/payouts" className={`${adminInteractiveSurface} group p-4`}>
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-slate-950 dark:text-white">Finance Desk</h3>
-                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-orange-600" />
+                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-primary-600" />
               </div>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Handle pending payouts, payout requests, and refund impact.</p>
             </Link>
             <Link to="/admin/operations" className={`${adminInteractiveSurface} group p-4`}>
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-slate-950 dark:text-white">Ops Monitor</h3>
-                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-orange-600" />
+                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-primary-600" />
               </div>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Watch failed jobs, notification health, cron status, and queue load.</p>
             </Link>
             <Link to="/admin/analytics" className={`${adminInteractiveSurface} group p-4`}>
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-slate-950 dark:text-white">Analytics</h3>
-                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-orange-600" />
+                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:text-primary-600" />
               </div>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Open GMV, category, vendor, refund, and performance reports.</p>
             </Link>
@@ -2874,7 +2926,7 @@ export default function AdminDashboard() {
 
         {loading && (
           <div className="fixed inset-x-0 bottom-5 z-30 mx-auto flex w-max items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
-            <Loader2 className="h-4 w-4 animate-spin text-orange-600" />
+            <Loader2 className="h-4 w-4 animate-spin text-primary-600" />
             Loading admin dashboard
           </div>
         )}

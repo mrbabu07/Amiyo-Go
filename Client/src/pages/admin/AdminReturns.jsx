@@ -270,11 +270,11 @@ export default function AdminReturns() {
         </div>
 
         {searchQuery ? (
-          <div className="mb-6 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
-            <p className="text-sm font-semibold text-orange-800">
+          <div className="mb-6 flex items-center justify-between rounded-lg border border-primary-200 bg-primary-50 px-4 py-3">
+            <p className="text-sm font-semibold text-primary-800">
               Filtering returns by: {searchQuery}
             </p>
-            <Link to="/admin/returns" className="text-sm font-bold text-orange-700 hover:text-orange-900">
+            <Link to="/admin/returns" className="text-sm font-bold text-primary-700 hover:text-primary-900">
               Clear search
             </Link>
           </div>
@@ -463,7 +463,7 @@ export default function AdminReturns() {
                               )}
                               {returnItem.refundMethod === "nagad" && (
                                 <span className="flex items-center gap-1">
-                                  <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                                  <span className="w-2 h-2 bg-primary-500 rounded-full"></span>
                                   📱 Nagad
                                 </span>
                               )}
@@ -728,10 +728,10 @@ export default function AdminReturns() {
                 <div className={`mt-4 p-4 rounded-lg border-2 ${
                   selectedReturn.vendorResponse === 'approved' 
                     ? 'bg-green-50 border-green-300' 
-                    : 'bg-orange-50 border-orange-300'
+                    : 'bg-primary-50 border-primary-300'
                 }`}>
                   <h5 className={`font-bold mb-2 flex items-center gap-2 ${
-                    selectedReturn.vendorResponse === 'approved' ? 'text-green-900' : 'text-orange-900'
+                    selectedReturn.vendorResponse === 'approved' ? 'text-green-900' : 'text-primary-900'
                   }`}>
                     {selectedReturn.vendorResponse === 'approved' ? (
                       <>
@@ -751,32 +751,32 @@ export default function AdminReturns() {
                   </h5>
                   <div className="text-sm space-y-2">
                     <div>
-                      <span className={selectedReturn.vendorResponse === 'approved' ? 'text-green-700' : 'text-orange-700'}>
+                      <span className={selectedReturn.vendorResponse === 'approved' ? 'text-green-700' : 'text-primary-700'}>
                         Response Date:
                       </span>
-                      <p className={`font-medium ${selectedReturn.vendorResponse === 'approved' ? 'text-green-900' : 'text-orange-900'}`}>
+                      <p className={`font-medium ${selectedReturn.vendorResponse === 'approved' ? 'text-green-900' : 'text-primary-900'}`}>
                         {new Date(selectedReturn.vendorResponseDate).toLocaleString()}
                       </p>
                     </div>
                     {selectedReturn.disputeReason && (
                       <div>
-                        <span className="text-orange-700">Dispute Reason:</span>
-                        <p className="font-medium text-orange-900 mt-1">{selectedReturn.disputeReason}</p>
+                        <span className="text-primary-700">Dispute Reason:</span>
+                        <p className="font-medium text-primary-900 mt-1">{selectedReturn.disputeReason}</p>
                       </div>
                     )}
                     {selectedReturn.vendorResponseNotes && (
                       <div>
-                        <span className={selectedReturn.vendorResponse === 'approved' ? 'text-green-700' : 'text-orange-700'}>
+                        <span className={selectedReturn.vendorResponse === 'approved' ? 'text-green-700' : 'text-primary-700'}>
                           Vendor Notes:
                         </span>
-                        <p className={`font-medium mt-1 ${selectedReturn.vendorResponse === 'approved' ? 'text-green-900' : 'text-orange-900'}`}>
+                        <p className={`font-medium mt-1 ${selectedReturn.vendorResponse === 'approved' ? 'text-green-900' : 'text-primary-900'}`}>
                           {selectedReturn.vendorResponseNotes}
                         </p>
                       </div>
                     )}
                     {selectedReturn.vendorEvidenceImages && selectedReturn.vendorEvidenceImages.length > 0 && (
                       <div>
-                        <span className={selectedReturn.vendorResponse === 'approved' ? 'text-green-700' : 'text-orange-700'}>
+                        <span className={selectedReturn.vendorResponse === 'approved' ? 'text-green-700' : 'text-primary-700'}>
                           Vendor Evidence:
                         </span>
                         <div className="grid grid-cols-3 gap-2 mt-2">

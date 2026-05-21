@@ -205,7 +205,7 @@ const AdminUserManagement = () => {
 
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center">
-            <Users className="h-8 w-8 text-orange-600" />
+            <Users className="h-8 w-8 text-primary-600" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">
                 New This Month

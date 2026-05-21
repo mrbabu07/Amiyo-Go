@@ -599,7 +599,7 @@ const VendorActivityDashboard = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -621,7 +621,7 @@ const VendorActivityDashboard = () => {
             <select
               value={timeframe}
               onChange={(e) => setTimeframe(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
             >
               <option value="7d">Last 7 Days</option>
               <option value="30d">Last 30 Days</option>
@@ -629,7 +629,7 @@ const VendorActivityDashboard = () => {
             </select>
             <button
               onClick={fetchVendorMetrics}
-              className="p-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
+              className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
               title="Refresh"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -686,7 +686,7 @@ const VendorActivityDashboard = () => {
             <p className="text-3xl font-bold">{metrics.activeVendors}</p>
           </div>
 
-          <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white">
+          <div className="bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl p-6 text-white">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -719,7 +719,7 @@ const VendorActivityDashboard = () => {
                 </div>
                 <Link
                   to="/admin/products"
-                  className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
                 >
                   Full moderation →
                 </Link>
@@ -733,7 +733,7 @@ const VendorActivityDashboard = () => {
                   onClick={() => setProductFilter(filter.value)}
                   className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
                     productFilter === filter.value
-                      ? 'bg-orange-600 text-white shadow-sm'
+                      ? 'bg-primary-600 text-white shadow-sm'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
                   }`}
                 >
@@ -997,7 +997,7 @@ const VendorActivityDashboard = () => {
               </div>
               <Link
                 to="/admin/orders"
-                className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
               >
                 Manage Orders →
               </Link>
@@ -1031,7 +1031,7 @@ const VendorActivityDashboard = () => {
                           {order.vendorId === 'platform' ? (
                             <span className="font-medium text-gray-900 dark:text-white">{order.vendorName}</span>
                           ) : (
-                            <Link to={`/admin/vendors/${order.vendorId}`} className="font-medium text-gray-900 dark:text-white hover:text-orange-600">
+                            <Link to={`/admin/vendors/${order.vendorId}`} className="font-medium text-gray-900 dark:text-white hover:text-primary-600">
                               {order.vendorName}
                             </Link>
                           )}
@@ -1047,7 +1047,7 @@ const VendorActivityDashboard = () => {
                         <td className="py-3 px-4 text-right">
                           <Link
                             to={order.vendorId === 'platform' ? '/admin/orders' : `/admin/vendors/${order.vendorId}`}
-                            className="text-sm font-medium text-orange-600 hover:text-orange-700"
+                            className="text-sm font-medium text-primary-600 hover:text-primary-700"
                           >
                             Check →
                           </Link>
@@ -1068,7 +1068,7 @@ const VendorActivityDashboard = () => {
               </h2>
               <Link
                 to="/admin/vendors"
-                className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
               >
                 View All →
               </Link>
@@ -1079,13 +1079,13 @@ const VendorActivityDashboard = () => {
                   key={vendor._id}
                   className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                 >
-                  <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg text-white font-bold">
+                  <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg text-white font-bold">
                     #{index + 1}
                   </div>
                   <div className="flex-1">
                     <Link
                       to={`/admin/vendors/${vendor._id}`}
-                      className="font-semibold text-gray-900 dark:text-white hover:text-orange-600 dark:hover:text-orange-400"
+                      className="font-semibold text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400"
                     >
                       {vendor.shopName || 'Unnamed Shop'}
                     </Link>
@@ -1105,7 +1105,7 @@ const VendorActivityDashboard = () => {
                   </div>
                   <Link
                     to={`/admin/vendors/${vendor._id}`}
-                    className="p-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 transition"
+                    className="p-2 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-900/50 transition"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -1161,7 +1161,7 @@ const VendorActivityDashboard = () => {
                       <td className="py-3 px-4">
                         <Link
                           to={`/admin/vendors/${vendor._id}`}
-                          className="font-medium text-gray-900 dark:text-white hover:text-orange-600 dark:hover:text-orange-400"
+                          className="font-medium text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400"
                         >
                           {vendor.shopName || 'Unnamed Shop'}
                         </Link>
@@ -1204,7 +1204,7 @@ const VendorActivityDashboard = () => {
                       <td className="py-3 px-4 text-right">
                         <Link
                           to={`/admin/vendors/${vendor._id}`}
-                          className="text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 text-sm font-medium"
+                          className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 text-sm font-medium"
                         >
                           View →
                         </Link>
@@ -1395,7 +1395,7 @@ const VendorActivityDashboard = () => {
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               rows={4}
-              className="mt-4 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+              className="mt-4 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
               placeholder="Explain what needs to be fixed before approval"
             />
             <div className="mt-5 flex items-center justify-end gap-3">

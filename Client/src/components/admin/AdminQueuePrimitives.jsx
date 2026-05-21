@@ -53,7 +53,7 @@ export function AdminQueueDrawer({ open, title, subtitle, badges = [], onClose, 
         <div className="border-b border-slate-200 p-5 dark:border-slate-800">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-300">
+              <p className="text-xs font-bold uppercase tracking-wide text-primary-600 dark:text-primary-300">
                 Queue Detail
               </p>
               <h2 className="mt-1 truncate text-xl font-black text-slate-950 dark:text-white">{title}</h2>
@@ -62,7 +62,7 @@ export function AdminQueueDrawer({ open, title, subtitle, badges = [], onClose, 
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:hover:bg-slate-900 dark:hover:text-white"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:hover:bg-slate-900 dark:hover:text-white"
               aria-label="Close queue detail"
             >
               <X className="h-5 w-5" />

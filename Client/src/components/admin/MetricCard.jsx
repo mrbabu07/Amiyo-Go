@@ -83,11 +83,11 @@ export default function MetricCard({
       text: "text-purple-600 dark:text-purple-400",
       border: "border-purple-200 dark:border-purple-800",
     },
-    orange: {
-      bg: "bg-orange-500",
-      light: "bg-orange-50 dark:bg-orange-900/20",
-      text: "text-orange-600 dark:text-orange-400",
-      border: "border-orange-200 dark:border-orange-800",
+    primary: {
+      bg: "bg-primary-500",
+      light: "bg-primary-50 dark:bg-primary-900/20",
+      text: "text-primary-600 dark:text-primary-400",
+      border: "border-primary-200 dark:border-primary-800",
     },
     red: {
       bg: "bg-red-500",

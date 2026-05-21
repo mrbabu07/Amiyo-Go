@@ -29,7 +29,7 @@ const METHOD_LABELS = {
 const STATUS_TONE = {
   pending: "border-amber-200 bg-amber-50 text-amber-700",
   pending_verification: "border-amber-200 bg-amber-50 text-amber-700",
-  manual_review: "border-orange-200 bg-orange-50 text-orange-700",
+  manual_review: "border-primary-200 bg-primary-50 text-primary-700",
   paid: "border-emerald-200 bg-emerald-50 text-emerald-700",
   payment_rejected: "border-red-200 bg-red-50 text-red-700",
 };
@@ -196,7 +196,7 @@ export default function AdminPaymentVerifications() {
           <button
             type="button"
             onClick={loadQueue}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
           >
             <RefreshCw className="h-4 w-4" />
             Refresh
@@ -207,7 +207,7 @@ export default function AdminPaymentVerifications() {
           <Metric icon={Clock3} label="Visible Reviews" value={summary.total} />
           <Metric icon={WalletCards} label="Payment Value" value={formatPrice(summary.value)} />
           <Metric icon={AlertTriangle} label="Duplicate TXNs" value={summary.duplicates} tone="text-red-700" />
-          <Metric icon={ShieldCheck} label="Risk Flags" value={summary.risky} tone="text-orange-700" />
+          <Metric icon={ShieldCheck} label="Risk Flags" value={summary.risky} tone="text-primary-700" />
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -217,14 +217,14 @@ export default function AdminPaymentVerifications() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/25 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/25 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 placeholder="Search order, customer, phone, transaction"
               />
             </label>
             <select
               value={status}
               onChange={(event) => setStatus(event.target.value)}
-              className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/25 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/25 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
             >
               <option value="pending">Pending Review</option>
               <option value="approved">Approved</option>
@@ -234,7 +234,7 @@ export default function AdminPaymentVerifications() {
             <select
               value={method}
               onChange={(event) => setMethod(event.target.value)}
-              className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/25 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/25 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
             >
               <option value="all">All Methods</option>
               <option value="bkash">bKash</option>
@@ -301,7 +301,7 @@ export default function AdminPaymentVerifications() {
                             </span>
                           )}
                           {(item.riskFlags || []).map((flag) => (
-                            <span key={flag} className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-700">
+                            <span key={flag} className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary-700">
                               {flag.replaceAll("_", " ")}
                             </span>
                           ))}
@@ -402,7 +402,7 @@ export default function AdminPaymentVerifications() {
                   value={actionForm.note}
                   onChange={(event) => setActionForm((current) => ({ ...current, note: event.target.value }))}
                   rows={3}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/25 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/25 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                   placeholder="Optional note for audit trail"
                 />
               </label>

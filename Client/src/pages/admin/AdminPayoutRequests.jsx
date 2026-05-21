@@ -193,7 +193,7 @@ export default function AdminPayoutRequests() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
       </div>
     );
   }
@@ -214,7 +214,7 @@ export default function AdminPayoutRequests() {
             </Link>
             <div>
               <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                <svg className="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-8 h-8 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
                 Vendor Payout Requests
@@ -276,7 +276,7 @@ export default function AdminPayoutRequests() {
                 onClick={() => setStatusFilter(status)}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   statusFilter === status
-                    ? 'bg-orange-500 text-white'
+                    ? 'bg-primary-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -286,7 +286,7 @@ export default function AdminPayoutRequests() {
             {searchQuery ? (
               <Link
                 to="/admin/payout-requests"
-                className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 font-medium text-orange-700 transition hover:bg-orange-100"
+                className="rounded-lg border border-primary-200 bg-primary-50 px-4 py-2 font-medium text-primary-700 transition hover:bg-primary-100"
               >
                 Clear search: {searchQuery}
               </Link>
@@ -392,7 +392,7 @@ export default function AdminPayoutRequests() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <button
                           onClick={() => setSelectedQueueRequest(request)}
-                          className="mr-3 font-medium text-orange-600 hover:text-orange-800"
+                          className="mr-3 font-medium text-primary-600 hover:text-primary-800"
                         >
                           Details
                         </button>
@@ -457,7 +457,7 @@ export default function AdminPayoutRequests() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Amount:</span>
-                  <span className="font-bold text-orange-600">৳{selectedRequest.amount.toFixed(2)}</span>
+                  <span className="font-bold text-primary-600">৳{selectedRequest.amount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Method:</span>
@@ -567,7 +567,7 @@ export default function AdminPayoutRequests() {
                   onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
                   rows="3"
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                   placeholder="Explain why this request is being rejected..."
                 />
               </div>
@@ -582,7 +582,7 @@ export default function AdminPayoutRequests() {
                   type="text"
                   value={formData.transactionId}
                   onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                   placeholder="Enter transaction/reference ID"
                 />
               </div>
@@ -597,7 +597,7 @@ export default function AdminPayoutRequests() {
                   value={formData.note}
                   onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                   rows="3"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                   placeholder="Add any additional notes..."
                 />
               </div>

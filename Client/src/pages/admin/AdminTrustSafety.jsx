@@ -103,7 +103,7 @@ const emptyTerms = {
 
 const severityTone = {
   critical: "border-red-300 bg-red-50 text-red-800",
-  high: "border-orange-300 bg-orange-50 text-orange-800",
+  high: "border-primary-300 bg-primary-50 text-primary-800",
   medium: "border-amber-300 bg-amber-50 text-amber-800",
   low: "border-blue-200 bg-blue-50 text-blue-700",
 };
@@ -405,7 +405,7 @@ export default function AdminTrustSafety() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <Metric icon={Siren} label="Open fraud flags" value={kpis.openFraudFlags || 0} tone="text-red-700" />
           <Metric icon={Star} label="Review queue" value={kpis.reviewQueue || 0} />
-          <Metric icon={Gavel} label="Active disputes" value={kpis.activeDisputes || 0} tone="text-orange-700" />
+          <Metric icon={Gavel} label="Active disputes" value={kpis.activeDisputes || 0} tone="text-primary-700" />
           <Metric icon={FileWarning} label="Content violations" value={kpis.contentViolations || 0} tone="text-amber-700" />
           <Metric icon={AlertOctagon} label="Total live risk" value={totalRisk} tone="text-red-800" />
         </div>

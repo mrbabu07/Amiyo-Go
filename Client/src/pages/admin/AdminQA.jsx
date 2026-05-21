@@ -187,13 +187,13 @@ export default function AdminQA() {
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   Unanswered
                 </p>
-                <p className="text-3xl font-bold text-orange-600 dark:text-orange-400 mt-2">
+                <p className="text-3xl font-bold text-primary-600 dark:text-primary-400 mt-2">
                   {stats.unanswered}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+              <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center">
                 <svg
-                  className="w-6 h-6 text-orange-600 dark:text-orange-400"
+                  className="w-6 h-6 text-primary-600 dark:text-primary-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -259,7 +259,7 @@ export default function AdminQA() {
                 onClick={() => setFilter("unanswered")}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   filter === "unanswered"
-                    ? "bg-orange-600 text-white"
+                    ? "bg-primary-600 text-white"
                     : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
               >

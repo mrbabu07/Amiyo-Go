@@ -123,20 +123,20 @@ const statusDotTone = {
 };
 
 const metricAccent = {
-  orange: "bg-[#F57224]/10 text-[#F57224] ring-[#F57224]/15",
+  primary: "bg-[#1e7098]/10 text-[#1e7098] ring-[#1e7098]/15",
   amber: "bg-amber-50 text-amber-700 ring-amber-200",
   blue: "bg-blue-50 text-blue-700 ring-blue-200",
   red: "bg-red-50 text-red-700 ring-red-200",
 };
 
 const fieldClass =
-  "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20";
+  "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#1e7098] focus:ring-2 focus:ring-[#1e7098]/20";
 const softButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-gray-400 hover:bg-gray-50 disabled:opacity-60";
 const darkButtonClass =
   "inline-flex items-center justify-center gap-2 rounded-lg bg-[#1A1A2E] px-3 py-2 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60";
-const orangeButtonClass =
-  "inline-flex items-center justify-center gap-2 rounded-lg bg-[#F57224] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#d85f1b] disabled:opacity-60";
+const primaryButtonClass =
+  "inline-flex items-center justify-center gap-2 rounded-lg bg-[#1e7098] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#17516f] disabled:opacity-60";
 
 const formatStatus = (status = "") =>
   status
@@ -190,12 +190,12 @@ const getAddressText = (shippingInfo = {}) =>
     .filter(Boolean)
     .join(", ");
 
-function MetricTile({ icon: Icon, label, value, accent = "orange", helper }) {
+function MetricTile({ icon: Icon, label, value, accent = "primary", helper }) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-bold text-gray-600">{label}</p>
-        <span className={`flex h-9 w-9 items-center justify-center rounded-lg ring-1 ${metricAccent[accent] || metricAccent.orange}`}>
+        <span className={`flex h-9 w-9 items-center justify-center rounded-lg ring-1 ${metricAccent[accent] || metricAccent.primary}`}>
           <Icon className="h-4 w-4" />
         </span>
       </div>
@@ -430,7 +430,7 @@ export default function AdminOrders() {
       <div className="border-b border-gray-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="flex items-center gap-3">
-            <Link to="/admin" className="rounded-lg border border-[#F57224]/20 bg-[#F57224]/10 p-2 text-[#F57224] transition hover:bg-[#F57224]/15" title="Back to dashboard">
+            <Link to="/admin" className="rounded-lg border border-[#1e7098]/20 bg-[#1e7098]/10 p-2 text-[#1e7098] transition hover:bg-[#1e7098]/15" title="Back to dashboard">
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <div>
@@ -464,7 +464,7 @@ export default function AdminOrders() {
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricTile icon={PackageCheck} label="Filtered Orders" value={metrics.total} accent="orange" helper="Current view" />
+          <MetricTile icon={PackageCheck} label="Filtered Orders" value={metrics.total} accent="primary" helper="Current view" />
           <MetricTile icon={CalendarClock} label="Pending" value={metrics.pending} accent="amber" helper="Needs attention" />
           <MetricTile icon={Truck} label="In Fulfillment" value={metrics.processing} accent="blue" helper="Processing to ship" />
           <MetricTile icon={AlertTriangle} label="SLA Breaches" value={slaData.summary?.total || 0} accent="red" helper="Operations risk" />
@@ -473,7 +473,7 @@ export default function AdminOrders() {
         <form onSubmit={handleSearch} className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-sm font-black text-[#1A1A2E]">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F57224]/10 text-[#F57224]">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1e7098]/10 text-[#1e7098]">
                 <Filter className="h-4 w-4" />
               </span>
               Filters
@@ -483,7 +483,7 @@ export default function AdminOrders() {
           <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-7">
             <label className="text-sm">
               <span className="mb-1 block font-medium text-gray-600">Search</span>
-              <div className="flex rounded-lg border border-gray-300 bg-white transition focus-within:border-[#F57224] focus-within:ring-2 focus-within:ring-[#F57224]/20">
+              <div className="flex rounded-lg border border-gray-300 bg-white transition focus-within:border-[#1e7098] focus-within:ring-2 focus-within:ring-[#1e7098]/20">
                 <Search className="ml-3 mt-2.5 h-4 w-4 text-gray-400" />
                 <input
                   value={filters.search}
@@ -550,7 +550,7 @@ export default function AdminOrders() {
               />
             </label>
             <div className="flex items-end gap-2">
-              <button type="submit" className={`${orangeButtonClass} w-full`}>
+              <button type="submit" className={`${primaryButtonClass} w-full`}>
                 Apply
               </button>
               <button type="button" onClick={resetFilters} className={softButtonClass}>
@@ -561,12 +561,12 @@ export default function AdminOrders() {
         </form>
 
         {filters.search && (
-          <div className="mt-4 flex flex-col gap-3 rounded-lg border border-[#F57224]/20 bg-[#F57224]/5 px-4 py-3 text-sm text-[#1A1A2E] sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-4 flex flex-col gap-3 rounded-lg border border-[#1e7098]/20 bg-[#1e7098]/5 px-4 py-3 text-sm text-[#1A1A2E] sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-semibold">Searching order operations for {filters.search}</p>
-              <p className="text-[#F57224]">Short order codes like #{String(filters.search).replace(/^#+/, "")} open the matching order automatically when only one result is found.</p>
+              <p className="text-[#1e7098]">Short order codes like #{String(filters.search).replace(/^#+/, "")} open the matching order automatically when only one result is found.</p>
             </div>
-            <Link to="/admin/orders" className="inline-flex items-center justify-center rounded-lg border border-[#F57224]/25 bg-white px-3 py-2 font-semibold text-[#F57224] transition hover:bg-[#F57224]/10">
+            <Link to="/admin/orders" className="inline-flex items-center justify-center rounded-lg border border-[#1e7098]/25 bg-white px-3 py-2 font-semibold text-[#1e7098] transition hover:bg-[#1e7098]/10">
               Clear search
             </Link>
           </div>
@@ -595,7 +595,7 @@ export default function AdminOrders() {
                     isActive
                       ? "bg-white text-gray-950"
                       : count > 0
-                        ? "bg-[#F57224]/10 text-[#F57224] ring-1 ring-[#F57224]/20"
+                        ? "bg-[#1e7098]/10 text-[#1e7098] ring-1 ring-[#1e7098]/20"
                         : "bg-gray-100 text-gray-500"
                   }`}
                 >
@@ -619,7 +619,7 @@ export default function AdminOrders() {
                   </div>
                   <p className="text-xs text-gray-500">{loading ? "Loading..." : `${orders.length} visible from ${total} matching orders`}</p>
                 </div>
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F57224]/10 text-[#F57224]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1e7098]/10 text-[#1e7098]">
                   <FileText className="h-5 w-5" />
                 </span>
               </div>
@@ -643,7 +643,7 @@ export default function AdminOrders() {
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {orders.map((order) => (
-                        <tr key={order._id} className={selectedOrderId === order._id ? "bg-[#F57224]/5" : "transition hover:bg-gray-50"}>
+                        <tr key={order._id} className={selectedOrderId === order._id ? "bg-[#1e7098]/5" : "transition hover:bg-gray-50"}>
                           <td className="px-4 py-3">
                             <div className="font-semibold text-gray-900">#{shortId(order._id)}</div>
                             <div className="text-xs text-gray-500">{formatDate(order.createdAt)}</div>
@@ -680,7 +680,7 @@ export default function AdminOrders() {
                             <button
                               type="button"
                               onClick={() => loadDetail(order._id)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-[#F57224]/25 bg-white px-2.5 py-1.5 text-xs font-bold text-[#F57224] transition hover:bg-[#F57224]/10"
+                              className="inline-flex items-center gap-1 rounded-lg border border-[#1e7098]/25 bg-white px-2.5 py-1.5 text-xs font-bold text-[#1e7098] transition hover:bg-[#1e7098]/10"
                             >
                               <Eye className="h-3.5 w-3.5" />
                               Open
@@ -794,7 +794,7 @@ export default function AdminOrders() {
                                   </div>
                                   {vendor.vendorId && (
                                     <div className="mt-3 flex flex-wrap gap-2">
-                                      <Link to={`/admin/vendors/${vendor.vendorId}`} className="rounded-lg border border-[#F57224]/25 bg-white px-2.5 py-1.5 text-xs font-bold text-[#F57224] transition hover:bg-[#F57224]/10">
+                                      <Link to={`/admin/vendors/${vendor.vendorId}`} className="rounded-lg border border-[#1e7098]/25 bg-white px-2.5 py-1.5 text-xs font-bold text-[#1e7098] transition hover:bg-[#1e7098]/10">
                                         Vendor profile
                                       </Link>
                                       <Link to={`/admin/orders?vendorId=${vendor.vendorId}`} className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-700 transition hover:border-gray-400 hover:bg-gray-50">
@@ -843,7 +843,7 @@ export default function AdminOrders() {
                           ) : (
                             selectedOrder.timeline.map((event, index) => (
                               <div key={`${event.type}-${event.status}-${event.createdAt}-${index}`} className="flex gap-3">
-                                <div className="mt-1 h-2.5 w-2.5 rounded-full bg-[#F57224]" />
+                                <div className="mt-1 h-2.5 w-2.5 rounded-full bg-[#1e7098]" />
                                 <div className="flex-1 border-b border-gray-100 pb-3">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <p className="font-medium text-gray-900">{event.label || formatStatus(event.status)}</p>
@@ -1060,11 +1060,11 @@ export default function AdminOrders() {
                 <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-500">Collected</p><p className="font-black text-[#1A1A2E]">{formatCount(codData.summary?.collected || 0)}</p></div>
                 <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-500">Remitted</p><p className="font-black text-[#1A1A2E]">{formatCount(codData.summary?.remitted || 0)}</p></div>
                 <div className="rounded-lg bg-red-50 p-3"><p className="text-red-600">Discrepancies</p><p className="font-black text-red-700">{formatCount(codData.summary?.discrepancies || 0)}</p></div>
-                <div className="rounded-lg bg-[#F57224]/5 p-3"><p className="text-gray-500">COD Value</p><p className="font-black text-[#1A1A2E]">{formatPrice(codData.summary?.codValue || 0)}</p></div>
+                <div className="rounded-lg bg-[#1e7098]/5 p-3"><p className="text-gray-500">COD Value</p><p className="font-black text-[#1A1A2E]">{formatPrice(codData.summary?.codValue || 0)}</p></div>
               </div>
               <div className="border-t border-gray-100">
                 {(codData.orders || []).slice(0, 6).map((order) => (
-                  <button key={order.orderId} type="button" onClick={() => loadDetail(order.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-[#F57224]/5">
+                  <button key={order.orderId} type="button" onClick={() => loadDetail(order.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-[#1e7098]/5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium text-gray-900">#{shortId(order.orderId)}</p>
                       <span className={order.hasDiscrepancy ? "text-xs font-semibold text-red-700" : "text-xs font-semibold text-gray-500"}>{formatStatus(order.reconciliationStatus)}</span>
@@ -1106,7 +1106,7 @@ export default function AdminOrders() {
                   <h2 className="font-black text-[#1A1A2E]">Fraud Order Queue</h2>
                   <p className="text-xs text-gray-500">{fraudData.summary?.totalFlagged || 0} flagged orders</p>
                 </div>
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F57224]/10 text-[#F57224] ring-1 ring-[#F57224]/20">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1e7098]/10 text-[#1e7098] ring-1 ring-[#1e7098]/20">
                   <ShieldAlert className="h-5 w-5" />
                 </span>
               </div>
@@ -1114,10 +1114,10 @@ export default function AdminOrders() {
                 <div className="p-4"><EmptyPanel title="No fraud signals found." /></div>
               ) : (
                 (fraudData.orders || []).slice(0, 6).map((order) => (
-                  <button key={order.orderId} type="button" onClick={() => loadDetail(order.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-[#F57224]/5">
+                  <button key={order.orderId} type="button" onClick={() => loadDetail(order.orderId)} className="block w-full border-b border-gray-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-[#1e7098]/5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium text-gray-900">#{shortId(order.orderId)}</p>
-                      <span className="text-xs font-semibold text-orange-700">{order.signals?.length || 0} signals</span>
+                      <span className="text-xs font-semibold text-primary-700">{order.signals?.length || 0} signals</span>
                     </div>
                     <p className="text-xs text-gray-500">{order.signals?.[0]?.label || "Review required"}</p>
                   </button>

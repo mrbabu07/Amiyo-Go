@@ -148,9 +148,9 @@ const formatPayoutMethod = (request) => {
   return request?.payoutMethod || 'Not provided';
 };
 
-const RequestCard = ({ title, count, tone = 'orange', actionLabel, actionTo, children }) => {
+const RequestCard = ({ title, count, tone = 'primary', actionLabel, actionTo, children }) => {
   const tones = {
-    orange: 'from-orange-50 to-white border-orange-200 text-orange-700',
+    primary: 'from-primary-50 to-white border-primary-200 text-primary-700',
     blue: 'from-blue-50 to-white border-blue-200 text-blue-700',
     green: 'from-green-50 to-white border-green-200 text-green-700',
     purple: 'from-purple-50 to-white border-purple-200 text-purple-700',
@@ -186,7 +186,7 @@ const RequestTabButton = ({ active, label, count, onClick }) => (
     onClick={onClick}
     className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
       active
-        ? 'bg-orange-600 text-white shadow-sm'
+        ? 'bg-primary-600 text-white shadow-sm'
         : 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50'
     }`}
   >
@@ -208,7 +208,7 @@ const HomepageFeaturedToggle = ({ vendor, saving, onToggle }) => {
   return (
     <label className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm ${
       checked
-        ? 'border-orange-200 bg-orange-50 text-orange-900'
+        ? 'border-primary-200 bg-primary-50 text-primary-900'
         : 'border-gray-200 bg-gray-50 text-gray-700'
     } ${disabled ? 'opacity-70' : 'cursor-pointer'}`}>
       <span>
@@ -222,7 +222,7 @@ const HomepageFeaturedToggle = ({ vendor, saving, onToggle }) => {
         checked={checked}
         disabled={disabled}
         onChange={(event) => onToggle(vendor, event.target.checked)}
-        className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
       />
     </label>
   );
@@ -625,7 +625,7 @@ const AdminVendorsEnhanced = () => {
       key: 'vendors',
       label: 'Pending Vendor Approvals',
       count: requests.pendingVendors.length,
-      tone: 'orange',
+      tone: 'primary',
       helper: 'New sellers waiting for onboarding approval',
       to: '/admin/vendors',
     },
@@ -672,7 +672,7 @@ const AdminVendorsEnhanced = () => {
   if (loading && !vendors.length) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-orange-600"></div>
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -749,7 +749,7 @@ const AdminVendorsEnhanced = () => {
                 {totalPendingRequests} total pending requests
               </div>
               {isRequestCenterRoute && (
-                <div className="rounded-full bg-orange-50 px-4 py-2 text-sm font-medium text-orange-700 ring-1 ring-orange-200">
+                <div className="rounded-full bg-primary-50 px-4 py-2 text-sm font-medium text-primary-700 ring-1 ring-primary-200">
                   {requestLoading ? 'Refreshing queues...' : 'Live approval workspace'}
                 </div>
               )}
@@ -768,7 +768,7 @@ const AdminVendorsEnhanced = () => {
                     <p className="text-sm font-medium text-gray-500">{item.label}</p>
                     <p className="mt-2 text-3xl font-bold text-gray-900">{item.count}</p>
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${item.tone === 'orange' ? 'bg-orange-100 text-orange-700' : item.tone === 'blue' ? 'bg-blue-100 text-blue-700' : item.tone === 'purple' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${item.tone === 'primary' ? 'bg-primary-100 text-primary-700' : item.tone === 'blue' ? 'bg-blue-100 text-blue-700' : item.tone === 'purple' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
                     Pending
                   </span>
                 </div>
@@ -826,7 +826,7 @@ const AdminVendorsEnhanced = () => {
               <RequestCard
                 title="Vendor Approval Queue"
                 count={requests.pendingVendors.length}
-                tone="orange"
+                tone="primary"
                 actionLabel="All Vendors"
                 actionTo="/admin/vendors"
               >
@@ -843,7 +843,7 @@ const AdminVendorsEnhanced = () => {
                     <div key={vendor._id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <Link to={`/admin/vendors/${vendor._id}`} className="font-semibold text-gray-900 hover:text-orange-700">
+                          <Link to={`/admin/vendors/${vendor._id}`} className="font-semibold text-gray-900 hover:text-primary-700">
                             {vendor.shopName || 'Unnamed Shop'}
                           </Link>
                           <p className="mt-1 text-sm text-gray-500">{vendor.email || 'No email'} • {vendor.phone || 'No phone'}</p>
@@ -1128,7 +1128,7 @@ const AdminVendorsEnhanced = () => {
                   placeholder="Search vendors by shop name, email, or phone..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 pl-11 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  className="w-full rounded-xl border border-gray-300 px-4 py-3 pl-11 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
                 />
                 <svg className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1142,7 +1142,7 @@ const AdminVendorsEnhanced = () => {
                   key={status}
                   onClick={() => setFilter(status)}
                   className={`rounded-lg px-4 py-2 text-sm font-medium capitalize transition ${
-                    filter === status ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    filter === status ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   {status}
@@ -1153,13 +1153,13 @@ const AdminVendorsEnhanced = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition ${viewMode === 'grid' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                className={`rounded-lg px-3 py-2 text-sm font-medium transition ${viewMode === 'grid' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
                 Grid
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition ${viewMode === 'list' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                className={`rounded-lg px-3 py-2 text-sm font-medium transition ${viewMode === 'list' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
                 List
               </button>
@@ -1167,21 +1167,21 @@ const AdminVendorsEnhanced = () => {
           </div>
 
           {selectedVendors.length > 0 && (
-            <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-4">
+            <div className="mt-4 rounded-xl border border-primary-200 bg-primary-50 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <p className="text-sm font-medium text-orange-900">
+                <p className="text-sm font-medium text-primary-900">
                   {selectedVendors.length} vendor(s) selected
                 </p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowBulkActions(true)}
-                    className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-700"
+                    className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-700"
                   >
                     Bulk Actions
                   </button>
                   <button
                     onClick={() => setSelectedVendors([])}
-                    className="rounded-lg border border-orange-200 bg-white px-4 py-2 text-sm font-medium text-orange-800 transition hover:bg-orange-100"
+                    className="rounded-lg border border-primary-200 bg-white px-4 py-2 text-sm font-medium text-primary-800 transition hover:bg-primary-100"
                   >
                     Clear Selection
                   </button>
@@ -1206,19 +1206,19 @@ const AdminVendorsEnhanced = () => {
               const readiness = getVendorRequirements(vendor);
               return (
                 <div key={vendor._id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md">
-                  <div className="relative h-28 bg-gradient-to-br from-orange-500 to-orange-600">
+                  <div className="relative h-28 bg-gradient-to-br from-primary-500 to-primary-600">
                     <div className="absolute right-4 top-4 flex items-center gap-2">
                       <input
                         type="checkbox"
                         checked={selectedVendors.includes(vendor._id)}
                         onChange={() => toggleVendorSelection(vendor._id)}
-                        className="h-5 w-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                        className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                       />
                       <span className={`rounded-full border px-3 py-1 text-xs font-medium ${getStatusColor(vendor.status)}`}>
                         {vendor.status}
                       </span>
                     </div>
-                    <div className="absolute -bottom-10 left-6 flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-white bg-white text-3xl font-bold text-orange-600 shadow-lg">
+                    <div className="absolute -bottom-10 left-6 flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-white bg-white text-3xl font-bold text-primary-600 shadow-lg">
                       {vendor.shopName?.charAt(0)?.toUpperCase() || 'V'}
                     </div>
                   </div>
@@ -1266,7 +1266,7 @@ const AdminVendorsEnhanced = () => {
                       </button>
                       <Link
                         to={`/admin/vendors/${vendor._id}`}
-                        className="flex-1 rounded-lg bg-orange-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-orange-700"
+                        className="flex-1 rounded-lg bg-primary-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-primary-700"
                       >
                         View Details
                       </Link>
@@ -1320,7 +1320,7 @@ const AdminVendorsEnhanced = () => {
                       onChange={(event) =>
                         setSelectedVendors(event.target.checked ? filteredVendors.map((vendor) => vendor._id) : [])
                       }
-                      className="h-5 w-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                      className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                     />
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Vendor</th>
@@ -1342,7 +1342,7 @@ const AdminVendorsEnhanced = () => {
                           type="checkbox"
                           checked={selectedVendors.includes(vendor._id)}
                           onChange={() => toggleVendorSelection(vendor._id)}
-                          className="h-5 w-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                          className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                         />
                       </td>
                       <td className="px-6 py-4">
@@ -1378,7 +1378,7 @@ const AdminVendorsEnhanced = () => {
                           </button>
                           <Link
                             to={`/admin/vendors/${vendor._id}`}
-                            className="rounded-lg bg-orange-50 px-3 py-1.5 text-sm font-medium text-orange-700 transition hover:bg-orange-100"
+                            className="rounded-lg bg-primary-50 px-3 py-1.5 text-sm font-medium text-primary-700 transition hover:bg-primary-100"
                           >
                             View
                           </Link>
@@ -1524,7 +1524,7 @@ const AdminVendorsEnhanced = () => {
                     }))
                   }
                   rows={4}
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
                   placeholder={modalConfig.requiresReason ? 'Enter the reason...' : 'Add an optional note...'}
                 />
               </div>
@@ -1534,7 +1534,7 @@ const AdminVendorsEnhanced = () => {
               <button
                 onClick={submitModalAction}
                 disabled={submittingAction}
-                className="flex-1 rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex-1 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submittingAction ? 'Saving...' : modalConfig.confirmLabel}
               </button>

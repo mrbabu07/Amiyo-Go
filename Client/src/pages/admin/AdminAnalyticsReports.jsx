@@ -233,7 +233,7 @@ export default function AdminAnalyticsReports() {
           <Metric icon={TrendingUp} label="GMV" value={formatPrice(summary.totalGmv || 0)} tone="text-blue-700" />
           <Metric icon={ShoppingCart} label="Orders" value={summary.totalOrders || 0} />
           <Metric icon={Users} label="New buyers" value={summary.newBuyers || 0} tone="text-emerald-700" />
-          <Metric icon={RotateCcw} label="Returns" value={summary.totalReturns || 0} tone="text-orange-700" />
+          <Metric icon={RotateCcw} label="Returns" value={summary.totalReturns || 0} tone="text-primary-700" />
           <Metric icon={CalendarDays} label="30-day forecast" value={formatPrice(summary.projected30DayGmv || 0)} tone="text-indigo-700" />
         </div>
 
@@ -391,7 +391,7 @@ export default function AdminAnalyticsReports() {
                     </div>
                     <p className="font-bold text-slate-950">{formatPrice(row.gmv)}</p>
                   </div>
-                  <div className="mt-3"><BarCell value={row.gmv} max={maxVendorGmv} tone="bg-orange-600" /></div>
+                  <div className="mt-3"><BarCell value={row.gmv} max={maxVendorGmv} tone="bg-primary-600" /></div>
                 </div>
               ))}
               {(report?.vendorLeague || []).length === 0 && <EmptyState />}

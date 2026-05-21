@@ -23,7 +23,7 @@ const statusClass = (status) => {
   const map = {
     sent: "bg-green-50 text-green-700 border-green-200",
     scheduled: "bg-blue-50 text-blue-700 border-blue-200",
-    sending: "bg-orange-50 text-orange-700 border-orange-200",
+    sending: "bg-primary-50 text-primary-700 border-primary-200",
     failed: "bg-red-50 text-red-700 border-red-200",
     partial_failed: "bg-amber-50 text-amber-700 border-amber-200",
   };
@@ -126,27 +126,27 @@ export default function AdminNewsletter() {
                 value={form.subject}
                 onChange={(event) => updateField("subject", event.target.value)}
                 placeholder="Subject"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
               />
               <input
                 value={form.previewText}
                 onChange={(event) => updateField("previewText", event.target.value)}
                 placeholder="Preview text"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
               />
               <textarea
                 value={form.html}
                 onChange={(event) => updateField("html", event.target.value)}
                 placeholder="<h2>Spring offers</h2><p>Your message...</p>"
                 rows={12}
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 font-mono text-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 font-mono text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
               />
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <input
                   type="datetime-local"
                   value={form.scheduledAt}
                   onChange={(event) => updateField("scheduledAt", event.target.value)}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-100"
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
                 />
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -169,7 +169,7 @@ export default function AdminNewsletter() {
                     type="button"
                     disabled={saving}
                     onClick={() => submitBroadcast(true)}
-                    className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+                    className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
                   >
                     Send Now
                   </button>
@@ -236,7 +236,7 @@ export default function AdminNewsletter() {
                         <button
                           type="button"
                           onClick={() => sendExisting(broadcast._id)}
-                          className="rounded-lg border border-orange-200 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-50"
+                          className="rounded-lg border border-primary-200 px-3 py-1.5 text-xs font-semibold text-primary-700 hover:bg-primary-50"
                         >
                           Send
                         </button>

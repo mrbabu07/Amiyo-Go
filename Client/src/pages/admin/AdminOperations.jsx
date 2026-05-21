@@ -92,8 +92,8 @@ const statusStyles = {
   sent: "border-[#00B14F]/25 bg-[#E9FFF3] text-[#007A38] dark:border-[#00B14F]/40 dark:bg-[#00B14F]/10 dark:text-[#7DFFB9]",
   idle: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300",
   low: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300",
-  watch: "border-[#F57224]/25 bg-[#FFF3EC] text-[#C64B11] dark:border-[#F57224]/40 dark:bg-[#F57224]/10 dark:text-orange-200",
-  medium: "border-[#F57224]/25 bg-[#FFF3EC] text-[#C64B11] dark:border-[#F57224]/40 dark:bg-[#F57224]/10 dark:text-orange-200",
+  watch: "border-[#1e7098]/25 bg-[#eef8fb] text-[#1a6387] dark:border-[#1e7098]/40 dark:bg-[#1e7098]/10 dark:text-primary-200",
+  medium: "border-[#1e7098]/25 bg-[#eef8fb] text-[#1a6387] dark:border-[#1e7098]/40 dark:bg-[#1e7098]/10 dark:text-primary-200",
   queued: "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200",
   critical: "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200",
   failed: "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200",
@@ -118,9 +118,9 @@ const getHealthPresentation = (health) => {
     return {
       title: "Marketplace is under watch",
       detail: "A few signals need follow-up before they become customer-facing issues.",
-      accent: "bg-[#F57224]",
-      scoreText: "text-[#C64B11] dark:text-orange-200",
-      panel: "border-[#F57224]/25 bg-[#FFF3EC] dark:border-[#F57224]/40 dark:bg-[#F57224]/10",
+      accent: "bg-[#1e7098]",
+      scoreText: "text-[#1a6387] dark:text-primary-200",
+      panel: "border-[#1e7098]/25 bg-[#eef8fb] dark:border-[#1e7098]/40 dark:bg-[#1e7098]/10",
     };
   }
 
@@ -213,7 +213,7 @@ function JobCard({ job }) {
   const failures = Number(job.failures || 0);
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-orange-200 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-orange-900">
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-primary-200 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-primary-900">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-bold text-slate-950 dark:text-white">{job.label}</p>
@@ -302,7 +302,7 @@ function IssueRow({ issue }) {
       {issue.path ? (
         <Link
           to={issue.path}
-          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/25 dark:border-slate-700 dark:text-slate-200 dark:hover:border-orange-800 dark:hover:bg-orange-950/30 dark:hover:text-orange-200"
+          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 px-3 text-sm font-bold text-slate-700 transition hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500/25 dark:border-slate-700 dark:text-slate-200 dark:hover:border-primary-800 dark:hover:bg-primary-900/30 dark:hover:text-primary-200"
         >
           Open
         </Link>
@@ -427,10 +427,10 @@ export default function AdminOperations() {
   return (
     <div className="min-h-screen bg-[#F5F5F5] px-3 py-4 text-slate-950 dark:bg-slate-950 dark:text-white sm:px-4 sm:py-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className={`${adminSurface} flex flex-col gap-4 border-t-4 border-t-[#F57224] p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between`}>
+        <div className={`${adminSurface} flex flex-col gap-4 border-t-4 border-t-[#1e7098] p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between`}>
           <div>
-            <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-[#C64B11] dark:text-orange-200">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#FFF3EC] text-[#F57224] dark:bg-[#F57224]/10">
+            <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-[#1a6387] dark:text-primary-200">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef8fb] text-[#1e7098] dark:bg-[#1e7098]/10">
                 <Activity className="h-4 w-4" />
               </span>
               Amiyo-Go operations
@@ -450,9 +450,9 @@ export default function AdminOperations() {
                   key={option.value}
                   type="button"
                   onClick={() => setWindowHours(option.value)}
-                  className={`min-h-10 rounded-md px-4 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-[#F57224]/25 ${
+                  className={`min-h-10 rounded-md px-4 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-[#1e7098]/25 ${
                     windowHours === option.value
-                      ? "bg-[#F57224] text-white shadow-sm shadow-orange-200/70"
+                      ? "bg-[#1e7098] text-white shadow-sm shadow-primary-200/70"
                       : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                   }`}
                 >
@@ -463,7 +463,7 @@ export default function AdminOperations() {
             <button
               type="button"
               onClick={() => setRefreshNonce((value) => value + 1)}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#E0E0E0] bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:border-[#F57224]/50 hover:bg-[#FFF3EC] hover:text-[#C64B11] focus:outline-none focus:ring-2 focus:ring-[#F57224]/25 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-[#F57224]/50 dark:hover:bg-[#F57224]/10 dark:hover:text-orange-200"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#E0E0E0] bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:border-[#1e7098]/50 hover:bg-[#eef8fb] hover:text-[#1a6387] focus:outline-none focus:ring-2 focus:ring-[#1e7098]/25 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-[#1e7098]/50 dark:hover:bg-[#1e7098]/10 dark:hover:text-primary-200"
             >
               {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
               Refresh
@@ -520,13 +520,13 @@ export default function AdminOperations() {
               </div>
               <div className="p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Warnings</p>
-                <p className="mt-2 text-2xl font-black text-[#C64B11] dark:text-orange-200">{loading ? "..." : formatCount(health.warnings)}</p>
+                <p className="mt-2 text-2xl font-black text-[#1a6387] dark:text-primary-200">{loading ? "..." : formatCount(health.warnings)}</p>
                 <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">signals</p>
               </div>
               <div className="p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Window</p>
                 <p className="mt-2 flex items-center gap-1 text-2xl font-black text-[#1A1A2E] dark:text-white">
-                  <Clock3 className="h-4 w-4 text-[#F57224]" />
+                  <Clock3 className="h-4 w-4 text-[#1e7098]" />
                   {operations.windowHours || windowHours}h
                 </p>
                 <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">selected</p>
@@ -622,10 +622,10 @@ export default function AdminOperations() {
                         key={filter.value}
                         type="button"
                         onClick={() => setIssueFilter(filter.value)}
-                        className={`min-h-10 shrink-0 rounded-full border px-3 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-orange-500/25 ${
+                        className={`min-h-10 shrink-0 rounded-full border px-3 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-primary-500/25 ${
                           issueFilter === filter.value
-                            ? "border-orange-600 bg-orange-600 text-white"
-                            : "border-slate-200 text-slate-600 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-orange-800 dark:hover:bg-orange-950/30 dark:hover:text-orange-200"
+                            ? "border-primary-600 bg-primary-600 text-white"
+                            : "border-slate-200 text-slate-600 hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-primary-800 dark:hover:bg-primary-900/30 dark:hover:text-primary-200"
                         }`}
                       >
                         {filter.label}
@@ -664,7 +664,7 @@ export default function AdminOperations() {
                   <h2 className="text-xl font-bold text-slate-950 dark:text-white">Notification Health</h2>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Delivery and broadcast signals</p>
                 </div>
-                <Bell className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+                <Bell className="h-5 w-5 text-primary-600 dark:text-primary-300" />
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
@@ -709,7 +709,7 @@ export default function AdminOperations() {
                   <h2 className="text-xl font-bold text-slate-950 dark:text-white">Recent Audit Trail</h2>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Latest sensitive admin actions</p>
                 </div>
-                <FileText className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+                <FileText className="h-5 w-5 text-primary-600 dark:text-primary-300" />
               </div>
 
               {loading ? (

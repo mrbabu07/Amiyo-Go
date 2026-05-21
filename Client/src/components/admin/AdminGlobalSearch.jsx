@@ -170,7 +170,7 @@ export default function AdminGlobalSearch({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search orders, vendors, products, customers, returns, tickets..."
-          className="h-10 w-full rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm font-medium text-gray-900 outline-none transition focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-500/20 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:focus:border-orange-700"
+          className="h-10 w-full rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm font-medium text-gray-900 outline-none transition focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-500/20 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:focus:border-primary-700"
           aria-label="Search admin resources"
         />
 
@@ -194,7 +194,7 @@ export default function AdminGlobalSearch({
                       key={`${result.type}-${result.id}`}
                       type="button"
                       onClick={() => openResource(result)}
-                      className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-3 text-left transition hover:bg-orange-50 focus:bg-orange-50 focus:outline-none dark:hover:bg-orange-950/30 dark:focus:bg-orange-950/30"
+                      className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-3 text-left transition hover:bg-primary-50 focus:bg-primary-50 focus:outline-none dark:hover:bg-primary-900/30 dark:focus:bg-primary-900/30"
                     >
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-bold text-gray-900 dark:text-white">
@@ -270,9 +270,9 @@ export default function AdminGlobalSearch({
                   resetSearch();
                   closeSidebarOnMobile?.();
                 }}
-                className={`inline-flex min-h-10 items-center rounded-lg px-4 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-orange-500/30 ${
+                className={`inline-flex min-h-10 items-center rounded-lg px-4 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-primary-500/30 ${
                   action.variant === 'primary'
-                    ? 'bg-orange-600 text-white hover:bg-orange-700'
+                    ? 'bg-primary-600 text-white hover:bg-primary-700'
                     : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                 }`}
               >

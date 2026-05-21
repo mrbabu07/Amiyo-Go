@@ -437,11 +437,11 @@ const AdminCustomerInsights = () => {
                   )}
                 </p>
               </div>
-              <div className="bg-orange-50 p-4 rounded-lg">
-                <p className="text-sm font-medium text-orange-600">
+              <div className="bg-primary-50 p-4 rounded-lg">
+                <p className="text-sm font-medium text-primary-600">
                   Order Frequency
                 </p>
-                <p className="text-2xl font-bold text-orange-900">
+                <p className="text-2xl font-bold text-primary-900">
                   {selectedInsight.analytics?.orderFrequency?.toFixed(2) || 0}
                   /month
                 </p>

@@ -700,7 +700,7 @@ export default function AdminVendorDetail() {
             )}
             <button
               onClick={() => setActiveTab('Payouts')}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition"
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition"
             >
               <span className="text-xl">💰</span>
               Create Payout

@@ -85,7 +85,7 @@ const statusTone = {
 };
 
 const tierTone = {
-  bronze: "border-orange-200 bg-orange-50 text-orange-700",
+  bronze: "border-primary-200 bg-primary-50 text-primary-700",
   silver: "border-slate-200 bg-slate-50 text-slate-700",
   gold: "border-yellow-200 bg-yellow-50 text-yellow-700",
   platinum: "border-indigo-200 bg-indigo-50 text-indigo-700",
@@ -355,7 +355,7 @@ export default function AdminCustomers() {
           <Metric icon={Users} label="Customers" value={overview.total} />
           <Metric icon={UserRound} label="Active shown" value={overview.active} tone="text-emerald-700" />
           <Metric icon={Ban} label="Restricted shown" value={overview.restricted} tone="text-red-700" />
-          <Metric icon={Star} label="Loyalty points shown" value={overview.loyaltyPoints.toLocaleString()} tone="text-orange-700" />
+          <Metric icon={Star} label="Loyalty points shown" value={overview.loyaltyPoints.toLocaleString()} tone="text-primary-700" />
         </div>
 
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
@@ -369,7 +369,7 @@ export default function AdminCustomers() {
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
                   className={`inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
-                    active ? "bg-orange-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                    active ? "bg-primary-600 text-white" : "text-slate-600 hover:bg-slate-100"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -422,7 +422,7 @@ export default function AdminCustomers() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {customers.map((customer) => (
-                        <tr key={customer._id} className="cursor-pointer hover:bg-orange-50/60" onClick={() => selectCustomer(customer._id)}>
+                        <tr key={customer._id} className="cursor-pointer hover:bg-primary-50/60" onClick={() => selectCustomer(customer._id)}>
                           <td className="px-4 py-3">
                             <div className="font-semibold text-slate-950">{customer.name}</div>
                             <div className="text-xs text-slate-500">{customer.email || customer.phone || customer.firebaseUid}</div>
@@ -500,7 +500,7 @@ export default function AdminCustomers() {
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <Metric icon={WalletCards} label="Total spend" value={formatPrice(detail.metrics?.totalSpend || 0)} />
                   <Metric icon={History} label="Orders" value={detail.metrics?.orderCount || 0} />
-                  <Metric icon={AlertTriangle} label="Returns" value={detail.metrics?.returnCount || 0} tone="text-orange-700" />
+                  <Metric icon={AlertTriangle} label="Returns" value={detail.metrics?.returnCount || 0} tone="text-primary-700" />
                   <Metric icon={Ticket} label="Open tickets" value={detail.metrics?.openTickets || 0} tone="text-blue-700" />
                 </div>
                 <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
@@ -612,7 +612,7 @@ export default function AdminCustomers() {
                   <input className="input-control" type="number" min="1" value={loyaltyForm.points} onChange={(event) => setLoyaltyForm({ ...loyaltyForm, points: Number(event.target.value) })} />
                 </div>
                 <textarea className="input-control min-h-24" placeholder="Reason for ledger" value={loyaltyForm.reason} onChange={(event) => setLoyaltyForm({ ...loyaltyForm, reason: event.target.value })} />
-                <button type="submit" disabled={saving || !selectedCustomerId} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
+                <button type="submit" disabled={saving || !selectedCustomerId} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
                   <Save className="h-4 w-4" />
                   Save points
                 </button>
@@ -688,7 +688,7 @@ export default function AdminCustomers() {
                 <div className="grid gap-4 md:grid-cols-4">
                   <Metric icon={Gift} label="Referral links" value={referrals.summary?.referralLinks || 0} />
                   <Metric icon={UserRound} label="Conversions" value={referrals.summary?.conversions || 0} tone="text-emerald-700" />
-                  <Metric icon={Star} label="Credit awarded" value={Number(referrals.summary?.creditAwarded || 0).toLocaleString()} tone="text-orange-700" />
+                  <Metric icon={Star} label="Credit awarded" value={Number(referrals.summary?.creditAwarded || 0).toLocaleString()} tone="text-primary-700" />
                   <Metric icon={ShieldAlert} label="Fraud flags" value={referrals.summary?.fraudFlags || 0} tone="text-red-700" />
                 </div>
                 <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">

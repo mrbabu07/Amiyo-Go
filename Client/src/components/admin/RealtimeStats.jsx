@@ -100,8 +100,8 @@ export default function RealtimeStats() {
       label: "Conversion Rate",
       value: `${stats.conversionRate.toFixed(1)}%`,
       icon: "📈",
-      color: "text-orange-600",
-      bg: "bg-orange-50",
+      color: "text-primary-600",
+      bg: "bg-primary-50",
     },
     {
       label: "Avg Order Value",

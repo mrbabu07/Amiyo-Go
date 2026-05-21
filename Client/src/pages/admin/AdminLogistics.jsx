@@ -217,7 +217,7 @@ function StatusPill({ status }) {
     inactive: "border-slate-200 bg-slate-100 text-slate-600",
     disabled: "border-slate-200 bg-slate-100 text-slate-600",
     reattempt_scheduled: "border-blue-200 bg-blue-50 text-blue-700",
-    return_to_seller: "border-orange-200 bg-orange-50 text-orange-700",
+    return_to_seller: "border-primary-200 bg-primary-50 text-primary-700",
     failed_delivery: "border-red-200 bg-red-50 text-red-700",
     collected: "border-emerald-200 bg-emerald-50 text-emerald-700",
     remitted: "border-blue-200 bg-blue-50 text-blue-700",
@@ -688,7 +688,7 @@ export default function AdminLogistics() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Metric icon={PackageCheck} label="Ready to dispatch" value={overview?.dispatch?.readyOrders || 0} />
           <Metric icon={Truck} label="Active couriers" value={overview?.couriers?.active || 0} tone="text-emerald-700" />
-          <Metric icon={Banknote} label="COD outstanding" value={formatPrice(overview?.codFloat?.outstandingWithCouriers || 0)} tone="text-orange-700" />
+          <Metric icon={Banknote} label="COD outstanding" value={formatPrice(overview?.codFloat?.outstandingWithCouriers || 0)} tone="text-primary-700" />
           <Metric icon={AlertTriangle} label="Failed deliveries" value={overview?.failedDeliveries?.total || 0} tone="text-red-700" />
         </div>
 
@@ -703,7 +703,7 @@ export default function AdminLogistics() {
                   type="button"
                   onClick={() => changeTab(tab.key)}
                   className={`inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
-                    active ? "bg-orange-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                    active ? "bg-primary-600 text-white" : "text-slate-600 hover:bg-slate-100"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -756,7 +756,7 @@ export default function AdminLogistics() {
                 <input type="checkbox" checked={zoneForm.codAvailable} onChange={(event) => setZoneForm({ ...zoneForm, codAvailable: event.target.checked })} />
                 COD available
               </label>
-              <button type="submit" disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
+              <button type="submit" disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
                 <Save className="h-4 w-4" />
                 Save zone
               </button>
@@ -884,7 +884,7 @@ export default function AdminLogistics() {
                   Instant delivery
                 </label>
               </div>
-              <button type="submit" disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
+              <button type="submit" disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
                 <Save className="h-4 w-4" />
                 Save courier
               </button>
@@ -959,7 +959,7 @@ export default function AdminLogistics() {
                     <h3 className="font-bold text-slate-950">{group.courierName}</h3>
                     <p className="text-sm text-slate-500">{group.totalOrders} orders · {group.zones.join(", ")}</p>
                   </div>
-                  <p className="text-sm font-bold text-orange-700">COD {formatPrice(group.codToCollect || 0)}</p>
+                  <p className="text-sm font-bold text-primary-700">COD {formatPrice(group.codToCollect || 0)}</p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-slate-100 text-sm">
@@ -1024,9 +1024,9 @@ export default function AdminLogistics() {
               </div>
 
               {parcelAssignment.shipmentId && (
-                <form onSubmit={submitParcelAssignment} className="mt-4 grid gap-3 rounded-lg border border-orange-200 bg-orange-50 p-4 lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto]">
+                <form onSubmit={submitParcelAssignment} className="mt-4 grid gap-3 rounded-lg border border-primary-200 bg-primary-50 p-4 lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto]">
                   <div>
-                    <label className="text-xs font-bold uppercase text-orange-800">Selected parcel</label>
+                    <label className="text-xs font-bold uppercase text-primary-800">Selected parcel</label>
                     <p className="mt-1 font-semibold text-slate-950">#{shortId(parcelAssignment.shipmentId)}</p>
                     <p className="text-xs text-slate-600">Order #{shortId(selectedParcel?.orderId || "")}</p>
                   </div>
@@ -1039,7 +1039,7 @@ export default function AdminLogistics() {
                     ))}
                   </select>
                   {couriers.length === 0 && (
-                    <p className="text-xs font-medium text-orange-800 lg:col-span-5">
+                    <p className="text-xs font-medium text-primary-800 lg:col-span-5">
                       No saved courier partners yet. RedX, Steadfast, Local, and Manual fallback options are available here; save partners in the Couriers tab for zone/SLA routing.
                     </p>
                   )}
@@ -1048,7 +1048,7 @@ export default function AdminLogistics() {
                     <option value="live">Book with courier API</option>
                   </select>
                   <input className="input-control" placeholder="Tracking number if manual" value={parcelAssignment.trackingNumber} onChange={(event) => setParcelAssignment({ ...parcelAssignment, trackingNumber: event.target.value })} />
-                  <button type="submit" disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
+                  <button type="submit" disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
                     <PackageCheck className="h-4 w-4" />
                     Assign
                   </button>
@@ -1124,7 +1124,7 @@ export default function AdminLogistics() {
                 <input className="input-control" placeholder="Vehicle" value={staffForm.vehicleType} onChange={(event) => setStaffForm({ ...staffForm, vehicleType: event.target.value })} />
                 <input className="input-control" type="number" min="0" value={staffForm.capacityOrders} onChange={(event) => setStaffForm({ ...staffForm, capacityOrders: Number(event.target.value) })} />
               </div>
-              <button type="submit" disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
+              <button type="submit" disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
                 <Save className="h-4 w-4" />
                 Save staff
               </button>
@@ -1186,7 +1186,7 @@ export default function AdminLogistics() {
                 <input className="input-control" type="number" min="0" placeholder="Min kg" value={ruleForm.minWeightKg} onChange={(event) => setRuleForm({ ...ruleForm, minWeightKg: Number(event.target.value) })} />
                 <input className="input-control" type="number" min="0" placeholder="COD fee" value={ruleForm.codFee} onChange={(event) => setRuleForm({ ...ruleForm, codFee: Number(event.target.value) })} />
               </div>
-              <button type="submit" disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
+              <button type="submit" disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
                 <Save className="h-4 w-4" />
                 Save rule
               </button>
@@ -1229,7 +1229,7 @@ export default function AdminLogistics() {
               <Metric icon={Banknote} label="COD order value" value={formatPrice(codFloat.summary?.codOrderValue || 0)} />
               <Metric icon={Truck} label="Collected by couriers" value={formatPrice(codFloat.summary?.collectedByCouriers || 0)} />
               <Metric icon={CheckCircle2} label="Remitted platform" value={formatPrice(codFloat.summary?.remittedToPlatform || 0)} tone="text-emerald-700" />
-              <Metric icon={AlertTriangle} label="Outstanding" value={formatPrice(codFloat.summary?.outstandingWithCouriers || 0)} tone="text-orange-700" />
+              <Metric icon={AlertTriangle} label="Outstanding" value={formatPrice(codFloat.summary?.outstandingWithCouriers || 0)} tone="text-primary-700" />
             </div>
             <form onSubmit={submitCodRemittance} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -1239,7 +1239,7 @@ export default function AdminLogistics() {
                     Select collected orders below, then record the courier cash handover.
                   </p>
                 </div>
-                <div className="rounded-lg bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-700">
+                <div className="rounded-lg bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-700">
                   {selectedCodOrderIds.length} selected · {formatPrice(selectedCodAmount)}
                 </div>
               </div>
@@ -1251,7 +1251,7 @@ export default function AdminLogistics() {
                 <input className="input-control" type="number" min="0" placeholder={selectedCodAmount ? `Collected ${selectedCodAmount}` : "Collected"} value={codForm.collectedAmount} onChange={(event) => setCodForm({ ...codForm, collectedAmount: event.target.value })} />
                 <input className="input-control" type="number" min="0" placeholder={selectedCodAmount ? `Remitted ${selectedCodAmount}` : "Remitted"} value={codForm.remittedAmount} onChange={(event) => setCodForm({ ...codForm, remittedAmount: event.target.value })} />
                 <input className="input-control" placeholder="Reference" value={codForm.reference} onChange={(event) => setCodForm({ ...codForm, reference: event.target.value })} />
-                <button type="submit" disabled={saving || !codForm.courierName || (!codForm.remittedAmount && !selectedCodAmount)} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
+                <button type="submit" disabled={saving || !codForm.courierName || (!codForm.remittedAmount && !selectedCodAmount)} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
                   <Save className="h-4 w-4" />
                   Record
                 </button>
@@ -1286,13 +1286,13 @@ export default function AdminLogistics() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {outstandingCodOrders.map((row) => (
-                        <tr key={row.orderId} className={selectedCodOrderIds.includes(row.orderId) ? "bg-orange-50/60" : "hover:bg-slate-50"}>
+                        <tr key={row.orderId} className={selectedCodOrderIds.includes(row.orderId) ? "bg-primary-50/60" : "hover:bg-slate-50"}>
                           <td className="px-4 py-3">
                             <input
                               type="checkbox"
                               checked={selectedCodOrderIds.includes(row.orderId)}
                               onChange={() => toggleCodOrder(row)}
-                              className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                              className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                             />
                           </td>
                           <td className="px-4 py-3 font-semibold text-slate-900">#{shortId(row.orderId)}</td>
@@ -1317,7 +1317,7 @@ export default function AdminLogistics() {
                   <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
                     <div><p className="text-slate-500">Orders</p><p className="font-bold">{row.orders}</p></div>
                     <div><p className="text-slate-500">Collected</p><p className="font-bold">{formatPrice(row.collectedAmount || 0)}</p></div>
-                    <div><p className="text-slate-500">Outstanding</p><p className="font-bold text-orange-700">{formatPrice(row.outstandingAmount || 0)}</p></div>
+                    <div><p className="text-slate-500">Outstanding</p><p className="font-bold text-primary-700">{formatPrice(row.outstandingAmount || 0)}</p></div>
                   </div>
                 </div>
               ))}
@@ -1342,7 +1342,7 @@ export default function AdminLogistics() {
               <input className="input-control" placeholder="Reason" value={failureAction.reason} onChange={(event) => setFailureAction({ ...failureAction, reason: event.target.value })} />
               <input className="input-control" placeholder="Return reason" value={failureAction.returnReason} onChange={(event) => setFailureAction({ ...failureAction, returnReason: event.target.value })} />
               <div className="grid grid-cols-2 gap-3">
-                <button type="submit" disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60">
+                <button type="submit" disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
                   <RotateCcw className="h-4 w-4" />
                   Re-attempt
                 </button>

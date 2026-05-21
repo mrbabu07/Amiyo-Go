@@ -54,7 +54,7 @@ const moduleStyles = {
   finance: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-200",
   logistics: "bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-200",
   platform: "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-200",
-  products: "bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-200",
+  products: "bg-primary-50 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200",
   vendors: "bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-200",
 };
 
@@ -114,7 +114,7 @@ function AuditRow({ log, onSelect }) {
     <button
       type="button"
       onClick={() => onSelect(log)}
-      className="grid w-full grid-cols-[1.25fr_0.8fr_0.8fr_0.9fr_0.7fr] items-center gap-4 border-b border-slate-100 px-4 py-3 text-left transition hover:bg-orange-50/60 focus:bg-orange-50 focus:outline-none dark:border-slate-800 dark:hover:bg-orange-950/20 dark:focus:bg-orange-950/30"
+      className="grid w-full grid-cols-[1.25fr_0.8fr_0.8fr_0.9fr_0.7fr] items-center gap-4 border-b border-slate-100 px-4 py-3 text-left transition hover:bg-primary-50/60 focus:bg-primary-50 focus:outline-none dark:border-slate-800 dark:hover:bg-primary-900/20 dark:focus:bg-primary-900/30"
     >
       <div className="min-w-0">
         <p className="truncate text-sm font-bold text-slate-950 dark:text-white">{log.action}</p>
@@ -183,14 +183,14 @@ function DetailDrawer({ log, onClose }) {
       <aside className="flex h-full w-full flex-col bg-white shadow-2xl dark:bg-slate-950 sm:max-w-xl" aria-label="Audit log detail">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-slate-800">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-orange-600 dark:text-orange-300">Audit Evidence</p>
+            <p className="text-sm font-semibold text-primary-600 dark:text-primary-300">Audit Evidence</p>
             <h2 className="mt-1 truncate text-xl font-bold text-slate-950 dark:text-white">{log.action}</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{formatAuditTime(log.createdAt)}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:hover:bg-slate-900 dark:hover:text-white"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:hover:bg-slate-900 dark:hover:text-white"
             aria-label="Close audit detail"
           >
             <X className="h-5 w-5" />
@@ -315,7 +315,7 @@ export default function AdminAuditLogs() {
         <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white dark:bg-orange-600">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white dark:bg-primary-600">
                 <FileClock className="h-6 w-6" />
               </span>
               <div>
@@ -354,14 +354,14 @@ export default function AdminAuditLogs() {
                 value={filters.search}
                 onChange={(event) => updateFilter("search", event.target.value)}
                 placeholder="Search actor, target, action, IP..."
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm font-medium text-slate-900 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm font-medium text-slate-900 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
               />
             </label>
 
             <select
               value={filters.module}
               onChange={(event) => updateFilter("module", event.target.value)}
-              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
               aria-label="Filter audit module"
             >
               {auditModuleOptions.map((option) => (
@@ -372,7 +372,7 @@ export default function AdminAuditLogs() {
             <select
               value={filters.severity}
               onChange={(event) => updateFilter("severity", event.target.value)}
-              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
               aria-label="Filter audit severity"
             >
               {auditSeverityOptions.map((option) => (
@@ -383,7 +383,7 @@ export default function AdminAuditLogs() {
             <select
               value={filters.targetType}
               onChange={(event) => updateFilter("targetType", event.target.value)}
-              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
               aria-label="Filter audit target type"
             >
               {targetTypes.map((option) => (
@@ -396,7 +396,7 @@ export default function AdminAuditLogs() {
               value={filters.action}
               onChange={(event) => updateFilter("action", event.target.value)}
               placeholder="Action contains"
-              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
             />
           </div>
 
@@ -406,14 +406,14 @@ export default function AdminAuditLogs() {
                 type="date"
                 value={filters.from}
                 onChange={(event) => updateFilter("from", event.target.value)}
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
                 aria-label="Audit start date"
               />
               <input
                 type="date"
                 value={filters.to}
                 onChange={(event) => updateFilter("to", event.target.value)}
-                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
                 aria-label="Audit end date"
               />
             </div>
@@ -427,7 +427,7 @@ export default function AdminAuditLogs() {
               </button>
               <button
                 type="submit"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 text-sm font-bold text-white transition hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
               >
                 <Filter className="h-4 w-4" />
                 Apply Filters

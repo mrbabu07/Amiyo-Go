@@ -155,7 +155,7 @@ function Toggle({ checked, onChange, label }) {
         type="checkbox"
         checked={Boolean(checked)}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+        className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
       />
     </label>
   );
@@ -166,7 +166,7 @@ function Section({ title, icon: Icon, children, action }) {
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Icon className="h-5 w-5 text-orange-600" />
+          <Icon className="h-5 w-5 text-primary-600" />
           <h2 className="text-lg font-bold text-slate-950">{title}</h2>
         </div>
         {action}
@@ -321,7 +321,7 @@ export default function AdminPlatformControls() {
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-orange-600">Platform control</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-primary-600">Platform control</p>
             <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">Notifications, configuration, and staff access</h1>
             <p className="mt-1 text-sm text-slate-500">
               Broadcast messages, tune marketplace settings, and manage granular admin roles.
@@ -347,7 +347,7 @@ export default function AdminPlatformControls() {
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
                 className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  active ? "bg-orange-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                  active ? "bg-primary-600 text-white" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -423,7 +423,7 @@ export default function AdminPlatformControls() {
                       "Broadcast queued",
                     )
                   }
-                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
                 >
                   <Send className="h-4 w-4" />
                   Send broadcast
@@ -540,7 +540,7 @@ export default function AdminPlatformControls() {
                         });
                       })
                     }
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
                   >
                     <Save className="h-4 w-4" />
                     Save template
@@ -659,7 +659,7 @@ export default function AdminPlatformControls() {
 
             <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
               <Section title="Site-wide Feature Flags" icon={Flag}>
-                <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
+                <div className="mb-4 rounded-lg border border-primary-200 bg-primary-50 p-4">
                   <Toggle
                     label="Show Shops section in customer frontend"
                     checked={configPatch.featureFlags?.shopDirectory !== false}
@@ -670,7 +670,7 @@ export default function AdminPlatformControls() {
                       }))
                     }
                   />
-                  <p className="mt-2 text-sm font-medium text-orange-800">
+                  <p className="mt-2 text-sm font-medium text-primary-800">
                     Controls the public Shops navigation, shop listing page, shop detail page, and product-card shop links.
                   </p>
                 </div>
@@ -695,7 +695,7 @@ export default function AdminPlatformControls() {
                   type="button"
                   disabled={!isAdmin || saving === "flags"}
                   onClick={() => runAction("flags", () => updatePlatformConfig({ featureFlags: configPatch.featureFlags }))}
-                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
                 >
                   <Save className="h-4 w-4" />
                   Save flags
@@ -847,7 +847,7 @@ export default function AdminPlatformControls() {
                       "Category saved",
                     )
                   }
-                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
                 >
                   <Save className="h-4 w-4" />
                   Save category
@@ -949,7 +949,7 @@ export default function AdminPlatformControls() {
                         "Staff invite saved",
                       )
                     }
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
                   >
                     <UserPlus className="h-4 w-4" />
                     Invite staff
@@ -1029,7 +1029,7 @@ export default function AdminPlatformControls() {
                     Start setup
                   </button>
                   {twoFactor.setup && (
-                    <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
+                    <div className="rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900">
                       <p className="font-semibold">Authenticator secret</p>
                       <p className="mt-1 break-all font-mono text-xs">{twoFactor.setup.secret}</p>
                     </div>
@@ -1039,7 +1039,7 @@ export default function AdminPlatformControls() {
                     type="button"
                     disabled={!isAdmin || !twoFactor.staffId || !twoFactor.token || saving === "2fa-verify"}
                     onClick={() => runAction("2fa-verify", () => verifyPlatformStaffTwoFactor(twoFactor.staffId, { token: twoFactor.token }), "2FA verified")}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
                   >
                     <CheckCircle2 className="h-4 w-4" />
                     Verify 2FA

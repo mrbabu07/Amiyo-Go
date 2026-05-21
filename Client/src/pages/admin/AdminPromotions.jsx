@@ -821,7 +821,7 @@ export default function AdminPromotions() {
                 <form onSubmit={saveSlot} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm lg:col-span-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-orange-600">Homepage placement</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-primary-600">Homepage placement</p>
                       <h2 className="text-lg font-bold text-gray-950">{slotForm.slotId ? "Edit slot" : "Create slot"}</h2>
                       <p className="mt-1 text-sm text-gray-500">Control hero carousel slides and the admin-run ads beside the carousel.</p>
                     </div>
@@ -902,7 +902,7 @@ export default function AdminPromotions() {
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-semibold text-gray-950">Upload a homepage banner image</p>
                             <p className="mt-1 text-xs text-gray-500">Hero slides look best at 16:9 or wider. Right-side ads work well around 4:3.</p>
-                            <label className={`mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white ${slotImageUploading ? "bg-gray-500" : "bg-orange-600 hover:bg-orange-700"}`}>
+                            <label className={`mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white ${slotImageUploading ? "bg-gray-500" : "bg-primary-600 hover:bg-primary-700"}`}>
                               <UploadCloud className="h-4 w-4" />
                               {slotImageUploading ? "Uploading..." : "Choose image"}
                               <input type="file" accept="image/*" className="hidden" disabled={slotImageUploading} onChange={handleSlotImageUpload} />
@@ -991,14 +991,14 @@ export default function AdminPromotions() {
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="truncate font-bold text-gray-950">{slot.title}</p>
                             <Badge value={slot.status} />
-                            {slot.badge ? <span className="rounded-full bg-orange-50 px-2 py-1 text-xs font-bold text-orange-700">{slot.badge}</span> : null}
+                            {slot.badge ? <span className="rounded-full bg-primary-50 px-2 py-1 text-xs font-bold text-primary-700">{slot.badge}</span> : null}
                           </div>
                           <p className="mt-1 line-clamp-2 text-sm text-gray-600">{slot.subtitle || slot.description || "No subtitle set."}</p>
                           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-gray-500">
                             <span>{slot.slotType}</span>
                             <span>{formatDate(slot.startsAt)} - {formatDate(slot.endsAt)}</span>
                             {slot.linkUrl ? (
-                              <a href={slot.linkUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-orange-700 hover:text-orange-800">
+                              <a href={slot.linkUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary-700 hover:text-primary-800">
                                 Link <ExternalLink className="h-3 w-3" />
                               </a>
                             ) : <span>No link</span>}
@@ -1040,7 +1040,7 @@ export default function AdminPromotions() {
                           resetSlotForm();
                           setSlotForm({ ...slotDefaults, slotType: "ad_slot", trustBadges: [...TRUST_BADGE_DEFAULTS] });
                         }}
-                        className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-bold text-orange-700 hover:bg-orange-100"
+                        className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-bold text-primary-700 hover:bg-primary-100"
                       >
                         New side ad
                       </button>
@@ -1056,20 +1056,20 @@ export default function AdminPromotions() {
                           ) : (
                             <div className="flex h-full items-center justify-center text-gray-400"><Image className="h-8 w-8" /></div>
                           )}
-                          <span className="absolute left-2 top-2 rounded bg-orange-600 px-2 py-1 text-xs font-bold text-white">Ad #{slot.position || index + 1}</span>
+                          <span className="absolute left-2 top-2 rounded bg-primary-600 px-2 py-1 text-xs font-bold text-white">Ad #{slot.position || index + 1}</span>
                         </div>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="truncate font-bold text-gray-950">{slot.title}</p>
                             <Badge value={slot.status} />
-                            {slot.badge ? <span className="rounded-full bg-orange-50 px-2 py-1 text-xs font-bold text-orange-700">{slot.badge}</span> : null}
+                            {slot.badge ? <span className="rounded-full bg-primary-50 px-2 py-1 text-xs font-bold text-primary-700">{slot.badge}</span> : null}
                           </div>
                           <p className="mt-1 line-clamp-2 text-sm text-gray-600">{slot.subtitle || slot.description || "No subtitle set."}</p>
                           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-gray-500">
                             <span>Homepage carousel side ad</span>
                             <span>{formatDate(slot.startsAt)} - {formatDate(slot.endsAt)}</span>
                             {slot.linkUrl ? (
-                              <a href={slot.linkUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-orange-700 hover:text-orange-800">
+                              <a href={slot.linkUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary-700 hover:text-primary-800">
                                 Link <ExternalLink className="h-3 w-3" />
                               </a>
                             ) : <span>No link</span>}

@@ -17,6 +17,8 @@ import {
   Menu,
   Moon,
   Package,
+  PanelLeftClose,
+  PanelLeftOpen,
   ShoppingBag,
   Settings,
   Store,
@@ -222,10 +224,10 @@ const flattenNavigation = (items = []) =>
     return item.path ? [item] : [];
   });
 
-const AlertBadge = ({ count }) => {
+const AlertBadge = ({ count, className = '' }) => {
   if (!count) return null;
   return (
-    <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 text-[10px] font-bold leading-none text-white">
+    <span className={`ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 text-[10px] font-bold leading-none text-white ${className}`}>
       {count > 99 ? '99+' : count}
     </span>
   );
@@ -239,6 +241,7 @@ const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(() => (
     typeof window === 'undefined' ? false : window.innerWidth >= 1024
   ));
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [alertCounts, setAlertCounts] = useState({});
   const [expandedSections, setExpandedSections] = useState({});
 
@@ -293,6 +296,20 @@ const AdminLayout = () => {
     }));
   };
 
+  const handleSectionToggle = (sectionName) => {
+    const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
+    if (sidebarCollapsed && isDesktop) {
+      setSidebarCollapsed(false);
+      setExpandedSections((prev) => ({
+        ...prev,
+        [sectionName]: true,
+      }));
+      return;
+    }
+
+    toggleSection(sectionName);
+  };
+
   const isActive = (item) => matchesRoute(location.pathname, item);
 
   const closeSidebarOnMobile = () => {
@@ -311,22 +328,35 @@ const AdminLayout = () => {
   const visibleQuickLinks = quickLinks.filter((item) => canAccessPath(item.path, access) || item.path === '/');
   const searchTargets = flattenNavigation(visibleNavigation);
   const canAccessAdminPath = (path) => canAccessPath(path, access);
+  const sidebarWidthClass = sidebarCollapsed ? 'lg:w-20' : 'lg:w-72';
+  const mainOffsetClass = sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72';
+  const desktopCollapsedClass = sidebarCollapsed ? 'lg:hidden' : '';
+  const collapsedItemClass = sidebarCollapsed ? 'lg:justify-center lg:px-2' : '';
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5] dark:bg-gray-950">
-      <header className="fixed inset-x-0 top-0 z-30 h-16 border-b border-[#E0E0E0] bg-white/95 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
+    <div className="min-h-screen bg-[#F7F8FA] text-[#1A1A2E] dark:bg-gray-950 dark:text-white">
+      <header className="fixed inset-x-0 top-0 z-30 h-16 border-b border-[#1A1A2E]/10 bg-white/95 shadow-sm shadow-[#1A1A2E]/5 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
         <div className="flex h-full items-center justify-between px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen((open) => !open)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-700 transition hover:bg-[#FFF3EC] hover:text-[#C64B11] focus:outline-none focus:ring-2 focus:ring-[#F57224]/30 dark:text-gray-200 dark:hover:bg-gray-800 lg:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-[#1A1A2E] transition hover:bg-[#eef8fb] hover:text-[#1a6387] focus:outline-none focus:ring-2 focus:ring-[#1e7098]/30 dark:text-gray-200 dark:hover:bg-gray-800 lg:hidden"
               aria-label={sidebarOpen ? 'Close admin menu' : 'Open admin menu'}
             >
               {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+              className="hidden h-10 w-10 items-center justify-center rounded-lg text-[#1A1A2E] transition hover:bg-[#eef8fb] hover:text-[#1a6387] focus:outline-none focus:ring-2 focus:ring-[#1e7098]/30 dark:text-gray-200 dark:hover:bg-gray-800 lg:inline-flex"
+              aria-label={sidebarCollapsed ? 'Expand admin sidebar' : 'Collapse admin sidebar'}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+            </button>
             <Link to="/admin" className="flex min-w-0 items-center gap-3" onClick={closeSidebarOnMobile}>
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F57224] text-sm font-bold text-white shadow-sm">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1A1A2E] text-sm font-bold text-white shadow-sm ring-2 ring-[#1e7098]/20">
                 AG
               </span>
               <span className="truncate text-lg font-bold text-[#1A1A2E] dark:text-white sm:text-xl">
@@ -348,7 +378,7 @@ const AdminLayout = () => {
                 <Link
                   key={item.name}
                   to={item.path}
-                  className="hidden h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition hover:bg-[#FFF3EC] hover:text-[#C64B11] focus:outline-none focus:ring-2 focus:ring-[#F57224]/30 dark:text-gray-300 dark:hover:bg-orange-900/20 dark:hover:text-orange-300 sm:inline-flex"
+                  className="hidden h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition hover:bg-[#eef8fb] hover:text-[#1a6387] focus:outline-none focus:ring-2 focus:ring-[#1e7098]/30 dark:text-gray-300 dark:hover:bg-primary-900/20 dark:hover:text-primary-300 sm:inline-flex"
                   title={item.name}
                   aria-label={item.name}
                 >
@@ -359,14 +389,14 @@ const AdminLayout = () => {
             <button
               type="button"
               onClick={toggleTheme}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition hover:bg-[#FFF3EC] hover:text-[#C64B11] focus:outline-none focus:ring-2 focus:ring-[#F57224]/30 dark:text-gray-300 dark:hover:bg-orange-900/20 dark:hover:text-orange-300"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition hover:bg-[#eef8fb] hover:text-[#1a6387] focus:outline-none focus:ring-2 focus:ring-[#1e7098]/30 dark:text-gray-300 dark:hover:bg-primary-900/20 dark:hover:text-primary-300"
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
             <div className="hidden items-center gap-3 border-l border-gray-200 pl-4 dark:border-gray-800 sm:flex">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 text-sm font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef8fb] text-sm font-semibold text-[#1a6387] ring-1 ring-[#1e7098]/15 dark:bg-gray-800 dark:text-gray-200">
                 {(user?.displayName || user?.email || 'A').charAt(0).toUpperCase()}
               </span>
               <div className="max-w-40 text-right">
@@ -401,26 +431,26 @@ const AdminLayout = () => {
       )}
 
       <aside
-        className={`fixed bottom-0 left-0 top-16 z-20 flex w-72 flex-col border-r border-[#E0E0E0] bg-white transition-transform duration-300 dark:border-gray-800 dark:bg-gray-900 ${
+        className={`fixed bottom-0 left-0 top-16 z-20 flex w-72 flex-col overflow-x-hidden border-r border-[#0F1224] bg-[#1A1A2E] text-white shadow-xl shadow-[#1A1A2E]/20 transition-[transform,width] duration-300 dark:border-gray-950 dark:bg-[#111827] ${sidebarWidthClass} ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0`}
         aria-label="Admin navigation"
       >
-        <div className="border-b border-[#E0E0E0] px-4 py-4 dark:border-gray-800">
-          <div className="flex items-center justify-between rounded-lg border border-[#E0E0E0] bg-[#F5F5F5] px-3 py-2 dark:border-gray-800 dark:bg-gray-800/80">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-gray-950 dark:text-white">
+        <div className="border-b border-white/10 px-4 py-4">
+          <div className={`flex items-center justify-between rounded-lg border border-white/10 bg-white/10 px-3 py-2 ${collapsedItemClass}`}>
+            <div className={`min-w-0 ${desktopCollapsedClass}`}>
+              <p className="truncate text-sm font-semibold text-white">
                 Admin workspace
               </p>
-              <p className="truncate text-xs capitalize text-gray-500 dark:text-gray-400">
+              <p className="truncate text-xs capitalize text-slate-300">
                 {role || 'staff'} access
               </p>
             </div>
-            <Bell className="h-5 w-5 shrink-0 text-[#F57224] dark:text-orange-400" />
+            <Bell className="h-5 w-5 shrink-0 text-[#1e7098]" />
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <nav className={`flex-1 space-y-1 overflow-y-auto px-3 py-4 ${sidebarCollapsed ? 'lg:px-2' : ''}`}>
           {visibleNavigation.map((item) => {
             const Icon = item.icon;
             const sectionActive = item.children
@@ -435,24 +465,25 @@ const AdminLayout = () => {
                 <div key={item.name}>
                   <button
                     type="button"
-                    onClick={() => toggleSection(item.name)}
-                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#F57224]/25 ${
+                    onClick={() => handleSectionToggle(item.name)}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#1e7098]/25 ${collapsedItemClass} ${
                       sectionActive
-                        ? 'bg-[#FFF3EC] text-[#C64B11] dark:bg-orange-950/30 dark:text-orange-300'
-                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
+                        ? 'bg-[#1e7098] text-white shadow-sm shadow-primary-900/20'
+                        : 'text-slate-200 hover:bg-white/10 hover:text-white'
                     }`}
                     aria-expanded={expanded}
+                    title={item.name}
                   >
                     <Icon className="h-5 w-5 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate text-left">{item.name}</span>
-                    <AlertBadge count={sectionAlerts} />
+                    <span className={`min-w-0 flex-1 truncate text-left ${desktopCollapsedClass}`}>{item.name}</span>
+                    <AlertBadge count={sectionAlerts} className={desktopCollapsedClass} />
                     <ChevronDown
-                      className={`h-4 w-4 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                      className={`h-4 w-4 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''} ${desktopCollapsedClass}`}
                     />
                   </button>
 
                   {expanded && (
-                    <div className="mt-1 space-y-1 border-l border-gray-200 py-1 pl-4 dark:border-gray-800">
+                    <div className={`mt-1 space-y-1 border-l border-white/10 py-1 pl-4 ${desktopCollapsedClass}`}>
                       {item.children.map((child) => {
                         const childActive = isActive(child);
 
@@ -462,15 +493,15 @@ const AdminLayout = () => {
                             to={child.path}
                             onClick={closeSidebarOnMobile}
                             aria-current={childActive ? 'page' : undefined}
-                            className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-[#F57224]/25 ${
+                            className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-[#1e7098]/25 ${
                               childActive
-                                ? 'bg-[#FFF3EC] font-semibold text-[#C64B11] dark:bg-orange-950/30 dark:text-orange-300'
-                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
+                                ? 'bg-white/10 font-semibold text-primary-100'
+                                : 'text-slate-300 hover:bg-white/10 hover:text-white'
                             }`}
                           >
                             <span
                               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                childActive ? 'bg-[#F57224] dark:bg-orange-300' : 'bg-gray-300 dark:bg-gray-600'
+                                childActive ? 'bg-[#1e7098]' : 'bg-slate-500'
                               }`}
                             />
                             <span className="min-w-0 flex-1 truncate">{child.name}</span>
@@ -490,33 +521,35 @@ const AdminLayout = () => {
                 to={item.path}
                 onClick={closeSidebarOnMobile}
                 aria-current={sectionActive ? 'page' : undefined}
-                className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#F57224]/25 ${
+                className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#1e7098]/25 ${collapsedItemClass} ${
                   sectionActive
-                    ? 'bg-[#FFF3EC] text-[#C64B11] dark:bg-orange-950/30 dark:text-orange-300'
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-950 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
+                    ? 'bg-[#1e7098] text-white shadow-sm shadow-primary-900/20'
+                    : 'text-slate-200 hover:bg-white/10 hover:text-white'
                 }`}
+                title={item.name}
               >
                 <Icon className="h-5 w-5 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                <AlertBadge count={getAlertCount(item)} />
+                <span className={`min-w-0 flex-1 truncate ${desktopCollapsedClass}`}>{item.name}</span>
+                <AlertBadge count={getAlertCount(item)} className={desktopCollapsedClass} />
               </Link>
             );
           })}
         </nav>
 
-        <div className="border-t border-gray-100 p-3 dark:border-gray-800">
+        <div className="border-t border-white/10 p-3">
           <Link
             to="/"
             onClick={closeSidebarOnMobile}
-            className="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-[#FFF3EC] hover:text-[#C64B11] focus:outline-none focus:ring-2 focus:ring-[#F57224]/25 dark:text-gray-300 dark:hover:bg-orange-950/30 dark:hover:text-orange-300"
+            className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-[#1e7098]/25 ${collapsedItemClass}`}
+            title="View storefront"
           >
             <Home className="h-5 w-5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">View storefront</span>
+            <span className={`min-w-0 flex-1 truncate ${desktopCollapsedClass}`}>View storefront</span>
           </Link>
         </div>
       </aside>
 
-      <main className="min-h-screen pt-16 transition-all duration-300 lg:ml-72">
+      <main className={`min-h-screen pt-16 transition-all duration-300 ${mainOffsetClass}`}>
         <Outlet />
       </main>
     </div>

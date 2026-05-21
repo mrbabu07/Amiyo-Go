@@ -114,7 +114,7 @@ export default function AdminInventory() {
     if (stock <= 5)
       return {
         status: "low-stock",
-        color: "text-orange-600 bg-orange-50",
+        color: "text-primary-600 bg-primary-50",
         label: "Low Stock",
       };
     if (stock <= 20)
@@ -344,13 +344,13 @@ export default function AdminInventory() {
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                   Low Stock
                 </p>
-                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
                   {stockStats.lowStock}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+              <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center">
                 <svg
-                  className="w-6 h-6 text-orange-600 dark:text-orange-400"
+                  className="w-6 h-6 text-primary-600 dark:text-primary-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"

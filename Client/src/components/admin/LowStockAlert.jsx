@@ -104,7 +104,7 @@ export default function LowStockAlert({ threshold = 5 }) {
                           {product.title}
                         </p>
                         <p
-                          className={`text-xs ${product.stock === 0 ? "text-red-600 dark:text-red-400 font-medium" : "text-orange-600 dark:text-orange-400"}`}
+                          className={`text-xs ${product.stock === 0 ? "text-red-600 dark:text-red-400 font-medium" : "text-primary-600 dark:text-primary-400"}`}
                         >
                           {product.stock === 0
                             ? "Out of stock"

@@ -213,7 +213,7 @@ export default function AdminCodDelivery() {
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-[#F57224]">Admin COD delivery</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-[#1e7098]">Admin COD delivery</p>
               <h1 className="mt-1 text-2xl font-black text-[#1A1A2E]">COD Delivery Payment Control</h1>
               <p className="mt-1 max-w-3xl text-sm text-slate-500">
                 Track cash-on-delivery orders, confirm received payment, and separate COD risk from normal payment verification.
@@ -231,7 +231,7 @@ export default function AdminCodDelivery() {
               </button>
               <Link
                 to="/admin/orders?paymentMethod=cod"
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#F57224] px-4 text-sm font-black text-white transition hover:bg-[#C64B11]"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#1e7098] px-4 text-sm font-black text-white transition hover:bg-[#1a6387]"
               >
                 Open COD orders
                 <ArrowRight className="h-4 w-4" />
@@ -260,8 +260,8 @@ export default function AdminCodDelivery() {
                     onClick={() => setFilter(item.value)}
                     className={`inline-flex min-h-9 shrink-0 items-center rounded-lg border px-3 text-sm font-bold transition ${
                       filter === item.value
-                        ? "border-[#F57224] bg-[#F57224] text-white"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-orange-50 hover:text-orange-700"
+                        ? "border-[#1e7098] bg-[#1e7098] text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-primary-50 hover:text-primary-700"
                     }`}
                   >
                     {item.label}
@@ -273,7 +273,7 @@ export default function AdminCodDelivery() {
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  className="min-h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm font-medium text-slate-900 outline-none transition focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20"
+                  className="min-h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm font-medium text-slate-900 outline-none transition focus:border-[#1e7098] focus:ring-2 focus:ring-[#1e7098]/20"
                   placeholder="Search order, customer, courier"
                 />
               </label>
@@ -314,7 +314,7 @@ export default function AdminCodDelivery() {
                     return (
                       <tr key={row.orderId} className="hover:bg-slate-50">
                         <td className="px-4 py-3">
-                          <Link to={`/admin/orders?search=${encodeURIComponent(row.orderId)}`} className="font-black text-[#1A1A2E] hover:text-[#F57224]">
+                          <Link to={`/admin/orders?search=${encodeURIComponent(row.orderId)}`} className="font-black text-[#1A1A2E] hover:text-[#1e7098]">
                             #{shortId(row.orderId)}
                           </Link>
                           <p className="text-xs text-slate-500">{formatDate(row.createdAt)}</p>
@@ -354,7 +354,7 @@ export default function AdminCodDelivery() {
                             <button
                               type="button"
                               onClick={() => openConfirmDialog(row)}
-                              className="inline-flex min-h-9 items-center justify-center rounded-lg bg-[#F57224] px-3 text-xs font-black text-white transition hover:bg-[#C64B11]"
+                              className="inline-flex min-h-9 items-center justify-center rounded-lg bg-[#1e7098] px-3 text-xs font-black text-white transition hover:bg-[#1a6387]"
                             >
                               Confirm payment
                             </button>
@@ -403,7 +403,7 @@ export default function AdminCodDelivery() {
               <input
                 value={deliveryForm.courierName}
                 onChange={(event) => setDeliveryForm((current) => ({ ...current, courierName: event.target.value }))}
-                className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20"
+                className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[#1e7098] focus:ring-2 focus:ring-[#1e7098]/20"
                 placeholder="Courier or delivery staff"
               />
             </label>
@@ -413,7 +413,7 @@ export default function AdminCodDelivery() {
               <textarea
                 value={deliveryForm.note}
                 onChange={(event) => setDeliveryForm((current) => ({ ...current, note: event.target.value }))}
-                className="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20"
+                className="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#1e7098] focus:ring-2 focus:ring-[#1e7098]/20"
                 placeholder="Optional admin note"
               />
             </label>
@@ -464,7 +464,7 @@ export default function AdminCodDelivery() {
                   step="0.01"
                   value={confirmForm.collectedAmount}
                   onChange={(event) => setConfirmForm((current) => ({ ...current, collectedAmount: event.target.value }))}
-                  className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20"
+                  className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[#1e7098] focus:ring-2 focus:ring-[#1e7098]/20"
                   required
                 />
               </label>
@@ -473,7 +473,7 @@ export default function AdminCodDelivery() {
                 <input
                   value={confirmForm.reference}
                   onChange={(event) => setConfirmForm((current) => ({ ...current, reference: event.target.value }))}
-                  className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20"
+                  className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[#1e7098] focus:ring-2 focus:ring-[#1e7098]/20"
                   placeholder="Receipt or handover reference"
                 />
               </label>
@@ -482,7 +482,7 @@ export default function AdminCodDelivery() {
                 <input
                   value={confirmForm.courierName}
                   onChange={(event) => setConfirmForm((current) => ({ ...current, courierName: event.target.value }))}
-                  className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20"
+                  className="min-h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[#1e7098] focus:ring-2 focus:ring-[#1e7098]/20"
                   placeholder="Courier or delivery staff"
                 />
               </label>
@@ -491,7 +491,7 @@ export default function AdminCodDelivery() {
                 <textarea
                   value={confirmForm.note}
                   onChange={(event) => setConfirmForm((current) => ({ ...current, note: event.target.value }))}
-                  className="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#F57224] focus:ring-2 focus:ring-[#F57224]/20"
+                  className="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#1e7098] focus:ring-2 focus:ring-[#1e7098]/20"
                   placeholder="Optional admin note"
                 />
               </label>
@@ -509,7 +509,7 @@ export default function AdminCodDelivery() {
               <button
                 type="submit"
                 disabled={confirming}
-                className="inline-flex min-h-10 items-center justify-center rounded-lg bg-[#F57224] px-4 text-sm font-black text-white hover:bg-[#C64B11] disabled:opacity-60"
+                className="inline-flex min-h-10 items-center justify-center rounded-lg bg-[#1e7098] px-4 text-sm font-black text-white hover:bg-[#1a6387] disabled:opacity-60"
               >
                 {confirming ? "Confirming..." : "Confirm cash received"}
               </button>
