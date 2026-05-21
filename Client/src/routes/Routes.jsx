@@ -86,6 +86,7 @@ const AdminEditCategoryAttributes = lazyLoadWithRetry(() => import("../pages/adm
 const AdminProducts = lazyLoadWithRetry(() => import("../pages/admin/AdminProducts"));
 const AdminCategoryRequests = lazyLoadWithRetry(() => import("../pages/admin/AdminCategoryRequests"));
 const AdminOrders = lazyLoadWithRetry(() => import("../pages/admin/AdminOrders"));
+const AdminCodDelivery = lazyLoadWithRetry(() => import("../pages/admin/AdminCodDelivery"));
 const AdminInventory = lazyLoadWithRetry(() => import("../pages/admin/AdminInventory"));
 const ProductForm = lazyLoadWithRetry(() => import("../pages/admin/ProductForm"));
 const AdminCoupons = lazyLoadWithRetry(() => import("../pages/admin/AdminCoupons"));
@@ -276,6 +277,7 @@ const router = createBrowserRouter([
       { path: "products/edit/:id", element: adminElement(ProductForm, "products", "update") },
       { path: "inventory", element: adminElement(AdminInventory, "inventory", "read") },
       { path: "orders", element: adminElement(AdminOrders, "orders", "read") },
+      { path: "cod-delivery", element: adminElement(AdminCodDelivery, "payments", "read") },
       { path: "returns", element: adminElement(AdminReturns, "returns", "read") },
       { path: "payouts", element: adminElement(AdminPayouts, "payments", "read") },
       { path: "payout-requests", element: adminElement(AdminPayoutRequests, "payments", "read") },

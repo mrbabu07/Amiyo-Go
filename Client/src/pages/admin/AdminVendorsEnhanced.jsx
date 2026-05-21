@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuth from '../../hooks/useAuth';
-import { bulkAdminVendorAction } from '../../services/api';
+import { bulkAdminVendorAction, updateAdminVendorHomepageFeature } from '../../services/api';
 import {
   AdminQueueBadge,
   AdminQueueDetailSection,
@@ -201,6 +201,33 @@ const RequestTabButton = ({ active, label, count, onClick }) => (
   </button>
 );
 
+const HomepageFeaturedToggle = ({ vendor, saving, onToggle }) => {
+  const checked = Boolean(vendor.featuredOnHomepage);
+  const disabled = saving || vendor.status !== 'approved';
+
+  return (
+    <label className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm ${
+      checked
+        ? 'border-orange-200 bg-orange-50 text-orange-900'
+        : 'border-gray-200 bg-gray-50 text-gray-700'
+    } ${disabled ? 'opacity-70' : 'cursor-pointer'}`}>
+      <span>
+        <span className="block font-semibold">Shop by brand</span>
+        <span className="text-xs text-gray-500">
+          {vendor.status !== 'approved' ? 'Approve first' : checked ? 'Shown on homepage' : 'Hidden from homepage'}
+        </span>
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onToggle(vendor, event.target.checked)}
+        className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+      />
+    </label>
+  );
+};
+
 const AdminVendorsEnhanced = () => {
   const { user } = useAuth();
   const location = useLocation();
@@ -220,6 +247,7 @@ const AdminVendorsEnhanced = () => {
   const [selectedQueueVendor, setSelectedQueueVendor] = useState(null);
   const [actionData, setActionData] = useState({ reason: '', note: '', transactionId: '' });
   const [submittingAction, setSubmittingAction] = useState(false);
+  const [featuredSaving, setFeaturedSaving] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -385,6 +413,50 @@ const AdminVendorsEnhanced = () => {
       await refreshAll();
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to perform bulk action');
+    }
+  };
+
+  const handleHomepageFeatureToggle = async (vendor, featuredOnHomepage) => {
+    if (featuredOnHomepage && vendor.status !== 'approved') {
+      toast.error('Approve the vendor before showing it in Shop by brand');
+      return;
+    }
+
+    const previousValue = Boolean(vendor.featuredOnHomepage);
+    setFeaturedSaving(vendor._id);
+    setVendors((prev) =>
+      prev.map((item) =>
+        item._id === vendor._id ? { ...item, featuredOnHomepage } : item
+      )
+    );
+    setSelectedQueueVendor((current) =>
+      current?._id === vendor._id ? { ...current, featuredOnHomepage } : current
+    );
+
+    try {
+      const response = await updateAdminVendorHomepageFeature(vendor._id, { featuredOnHomepage });
+      const updatedVendor = response.data?.data || { ...vendor, featuredOnHomepage };
+      setVendors((prev) =>
+        prev.map((item) => (item._id === vendor._id ? { ...item, ...updatedVendor } : item))
+      );
+      setSelectedQueueVendor((current) =>
+        current?._id === vendor._id ? { ...current, ...updatedVendor } : current
+      );
+      toast.success(response.data?.message || 'Shop by brand visibility updated');
+    } catch (error) {
+      setVendors((prev) =>
+        prev.map((item) =>
+          item._id === vendor._id ? { ...item, featuredOnHomepage: previousValue } : item
+        )
+      );
+      setSelectedQueueVendor((current) =>
+        current?._id === vendor._id
+          ? { ...current, featuredOnHomepage: previousValue }
+          : current
+      );
+      toast.error(error.response?.data?.error || 'Failed to update Shop by brand visibility');
+    } finally {
+      setFeaturedSaving('');
     }
   };
 
@@ -1161,6 +1233,14 @@ const AdminVendorsEnhanced = () => {
                       <p>Tier: {vendor.tier || 'normal'} - Warnings: {vendor.warningStrikes || 0}/3</p>
                     </div>
 
+                    <div className="mt-4">
+                      <HomepageFeaturedToggle
+                        vendor={vendor}
+                        saving={featuredSaving === vendor._id}
+                        onToggle={handleHomepageFeatureToggle}
+                      />
+                    </div>
+
                     {vendor.status === 'pending' && (
                       <div className="mt-4 rounded-xl bg-gray-50 p-3">
                         <div className="flex items-center justify-between text-sm">
@@ -1229,8 +1309,8 @@ const AdminVendorsEnhanced = () => {
             })}
           </div>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <table className="w-full">
+          <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <table className="min-w-full">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left">
@@ -1246,6 +1326,7 @@ const AdminVendorsEnhanced = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Vendor</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Contact</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Shop by brand</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Readiness</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Joined</th>
                   <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
@@ -1275,6 +1356,13 @@ const AdminVendorsEnhanced = () => {
                         <span className={`rounded-full border px-3 py-1 text-xs font-medium ${getStatusColor(vendor.status)}`}>
                           {vendor.status}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <HomepageFeaturedToggle
+                          vendor={vendor}
+                          saving={featuredSaving === vendor._id}
+                          onToggle={handleHomepageFeatureToggle}
+                        />
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {vendor.status === 'pending' ? `${readiness.completed}/${readiness.total}` : 'Complete'}
@@ -1401,6 +1489,7 @@ const AdminVendorsEnhanced = () => {
               <AdminQueueKeyValue label="Allowed categories" value={(selectedQueueVendor.allowedCategoryIds || []).length} />
               <AdminQueueKeyValue label="Tier" value={selectedQueueVendor.tier || 'normal'} />
               <AdminQueueKeyValue label="Warning strikes" value={`${selectedQueueVendor.warningStrikes || 0}/3`} />
+              <AdminQueueKeyValue label="Shop by brand" value={selectedQueueVendor.featuredOnHomepage ? 'Shown' : 'Hidden'} />
               <AdminQueueKeyValue label="Payout method" value={formatPayoutMethod(selectedQueueVendor)} />
             </AdminQueueDetailSection>
           </div>

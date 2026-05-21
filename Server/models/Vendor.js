@@ -18,6 +18,7 @@ class Vendor {
       await this.collection.createIndex({ ownerUserId: 1 }, { unique: true });
       await this.collection.createIndex({ slug: 1 }, { unique: true });
       await this.collection.createIndex({ status: 1 });
+      await this.collection.createIndex({ featuredOnHomepage: 1, homepageFeaturedAt: -1 });
       await this.collection.createIndex({ createdAt: -1 });
     } catch (error) {
       console.error("Error creating Vendor indexes:", error);
@@ -90,6 +91,10 @@ class Vendor {
       },
       isVerified: vendorData.isVerified === true,
       isOfficialStore: vendorData.isOfficialStore === true,
+      isShopOpen: vendorData.isShopOpen !== false,
+      featuredOnHomepage: vendorData.featuredOnHomepage === true,
+      homepageFeaturedAt: vendorData.featuredOnHomepage ? new Date() : null,
+      homepageFeaturedBy: vendorData.homepageFeaturedBy || null,
       followerCount: Number(vendorData.followerCount || 0),
       productCount: Number(vendorData.productCount || 0),
       rating: Number(vendorData.rating || 0),

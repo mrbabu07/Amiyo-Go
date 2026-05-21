@@ -90,6 +90,10 @@ const getShopName = (shop) => shop?.shopName || shop?.displayName || shop?.name 
 const getShopPath = (shop) => (shop?.slug ? `/shops/${shop.slug}` : "/shops");
 const getShopLogo = (shop) => shop?.logo || shop?.logoUrl || shop?.avatar || null;
 const getShopBanner = (shop) => shop?.banner || shop?.bannerUrl || shop?.coverImage || null;
+const getShopRows = (response) => {
+  const rows = response?.data?.data || [];
+  return Array.isArray(rows) ? rows : rows.shops || [];
+};
 
 const formatCompactCount = (value) => {
   const number = Number(value) || 0;
@@ -112,65 +116,13 @@ const getCountdownSegments = (targetDate, now) => {
   ];
 };
 
-const buildFeaturedBrands = (discovery, products) => {
-  const brands = new Map();
-
-  const addBrand = (brand) => {
-    const name = String(brand?.name || brand?.title || "").trim();
-    if (!name) return;
-
-    const key = name.toLowerCase();
-    const current = brands.get(key);
-    brands.set(key, {
-      name,
-      image: current?.image || brand.image || brand.logo || brand.imageUrl || null,
-      to: current?.to || brand.to || `/products?brand=${encodeURIComponent(name)}`,
-      count: (current?.count || 0) + (brand.count || 1),
-    });
-  };
-
-  (discovery.categories || []).forEach((category) => {
-    (category.featuredBrands || category.brands || []).forEach((brand) => {
-      if (typeof brand === "string") {
-        addBrand({ name: brand });
-        return;
-      }
-      addBrand(brand);
-    });
-  });
-
-  products.forEach((product) => {
-    const name =
-      product?.brand?.name ||
-      product?.brandName ||
-      product?.brand ||
-      product?.attributes?.brand ||
-      product?.vendor?.shopName ||
-      product?.vendorName ||
-      product?.vendorShopName;
-
-    addBrand({
-      name,
-      image:
-        product?.brand?.logo ||
-        product?.brandLogo ||
-        product?.vendorLogo ||
-        product?.vendor?.logo ||
-        productImage(product),
-    });
-  });
-
-  if (!brands.size) {
-    [
-      { name: "Amiyo-Go", image: fallbackHeroImage, to: "/products?sort=featured" },
-      { name: "Verified Sellers", to: "/shops" },
-      { name: "Flash Deals", to: "/products?deal=flash" },
-      { name: "New Arrivals", to: "/products?sort=newest" },
-    ].forEach(addBrand);
-  }
-
-  return Array.from(brands.values()).slice(0, 14);
-};
+const buildFeaturedBrandsFromShops = (shops = []) =>
+  shops.slice(0, 14).map((shop) => ({
+    id: shop._id || shop.slug || getShopName(shop),
+    name: getShopName(shop),
+    image: getShopLogo(shop),
+    to: getShopPath(shop),
+  }));
 
 function SectionHeader({ eyebrow, title, actionTo = "/products", actionLabel, dark = false }) {
   return (
@@ -527,13 +479,13 @@ function FeaturedBrandsStrip({ brands, t }) {
         <SectionHeader
           eyebrow={t("home.featuredBrands", "Featured brands")}
           title={t("home.shopByBrand", "Shop by brand")}
-          actionTo="/products"
+          actionTo="/shops"
           actionLabel={t("common.viewAll", "View all")}
         />
         <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
           {brands.map((brand) => (
             <Link
-              key={brand.name}
+              key={brand.id || brand.name}
               to={brand.to}
               className="group flex h-24 w-36 shrink-0 flex-col items-center justify-center rounded-lg border border-[#E0E0E0] bg-white p-3 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-[#F57224] hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
             >
@@ -775,6 +727,7 @@ export default function Home() {
   const { isShopDirectoryVisible } = usePlatformConfig();
   const [discovery, setDiscovery] = useState(emptyDiscovery);
   const [mainProducts, setMainProducts] = useState([]);
+  const [featuredBrandShops, setFeaturedBrandShops] = useState([]);
   const [topShops, setTopShops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
@@ -829,27 +782,46 @@ export default function Home() {
 
   useEffect(() => {
     if (!isShopDirectoryVisible) {
+      setFeaturedBrandShops([]);
       setTopShops([]);
       return undefined;
     }
 
     let ignore = false;
 
-    const loadTopShops = async () => {
+    const loadShopSections = async () => {
       try {
         setShopsLoading(true);
-        const response = await getShops({ limit: 10, sort: "popular" });
-        const rows = response.data?.data || [];
-        if (!ignore) setTopShops(Array.isArray(rows) ? rows : rows.shops || []);
+        const [featuredResult, topResult] = await Promise.allSettled([
+          getShops({ featured: true, limit: 14, sort: "featured" }),
+          getShops({ limit: 10, sort: "popular" }),
+        ]);
+
+        if (featuredResult.status === "rejected") {
+          console.error("Failed to load featured brand shops:", featuredResult.reason);
+        }
+        if (topResult.status === "rejected") {
+          console.error("Failed to load top shops:", topResult.reason);
+        }
+
+        if (!ignore) {
+          setFeaturedBrandShops(
+            featuredResult.status === "fulfilled" ? getShopRows(featuredResult.value) : [],
+          );
+          setTopShops(topResult.status === "fulfilled" ? getShopRows(topResult.value) : []);
+        }
       } catch (error) {
-        console.error("Failed to load top shops:", error);
-        if (!ignore) setTopShops([]);
+        console.error("Failed to load homepage shops:", error);
+        if (!ignore) {
+          setFeaturedBrandShops([]);
+          setTopShops([]);
+        }
       } finally {
         if (!ignore) setShopsLoading(false);
       }
     };
 
-    loadTopShops();
+    loadShopSections();
     return () => {
       ignore = true;
     };
@@ -877,8 +849,8 @@ export default function Home() {
   );
 
   const featuredBrands = useMemo(
-    () => buildFeaturedBrands(discovery, feedProducts),
-    [discovery, feedProducts],
+    () => buildFeaturedBrandsFromShops(featuredBrandShops),
+    [featuredBrandShops],
   );
 
   const recommendedProducts = discovery.justForYou?.length

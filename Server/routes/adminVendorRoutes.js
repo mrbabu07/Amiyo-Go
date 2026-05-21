@@ -47,6 +47,13 @@ router.patch(
   adminVendorManagementController.updateVendorCommission
 );
 
+router.patch(
+  "/:vendorId/homepage-featured",
+  verifyToken,
+  verifyAdmin,
+  adminVendorManagementController.updateVendorHomepageFeature
+);
+
 router.post(
   "/:vendorId/notices",
   verifyToken,

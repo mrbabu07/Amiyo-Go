@@ -1699,6 +1699,10 @@ const buildCodReconciliation = (order = {}) => {
   const dispatched =
     ["shipped", "partially_shipped", "delivered", "partially_delivered"].includes(order.status) ||
     products.some((product) => ["shipped", "delivered"].includes(product.itemStatus));
+  const delivered =
+    ["delivered", "partially_delivered"].includes(order.status) ||
+    ["delivered", "partially_delivered"].includes(order.deliveryStatus) ||
+    products.some((product) => ["delivered"].includes(product.itemStatus || product.deliveryStatus));
   const collected =
     order.codCollectionStatus === "collected" ||
     order.codCollected === true ||
@@ -1708,6 +1712,10 @@ const buildCodReconciliation = (order = {}) => {
     order.codRemittanceStatus === "remitted" ||
     order.codRemitted === true ||
     Boolean(order.codRemittedAt || order.vendorRemittedAt);
+  const paymentConfirmed =
+    order.codPaymentConfirmed === true ||
+    order.paymentStatus === "paid" ||
+    order.manualPaymentVerification?.status === "approved";
   const discrepancyAmount = Number(order.codDiscrepancyAmount || 0);
   const hasDiscrepancy =
     discrepancyAmount > 0 ||
@@ -1716,15 +1724,21 @@ const buildCodReconciliation = (order = {}) => {
 
   let reconciliationStatus = "pending_dispatch";
   if (dispatched) reconciliationStatus = "dispatched";
+  if (delivered) reconciliationStatus = "delivered";
   if (collected) reconciliationStatus = "collected";
+  if ((delivered || collected) && !paymentConfirmed) reconciliationStatus = "awaiting_confirmation";
   if (remitted) reconciliationStatus = "remitted";
   if (hasDiscrepancy) reconciliationStatus = "discrepancy";
 
   return {
     reconciliationStatus,
     dispatched,
+    delivered,
     collected,
     remitted,
+    paymentConfirmed,
+    awaitingConfirmation: (delivered || collected) && !paymentConfirmed,
+    waitingDelivery: !delivered && !collected && !paymentConfirmed,
     hasDiscrepancy,
     discrepancyAmount,
   };
@@ -2256,6 +2270,11 @@ const getAdminCodReconciliation = async (req, res) => {
         customerPhone: order.shippingInfo?.phone || "",
         deliveryZone: getDeliveryZone(order),
         total: Number(order.total || 0),
+        paymentStatus: order.paymentStatus || "pending",
+        codCollectionStatus: order.codCollectionStatus || "pending",
+        codPaymentConfirmedAt: order.codPaymentConfirmedAt || order.manualPaymentVerification?.reviewedAt || null,
+        codPaymentReference: order.codPaymentReference || order.codRemittanceReference || order.transactionId || "",
+        courierName: order.courierAssignment?.courierName || order.courierName || "",
         codCollectedAt: order.codCollectedAt || null,
         codRemittedAt: order.codRemittedAt || order.vendorRemittedAt || null,
         ...reconciliation,
@@ -2269,16 +2288,429 @@ const getAdminCodReconciliation = async (req, res) => {
         if (row.dispatched) memo.dispatched += 1;
         if (row.collected) memo.collected += 1;
         if (row.remitted) memo.remitted += 1;
+        if (row.paymentConfirmed) memo.confirmed += 1;
+        if (!row.paymentConfirmed) memo.unconfirmed += 1;
+        if (row.awaitingConfirmation) memo.awaitingConfirmation += 1;
+        if (row.waitingDelivery) memo.waitingDelivery += 1;
         if (row.hasDiscrepancy) memo.discrepancies += 1;
         return memo;
       },
-      { totalCod: 0, codValue: 0, dispatched: 0, collected: 0, remitted: 0, discrepancies: 0 },
+      { totalCod: 0, codValue: 0, dispatched: 0, collected: 0, remitted: 0, confirmed: 0, unconfirmed: 0, awaitingConfirmation: 0, waitingDelivery: 0, discrepancies: 0 },
     );
 
     summary.codValue = Math.round(summary.codValue * 100) / 100;
     res.json({ success: true, data: { summary, orders: rows } });
   } catch (error) {
     console.error("Error in getAdminCodReconciliation:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const markAdminCodDelivered = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const db = req.app.locals.db || Order.collection?.db;
+    const { id } = req.params;
+    const orderObjectId = safeObjectId(id);
+
+    if (!orderObjectId) {
+      return res.status(400).json({ success: false, error: "Invalid order ID" });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ success: false, error: "Order not found" });
+    }
+
+    if (!isCodPayment(order.paymentMethod)) {
+      return res.status(400).json({ success: false, error: "Only COD orders can be marked delivered here" });
+    }
+
+    if (["cancelled", "returned"].includes(order.status)) {
+      return res.status(400).json({ success: false, error: "Cancelled or returned orders cannot be marked delivered" });
+    }
+
+    const actorId = getAdminActorId(req);
+    const now = new Date();
+    const note = String(req.body.note || "COD order delivered and cash collected from customer").trim();
+    const courierName = String(req.body.courierName || order.courierAssignment?.courierName || order.courierName || "").trim();
+    const deliveredAt = order.deliveredAt || now;
+    const codCollectedAt = order.codCollectedAt || now;
+
+    await syncVendorFulfillmentForAdminStatus({
+      db,
+      Order,
+      orderId: id,
+      status: "delivered",
+      changedBy: actorId,
+      note,
+    });
+
+    const syncedOrder = await Order.findById(id);
+    const products = (syncedOrder?.products || order.products || []).map((product) => ({
+      ...product,
+      codCollected: true,
+      codCollectedAt: product.codCollectedAt || codCollectedAt,
+    }));
+
+    await Order.collection.updateOne(
+      { _id: orderObjectId },
+      {
+        $set: {
+          status: "delivered",
+          deliveryStatus: "delivered",
+          deliveredAt,
+          codCollectionStatus: order.codCollectionStatus === "discrepancy" ? "discrepancy" : "collected",
+          codCollected: true,
+          codCollectedAt,
+          codCourierName: courierName,
+          products,
+          updatedAt: now,
+        },
+        $push: {
+          adminActions: {
+            type: "cod_order_delivered",
+            label: "COD order delivered",
+            actorId,
+            note,
+            metadata: {
+              courierName,
+              codAmount: Number(order.total || order.totalAmount || order.finalTotal || 0),
+            },
+            createdAt: now,
+          },
+          paymentEvents: {
+            status: "cod_collected_from_customer",
+            label: "COD collected from customer",
+            amount: Number(order.total || order.totalAmount || order.finalTotal || 0),
+            createdAt: now,
+            actorId,
+            actorRole: "admin",
+            note,
+            metadata: { courierName },
+          },
+        },
+      },
+    );
+
+    await updateVendorOrderSnapshots(db, id, {
+      $set: {
+        status: "delivered",
+        deliveryStatus: "delivered",
+        deliveredAt,
+        codCollectionStatus: order.codCollectionStatus === "discrepancy" ? "discrepancy" : "collected",
+        codCollected: true,
+        codCollectedAt,
+        updatedAt: now,
+      },
+    });
+
+    const orderIdValues = [normalizeId(id), orderObjectId].filter(Boolean);
+    await db.collection("dispatch_assignments").updateMany(
+      { orderId: { $in: orderIdValues } },
+      {
+        $set: {
+          status: "delivered",
+          deliveryStatus: "delivered",
+          deliveredAt,
+          codCollectionStatus: order.codCollectionStatus === "discrepancy" ? "discrepancy" : "collected",
+          codCollectedAt,
+          updatedAt: now,
+        },
+      },
+    );
+
+    await db.collection("shipments").updateMany(
+      { orderId: { $in: orderIdValues } },
+      {
+        $set: {
+          shipmentState: "delivered",
+          deliveredAt,
+          codState: order.codRemittanceStatus === "remitted" ? "cod_remitted" : "cod_collected",
+          codCollectedAt,
+          updatedAt: now,
+        },
+      },
+    );
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId: id,
+      status: "delivered",
+      label: "Order delivered",
+      actorId,
+      actorRole: "admin",
+      courierName,
+      note,
+      metadata: {
+        source: "admin_cod_delivery",
+        codCollectedAt,
+      },
+    });
+
+    const updatedOrder = await Order.findById(id);
+    res.json({
+      success: true,
+      message: "COD order marked delivered",
+      data: {
+        orderId: id,
+        status: updatedOrder?.status || "delivered",
+        deliveryStatus: updatedOrder?.deliveryStatus || "delivered",
+        codCollectionStatus: updatedOrder?.codCollectionStatus || "collected",
+        deliveredAt: updatedOrder?.deliveredAt || deliveredAt,
+        codReconciliation: buildCodReconciliation(updatedOrder || { ...order, status: "delivered", codCollectionStatus: "collected" }),
+      },
+    });
+  } catch (error) {
+    console.error("Error in markAdminCodDelivered:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const confirmAdminCodPayment = async (req, res) => {
+  try {
+    const Order = req.app.locals.models.Order;
+    const db = req.app.locals.db || Order.collection?.db;
+    const { id } = req.params;
+    const orderObjectId = safeObjectId(id);
+
+    if (!orderObjectId) {
+      return res.status(400).json({ success: false, error: "Invalid order ID" });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ success: false, error: "Order not found" });
+    }
+
+    if (!isCodPayment(order.paymentMethod)) {
+      return res.status(400).json({ success: false, error: "Only COD orders can be confirmed here" });
+    }
+
+    if (["cancelled", "returned"].includes(order.status)) {
+      return res.status(400).json({ success: false, error: "Cannot confirm COD payment for cancelled or returned orders" });
+    }
+
+    const reconciliation = buildCodReconciliation(order);
+    if (reconciliation.paymentConfirmed) {
+      return res.status(409).json({ success: false, error: "COD payment is already confirmed" });
+    }
+    if (!reconciliation.delivered && !reconciliation.collected) {
+      return res.status(400).json({
+        success: false,
+        error: "COD payment can be confirmed only after the order is delivered or COD cash is collected",
+      });
+    }
+
+    const now = new Date();
+    const expectedAmount = Math.round((Number(order.total || order.totalAmount || order.finalTotal || 0) + Number.EPSILON) * 100) / 100;
+    const requestedAmount = req.body.collectedAmount ?? req.body.amount;
+    const collectedAmount = Math.round((Number(requestedAmount || expectedAmount) + Number.EPSILON) * 100) / 100;
+    if (!Number.isFinite(collectedAmount) || collectedAmount <= 0) {
+      return res.status(400).json({ success: false, error: "Collected amount must be greater than zero" });
+    }
+
+    const discrepancyAmount = Math.round((expectedAmount - collectedAmount + Number.EPSILON) * 100) / 100;
+    const hasDiscrepancy = Math.abs(discrepancyAmount) > 0.009;
+    const actorId = getAdminActorId(req);
+    const reference = String(req.body.reference || req.body.transactionId || "").trim();
+    const note = String(req.body.note || "").trim();
+    const courierName = String(req.body.courierName || order.courierAssignment?.courierName || order.courierName || "").trim();
+    const codCollectionStatus = hasDiscrepancy ? "discrepancy" : "collected";
+    const updatedProducts = (order.products || []).map((product) => {
+      if (product.itemStatus === "cancelled") return product;
+      return {
+        ...product,
+        codCollected: true,
+        codCollectedAt: product.codCollectedAt || now,
+      };
+    });
+    const manualPaymentVerification = {
+      status: "approved",
+      reviewedBy: actorId,
+      reviewedAt: now,
+      note: note || "COD payment received and confirmed by admin",
+      duplicateAcknowledged: false,
+    };
+    const adminAction = {
+      type: "cod_payment_confirmed",
+      label: "COD cash received by admin",
+      actorId,
+      note,
+      metadata: {
+        expectedAmount,
+        collectedAmount,
+        discrepancyAmount,
+        reference,
+        courierName,
+      },
+      createdAt: now,
+    };
+    const paymentEvent = {
+      status: "cod_payment_confirmed",
+      label: hasDiscrepancy ? "COD cash received with discrepancy" : "COD cash received by admin",
+      amount: collectedAmount,
+      createdAt: now,
+      actorId,
+      actorRole: "admin",
+      note,
+      metadata: {
+        expectedAmount,
+        collectedAmount,
+        discrepancyAmount,
+        reference,
+        courierName,
+      },
+    };
+    const orderPatch = {
+      paymentStatus: "paid",
+      codCollectionStatus,
+      codRemittanceStatus: "remitted",
+      codCollected: true,
+      codCollectedAt: order.codCollectedAt || now,
+      codRemitted: true,
+      codRemittedAt: now,
+      codRemittedBy: actorId,
+      codPaymentConfirmed: true,
+      codPaymentConfirmedAt: now,
+      codPaymentConfirmedBy: actorId,
+      codConfirmedAmount: collectedAmount,
+      codExpectedAmount: expectedAmount,
+      codDiscrepancyAmount: discrepancyAmount,
+      codPaymentReference: reference,
+      codCourierName: courierName,
+      manualPaymentVerification,
+      products: updatedProducts,
+      updatedAt: now,
+    };
+
+    await Order.collection.updateOne(
+      { _id: orderObjectId },
+      {
+        $set: orderPatch,
+        $push: {
+          paymentEvents: paymentEvent,
+          adminActions: adminAction,
+          statusHistory: {
+            status: order.status,
+            changedAt: now,
+            changedBy: actorId,
+            note: "COD payment confirmed",
+          },
+        },
+      },
+    );
+
+    const orderIdValues = [id, orderObjectId];
+    await updateVendorOrderSnapshots(db, id, {
+      $set: {
+        paymentStatus: "paid",
+        codCollectionStatus,
+        codRemittanceStatus: "remitted",
+        codCollected: true,
+        codCollectedAt: orderPatch.codCollectedAt,
+        codRemitted: true,
+        codRemittedAt: now,
+        codPaymentConfirmed: true,
+        codPaymentConfirmedAt: now,
+        codConfirmedAmount: collectedAmount,
+        codDiscrepancyAmount: discrepancyAmount,
+        updatedAt: now,
+      },
+    });
+
+    await db.collection("dispatch_assignments").updateMany(
+      { orderId: { $in: orderIdValues.map(normalizeId) } },
+      {
+        $set: {
+          codCollectionStatus,
+          codRemittanceStatus: "remitted",
+          codCollectedAt: orderPatch.codCollectedAt,
+          codRemittedAt: now,
+          codPaymentConfirmedAt: now,
+          codPaymentReference: reference,
+          updatedAt: now,
+        },
+      },
+    );
+
+    await db.collection("shipments").updateMany(
+      {
+        orderId: normalizeId(id),
+        codState: { $in: ["cod_pending", "cod_disputed", "cod_collected"] },
+      },
+      {
+        $set: {
+          codState: "cod_remitted",
+          codCollectedAt: orderPatch.codCollectedAt,
+          codRemittedAt: now,
+          codRemittanceReference: reference || null,
+          updatedAt: now,
+        },
+      },
+    );
+
+    await db.collection("payments").updateOne(
+      { orderId: id },
+      {
+        $set: {
+          userId: order.userId || null,
+          orderId: id,
+          amount: collectedAmount,
+          expectedAmount,
+          currency: "bdt",
+          paymentMethod: "cod",
+          transactionId: reference || `COD-${id.slice(-8).toUpperCase()}`,
+          status: "completed",
+          manualVerification: manualPaymentVerification,
+          codConfirmation: {
+            expectedAmount,
+            collectedAmount,
+            discrepancyAmount,
+            reference,
+            courierName,
+            confirmedAt: now,
+            confirmedBy: actorId,
+          },
+          completedAt: now,
+          updatedAt: now,
+        },
+        $setOnInsert: { createdAt: now },
+      },
+      { upsert: true },
+    );
+
+    await appendOrderEvent({
+      app: req.app,
+      orderId: id,
+      status: "cod_payment_confirmed",
+      label: "COD payment confirmed",
+      actorId,
+      actorRole: "admin",
+      courierName,
+      note,
+      metadata: {
+        expectedAmount,
+        collectedAmount,
+        discrepancyAmount,
+        reference,
+      },
+    });
+
+    const updatedOrder = await Order.findById(id);
+    res.json({
+      success: true,
+      message: "COD payment confirmed",
+      data: {
+        orderId: id,
+        paymentStatus: updatedOrder?.paymentStatus || "paid",
+        codCollectionStatus: updatedOrder?.codCollectionStatus || codCollectionStatus,
+        codPaymentConfirmedAt: updatedOrder?.codPaymentConfirmedAt || now,
+        codReconciliation: buildCodReconciliation(updatedOrder || { ...order, ...orderPatch }),
+      },
+    });
+  } catch (error) {
+    console.error("Error in confirmAdminCodPayment:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -2781,6 +3213,8 @@ module.exports = {
   exportOrdersCsv,
   bulkUpdateOrderStatus,
   getAdminCodReconciliation,
+  markAdminCodDelivered,
+  confirmAdminCodPayment,
   getAdminSlaBreaches,
   getAdminFraudOrders,
   addOrderNote,

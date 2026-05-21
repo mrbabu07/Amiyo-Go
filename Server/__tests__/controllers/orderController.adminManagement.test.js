@@ -9,6 +9,8 @@ const {
   getAdminOrders,
   getAdminOrderById,
   getAdminCodReconciliation,
+  markAdminCodDelivered,
+  confirmAdminCodPayment,
   getAdminSlaBreaches,
   getAdminFraudOrders,
   adminReassignCourier,
@@ -17,7 +19,7 @@ const {
   adminForceRefundOrder,
 } = require("../../controllers/orderController");
 
-const { getTimelineForOrder } = require("../../services/orderEventService");
+const { appendOrderEvent, getTimelineForOrder } = require("../../services/orderEventService");
 
 const stringify = (value) => (value instanceof ObjectId ? value.toString() : String(value || ""));
 
@@ -117,9 +119,20 @@ class FakeCollection {
     return this.docs.filter((doc) => matchesQuery(doc, query)).length;
   }
 
-  async updateOne(query, update) {
+  async updateOne(query, update, options = {}) {
     const doc = this.docs.find((item) => matchesQuery(item, query));
-    if (!doc) return { matchedCount: 0, modifiedCount: 0 };
+    if (!doc) {
+      if (!options.upsert) return { matchedCount: 0, modifiedCount: 0 };
+      const inserted = {};
+      Object.entries(query || {}).forEach(([path, value]) => {
+        if (value && typeof value === "object" && !(value instanceof ObjectId)) return;
+        setByPath(inserted, path, value);
+      });
+      Object.entries(update.$setOnInsert || {}).forEach(([path, value]) => setByPath(inserted, path, value));
+      Object.entries(update.$set || {}).forEach(([path, value]) => setByPath(inserted, path, value));
+      this.docs.push(inserted);
+      return { matchedCount: 0, modifiedCount: 0, upsertedCount: 1 };
+    }
 
     Object.entries(update.$set || {}).forEach(([path, value]) => setByPath(doc, path, value));
     Object.entries(update.$push || {}).forEach(([path, value]) => {
@@ -178,6 +191,18 @@ class FakeOrderModel {
 
   async findById(id) {
     return this.docs.find((order) => stringify(order._id) === stringify(id)) || null;
+  }
+
+  async getAdminStatusCounts() {
+    return this.docs.reduce(
+      (counts, order) => {
+        const status = order.status || "pending";
+        counts[status] = (counts[status] || 0) + 1;
+        counts.all += 1;
+        return counts;
+      },
+      { all: 0 },
+    );
   }
 }
 
@@ -275,6 +300,9 @@ const createReq = ({ orders, vendors, vendorOrders = [], query = {}, params = {}
   const collections = {
     vendors: new FakeCollection(vendors),
     vendorOrders: new FakeCollection(vendorOrders),
+    payments: new FakeCollection([]),
+    dispatch_assignments: new FakeCollection([]),
+    shipments: new FakeCollection([]),
   };
   const db = {
     collection: (name) => collections[name] || new FakeCollection([]),
@@ -282,6 +310,7 @@ const createReq = ({ orders, vendors, vendorOrders = [], query = {}, params = {}
   const Order = new FakeOrderModel(orders, db);
 
   return {
+    _collections: collections,
     query,
     params,
     body,
@@ -383,7 +412,7 @@ describe("admin order management controller", () => {
     const codRes = createRes();
     await getAdminCodReconciliation(createReq(fixture), codRes);
     expect(codRes.json.mock.calls[0][0].data.summary).toEqual(
-      expect.objectContaining({ totalCod: 4, discrepancies: 1 }),
+      expect.objectContaining({ totalCod: 4, discrepancies: 1, confirmed: 0 }),
     );
 
     const slaRes = createRes();
@@ -402,6 +431,167 @@ describe("admin order management controller", () => {
     const flagged = fraudRes.json.mock.calls[0][0].data.orders;
     expect(flagged.some((order) => order.signals.some((signal) => signal.type === "multiple_cod_same_address"))).toBe(true);
     expect(flagged.some((order) => order.signals.some((signal) => signal.type === "abnormal_order_size"))).toBe(true);
+  });
+
+  test("marks a COD order delivered so payment confirmation becomes available", async () => {
+    const fixture = buildFixture();
+    const orderId = fixture.orders[1]._id.toString();
+    const req = createReq({
+      ...fixture,
+      params: { id: orderId },
+      body: { courierName: "Pathao", note: "Customer received product" },
+      vendorOrders: [
+        {
+          _id: new ObjectId(),
+          parentOrderId: orderId,
+          vendorId: fixture.vendorB.toString(),
+          status: "shipped",
+          paymentStatus: "pending",
+        },
+      ],
+    });
+    const res = createRes();
+
+    await markAdminCodDelivered(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        message: "COD order marked delivered",
+        data: expect.objectContaining({
+          status: "delivered",
+          codCollectionStatus: "collected",
+        }),
+      }),
+    );
+    expect(fixture.orders[1]).toEqual(
+      expect.objectContaining({
+        status: "delivered",
+        deliveryStatus: "delivered",
+        codCollectionStatus: "collected",
+        codCollected: true,
+      }),
+    );
+    expect(fixture.orders[1].products[0]).toEqual(
+      expect.objectContaining({
+        itemStatus: "delivered",
+        codCollected: true,
+      }),
+    );
+    expect(req._collections.vendorOrders.docs[0]).toEqual(
+      expect.objectContaining({
+        status: "delivered",
+        deliveryStatus: "delivered",
+        codCollectionStatus: "collected",
+      }),
+    );
+
+    const codRes = createRes();
+    await getAdminCodReconciliation(req, codRes);
+    const row = codRes.json.mock.calls[0][0].data.orders.find((item) => item.orderId === orderId);
+    expect(row).toEqual(
+      expect.objectContaining({
+        delivered: true,
+        awaitingConfirmation: true,
+        waitingDelivery: false,
+      }),
+    );
+    expect(appendOrderEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId,
+        status: "delivered",
+        actorRole: "admin",
+      }),
+    );
+  });
+
+  test("confirms received COD payment and writes payment evidence", async () => {
+    const fixture = buildFixture();
+    const orderId = fixture.orders[1]._id.toString();
+    fixture.orders[1].status = "delivered";
+    fixture.orders[1].products[0].itemStatus = "delivered";
+    const req = createReq({
+      ...fixture,
+      params: { id: orderId },
+      body: { collectedAmount: 1800, reference: "CASH-123", courierName: "Pathao", note: "Cash received" },
+      vendorOrders: [
+        {
+          _id: new ObjectId(),
+          parentOrderId: orderId,
+          paymentStatus: "pending",
+        },
+      ],
+    });
+    const res = createRes();
+
+    await confirmAdminCodPayment(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        message: "COD payment confirmed",
+        data: expect.objectContaining({
+          paymentStatus: "paid",
+          codCollectionStatus: "collected",
+        }),
+      }),
+    );
+    expect(fixture.orders[1]).toEqual(
+      expect.objectContaining({
+        paymentStatus: "paid",
+        codCollectionStatus: "collected",
+        codRemittanceStatus: "remitted",
+        codPaymentConfirmed: true,
+        codConfirmedAmount: 1800,
+        codPaymentReference: "CASH-123",
+      }),
+    );
+    expect(fixture.orders[1].products[0]).toEqual(expect.objectContaining({ codCollected: true }));
+    expect(req._collections.vendorOrders.docs[0]).toEqual(
+      expect.objectContaining({
+        paymentStatus: "paid",
+        codCollectionStatus: "collected",
+        codRemittanceStatus: "remitted",
+        codPaymentConfirmed: true,
+      }),
+    );
+    expect(req._collections.payments.docs[0]).toEqual(
+      expect.objectContaining({
+        orderId,
+        paymentMethod: "cod",
+        status: "completed",
+        transactionId: "CASH-123",
+      }),
+    );
+    expect(appendOrderEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId,
+        status: "cod_payment_confirmed",
+        actorRole: "admin",
+      }),
+    );
+  });
+
+  test("blocks COD payment confirmation before delivery or cash collection", async () => {
+    const fixture = buildFixture();
+    const orderId = fixture.orders[1]._id.toString();
+    const req = createReq({
+      ...fixture,
+      params: { id: orderId },
+      body: { collectedAmount: 1800 },
+    });
+    const res = createRes();
+
+    await confirmAdminCodPayment(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: "COD payment can be confirmed only after the order is delivered or COD cash is collected",
+      }),
+    );
+    expect(fixture.orders[1].paymentStatus).toBe("pending");
   });
 
   test("applies admin override actions for courier address return window and refund", async () => {

@@ -103,6 +103,8 @@ jest.mock("../controllers/orderController", () => ({
   exportOrdersCsv: (req, res) => res.json({ route: "orders:export-csv" }),
   bulkUpdateOrderStatus: (req, res) => res.json({ route: "orders:bulk-status" }),
   getAdminCodReconciliation: (req, res) => res.json({ route: "orders:cod-reconciliation" }),
+  markAdminCodDelivered: (req, res) => res.json({ route: "orders:mark-cod-delivered", id: req.params.id }),
+  confirmAdminCodPayment: (req, res) => res.json({ route: "orders:confirm-cod-payment", id: req.params.id }),
   getAdminSlaBreaches: (req, res) => res.json({ route: "orders:sla-breaches" }),
   getAdminFraudOrders: (req, res) => res.json({ route: "orders:fraud-queue" }),
   addOrderNote: (req, res) => res.json({ route: "orders:add-note", id: req.params.id }),
@@ -513,6 +515,8 @@ jest.mock("../controllers/adminVendorManagementController", () => ({
     res.json({ route: "admin-vendors:auto-tier", id: req.params.vendorId }),
   updateVendorCommission: (req, res) =>
     res.json({ route: "admin-vendors:commission", id: req.params.vendorId }),
+  updateVendorHomepageFeature: (req, res) =>
+    res.json({ route: "admin-vendors:homepage-featured", id: req.params.vendorId, featured: req.body.featuredOnHomepage }),
   sendVendorNotice: (req, res) =>
     res.status(201).json({ route: "admin-vendors:notice", id: req.params.vendorId }),
   issueVendorViolation: (req, res) =>
@@ -866,6 +870,28 @@ describe("Black-box API tests", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ route: "orders:force-refund", id: "order-1" });
+    });
+
+    test("PATCH /api/orders/admin/:id/mark-cod-delivered uses the COD delivery route", async () => {
+      const response = await request(app)
+        .patch("/api/orders/admin/order-1/mark-cod-delivered")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ note: "Delivered" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "orders:mark-cod-delivered", id: "order-1" });
+    });
+
+    test("PATCH /api/orders/admin/:id/confirm-cod-payment uses the COD confirmation route", async () => {
+      const response = await request(app)
+        .patch("/api/orders/admin/order-1/confirm-cod-payment")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin")
+        .send({ collectedAmount: 1000 });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ route: "orders:confirm-cod-payment", id: "order-1" });
     });
 
     test("POST /api/orders/guest allows guest checkout without auth", async () => {

@@ -35,6 +35,8 @@ const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g,
 
 const toTrimmedString = (value) => (value === undefined || value === null ? "" : String(value).trim());
 
+const truthyQuery = (value) => ["1", "true", "yes", "featured"].includes(String(value || "").toLowerCase());
+
 const number = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -239,6 +241,8 @@ const serializeShopCard = (vendor = {}, stats = {}, categoryMap = new Map()) => 
     },
     isVerified: vendor.isVerified === true || vendor.status === "approved",
     isOfficialStore: vendor.isOfficialStore === true,
+    featuredOnHomepage: vendor.featuredOnHomepage === true,
+    homepageFeaturedAt: vendor.homepageFeaturedAt || null,
     joinedAt: vendor.joinedAt || vendor.createdAt || null,
   };
 };
@@ -293,11 +297,16 @@ exports.listShops = async (req, res) => {
       .map((item) => item.toLowerCase());
     const minRating = req.query.rating !== undefined ? number(req.query.rating, 0) : 0;
     const sort = String(req.query.sort || "popular").toLowerCase();
+    const featuredOnly = truthyQuery(req.query.featured || req.query.homepageFeatured);
 
     const query = {
       status: "approved",
       isShopOpen: { $ne: false },
     };
+
+    if (featuredOnly) {
+      query.featuredOnHomepage = true;
+    }
 
     if (search) {
       const regex = new RegExp(escapeRegex(search), "i");
@@ -349,6 +358,14 @@ exports.listShops = async (req, res) => {
     }
 
     shops.sort((a, b) => {
+      if (sort === "featured") {
+        return (
+          Number(Boolean(b.featuredOnHomepage)) - Number(Boolean(a.featuredOnHomepage)) ||
+          new Date(b.homepageFeaturedAt || b.joinedAt || 0) - new Date(a.homepageFeaturedAt || a.joinedAt || 0) ||
+          number(b.followerCount) - number(a.followerCount) ||
+          number(b.productCount) - number(a.productCount)
+        );
+      }
       if (sort === "newest") return new Date(b.joinedAt || 0) - new Date(a.joinedAt || 0);
       if (sort === "top-rated" || sort === "top_rated") {
         return number(b.rating) - number(a.rating) || number(b.reviewCount) - number(a.reviewCount);

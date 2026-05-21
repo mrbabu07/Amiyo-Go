@@ -10,7 +10,8 @@ const api = axios.create({
 const idempotentMutations = [
   { method: "post", pattern: /^\/orders$/ },
   { method: "post", pattern: /^\/orders\/guest$/ },
-  { method: "patch", pattern: /^\/orders\/admin\/[^/]+\/(force-refund|approve-refund)$/ },
+  { method: "patch", pattern: /^\/orders\/admin\/[^/]+\/(force-refund|approve-refund|mark-cod-delivered)$/ },
+  { method: "patch", pattern: /^\/orders\/admin\/[^/]+\/confirm-cod-payment$/ },
   { method: "post", pattern: /^\/payments\/process$/ },
   { method: "patch", pattern: /^\/payments\/manual-verifications\/[^/]+\/(approve|reject)$/ },
   { method: "post", pattern: /^\/payments\/[^/]+\/refund$/ },
@@ -125,6 +126,10 @@ export const exportAdminOrdersCsv = (params = {}) =>
   api.get("/orders/admin/export/csv", { params, responseType: "blob" });
 export const getAdminCodReconciliation = (params = {}) =>
   api.get("/orders/admin/cod-reconciliation", { params });
+export const markAdminCodOrderDelivered = (id, data = {}) =>
+  api.patch(`/orders/admin/${id}/mark-cod-delivered`, data);
+export const confirmAdminCodPayment = (id, data = {}) =>
+  api.patch(`/orders/admin/${id}/confirm-cod-payment`, data);
 export const getAdminSlaBreaches = (params = {}) =>
   api.get("/orders/admin/sla-breaches", { params });
 export const getAdminFraudQueue = (params = {}) =>
@@ -448,6 +453,9 @@ export const autoCalculateAdminVendorTier = (vendorId) =>
 
 export const updateAdminVendorCommission = (vendorId, data) =>
   api.patch(`/admin/vendors/${vendorId}/commission`, data);
+
+export const updateAdminVendorHomepageFeature = (vendorId, data) =>
+  api.patch(`/admin/vendors/${vendorId}/homepage-featured`, data);
 
 export const sendAdminVendorNotice = (vendorId, data) =>
   api.post(`/admin/vendors/${vendorId}/notices`, data);

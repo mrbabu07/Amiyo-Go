@@ -23,6 +23,11 @@ const getVendorObjectId = (id) => {
   return new ObjectId(id);
 };
 
+const toBoolean = (value) => {
+  if (typeof value === "boolean") return value;
+  return ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
+};
+
 const getVendorIdValues = (vendorId) => {
   const values = [vendorId.toString()];
   if (ObjectId.isValid(vendorId)) values.push(new ObjectId(vendorId));
@@ -536,6 +541,59 @@ exports.updateVendorCommission = async (req, res) => {
     res.json({ success: true, message, data: await buildManagementProfile(db, req.params.vendorId) });
   } catch (error) {
     handleControllerError(res, error, "Failed to update vendor commission override");
+  }
+};
+
+exports.updateVendorHomepageFeature = async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const vendorObjectId = getVendorObjectId(req.params.vendorId);
+    if (!vendorObjectId) return res.status(400).json({ success: false, error: "Invalid vendor ID" });
+
+    const featuredOnHomepage =
+      req.body.featuredOnHomepage !== undefined
+        ? toBoolean(req.body.featuredOnHomepage)
+        : toBoolean(req.body.featured);
+
+    const vendorsCol = db.collection("vendors");
+    const vendor = await vendorsCol.findOne({ _id: vendorObjectId });
+    if (!vendor) return res.status(404).json({ success: false, error: "Vendor not found" });
+
+    if (featuredOnHomepage && vendor.status !== "approved") {
+      return res.status(400).json({
+        success: false,
+        error: "Only approved vendors can be shown in Shop by brand",
+      });
+    }
+
+    const now = new Date();
+    const update = {
+      featuredOnHomepage,
+      homepageFeaturedAt: featuredOnHomepage ? now : null,
+      homepageFeaturedBy: featuredOnHomepage ? req.user?.uid || "admin" : null,
+      updatedAt: now,
+    };
+
+    await vendorsCol.updateOne({ _id: vendorObjectId }, { $set: update });
+
+    await logVendorAudit(
+      db,
+      req,
+      vendorObjectId,
+      "homepage_featured_updated",
+      featuredOnHomepage ? "Vendor added to Shop by brand" : "Vendor removed from Shop by brand",
+      { featuredOnHomepage },
+    );
+
+    res.json({
+      success: true,
+      message: featuredOnHomepage
+        ? "Vendor will show in Shop by brand"
+        : "Vendor hidden from Shop by brand",
+      data: await vendorsCol.findOne({ _id: vendorObjectId }),
+    });
+  } catch (error) {
+    handleControllerError(res, error, "Failed to update Shop by brand visibility");
   }
 };
 

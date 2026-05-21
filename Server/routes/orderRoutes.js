@@ -10,6 +10,8 @@ const {
   exportOrdersCsv,
   bulkUpdateOrderStatus,
   getAdminCodReconciliation,
+  markAdminCodDelivered,
+  confirmAdminCodPayment,
   getAdminSlaBreaches,
   getAdminFraudOrders,
   addOrderNote,
@@ -60,6 +62,8 @@ router.patch("/admin/:id/cancel",          verifyToken, verifyAdmin, adminCancel
 router.patch("/admin/:id/resolve-dispute", verifyToken, verifyAdmin, adminResolveDispute);
 router.patch("/admin/:id/approve-refund",  verifyToken, verifyAdmin, refundOrderIdempotency, adminApproveRefund);
 router.patch("/admin/:id/override-status", verifyToken, verifyAdmin, adminOverrideStatus);
+router.patch("/admin/:id/mark-cod-delivered", verifyToken, verifyAdmin, markAdminCodDelivered);
+router.patch("/admin/:id/confirm-cod-payment", verifyToken, verifyAdmin, confirmAdminCodPayment);
 
 // ── Shared detail (staff + owner, customer-safe response) ─────
 router.get("/:id/detail", verifyToken, getUserOrderById);

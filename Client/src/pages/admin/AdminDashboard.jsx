@@ -226,6 +226,7 @@ const adminControlSections = [
       { label: "Vendor Requests", path: "/admin/vendor-requests", metricKey: "vendorApprovals", detail: "New seller applications" },
       { label: "KYC Review", path: "/admin/vendor-kyc", metricKey: "kycReviews", detail: "Identity and shop checks" },
       { label: "All Vendors", path: "/admin/vendors", metricKey: "activeVendors", detail: "Vendor directory" },
+      { label: "Shop by brand", path: "/admin/vendors", metricKey: "shopByBrand", detail: "Featured brands homepage visibility" },
       { label: "Vendor Activity", path: "/admin/vendor-activity", metricKey: "vendorActivity", detail: "Seller behavior and health" },
       { label: "Vendor Chats", path: "/admin/chats", metricKey: "vendorChats", detail: "Admin to seller messages" },
     ],
@@ -251,6 +252,7 @@ const adminControlSections = [
     icon: ShoppingCart,
     controls: [
       { label: "All Orders", path: "/admin/orders", metricKey: "orders", detail: "Global order queue" },
+      { label: "COD Delivery", path: "/admin/cod-delivery", metricKey: "codDelivery", detail: "Confirm COD payments" },
       { label: "Returns", path: "/admin/returns", metricKey: "returnDisputes", detail: "Return and dispute workflow" },
       { label: "Logistics", path: "/admin/logistics", metricKey: "logistics", detail: "Courier and parcel flow" },
       { label: "Parcel Assignment", path: "/admin/logistics?tab=parcels", metricKey: "parcels", detail: "Assign delivery parcels" },
@@ -734,6 +736,7 @@ const buildAdminControlSections = ({ pendingActions, exceptionInbox, opsSummary,
     vendorApprovals: metric(pendingActions.vendorApprovals, `${formatCount(pendingActions.vendorApprovals)} pending`),
     kycReviews: metric(pendingActions.kycReviews, `${formatCount(pendingActions.kycReviews)} review`),
     activeVendors: { value: Number(kpis.activeVendors || 0), label: `${formatCount(kpis.activeVendors)} active`, tone: "neutral" },
+    shopByBrand: { value: 0, label: "Homepage", tone: "neutral" },
     vendorActivity: { value: 0, label: "Monitor", tone: "neutral" },
     vendorChats: { value: 0, label: "Inbox", tone: "neutral" },
     productModeration: metric(pendingActions.productModeration, `${formatCount(pendingActions.productModeration)} pending`),
@@ -743,6 +746,7 @@ const buildAdminControlSections = ({ pendingActions, exceptionInbox, opsSummary,
     manageCategories: { value: 0, label: "Manage", tone: "neutral" },
     categoryRequests: { value: 0, label: "Requests", tone: "neutral" },
     orders: { value: Number(kpis.todayOrders || 0), label: `${formatCount(kpis.todayOrders)} today`, tone: "neutral" },
+    codDelivery: metric(finance.codOrders, `${formatCount(finance.codOrders)} COD`, Number(finance.codOutstanding || 0) > 0 ? "attention" : "neutral"),
     returnDisputes: metric(pendingActions.returnDisputes || kpis.activeDisputes, `${formatCount(pendingActions.returnDisputes || kpis.activeDisputes)} open`),
     logistics: { value: 0, label: "Flow", tone: "neutral" },
     parcels: { value: 0, label: "Assign", tone: "neutral" },
@@ -2364,6 +2368,54 @@ export default function AdminDashboard() {
         </section>
 
         <AdminControlHub sections={controlSections} />
+
+        <section className={`${adminSurface} p-5`}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#FFF3EC] text-[#C64B11] ring-1 ring-[#F57224]/20 dark:bg-[#F57224]/10 dark:text-orange-200">
+                <Store className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wide text-[#F57224]">Homepage control</p>
+                <h2 className="mt-1 text-xl font-black text-[#1A1A2E] dark:text-white">Shop by brand visibility</h2>
+                <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+                  Choose approved shops that appear in the Featured brands area on the homepage.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/admin/vendors"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#F57224] px-4 text-sm font-black text-white transition hover:bg-[#C64B11] sm:w-auto"
+            >
+              Manage Shop by brand
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </section>
+
+        <section className={`${adminSurface} p-5`}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-400/20">
+                <Banknote className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-200">Payment control</p>
+                <h2 className="mt-1 text-xl font-black text-[#1A1A2E] dark:text-white">COD delivery payment confirmation</h2>
+                <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+                  Review cash-on-delivery orders separately and confirm payment when the COD cash is received.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/admin/cod-delivery"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700 sm:w-auto"
+            >
+              Manage COD delivery
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </section>
 
         <AdminWorkflowCenter
           workflow={adminWorkflow}

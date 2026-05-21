@@ -2,6 +2,7 @@ const { ObjectId } = require("mongodb");
 const {
   getVendorManagementProfile,
   updateVendorStatus,
+  updateVendorHomepageFeature,
   issueVendorViolation,
   bulkVendorAction,
 } = require("../../controllers/adminVendorManagementController");
@@ -251,6 +252,60 @@ describe("adminVendorManagementController", () => {
       }),
     );
     expect(vendors.docs[0].vacationMode.adminOverride).toBe(true);
+  });
+
+  test("toggles vendor Shop by brand homepage visibility", async () => {
+    const vendorId = new ObjectId();
+    const audit = new FakeCollection([]);
+    const vendors = new FakeCollection([
+      { _id: vendorId, shopName: "Featured Shop", status: "approved", featuredOnHomepage: false },
+    ]);
+    const db = buildDb({
+      vendors,
+      vendor_audit_logs: audit,
+    });
+
+    const showReq = buildReq({
+      db,
+      vendorId: vendorId.toString(),
+      body: { featuredOnHomepage: true },
+    });
+    const showRes = createRes();
+
+    await updateVendorHomepageFeature(showReq, showRes);
+
+    expect(showRes.json.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        success: true,
+        message: "Vendor will show in Shop by brand",
+      }),
+    );
+    expect(vendors.docs[0]).toEqual(
+      expect.objectContaining({
+        featuredOnHomepage: true,
+        homepageFeaturedBy: "admin-1",
+      }),
+    );
+    expect(vendors.docs[0].homepageFeaturedAt).toBeInstanceOf(Date);
+    expect(audit.docs[0]).toEqual(expect.objectContaining({ action: "homepage_featured_updated" }));
+
+    const hideReq = buildReq({
+      db,
+      vendorId: vendorId.toString(),
+      body: { featuredOnHomepage: "false" },
+    });
+    const hideRes = createRes();
+
+    await updateVendorHomepageFeature(hideReq, hideRes);
+
+    expect(hideRes.json.mock.calls[0][0].message).toBe("Vendor hidden from Shop by brand");
+    expect(vendors.docs[0]).toEqual(
+      expect.objectContaining({
+        featuredOnHomepage: false,
+        homepageFeaturedAt: null,
+        homepageFeaturedBy: null,
+      }),
+    );
   });
 
   test("issues third warning strike and auto-suspends the vendor", async () => {

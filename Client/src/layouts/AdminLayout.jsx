@@ -89,6 +89,7 @@ const navigation = [
     icon: ShoppingBag,
     children: [
       { name: 'All Orders', path: '/admin/orders', exact: true, alertKey: 'orders' },
+      { name: 'COD Delivery', path: '/admin/cod-delivery', exact: true, alertKey: 'payments' },
       { name: 'Returns', path: '/admin/returns', exact: true, alertKey: 'returns' },
       { name: 'Logistics', path: '/admin/logistics', exact: true },
       { name: 'Parcel Assignment', path: '/admin/logistics?tab=parcels', exact: true },
@@ -170,7 +171,7 @@ const adminPermissionRules = [
   { pattern: /^\/admin\/logistics|^\/admin\/delivery-settings/, resource: 'orders', action: 'read' },
   { pattern: /^\/admin\/support/, resource: 'support', action: 'read' },
   { pattern: /^\/admin\/(promotions|coupons|flash-sales|offers|newsletter)/, resource: 'system', action: 'read' },
-  { pattern: /^\/admin\/(payouts|payout-requests|payment-verifications)/, resource: 'payments', action: 'read' },
+  { pattern: /^\/admin\/(payouts|payout-requests|payment-verifications|cod-delivery)/, resource: 'payments', action: 'read' },
   { pattern: /^\/admin\/(customers|insights)/, resource: 'users', action: 'read' },
   { pattern: /^\/admin\/trust-safety/, resource: 'system', action: 'read' },
   { pattern: /^\/admin\/users/, resource: 'users', action: 'read' },
