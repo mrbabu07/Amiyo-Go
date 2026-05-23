@@ -225,4 +225,55 @@ describe("deliveryCalculator", () => {
       deliveryFee: 50,
     }));
   });
+
+  test("applies admin per-item delivery fee rules to checkout breakdown", () => {
+    const result = calculateDeliveryBreakdown({
+      paymentMethod: "cod",
+      settings: {
+        freeDeliveryEnabled: false,
+        zoneFees: { sameUnion: 30 },
+        deliveryFeeRules: [
+          {
+            _id: "rule-local-item",
+            name: "Local item handling",
+            ruleType: "per_item",
+            status: "active",
+            priority: 1,
+            zoneCode: "sameUnion",
+            baseFee: 20,
+            perItemFee: 7,
+            codFee: 5,
+          },
+        ],
+      },
+      shippingInfo: {
+        district: "Coxsbazar",
+        upazila: "Teknaf",
+        union: "Hnila",
+      },
+      vendorsById: {
+        "vendor-1": {
+          shopName: "Local Shop",
+          address: {
+            district: "Coxsbazar",
+            upazila: "Teknaf",
+            union: "Hnila",
+          },
+        },
+      },
+      items: [
+        { vendorId: "vendor-1", price: 120, quantity: 3 },
+      ],
+    });
+
+    expect(result.totalDeliveryFee).toBe(46);
+    expect(result.breakdown[0]).toEqual(expect.objectContaining({
+      baseFee: 20,
+      perItemFee: 7,
+      itemFee: 21,
+      codFee: 5,
+      deliveryFee: 46,
+      feeRuleId: "rule-local-item",
+    }));
+  });
 });

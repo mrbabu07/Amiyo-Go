@@ -18,6 +18,26 @@ const editableFields = [
   "codCharge",
 ];
 
+const asPlainSettings = (settings = {}) =>
+  typeof settings.toObject === "function" ? settings.toObject() : settings;
+
+const loadAdminDeliveryControls = async (db) => {
+  if (!db?.collection) return { deliveryFeeRules: [], deliveryZones: [] };
+
+  const [deliveryFeeRules, deliveryZones] = await Promise.all([
+    db.collection("delivery_fee_rules")
+      .find({ status: { $ne: "inactive" } })
+      .sort({ priority: 1, createdAt: -1 })
+      .toArray(),
+    db.collection("delivery_zones")
+      .find({ status: { $ne: "inactive" } })
+      .sort({ sortOrder: 1, name: 1 })
+      .toArray(),
+  ]);
+
+  return { deliveryFeeRules, deliveryZones };
+};
+
 // Get delivery settings
 exports.getDeliverySettings = async (req, res) => {
   try {
@@ -65,7 +85,7 @@ exports.updateDeliverySettings = async (req, res) => {
 // Calculate delivery charge for an order
 exports.calculateDeliveryCharge = async (req, res) => {
   try {
-    const { subtotal, area, products = [], shippingInfo = {}, deliveryMethod = "standard" } = req.body;
+    const { subtotal, area, products = [], shippingInfo = {}, deliveryMethod = "standard", paymentMethod = "" } = req.body;
     const settings = await DeliverySettings.getSettings();
 
     if (Array.isArray(products) && products.length > 0) {
@@ -95,12 +115,17 @@ exports.calculateDeliveryCharge = async (req, res) => {
         });
       }
 
+      const deliveryControls = await loadAdminDeliveryControls(req.app.locals.db || Product?.collection?.db);
       const delivery = calculateDeliveryBreakdown({
         items: hydratedItems,
         shippingInfo,
         vendorsById,
-        settings,
+        settings: {
+          ...asPlainSettings(settings),
+          ...deliveryControls,
+        },
         deliveryMethod,
+        paymentMethod,
       });
 
       return res.json({

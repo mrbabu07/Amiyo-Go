@@ -135,6 +135,7 @@ const emptyRule = {
   minWeightKg: 0,
   maxWeightKg: 0,
   baseFee: 80,
+  perItemFee: 0,
   feePerKg: 10,
   codFee: 0,
   redeliveryFee: 0,
@@ -385,7 +386,13 @@ export default function AdminLogistics() {
   });
 
   const zoneOptions = useMemo(
-    () => zones.map((zone) => ({ value: zone.code || zone._id, label: zone.name })),
+    () => [
+      { value: "sameUnion", label: "Same union" },
+      { value: "sameUpazila", label: "Same upazila" },
+      { value: "sameDistrict", label: "Same district" },
+      { value: "outsideDistrict", label: "Outside district" },
+      ...zones.map((zone) => ({ value: zone.code || zone._id, label: zone.name })),
+    ],
     [zones],
   );
 
@@ -2004,6 +2011,15 @@ export default function AdminLogistics() {
               <input className="input-control" placeholder="Phone" value={staffForm.phone} onChange={(event) => setStaffForm({ ...staffForm, phone: event.target.value })} />
               <input className="input-control" type="email" placeholder="Login email for logistics access" value={staffForm.email} onChange={(event) => setStaffForm({ ...staffForm, email: event.target.value })} />
               <input className="input-control" placeholder="Route name" value={staffForm.routeName} onChange={(event) => setStaffForm({ ...staffForm, routeName: event.target.value })} />
+              <div className="grid gap-3 sm:grid-cols-3">
+                <select className="input-control" value={staffForm.status} onChange={(event) => setStaffForm({ ...staffForm, status: event.target.value })}>
+                  <option value="active">Active</option>
+                  <option value="off_duty">Off duty</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                <input className="input-control" type="time" value={staffForm.shiftStart} onChange={(event) => setStaffForm({ ...staffForm, shiftStart: event.target.value })} />
+                <input className="input-control" type="time" value={staffForm.shiftEnd} onChange={(event) => setStaffForm({ ...staffForm, shiftEnd: event.target.value })} />
+              </div>
               <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <div>
                   <p className="text-sm font-bold text-slate-950">Area coverage</p>
@@ -2070,6 +2086,7 @@ export default function AdminLogistics() {
                 <input className="input-control" placeholder="Vehicle" value={staffForm.vehicleType} onChange={(event) => setStaffForm({ ...staffForm, vehicleType: event.target.value })} />
                 <input className="input-control" type="number" min="0" value={staffForm.capacityOrders} onChange={(event) => setStaffForm({ ...staffForm, capacityOrders: Number(event.target.value) })} />
               </div>
+              <textarea className="input-control min-h-20" placeholder="Internal note" value={staffForm.notes} onChange={(event) => setStaffForm({ ...staffForm, notes: event.target.value })} />
               <button type="submit" disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
                 <Save className="h-4 w-4" />
                 Save staff
@@ -2106,6 +2123,20 @@ export default function AdminLogistics() {
                       Logistics area access
                     </p>
                   )}
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                    <div className="rounded-lg bg-slate-50 px-3 py-2">
+                      <p className="font-semibold uppercase text-slate-400">Vehicle</p>
+                      <p className="mt-1 font-bold text-slate-800">{staff.vehicleType || "Bike"}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 px-3 py-2">
+                      <p className="font-semibold uppercase text-slate-400">Capacity</p>
+                      <p className="mt-1 font-bold text-slate-800">{staff.capacityOrders || 0}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 px-3 py-2">
+                      <p className="font-semibold uppercase text-slate-400">Shift</p>
+                      <p className="mt-1 font-bold text-slate-800">{staff.shiftStart || "--"}-{staff.shiftEnd || "--"}</p>
+                    </div>
+                  </div>
                   {canManageLogisticsSettings && (
                     <button
                       type="button"
@@ -2136,6 +2167,7 @@ export default function AdminLogistics() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <select className="input-control" value={ruleForm.ruleType} onChange={(event) => setRuleForm({ ...ruleForm, ruleType: event.target.value })}>
                   <option value="zone_rate">Zone rate</option>
+                  <option value="per_item">Per item fee</option>
                   <option value="weight_based">Weight based</option>
                   <option value="free_shipping">Free shipping</option>
                   <option value="cod_fee">COD fee</option>
@@ -2148,12 +2180,22 @@ export default function AdminLogistics() {
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <input className="input-control" type="number" min="0" placeholder="Base fee" value={ruleForm.baseFee} onChange={(event) => setRuleForm({ ...ruleForm, baseFee: Number(event.target.value) })} />
+                <input className="input-control" type="number" min="0" placeholder="Per item" value={ruleForm.perItemFee} onChange={(event) => setRuleForm({ ...ruleForm, perItemFee: Number(event.target.value) })} />
                 <input className="input-control" type="number" min="0" placeholder="Per kg" value={ruleForm.feePerKg} onChange={(event) => setRuleForm({ ...ruleForm, feePerKg: Number(event.target.value) })} />
                 <input className="input-control" type="number" min="0" placeholder="Free threshold" value={ruleForm.freeShippingThreshold} onChange={(event) => setRuleForm({ ...ruleForm, freeShippingThreshold: Number(event.target.value) })} />
                 <input className="input-control" type="number" min="0" placeholder="Min order" value={ruleForm.minOrderAmount} onChange={(event) => setRuleForm({ ...ruleForm, minOrderAmount: Number(event.target.value) })} />
                 <input className="input-control" type="number" min="0" placeholder="Min kg" value={ruleForm.minWeightKg} onChange={(event) => setRuleForm({ ...ruleForm, minWeightKg: Number(event.target.value) })} />
                 <input className="input-control" type="number" min="0" placeholder="COD fee" value={ruleForm.codFee} onChange={(event) => setRuleForm({ ...ruleForm, codFee: Number(event.target.value) })} />
               </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <select className="input-control" value={ruleForm.status} onChange={(event) => setRuleForm({ ...ruleForm, status: event.target.value })}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                <input className="input-control" type="number" min="0" placeholder="Priority" value={ruleForm.priority} onChange={(event) => setRuleForm({ ...ruleForm, priority: Number(event.target.value) })} />
+                <input className="input-control" placeholder="Payment methods" value={ruleForm.paymentMethodsText} onChange={(event) => setRuleForm({ ...ruleForm, paymentMethodsText: event.target.value })} />
+              </div>
+              <textarea className="input-control min-h-20" placeholder="Internal note" value={ruleForm.notes} onChange={(event) => setRuleForm({ ...ruleForm, notes: event.target.value })} />
               <button type="submit" disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
                 <Save className="h-4 w-4" />
                 Save rule
@@ -2169,6 +2211,7 @@ export default function AdminLogistics() {
                         <h3 className="font-bold">{rule.name}</h3>
                         <StatusPill status={rule.status || "active"} />
                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{rule.ruleType?.replaceAll("_", " ")}</span>
+                        <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-700">Per item {formatPrice(rule.perItemFee || 0)}</span>
                       </div>
                       <p className="mt-2 text-sm text-slate-600">Zone {rule.zoneCode || "Any"} · Base {formatPrice(rule.baseFee || 0)} · Per kg {formatPrice(rule.feePerKg || 0)}</p>
                     </div>

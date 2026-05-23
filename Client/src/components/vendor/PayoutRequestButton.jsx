@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { WalletCards } from "lucide-react";
 import toast from 'react-hot-toast';
 import { getAvailableBalance, requestPayout } from '../../services/api';
 import { useCurrency } from '../../hooks/useCurrency';
@@ -92,11 +93,9 @@ export default function PayoutRequestButton({ onRequestSuccess, disabled = false
         onClick={openModal}
         disabled={disabled}
         title={disabledReason}
-        className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600 transition font-medium flex items-center gap-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
+        className="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition font-medium flex items-center gap-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
       >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+        <WalletCards className="h-5 w-5" />
         Request Payout
       </button>
 
@@ -107,13 +106,13 @@ export default function PayoutRequestButton({ onRequestSuccess, disabled = false
       >
         {loading && !balanceData ? (
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
           </div>
         ) : balanceData ? (
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Balance Info */}
-            <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg p-4">
-              <h4 className="font-semibold text-orange-900 mb-3">Available Balance</h4>
+            <div className="bg-gradient-to-r from-primary-50 to-emerald-50 border border-primary-200 rounded-lg p-4">
+              <h4 className="font-semibold text-primary-900 mb-3">Available Balance</h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Delivered Earnings:</span>
@@ -133,9 +132,9 @@ export default function PayoutRequestButton({ onRequestSuccess, disabled = false
                     <span className="font-medium text-red-600">-{formatPrice(balanceData.returnDeductions)}</span>
                   </div>
                 )}
-                <div className="flex justify-between pt-2 border-t border-orange-300">
-                  <span className="font-semibold text-orange-900">Available:</span>
-                  <span className="font-bold text-orange-600 text-lg">{formatPrice(balanceData.availableBalance)}</span>
+                <div className="flex justify-between pt-2 border-t border-primary-300">
+                  <span className="font-semibold text-primary-900">Available:</span>
+                  <span className="font-bold text-primary-700 text-lg">{formatPrice(balanceData.availableBalance)}</span>
                 </div>
               </div>
             </div>
@@ -192,7 +191,7 @@ export default function PayoutRequestButton({ onRequestSuccess, disabled = false
                       max={balanceData.availableBalance}
                       step="0.01"
                       required
-                      className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                      className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                       placeholder="Enter amount"
                     />
                   </div>
@@ -209,7 +208,7 @@ export default function PayoutRequestButton({ onRequestSuccess, disabled = false
                     value={payoutMethod}
                     onChange={(e) => setPayoutMethod(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                   >
                     <option value="bank">Bank Transfer</option>
                     <option value="bkash">bKash</option>
@@ -226,7 +225,7 @@ export default function PayoutRequestButton({ onRequestSuccess, disabled = false
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
                     rows="3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                     placeholder="Add any additional information..."
                   />
                 </div>
@@ -259,7 +258,7 @@ export default function PayoutRequestButton({ onRequestSuccess, disabled = false
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? 'Submitting...' : 'Submit Request'}
                   </button>

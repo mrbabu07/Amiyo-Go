@@ -314,7 +314,7 @@ export default function VendorFinance() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-orange-600" />
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-primary-600" />
       </div>
     );
   }
@@ -389,7 +389,7 @@ export default function VendorFinance() {
           </Panel>
           <Panel>
             <div className="flex items-start gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 text-orange-700">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary-50 text-primary-700">
                 <CalendarDays className="h-5 w-5" />
               </span>
               <div>
@@ -414,7 +414,7 @@ export default function VendorFinance() {
                   to={tab.path}
                   className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition ${
                     active
-                      ? "border-orange-500 bg-orange-50 text-orange-700"
+                      ? "border-primary-600 bg-primary-50 text-primary-700"
                       : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                   }`}
                 >
@@ -712,7 +712,7 @@ function StatementsTab({
               type="month"
               value={statementMonth}
               onChange={(event) => setStatementMonth(event.target.value)}
-              className="ml-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-orange-500"
+              className="ml-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-primary-500"
             />
           </label>
         </div>
@@ -826,6 +826,30 @@ function PayoutsTab({ payouts, stats, refreshTrigger, onRequestSuccess, formatPr
           />
         </div>
       </Panel>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <MetricCard
+          icon={CheckCircle2}
+          label="Delivered earnings"
+          value={formatPrice(stats?.deliveredNetEarnings || 0)}
+          note={`${stats?.deliveredCount || 0} released order(s)`}
+          tone="emerald"
+        />
+        <MetricCard
+          icon={WalletCards}
+          label="Available to request"
+          value={formatPrice(stats?.pendingBalance || 0)}
+          note="After paid and pending payouts"
+          tone="sky"
+        />
+        <MetricCard
+          icon={Clock3}
+          label="Pending requests"
+          value={formatPrice(stats?.pendingPayouts || 0)}
+          note="Waiting for admin finance review"
+          tone="amber"
+        />
+      </div>
 
       <PayoutRequestsList refreshTrigger={refreshTrigger} canManage={canManage} />
 
@@ -996,7 +1020,7 @@ function MetricCard({ icon, label, value, note, tone }) {
 }
 
 function MiniStat({ label, value, danger = false, success = false, strong = false }) {
-  const color = danger ? "text-rose-700" : success ? "text-emerald-700" : strong ? "text-orange-700" : "text-slate-950";
+  const color = danger ? "text-rose-700" : success ? "text-emerald-700" : strong ? "text-primary-700" : "text-slate-950";
 
   return (
     <div>
@@ -1038,7 +1062,7 @@ function DownloadAction({ icon, label, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="inline-flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+      className="inline-flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"
     >
       <span className="inline-flex items-center gap-2">
         {createElement(icon, { className: "h-4 w-4" })}

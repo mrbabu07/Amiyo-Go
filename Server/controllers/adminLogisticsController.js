@@ -15,7 +15,7 @@ const {
 const READY_FOR_DISPATCH_STATUSES = ["packed", "ready_to_ship", "pickup_ready"];
 const READY_FOR_COLLECTION_STATUSES = ["ready_to_ship", "pickup_ready"];
 const FAILED_DELIVERY_STATUSES = ["failed_delivery", "delivery_failed", "reattempt_scheduled", "return_to_seller"];
-const FEE_RULE_TYPES = ["free_shipping", "weight_based", "zone_rate", "cod_fee", "redelivery_fee"];
+const FEE_RULE_TYPES = ["free_shipping", "weight_based", "zone_rate", "per_item", "cod_fee", "redelivery_fee"];
 const COURIER_STATUSES = ["active", "paused", "disabled"];
 const COURIER_BOOKING_MODES = ["manual", "live"];
 const COURIER_COVERAGE_TYPES = ["outside_district", "local_area", "both"];
@@ -1470,6 +1470,7 @@ exports.upsertDeliveryFeeRule = async (req, res) => {
       minWeightKg: Number(req.body.minWeightKg || 0),
       maxWeightKg: Number(req.body.maxWeightKg || 0),
       baseFee: Number(req.body.baseFee || 0),
+      perItemFee: Number(req.body.perItemFee || 0),
       feePerKg: Number(req.body.feePerKg || 0),
       codFee: Number(req.body.codFee || 0),
       redeliveryFee: Number(req.body.redeliveryFee || 0),

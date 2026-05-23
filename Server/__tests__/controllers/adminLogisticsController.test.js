@@ -596,7 +596,7 @@ describe("adminLogisticsController", () => {
     });
   });
 
-  test("saves delivery fee rules for weight, zone, and free shipping logic", async () => {
+  test("saves delivery fee rules for per-item, weight, zone, and free shipping logic", async () => {
     const db = buildDb();
     const res = createRes();
 
@@ -605,10 +605,11 @@ describe("adminLogisticsController", () => {
         db,
         body: {
           name: "Dhaka heavy item",
-          ruleType: "weight_based",
+          ruleType: "per_item",
           zoneCode: "dhaka",
           minWeightKg: 5,
           baseFee: 80,
+          perItemFee: 12,
           feePerKg: 15,
           freeShippingThreshold: 3000,
         },
@@ -619,9 +620,10 @@ describe("adminLogisticsController", () => {
     expect(res.status).toHaveBeenCalledWith(201);
     expect(db.collection("delivery_fee_rules").docs[0]).toEqual(
       expect.objectContaining({
-        ruleType: "weight_based",
+        ruleType: "per_item",
         zoneCode: "dhaka",
         minWeightKg: 5,
+        perItemFee: 12,
         feePerKg: 15,
         freeShippingThreshold: 3000,
       }),

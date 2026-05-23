@@ -288,6 +288,7 @@ export default function Checkout() {
                 area: formData.area,
               },
               deliveryMethod,
+              paymentMethod: formData.paymentMethod,
             }),
           },
         );
@@ -321,6 +322,7 @@ export default function Checkout() {
     formData.union,
     formData.wardNo,
     formData.area,
+    formData.paymentMethod,
     deliveryMethod,
   ]);
 

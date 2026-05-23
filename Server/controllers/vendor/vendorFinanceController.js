@@ -110,7 +110,7 @@ const getVendorDeliveryBreakdown = (order, vendorId, vendorSubtotal) => {
       ? Number(matched.deliveryFee || 0)
       : Number(matched.shippingFeeCredit || 0);
     const shippingFeeDebit = Number(matched.shippingFeeDebit || 0) +
-      (matched.freeDeliveryApplied ? Number(matched.baseFee || 0) : 0);
+      (matched.freeDeliveryApplied ? Number(matched.waivedDeliveryFee ?? matched.baseFee ?? 0) : 0);
 
     return {
       deliveryMethod: matched.deliveryMethod || "platform_delivery",

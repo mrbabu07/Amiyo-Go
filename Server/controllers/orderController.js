@@ -29,6 +29,26 @@ const getVendorLabel = (vendor) =>
   vendor?.name ||
   "HnilaBazar";
 
+const asPlainSettings = (settings = {}) =>
+  typeof settings.toObject === "function" ? settings.toObject() : settings;
+
+const loadDeliveryControls = async (db) => {
+  if (!db?.collection) return { deliveryFeeRules: [], deliveryZones: [] };
+
+  const [deliveryFeeRules, deliveryZones] = await Promise.all([
+    db.collection("delivery_fee_rules")
+      .find({ status: { $ne: "inactive" } })
+      .sort({ priority: 1, createdAt: -1 })
+      .toArray(),
+    db.collection("delivery_zones")
+      .find({ status: { $ne: "inactive" } })
+      .sort({ sortOrder: 1, name: 1 })
+      .toArray(),
+  ]);
+
+  return { deliveryFeeRules, deliveryZones };
+};
+
 const buildVendorPickupAddress = (vendor) => {
   if (!vendor) return {};
 
@@ -762,12 +782,17 @@ const createOrder = async (req, res) => {
     }
 
     const deliverySettings = await DeliverySettings.getSettings();
+    const deliveryControls = await loadDeliveryControls(Product.collection.db);
     const delivery = calculateDeliveryBreakdown({
       items: productsWithVendor,
       shippingInfo,
       vendorsById,
-      settings: deliverySettings,
+      settings: {
+        ...asPlainSettings(deliverySettings),
+        ...deliveryControls,
+      },
       deliveryMethod,
+      paymentMethod,
     });
 
     // Create order with coupon support
