@@ -5,6 +5,7 @@ const {
   normalizeProvider,
 } = require("../services/courierProviderService");
 const {
+  addressMatchesLogisticsScope,
   filterOrdersForLogisticsScope,
   filterZonesForLogisticsScope,
   getLogisticsScopeFromRequest,
@@ -78,6 +79,19 @@ const normalizeText = (value) => String(value || "").trim().toLowerCase();
 const normalizeStringArray = (value) => {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map((item) => String(item || "").trim()).filter(Boolean))];
+};
+
+const normalizeAssignedLocations = (value) => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((location) => ({
+      level: String(location?.level || "").trim().toLowerCase(),
+      id: normalizeId(location?.id),
+      name: String(location?.name || "").trim(),
+      label: String(location?.label || location?.name || "").trim(),
+      tokens: normalizeStringArray(location?.tokens),
+    }))
+    .filter((location) => location.level && (location.id || location.name || location.tokens.length));
 };
 
 const idFilter = (value) => {
@@ -258,6 +272,7 @@ const syncPickupStaffLoginUser = async (req, staffDoc = {}) => {
   const User = req.app.locals.models.User;
   const logisticsProfile = {
     assignedZones: normalizeStringArray(staffDoc.assignedZones),
+    assignedLocations: normalizeAssignedLocations(staffDoc.assignedLocations),
     assignedVendorIds: normalizeStringArray(staffDoc.assignedVendorIds),
     pickupStaffId: normalizeId(staffDoc._id || staffDoc.staffId),
     routeName: staffDoc.routeName || "",
@@ -372,10 +387,16 @@ const normalizeAddressObject = (address = {}) => {
     contactName: String(address.contactName || address.contact || address.name || "").trim(),
     phone: String(address.phone || address.mobile || "").trim(),
     street: String(address.street || address.address || address.addressLine1 || address.line1 || "").trim(),
-    area: String(address.area || address.upazila || address.thana || "").trim(),
+    area: String(address.area || "").trim(),
+    union: String(address.union || address.unionName || "").trim(),
+    unionId: normalizeId(address.unionId || address.union_id),
+    upazila: String(address.upazila || address.upazilla || address.thana || "").trim(),
+    upazilaId: normalizeId(address.upazilaId || address.upazillaId || address.upazila_id || address.upazilla_id || address.thanaId),
     city: String(address.city || "").trim(),
     district: String(address.district || address.state || "").trim(),
+    districtId: normalizeId(address.districtId || address.district_id),
     division: String(address.division || "").trim(),
+    divisionId: normalizeId(address.divisionId || address.division_id),
     postalCode: String(address.postalCode || address.zipCode || address.zip || "").trim(),
     country: String(address.country || "").trim(),
     notes: String(address.notes || address.instructions || "").trim(),
@@ -391,6 +412,8 @@ const formatPickupAddressText = (address = {}, vendor = {}) => {
     normalized.contactName,
     normalized.street,
     normalized.area,
+    normalized.union,
+    normalized.upazila,
     normalized.city,
     normalized.district,
     normalized.division,
@@ -526,12 +549,26 @@ const getCollectionSearchText = (row) =>
     .join(" ")
     .toLowerCase();
 
+const readyCollectionRowMatchesScope = (row = {}, zones = [], scope = null) => {
+  if (!scope?.scoped) return true;
+  const assignedVendorIds = (scope.assignedVendorIds || []).map(normalizeId);
+  if (assignedVendorIds.includes(normalizeId(row.vendorId))) return true;
+  return (
+    addressMatchesLogisticsScope(row.pickupAddress, scope) ||
+    addressMatchesLogisticsScope(row.deliveryLocation, scope) ||
+    orderMatchesLogisticsScope({ shippingInfo: row.pickupAddress, products: [{ vendorId: row.vendorId }] }, zones, scope) ||
+    orderMatchesLogisticsScope({ shippingInfo: row.deliveryLocation, products: [{ vendorId: row.vendorId }] }, zones, scope)
+  );
+};
+
 const buildReadyToShipCollectionQueue = ({
   orders = [],
   vendorOrders = [],
   vendors = [],
   assignments = [],
   filters = {},
+  zones = [],
+  scope = null,
 } = {}) => {
   const vendorLookup = buildVendorLookup(vendors);
   const vendorOrderLookup = buildVendorOrderLookup(vendorOrders);
@@ -594,6 +631,7 @@ const buildReadyToShipCollectionQueue = ({
         customerName: shipping.name || order.customerName || "Customer",
         customerPhone: shipping.phone || "",
         deliveryAddress: getAddressParts(shipping).join(", "),
+        deliveryLocation: shipping,
         paymentMethod: order.paymentMethod || order.payment?.method || "",
         paymentStatus: order.paymentStatus || "",
         payableAmount,
@@ -629,6 +667,7 @@ const buildReadyToShipCollectionQueue = ({
   const statusFilter = normalizeText(filters.status || "all");
   const query = normalizeText(filters.q || filters.search || "");
   const filteredRows = rows
+    .filter((row) => readyCollectionRowMatchesScope(row, zones, scope))
     .filter((row) => statusFilter === "all" || row.status === statusFilter)
     .filter((row) => !query || getCollectionSearchText(row).includes(query))
     .sort((left, right) => {
@@ -1256,22 +1295,20 @@ exports.getReadyToShipCollections = async (req, res) => {
       collectionToArray(db, "dispatch_assignments", {}, { pickupDate: 1 }),
     ]);
     const scope = getLogisticsScopeFromRequest(req);
-    const scopedOrders = filterOrdersForLogisticsScope(orders, zones, scope);
-    const scopedOrderIds = new Set(scopedOrders.map((order) => normalizeId(order._id)));
 
     res.json({
       success: true,
       data: buildReadyToShipCollectionQueue({
-        orders: scopedOrders,
+        orders,
         vendorOrders,
         vendors,
-        assignments: scope?.scoped
-          ? assignments.filter((assignment) => scopedOrderIds.has(normalizeId(assignment.orderId)))
-          : assignments,
+        assignments,
+        zones,
         filters: {
           status: req.query.status,
           q: req.query.q || req.query.search,
         },
+        scope,
       }),
     });
   } catch (error) {
@@ -1347,6 +1384,7 @@ exports.upsertPickupStaff = async (req, res) => {
       status: STAFF_STATUSES.includes(req.body.status) ? req.body.status : "active",
       routeName: String(req.body.routeName || "").trim(),
       assignedZones: normalizeStringArray(req.body.assignedZones),
+      assignedLocations: normalizeAssignedLocations(req.body.assignedLocations),
       assignedVendorIds: normalizeStringArray(req.body.assignedVendorIds),
       vehicleType: String(req.body.vehicleType || "").trim(),
       capacityOrders: Number(req.body.capacityOrders || 0),

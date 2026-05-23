@@ -30,6 +30,7 @@ import {
 import useAuth from '../hooks/useAuth';
 import { getAdminAlertSummary } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
+import { useNotifications } from '../context/NotificationContext';
 import AdminGlobalSearch from '../components/admin/AdminGlobalSearch';
 
 const navigation = [
@@ -281,6 +282,7 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const { user, role, logout, permissions, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { unreadCount } = useNotifications();
   const [sidebarOpen, setSidebarOpen] = useState(() => (
     typeof window === 'undefined' ? false : window.innerWidth >= 1024
   ));
@@ -444,6 +446,19 @@ const AdminLayout = () => {
                 </Link>
               );
             })}
+            <Link
+              to="/notifications"
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition hover:bg-[#eef8fb] hover:text-[#1a6387] focus:outline-none focus:ring-2 focus:ring-[#1e7098]/30 dark:text-gray-300 dark:hover:bg-primary-900/20 dark:hover:text-primary-300"
+              title="Notifications"
+              aria-label="Notifications"
+            >
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute right-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-4 text-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </Link>
             <button
               type="button"
               onClick={toggleTheme}

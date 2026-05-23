@@ -14,8 +14,10 @@ const {
   stateLabel,
 } = require("../utils/logisticsStateMachine");
 const {
+  addressMatchesLogisticsScope,
   filterShipmentsForLogisticsScope,
   getLogisticsScopeFromRequest,
+  getScopeFromUser,
   shipmentMatchesLogisticsScope,
 } = require("../utils/logisticsScope");
 
@@ -139,6 +141,89 @@ const getDeliveryZones = async (req) => {
   const db = req.app.locals.db;
   if (!db?.collection) return [];
   return db.collection("delivery_zones").find({}).toArray();
+};
+
+const getLogisticsNotificationUsers = async (req) => {
+  const collection = req.app.locals.models?.User?.collection || req.app.locals.db?.collection?.("users");
+  if (!collection?.find) return [];
+  const users = await collection.find({ role: "logistics_manager" }).toArray();
+  return users.filter((user) => !["inactive", "disabled", "banned", "deleted"].includes(String(user.status || "active")));
+};
+
+const getVendorForShipment = async (req, shipment = {}) => {
+  const db = req.app.locals.db;
+  if (!db?.collection || !shipment.vendorId) return null;
+  return db.collection("vendors").findOne(idFilter(shipment.vendorId));
+};
+
+const createInAppNotification = async (req, payload = {}) => {
+  const Notification = req.app.locals.models?.Notification;
+  if (Notification?.create) return Notification.create(payload);
+  const db = req.app.locals.db;
+  if (!db?.collection) return null;
+  const now = new Date();
+  return db.collection("notifications").insertOne({
+    ...payload,
+    isRead: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+};
+
+const notifyScopedLogisticsPickupReady = async (req, shipment = {}) => {
+  try {
+    const users = await getLogisticsNotificationUsers(req);
+    if (users.length === 0) return [];
+
+    const [zones, vendor] = await Promise.all([
+      getDeliveryZones(req),
+      getVendorForShipment(req, shipment),
+    ]);
+    const vendorName = vendor?.shopName || vendor?.businessName || vendor?.name || "Vendor";
+    const orderLabel = normalizeId(shipment.orderId).slice(-8).toUpperCase();
+    const link = "/admin/logistics?tab=work";
+    const seenRecipients = new Set();
+
+    const recipients = users.filter((user) => {
+      const recipientId = normalizeId(user.firebaseUid || user.uid || user._id || user.email);
+      if (!recipientId || seenRecipients.has(recipientId)) return false;
+      const scope = { ...getScopeFromUser(user), scoped: true };
+      const matches =
+        shipmentMatchesLogisticsScope(shipment, zones, scope) ||
+        addressMatchesLogisticsScope(shipment.pickupAddress, scope);
+      if (matches) seenRecipients.add(recipientId);
+      return matches;
+    });
+
+    return Promise.all(
+      recipients.map((user) => {
+        const recipientId = normalizeId(user.firebaseUid || user.uid || user._id || user.email);
+        return createInAppNotification(req, {
+          userId: recipientId,
+          type: "delivery",
+          title: "Vendor pickup ready",
+          message: `${vendorName} marked order #${orderLabel} ready for pickup.`,
+          link,
+          data: {
+            url: link,
+            event: "shipment.pickup_ready",
+            shipmentId: normalizeId(shipment._id),
+            orderId: normalizeId(shipment.orderId),
+            vendorId: normalizeId(shipment.vendorId),
+          },
+          metadata: {
+            shipmentId: normalizeId(shipment._id),
+            orderId: normalizeId(shipment.orderId),
+            vendorId: normalizeId(shipment.vendorId),
+            vendorName,
+          },
+        });
+      }),
+    );
+  } catch (error) {
+    console.error("Failed to notify logistics pickup-ready users:", error);
+    return [];
+  }
 };
 
 const assertShipmentInLogisticsScope = async (req, shipment) => {
@@ -506,6 +591,7 @@ exports.markPickupReady = async (req, res) => {
       "products.$[elem].pickupReadyAt": new Date(),
       "products.$[elem].shipmentId": normalizeId(updated._id),
     });
+    await notifyScopedLogisticsPickupReady(req, updated);
     res.json({ success: true, data: updated });
   } catch (error) {
     jsonError(res, error, "Failed to mark pickup ready");

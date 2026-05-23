@@ -11,12 +11,14 @@ import {
   MapPin,
   Package,
   PackageCheck,
+  Plus,
   RefreshCw,
   RotateCcw,
   Save,
   Search,
   Truck,
   Users,
+  X,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import Loading from "../../components/Loading";
@@ -113,6 +115,7 @@ const emptyStaff = {
   status: "active",
   routeName: "",
   assignedZonesText: "",
+  assignedLocations: [],
   assignedVendorIdsText: "",
   vehicleType: "bike",
   capacityOrders: 25,
@@ -178,6 +181,13 @@ const emptyDeliveryAction = {
   codCollected: true,
 };
 
+const emptyLocationDraft = {
+  divisionId: "",
+  districtId: "",
+  upazilaId: "",
+  unionId: "",
+};
+
 const terminalShipmentStates = new Set(["delivered", "return_to_origin"]);
 const deliveryActiveStates = new Set(["picked_up", "in_transit", "out_for_delivery", "delivery_failed"]);
 
@@ -186,6 +196,30 @@ const toArray = (value) =>
     .split(/[\n,]/)
     .map((item) => item.trim())
     .filter(Boolean);
+
+const uniqueArray = (values = []) => [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+
+const extractGeoTable = (payload, tableName) => {
+  if (Array.isArray(payload)) {
+    const table = payload.find((item) => item.type === "table" && (!tableName || item.name === tableName));
+    if (Array.isArray(table?.data)) return table.data;
+  }
+  return Array.isArray(payload?.data) ? payload.data : [];
+};
+
+const buildLocationTokens = (level, item = {}) => {
+  const id = String(item.id || "").trim();
+  const name = String(item.name || "").trim();
+  const aliases = [
+    id && `${level}:${id}`,
+    name && `${level}:${name}`,
+    name,
+  ];
+  if (level === "upazila") {
+    aliases.push(id && `thana:${id}`, name && `thana:${name}`);
+  }
+  return uniqueArray(aliases);
+};
 
 const formatDate = (value) => {
   if (!value) return "N/A";
@@ -229,6 +263,40 @@ function Metric({ icon, label, value, tone = "text-slate-950" }) {
         {createElement(icon, { className: "h-4 w-4 text-slate-400" })}
       </div>
       <p className={`mt-2 text-2xl font-bold ${tone}`}>{value}</p>
+    </div>
+  );
+}
+
+function OperatorTaskCard({ icon, label, value, detail, actionLabel, onAction, tone = "primary" }) {
+  const Icon = icon;
+  const toneClass = {
+    primary: "border-primary-100 bg-primary-50 text-primary-700",
+    emerald: "border-emerald-100 bg-emerald-50 text-emerald-700",
+    red: "border-red-100 bg-red-50 text-red-700",
+    slate: "border-slate-100 bg-slate-50 text-slate-700",
+  }[tone] || "border-primary-100 bg-primary-50 text-primary-700";
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${toneClass}`}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-500">{label}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-950">{value}</p>
+          <p className="mt-1 text-sm text-slate-500">{detail}</p>
+        </div>
+      </div>
+      {actionLabel && (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          {actionLabel}
+        </button>
+      )}
     </div>
   );
 }
@@ -308,11 +376,58 @@ export default function AdminLogistics() {
   const [failureAction, setFailureAction] = useState(emptyFailureAction);
   const [parcelAssignment, setParcelAssignment] = useState(emptyParcelAssignment);
   const [deliveryAction, setDeliveryAction] = useState(emptyDeliveryAction);
+  const [staffLocationDraft, setStaffLocationDraft] = useState(emptyLocationDraft);
+  const [geoData, setGeoData] = useState({
+    divisions: [],
+    districts: [],
+    upazilas: [],
+    unions: [],
+  });
 
   const zoneOptions = useMemo(
     () => zones.map((zone) => ({ value: zone.code || zone._id, label: zone.name })),
     [zones],
   );
+
+  const geoDistricts = useMemo(
+    () => geoData.districts.filter((district) => district.division_id === staffLocationDraft.divisionId),
+    [geoData.districts, staffLocationDraft.divisionId],
+  );
+
+  const geoUpazilas = useMemo(
+    () => geoData.upazilas.filter((upazila) => upazila.district_id === staffLocationDraft.districtId),
+    [geoData.upazilas, staffLocationDraft.districtId],
+  );
+
+  const geoUnions = useMemo(
+    () => geoData.unions.filter((union) => union.upazilla_id === staffLocationDraft.upazilaId),
+    [geoData.unions, staffLocationDraft.upazilaId],
+  );
+
+  const pickGeo = (items, id) => items.find((item) => item.id === id) || null;
+
+  const selectedStaffDivision = pickGeo(geoData.divisions, staffLocationDraft.divisionId);
+  const selectedStaffDistrict = pickGeo(geoData.districts, staffLocationDraft.districtId);
+  const selectedStaffUpazila = pickGeo(geoData.upazilas, staffLocationDraft.upazilaId);
+  const selectedStaffUnion = pickGeo(geoData.unions, staffLocationDraft.unionId);
+
+  const staffLocationAssignment = useMemo(() => {
+    const chain = [
+      { level: "division", item: selectedStaffDivision },
+      { level: "district", item: selectedStaffDistrict },
+      { level: "upazila", item: selectedStaffUpazila },
+      { level: "union", item: selectedStaffUnion },
+    ].filter((entry) => entry.item);
+    const selected = chain[chain.length - 1];
+    if (!selected) return null;
+    return {
+      level: selected.level,
+      id: selected.item.id,
+      name: selected.item.name,
+      label: chain.map((entry) => entry.item.name).join(" / "),
+      tokens: buildLocationTokens(selected.level, selected.item),
+    };
+  }, [selectedStaffDivision, selectedStaffDistrict, selectedStaffUpazila, selectedStaffUnion]);
 
   const courierById = useMemo(
     () => new Map(couriers.map((courier) => [String(courier._id), courier])),
@@ -393,6 +508,56 @@ export default function AdminLogistics() {
   const deliveryQueue = useMemo(
     () => activeShipments.filter((shipment) => deliveryActiveStates.has(shipment.shipmentState || "")),
     [activeShipments],
+  );
+
+  const pickupReadyRows = useMemo(
+    () => readyRows.filter((row) => row.status === "pickup_ready" || row.pickupStatus === "ready"),
+    [readyRows],
+  );
+
+  const pickupRowsMissingLocation = useMemo(
+    () => readyRows.filter((row) => row.missingPickupLocation || !row.pickupAddress?.addressText),
+    [readyRows],
+  );
+
+  const pickupRowsWithoutParcel = useMemo(
+    () => readyRows.filter((row) => !getShipmentForReadyRow(row)),
+    [readyRows, shipmentsByOrderVendor],
+  );
+
+  const courierActionShipments = useMemo(
+    () =>
+      activeShipments.filter((shipment) =>
+        ["created", "pending_packing", "packed", "pickup_ready", "pickup_scheduled"].includes(shipment.shipmentState || "created"),
+      ),
+    [activeShipments],
+  );
+
+  const outForDeliveryShipments = useMemo(
+    () => activeShipments.filter((shipment) => shipment.shipmentState === "out_for_delivery"),
+    [activeShipments],
+  );
+
+  const codToRemitAmount = useMemo(
+    () => outstandingCodOrders.reduce((sum, row) => sum + Number(row.outstandingAmount || row.amount || 0), 0),
+    [outstandingCodOrders],
+  );
+
+  const routeStaff = useMemo(
+    () => (!canManageLogisticsSettings ? pickupStaff[0] || null : null),
+    [canManageLogisticsSettings, pickupStaff],
+  );
+
+  const routeCoverageLabels = useMemo(() => {
+    const locations = routeStaff?.assignedLocations || [];
+    const labels = locations.map((location) => location.label || location.name).filter(Boolean);
+    if (labels.length > 0) return labels.slice(0, 6);
+    return (routeStaff?.assignedZones || []).filter(Boolean).slice(0, 6);
+  }, [routeStaff]);
+
+  const dashboardCoverageLabels = useMemo(
+    () => (canManageLogisticsSettings ? zones.map((zone) => zone.name || zone.code).filter(Boolean).slice(0, 6) : routeCoverageLabels),
+    [canManageLogisticsSettings, routeCoverageLabels, zones],
   );
 
   const getZoneCourierNames = (zone) =>
@@ -477,6 +642,38 @@ export default function AdminLogistics() {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadGeoData = async () => {
+      const [divisionsRes, districtsRes, upazilasRes, unionsRes] = await Promise.all([
+        fetch("/divisions.json"),
+        fetch("/districts.json"),
+        fetch("/upazilas.json"),
+        fetch("/unions.json"),
+      ]);
+      const [divisionsJson, districtsJson, upazilasJson, unionsJson] = await Promise.all([
+        divisionsRes.json(),
+        districtsRes.json(),
+        upazilasRes.json(),
+        unionsRes.json(),
+      ]);
+      if (!mounted) return;
+      setGeoData({
+        divisions: extractGeoTable(divisionsJson, "divisions"),
+        districts: extractGeoTable(districtsJson, "districts"),
+        upazilas: extractGeoTable(upazilasJson, "upazilas"),
+        unions: extractGeoTable(unionsJson, "unions"),
+      });
+    };
+
+    loadGeoData().catch(() => {
+      if (mounted) toast.error("Failed to load Bangladesh area list");
+    });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -582,17 +779,73 @@ export default function AdminLogistics() {
     ).then(() => setCourierForm(emptyCourier));
   };
 
+  const updateStaffLocationDraft = (field, value) => {
+    setStaffLocationDraft((current) => {
+      if (field === "divisionId") {
+        return { divisionId: value, districtId: "", upazilaId: "", unionId: "" };
+      }
+      if (field === "districtId") {
+        return { ...current, districtId: value, upazilaId: "", unionId: "" };
+      }
+      if (field === "upazilaId") {
+        return { ...current, upazilaId: value, unionId: "" };
+      }
+      return { ...current, [field]: value };
+    });
+  };
+
+  const addStaffLocationAssignment = () => {
+    if (!staffLocationAssignment) {
+      toast.error("Select a division, district, upazila, or union first");
+      return;
+    }
+
+    const currentTokens = toArray(staffForm.assignedZonesText);
+    const nextTokens = uniqueArray([...currentTokens, ...staffLocationAssignment.tokens]);
+    const currentLocations = Array.isArray(staffForm.assignedLocations) ? staffForm.assignedLocations : [];
+    const hasLocation = currentLocations.some(
+      (location) => location.level === staffLocationAssignment.level && String(location.id) === String(staffLocationAssignment.id),
+    );
+
+    setStaffForm({
+      ...staffForm,
+      assignedZonesText: nextTokens.join(", "),
+      assignedLocations: hasLocation ? currentLocations : [...currentLocations, staffLocationAssignment],
+    });
+    setStaffLocationDraft(emptyLocationDraft);
+  };
+
+  const removeStaffLocationAssignment = (location) => {
+    const removeTokens = new Set(location.tokens || []);
+    const nextTokens = toArray(staffForm.assignedZonesText).filter((token) => !removeTokens.has(token));
+    setStaffForm({
+      ...staffForm,
+      assignedZonesText: nextTokens.join(", "),
+      assignedLocations: (staffForm.assignedLocations || []).filter(
+        (item) => !(item.level === location.level && String(item.id) === String(location.id)),
+      ),
+    });
+  };
+
   const submitStaff = (event) => {
     event.preventDefault();
+    const assignedZones = uniqueArray(toArray(staffForm.assignedZonesText));
+    const assignedTokenSet = new Set(assignedZones);
     runSave(
       () =>
         savePickupStaff({
           ...staffForm,
-          assignedZones: toArray(staffForm.assignedZonesText),
+          assignedZones,
+          assignedLocations: (staffForm.assignedLocations || []).filter((location) =>
+            (location.tokens || []).some((token) => assignedTokenSet.has(token)),
+          ),
           assignedVendorIds: toArray(staffForm.assignedVendorIdsText),
         }),
       staffForm.staffId ? "Pickup staff updated" : "Pickup staff saved",
-    ).then(() => setStaffForm(emptyStaff));
+    ).then(() => {
+      setStaffForm(emptyStaff);
+      setStaffLocationDraft(emptyLocationDraft);
+    });
   };
 
   const submitRule = (event) => {
@@ -860,8 +1113,12 @@ export default function AdminLogistics() {
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-950">Logistics & Delivery</h1>
-            <p className="mt-1 text-sm text-slate-500">Zones, couriers, dispatch, COD, and delivery exceptions.</p>
+            <h1 className="text-2xl font-bold text-slate-950">{canManageLogisticsSettings ? "Logistics & Delivery" : "Logistics Dashboard"}</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {canManageLogisticsSettings
+                ? "Zones, couriers, dispatch, COD, and delivery exceptions."
+                : "Your assigned vendor pickups, parcel delivery queue, COD cash, and failed delivery work."}
+            </p>
           </div>
           <button
             type="button"
@@ -875,9 +1132,9 @@ export default function AdminLogistics() {
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Metric icon={PackageCheck} label="Ready vendor pickups" value={readyQueue.summary?.totalPackages ?? overview?.dispatch?.readyOrders ?? 0} />
-          <Metric icon={Truck} label="Active couriers" value={overview?.couriers?.active || 0} tone="text-emerald-700" />
-          <Metric icon={Banknote} label="COD outstanding" value={formatPrice(overview?.codFloat?.outstandingWithCouriers || 0)} tone="text-primary-700" />
-          <Metric icon={AlertTriangle} label="Failed deliveries" value={overview?.failedDeliveries?.total || 0} tone="text-red-700" />
+          <Metric icon={Truck} label={canManageLogisticsSettings ? "Active couriers" : "Parcels in route"} value={canManageLogisticsSettings ? overview?.couriers?.active || 0 : activeShipments.length} tone="text-emerald-700" />
+          <Metric icon={Banknote} label={canManageLogisticsSettings ? "COD outstanding" : "COD to remit"} value={formatPrice(canManageLogisticsSettings ? overview?.codFloat?.outstandingWithCouriers || 0 : codToRemitAmount)} tone="text-primary-700" />
+          <Metric icon={AlertTriangle} label="Failed deliveries" value={canManageLogisticsSettings ? overview?.failedDeliveries?.total || 0 : failedDeliveries.length} tone="text-red-700" />
         </div>
 
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
@@ -904,28 +1161,115 @@ export default function AdminLogistics() {
 
         {activeTab === "work" && (
           <div className="space-y-5">
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-950">Area Order Workflow</h2>
-                  <p className="mt-1 text-sm text-slate-500">Assigned pickup, delivery, COD, and exception work for this logistics area.</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary-700">
+                      {canManageLogisticsSettings ? "Operations dashboard" : "My logistics dashboard"}
+                    </span>
+                    {routeStaff?.routeName && <StatusPill status={routeStaff.routeName} />}
+                  </div>
+                  <h2 className="mt-3 text-2xl font-bold text-slate-950">Area Order Workflow</h2>
+                  <p className="mt-2 max-w-3xl text-sm text-slate-500">
+                    Collect vendor-ready parcels, assign courier handover, confirm deliveries, reconcile COD cash, and handle failed delivery cases from one queue.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => changeTab("ready")}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700"
+                    >
+                      <PackageCheck className="h-4 w-4" />
+                      Start pickup queue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => changeTab("parcels")}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Truck className="h-4 w-4" />
+                      Manage parcels
+                    </button>
+                    <button
+                      type="button"
+                      onClick={loadData}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Refresh
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={loadData}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Refresh queue
-                </button>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-bold uppercase text-slate-400">Assigned coverage</p>
+                  <p className="mt-2 text-base font-bold text-slate-950">{canManageLogisticsSettings ? "Platform delivery network" : routeStaff?.name || "Area logistics team"}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {canManageLogisticsSettings
+                      ? `${zones.length} zone(s), ${couriers.length} courier partner(s)`
+                      : routeStaff?.phone || "Use the active area route and queues below"}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {dashboardCoverageLabels.length > 0 ? (
+                      dashboardCoverageLabels.map((label) => (
+                        <span key={label} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
+                          {label}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                        {canManageLogisticsSettings ? "No zones created" : "Coverage not assigned"}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-4">
-              <Metric icon={PackageCheck} label="Collect from vendors" value={readyRows.length} tone="text-primary-700" />
-              <Metric icon={Truck} label="Active delivery" value={deliveryQueue.length} tone="text-emerald-700" />
-              <Metric icon={Banknote} label="COD to remit" value={formatPrice(outstandingCodOrders.reduce((sum, row) => sum + Number(row.outstandingAmount || row.amount || 0), 0))} tone="text-primary-700" />
-              <Metric icon={AlertTriangle} label="Needs action" value={failedDeliveries.length} tone="text-red-700" />
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <OperatorTaskCard
+                icon={PackageCheck}
+                label="Vendor pickup"
+                value={readyRows.length}
+                detail={`${pickupReadyRows.length} ready now / ${pickupRowsMissingLocation.length} need address`}
+                actionLabel="Open pickup"
+                onAction={() => changeTab("ready")}
+              />
+              <OperatorTaskCard
+                icon={Truck}
+                label="Parcel handover"
+                value={courierActionShipments.length}
+                detail={`${pickupRowsWithoutParcel.length} waiting for parcel record`}
+                actionLabel="Open parcels"
+                onAction={() => changeTab("parcels")}
+                tone="slate"
+              />
+              <OperatorTaskCard
+                icon={CheckCircle2}
+                label="Delivery work"
+                value={deliveryQueue.length}
+                detail={`${outForDeliveryShipments.length} out for delivery`}
+                actionLabel="Update delivery"
+                onAction={() => changeTab("parcels")}
+                tone="emerald"
+              />
+              <OperatorTaskCard
+                icon={Banknote}
+                label="COD cash"
+                value={formatPrice(codToRemitAmount)}
+                detail={`${outstandingCodOrders.length} order(s) waiting`}
+                actionLabel="Open COD"
+                onAction={() => changeTab("cod")}
+              />
+              <OperatorTaskCard
+                icon={AlertTriangle}
+                label="Exceptions"
+                value={failedDeliveries.length}
+                detail="Failed delivery and return-to-seller cases"
+                actionLabel="Open failed"
+                onAction={() => changeTab("failed")}
+                tone="red"
+              />
             </div>
 
             {renderDeliveryActionPanel()}
@@ -1652,7 +1996,7 @@ export default function AdminLogistics() {
         )}
 
         {activeTab === "staff" && (
-          <div className={`grid gap-6 ${canManageLogisticsSettings ? "xl:grid-cols-[380px_1fr]" : ""}`}>
+          <div className={`grid gap-6 ${canManageLogisticsSettings ? "xl:grid-cols-[460px_1fr]" : ""}`}>
             {canManageLogisticsSettings && (
             <form onSubmit={submitStaff} className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-bold">Pickup Staff</h2>
@@ -1660,10 +2004,67 @@ export default function AdminLogistics() {
               <input className="input-control" placeholder="Phone" value={staffForm.phone} onChange={(event) => setStaffForm({ ...staffForm, phone: event.target.value })} />
               <input className="input-control" type="email" placeholder="Login email for logistics access" value={staffForm.email} onChange={(event) => setStaffForm({ ...staffForm, email: event.target.value })} />
               <input className="input-control" placeholder="Route name" value={staffForm.routeName} onChange={(event) => setStaffForm({ ...staffForm, routeName: event.target.value })} />
-              <textarea className="input-control min-h-20" placeholder="Assigned zones, upazilas, unions, union IDs, comma separated" value={staffForm.assignedZonesText} onChange={(event) => setStaffForm({ ...staffForm, assignedZonesText: event.target.value })} />
+              <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div>
+                  <p className="text-sm font-bold text-slate-950">Area coverage</p>
+                  <p className="mt-1 text-xs text-slate-500">Assign the exact division, district, upazila, or union this logistics user will handle.</p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <select className="input-control" value={staffLocationDraft.divisionId} onChange={(event) => updateStaffLocationDraft("divisionId", event.target.value)}>
+                    <option value="">Division</option>
+                    {geoData.divisions.map((division) => (
+                      <option key={division.id} value={division.id}>{division.name}</option>
+                    ))}
+                  </select>
+                  <select className="input-control" value={staffLocationDraft.districtId} disabled={!staffLocationDraft.divisionId} onChange={(event) => updateStaffLocationDraft("districtId", event.target.value)}>
+                    <option value="">District</option>
+                    {geoDistricts.map((district) => (
+                      <option key={district.id} value={district.id}>{district.name}</option>
+                    ))}
+                  </select>
+                  <select className="input-control" value={staffLocationDraft.upazilaId} disabled={!staffLocationDraft.districtId} onChange={(event) => updateStaffLocationDraft("upazilaId", event.target.value)}>
+                    <option value="">Upazila / Thana</option>
+                    {geoUpazilas.map((upazila) => (
+                      <option key={upazila.id} value={upazila.id}>{upazila.name}</option>
+                    ))}
+                  </select>
+                  <select className="input-control" value={staffLocationDraft.unionId} disabled={!staffLocationDraft.upazilaId} onChange={(event) => updateStaffLocationDraft("unionId", event.target.value)}>
+                    <option value="">Union / Area</option>
+                    {geoUnions.map((union) => (
+                      <option key={union.id} value={union.id}>{union.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={addStaffLocationAssignment}
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-primary-200 bg-white px-3 text-sm font-semibold text-primary-700 hover:bg-primary-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add selected area
+                </button>
+                {(staffForm.assignedLocations || []).length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {staffForm.assignedLocations.map((location) => (
+                      <span key={`${location.level}-${location.id}-${location.label}`} className="inline-flex max-w-full items-center gap-2 rounded-full border border-primary-200 bg-white px-3 py-1 text-xs font-semibold text-primary-700">
+                        <span className="truncate">{location.label || location.name}</span>
+                        <button type="button" onClick={() => removeStaffLocationAssignment(location)} className="text-primary-500 hover:text-primary-800" aria-label={`Remove ${location.label || location.name}`}>
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <textarea
+                  className="input-control min-h-20"
+                  placeholder="Coverage tokens are filled automatically; add manual area names only if needed"
+                  value={staffForm.assignedZonesText}
+                  onChange={(event) => setStaffForm({ ...staffForm, assignedZonesText: event.target.value })}
+                />
+              </div>
               <textarea className="input-control min-h-20" placeholder="Vendor IDs" value={staffForm.assignedVendorIdsText} onChange={(event) => setStaffForm({ ...staffForm, assignedVendorIdsText: event.target.value })} />
               <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                If the email matches an existing user, saving will set that user as logistics manager. Use union names or union IDs here for union-based delivery areas.
+                If the email matches an existing user, saving will set that user as logistics manager and notify them when matching vendor pickup orders become ready.
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <input className="input-control" placeholder="Vehicle" value={staffForm.vehicleType} onChange={(event) => setStaffForm({ ...staffForm, vehicleType: event.target.value })} />
@@ -1687,7 +2088,19 @@ export default function AdminLogistics() {
                     </div>
                     <StatusPill status={staff.status || "active"} />
                   </div>
-                  <p className="mt-3 text-sm text-slate-600">{(staff.assignedZones || []).join(", ") || "No zones assigned"}</p>
+                  <div className="mt-3 space-y-2">
+                    {(staff.assignedLocations || []).length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {staff.assignedLocations.map((location) => (
+                          <span key={`${staff._id}-${location.level}-${location.id}-${location.label}`} className="rounded-full border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-700">
+                            {location.label || location.name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-600">{(staff.assignedZones || []).join(", ") || "No zones assigned"}</p>
+                    )}
+                  </div>
                   {staff.linkedRole === "logistics_manager" && (
                     <p className="mt-2 inline-flex rounded-full border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-700">
                       Logistics area access
@@ -1701,6 +2114,7 @@ export default function AdminLogistics() {
                         ...staff,
                         staffId: staff._id,
                         assignedZonesText: (staff.assignedZones || []).join(", "),
+                        assignedLocations: staff.assignedLocations || [],
                         assignedVendorIdsText: (staff.assignedVendorIds || []).join(", "),
                       })}
                       className="mt-4 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"

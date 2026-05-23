@@ -1,7 +1,9 @@
 const {
+  addressMatchesLogisticsScope,
   filterOrdersForLogisticsScope,
   filterShipmentsForLogisticsScope,
   getLogisticsScopeFromRequest,
+  shipmentMatchesLogisticsScope,
 } = require("../../utils/logisticsScope");
 
 describe("logisticsScope", () => {
@@ -64,5 +66,36 @@ describe("logisticsScope", () => {
     expect(filterShipmentsForLogisticsScope(shipments, [], unionScope).map((shipment) => shipment._id)).toEqual([
       "shipment-union",
     ]);
+  });
+
+  test("matches structured division district upazila and union tokens", () => {
+    const address = {
+      divisionId: "6",
+      division: "Dhaka",
+      districtId: "47",
+      district: "Dhaka",
+      upazilaId: "492",
+      upazila: "Savar",
+      unionId: "4012",
+      union: "Ashulia",
+    };
+
+    expect(addressMatchesLogisticsScope(address, { scoped: true, assignedZones: ["division:6"] })).toBe(true);
+    expect(addressMatchesLogisticsScope(address, { scoped: true, assignedZones: ["district:47"] })).toBe(true);
+    expect(addressMatchesLogisticsScope(address, { scoped: true, assignedZones: ["upazila:492"] })).toBe(true);
+    expect(addressMatchesLogisticsScope(address, { scoped: true, assignedZones: ["union:4012"] })).toBe(true);
+    expect(addressMatchesLogisticsScope(address, { scoped: true, assignedZones: ["union:9999"] })).toBe(false);
+  });
+
+  test("matches pickup-ready shipments by vendor pickup area", () => {
+    const scope = { scoped: true, assignedZones: ["union:4012"], assignedVendorIds: [] };
+    const shipment = {
+      _id: "shipment-pickup",
+      shipmentState: "pickup_ready",
+      pickupAddress: { division: "Dhaka", district: "Dhaka", upazila: "Savar", unionId: "4012", union: "Ashulia" },
+      deliveryAddress: { division: "Sylhet", district: "Sylhet", union: "Other" },
+    };
+
+    expect(shipmentMatchesLogisticsScope(shipment, [], scope)).toBe(true);
   });
 });

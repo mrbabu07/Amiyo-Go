@@ -287,6 +287,102 @@ describe("adminLogisticsController", () => {
     );
   });
 
+  test("scopes ready pickup queue by vendor pickup union", () => {
+    const orderId = new ObjectId();
+    const vendorId = new ObjectId();
+    const queue = _logisticsTestUtils.buildReadyToShipCollectionQueue({
+      scope: { scoped: true, assignedZones: ["union:4012"], assignedVendorIds: [] },
+      orders: [
+        {
+          _id: orderId,
+          status: "processing",
+          paymentMethod: "cod",
+          shippingInfo: { name: "Buyer", district: "Sylhet", union: "Other union" },
+          products: [
+            {
+              productId: "product-1",
+              vendorId,
+              vendorName: "Dhaka Vendor",
+              title: "Ready item",
+              price: 700,
+              quantity: 1,
+              itemStatus: "pickup_ready",
+            },
+          ],
+        },
+      ],
+      vendors: [
+        {
+          _id: vendorId,
+          shopName: "Dhaka Vendor",
+          pickupAddress: {
+            street: "Warehouse 2",
+            division: "Dhaka",
+            district: "Dhaka",
+            upazila: "Savar",
+            union: "Ashulia",
+            unionId: "4012",
+          },
+        },
+      ],
+    });
+
+    expect(queue.summary.totalPackages).toBe(1);
+    expect(queue.rows[0]).toEqual(expect.objectContaining({ vendorName: "Dhaka Vendor" }));
+  });
+
+  test("scopes ready pickup queue by saved delivery zone districts", () => {
+    const orderId = new ObjectId();
+    const vendorId = new ObjectId();
+    const queue = _logisticsTestUtils.buildReadyToShipCollectionQueue({
+      zones: [{ code: "dhaka", name: "Dhaka", districts: ["Dhaka", "Narayanganj"] }],
+      scope: { scoped: true, assignedZones: ["dhaka"], assignedVendorIds: [] },
+      orders: [
+        {
+          _id: orderId,
+          shippingInfo: { district: "Sylhet" },
+          products: [{ productId: "product-1", vendorId, title: "Ready item", price: 700, itemStatus: "pickup_ready" }],
+        },
+      ],
+      vendors: [
+        {
+          _id: vendorId,
+          shopName: "Narayanganj Vendor",
+          pickupAddress: { district: "Narayanganj", upazila: "Narayanganj Sadar" },
+        },
+      ],
+    });
+
+    expect(queue.summary.totalPackages).toBe(1);
+    expect(queue.rows[0]).toEqual(expect.objectContaining({ vendorName: "Narayanganj Vendor" }));
+  });
+
+  test("hides ready pickup rows outside the logistics area", () => {
+    const orderId = new ObjectId();
+    const vendorId = new ObjectId();
+    const queue = _logisticsTestUtils.buildReadyToShipCollectionQueue({
+      scope: { scoped: true, assignedZones: ["union:9999"], assignedVendorIds: [] },
+      orders: [
+        {
+          _id: orderId,
+          status: "processing",
+          shippingInfo: { district: "Sylhet", union: "Other union" },
+          products: [{ productId: "product-1", vendorId, title: "Ready item", price: 700, itemStatus: "pickup_ready" }],
+        },
+      ],
+      vendors: [
+        {
+          _id: vendorId,
+          shopName: "Dhaka Vendor",
+          pickupAddress: { division: "Dhaka", district: "Dhaka", upazila: "Savar", union: "Ashulia", unionId: "4012" },
+        },
+      ],
+    });
+
+    expect(queue.summary.totalPackages).toBe(0);
+    expect(queue.rows).toEqual([]);
+  });
+
   test("creates a delivery zone with COD availability and audit trail", async () => {
     const db = buildDb();
     const res = createRes();

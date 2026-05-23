@@ -47,7 +47,12 @@ export const NotificationProvider = ({ children }) => {
 
   // Load notifications from localStorage
   useEffect(() => {
+    let refreshTimer = null;
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
       if (user) {
         const loadedFromServer = await loadServerNotifications(user);
         if (!loadedFromServer) {
@@ -60,12 +65,18 @@ export const NotificationProvider = ({ children }) => {
             setUnreadCount(parsed.filter((n) => !n.read).length);
           }
         }
+        refreshTimer = setInterval(() => {
+          loadServerNotifications(user);
+        }, 60000);
       } else {
         setNotifications([]);
         setUnreadCount(0);
       }
     });
-    return unsubscribe;
+    return () => {
+      if (refreshTimer) clearInterval(refreshTimer);
+      unsubscribe();
+    };
   }, []);
 
   // Save notifications to localStorage

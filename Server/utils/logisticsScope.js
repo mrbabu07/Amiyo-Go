@@ -1,31 +1,96 @@
-const normalizeId = (value) => (value?.toString ? value.toString() : String(value || ""));
+const stringifyValue = (value) => {
+  if (value === null || value === undefined) return "";
+  if (["string", "number", "boolean"].includes(typeof value)) return String(value).trim();
+  if (value?.toString && value.toString !== Object.prototype.toString) return value.toString().trim();
+  return "";
+};
 
-const normalizeText = (value) => String(value || "").trim().toLowerCase();
+const normalizeId = (value) => stringifyValue(value);
+
+const normalizeText = (value) => stringifyValue(value).toLowerCase();
 
 const normalizeStringArray = (value) => {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map((item) => String(item || "").trim()).filter(Boolean))];
 };
 
-const getAddressParts = (address = {}) =>
-  [
-    address.deliveryZone,
-    address.zone,
-    address.area,
-    address.union,
-    address.unionName,
-    address.unionId,
-    address.wardNo,
-    address.ward,
-    address.thana,
-    address.thanaId,
-    address.upazila,
-    address.upazilaId,
-    address.district || address.city,
-    address.districtId,
-    address.division,
-    address.divisionId,
-  ].filter(Boolean);
+const uniqueNormalized = (values = []) => [...new Set(values.map(normalizeText).filter(Boolean))];
+
+const fieldValues = (source = {}, fields = []) =>
+  fields.map((field) => stringifyValue(source[field])).filter(Boolean);
+
+const prefixedKeys = (prefix, values = []) =>
+  values.flatMap((value) => {
+    const normalized = normalizeText(value);
+    return normalized ? [`${prefix}:${normalized}`] : [];
+  });
+
+const locationKeysFromAddress = (address = {}) => {
+  const divisionValues = fieldValues(address, ["division", "divisionName", "divisionId", "division_id"]);
+  const districtValues = fieldValues(address, ["district", "districtName", "districtId", "district_id", "city"]);
+  const upazilaValues = fieldValues(address, [
+    "upazila",
+    "upazilla",
+    "upazilaName",
+    "upazillaName",
+    "upazilaId",
+    "upazillaId",
+    "upazila_id",
+    "upazilla_id",
+    "thana",
+    "thanaName",
+    "thanaId",
+  ]);
+  const unionValues = fieldValues(address, [
+    "union",
+    "unionName",
+    "unionId",
+    "union_id",
+    "areaUnion",
+    "ward",
+    "wardNo",
+  ]);
+  const areaValues = fieldValues(address, [
+    "deliveryZone",
+    "zone",
+    "area",
+    "deliveryArea",
+    "localArea",
+    "address",
+    "street",
+    "addressText",
+    "formattedAddress",
+  ]);
+
+  return uniqueNormalized([
+    ...areaValues,
+    ...unionValues,
+    ...upazilaValues,
+    ...districtValues,
+    ...divisionValues,
+    ...prefixedKeys("division", divisionValues),
+    ...prefixedKeys("district", districtValues),
+    ...prefixedKeys("upazila", upazilaValues),
+    ...prefixedKeys("thana", upazilaValues),
+    ...prefixedKeys("union", unionValues),
+    ...prefixedKeys("area", areaValues),
+  ]);
+};
+
+const getAddressParts = (address = {}) => locationKeysFromAddress(address);
+
+const addressTextMatchesScope = (address = {}, assigned = []) => {
+  const haystack = normalizeText([
+    address.addressText,
+    address.formattedAddress,
+    address.address,
+    address.street,
+    address.line1,
+    address.addressLine1,
+  ].filter(Boolean).join(" "));
+  if (!haystack) return false;
+  return assigned.some((value) => value && !value.includes(":") && value.length >= 3 && haystack.includes(value));
+};
 
 const zoneKeys = (zone = {}) =>
   [
@@ -34,6 +99,8 @@ const zoneKeys = (zone = {}) =>
     zone.code,
     zone.name,
     ...(Array.isArray(zone.districts) ? zone.districts : []),
+    ...prefixedKeys("district", Array.isArray(zone.districts) ? zone.districts : []),
+    ...prefixedKeys("division", [zone.division, zone.divisionId]),
   ]
     .map(normalizeText)
     .filter(Boolean);
@@ -52,11 +119,14 @@ const orderLocationKeys = (order = {}) => {
 
 const shipmentLocationKeys = (shipment = {}) => {
   const address = shipment.deliveryAddress || {};
+  const pickupAddress = shipment.pickupAddress || shipment.vendorAddress || {};
   return [
     shipment.deliveryZone,
     shipment.zone,
     ...getAddressParts(address),
+    ...getAddressParts(pickupAddress),
     shipment.deliveryAddressText,
+    shipment.pickupAddressText,
   ]
     .map(normalizeText)
     .filter(Boolean);
@@ -99,6 +169,14 @@ const zoneMatchesScope = (zone, scope) => {
   if (!scope.assignedZones?.length) return false;
   const assigned = scope.assignedZones.map(normalizeText);
   return zoneKeys(zone).some((key) => assigned.includes(key));
+};
+
+const addressMatchesLogisticsScope = (address = {}, scope = null) => {
+  if (!scope?.scoped) return true;
+  if (!scope.assignedZones?.length) return false;
+  const assigned = scope.assignedZones.map(normalizeText);
+  const locationKeys = locationKeysFromAddress(address);
+  return locationKeys.some((key) => assigned.includes(key)) || addressTextMatchesScope(address, assigned);
 };
 
 const orderVendorMatchesScope = (order = {}, scope) => {
@@ -157,6 +235,8 @@ module.exports = {
   filterZonesForLogisticsScope,
   getLogisticsScopeFromRequest,
   getScopeFromUser,
+  addressMatchesLogisticsScope,
+  locationKeysFromAddress,
   normalizeStringArray,
   orderMatchesLogisticsScope,
   shipmentMatchesLogisticsScope,
