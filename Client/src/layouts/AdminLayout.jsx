@@ -280,7 +280,7 @@ const AlertBadge = ({ count, className = '' }) => {
 const AdminLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, role, logout, permissions, isAdmin } = useAuth();
+  const { user, role, logout, permissions, isAdmin, loading: authLoading } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { unreadCount } = useNotifications();
   const [sidebarOpen, setSidebarOpen] = useState(() => (
@@ -289,6 +289,7 @@ const AdminLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [alertCounts, setAlertCounts] = useState({});
   const [expandedSections, setExpandedSections] = useState({});
+  const isLogisticsManager = role === 'logistics_manager';
 
   useEffect(() => {
     let cancelled = false;
@@ -304,7 +305,7 @@ const AdminLayout = () => {
       }
     };
 
-    if (user) {
+    if (user && role && !authLoading && !isLogisticsManager) {
       loadAlerts();
       const interval = setInterval(loadAlerts, 30000);
       return () => {
@@ -313,10 +314,12 @@ const AdminLayout = () => {
       };
     }
 
+    if (isLogisticsManager) setAlertCounts({});
+
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, role, authLoading, isLogisticsManager]);
 
   const getAlertCount = (item) => {
     if (!item?.alertKey) return 0;
@@ -368,7 +371,6 @@ const AdminLayout = () => {
     navigate('/login');
   };
 
-  const isLogisticsManager = role === 'logistics_manager';
   const logisticsHomePath = '/admin/logistics?tab=work';
   const access = { isAdmin: isAdmin || role === 'admin', permissions };
   const permittedNavigation = filterNavigationByPermissions(navigation, access);

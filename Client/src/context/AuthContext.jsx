@@ -87,13 +87,17 @@ const AuthProvider = ({ children }) => {
           setIsAdmin(userRole === "admin");
           setIsAdminStaff(ADMIN_ROLES.includes(userRole));
 
-          try {
-            const vendorResponse = await getMyVendorProfile();
-            setVendorProfile(vendorResponse.data?.vendor || null);
-          } catch (vendorError) {
-            if (vendorError.response?.status !== 404) {
-              console.error("Failed to fetch vendor profile:", vendorError);
+          if (["vendor", "vendor_staff"].includes(userRole)) {
+            try {
+              const vendorResponse = await getMyVendorProfile();
+              setVendorProfile(vendorResponse.data?.vendor || null);
+            } catch (vendorError) {
+              if (vendorError.response?.status !== 404) {
+                console.error("Failed to fetch vendor profile:", vendorError);
+              }
+              setVendorProfile(null);
             }
+          } else {
             setVendorProfile(null);
           }
         } catch (error) {

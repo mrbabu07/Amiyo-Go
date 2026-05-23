@@ -15,6 +15,7 @@ import {
   VendorPermissionGuard,
   VendorRoute,
 } from "./guards";
+import useAuth from "../hooks/useAuth";
 import { lazyLoadWithRetry } from "../utils/lazyLoad";
 
 const Home = lazyLoadWithRetry(() => import("../pages/Home"));
@@ -136,10 +137,30 @@ const publicElement = (Component, options) => (
   </PublicRoute>
 );
 
-const adminElement = (Component, resource = "system", action = "read") => (
-  <RBACGuard resource={resource} action={action}>
+const logisticsWorkspacePath = "/admin/logistics?tab=work";
+
+function AdminPageGuard({ children, resource, action, allowLogisticsManager = false }) {
+  const { loading, role } = useAuth();
+
+  if (!loading && role === "logistics_manager" && !allowLogisticsManager) {
+    return <Navigate to={logisticsWorkspacePath} replace />;
+  }
+
+  return (
+    <RBACGuard resource={resource} action={action}>
+      {children}
+    </RBACGuard>
+  );
+}
+
+const adminElement = (Component, resource = "system", action = "read", options = {}) => (
+  <AdminPageGuard
+    resource={resource}
+    action={action}
+    allowLogisticsManager={options.allowLogisticsManager}
+  >
     {lazyElement(Component)}
-  </RBACGuard>
+  </AdminPageGuard>
 );
 
 const vendorElement = (Component, permission) => (
@@ -293,7 +314,7 @@ const router = createBrowserRouter([
       { path: "offers", element: adminElement(AdminOffers, "promotions", "read") },
       { path: "offers/add", element: adminElement(OfferForm, "promotions", "create") },
       { path: "offers/edit/:id", element: adminElement(OfferForm, "promotions", "update") },
-      { path: "logistics", element: adminElement(AdminLogistics, "orders", "read") },
+      { path: "logistics", element: adminElement(AdminLogistics, "orders", "read", { allowLogisticsManager: true }) },
       { path: "delivery-settings", element: adminElement(AdminDeliverySettings, "orders", "update") },
       { path: "customers", element: adminElement(AdminCustomers, "users", "read") },
       { path: "trust-safety", element: adminElement(AdminTrustSafety, "system", "read") },
