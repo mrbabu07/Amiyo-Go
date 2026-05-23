@@ -47,6 +47,7 @@ import {
   saveDeliveryZone,
   savePickupStaff,
   scheduleFailedDeliveryReattempt,
+  updateLogisticsShipmentState,
 } from "../../services/api";
 
 const todayInput = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -191,6 +192,13 @@ const emptyLocationDraft = {
 
 const terminalShipmentStates = new Set(["delivered", "return_to_origin"]);
 const deliveryActiveStates = new Set(["picked_up", "in_transit", "out_for_delivery", "delivery_failed"]);
+const deliveryConfirmationStates = new Set(["out_for_delivery", "delivery_failed"]);
+const nextShipmentActions = {
+  pickup_ready: { targetState: "pickup_scheduled", label: "Schedule pickup", Icon: ClipboardList },
+  pickup_scheduled: { targetState: "picked_up", label: "Mark picked up", Icon: PackageCheck },
+  picked_up: { targetState: "in_transit", label: "Start transit", Icon: Truck },
+  in_transit: { targetState: "out_for_delivery", label: "Out for delivery", Icon: Truck },
+};
 
 const toArray = (value) =>
   String(value || "")
@@ -318,6 +326,13 @@ function StatusPill({ status }) {
     ready: "border-emerald-200 bg-emerald-50 text-emerald-700",
     ready_to_ship: "border-primary-200 bg-primary-50 text-primary-700",
     pickup_ready: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    pickup_scheduled: "border-blue-200 bg-blue-50 text-blue-700",
+    picked_up: "border-primary-200 bg-primary-50 text-primary-700",
+    in_transit: "border-indigo-200 bg-indigo-50 text-indigo-700",
+    out_for_delivery: "border-cyan-200 bg-cyan-50 text-cyan-700",
+    delivered: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    delivery_failed: "border-red-200 bg-red-50 text-red-700",
+    return_to_origin: "border-amber-200 bg-amber-50 text-amber-700",
     scheduled: "border-blue-200 bg-blue-50 text-blue-700",
   }[status] || "border-slate-200 bg-slate-50 text-slate-600";
 
@@ -333,6 +348,22 @@ function EmptyPanel({ children }) {
     <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
       {children}
     </div>
+  );
+}
+
+function ShipmentAdvanceButton({ action, disabled, onClick }) {
+  if (!action) return null;
+  const Icon = action.Icon;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary-600 px-3 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
+      disabled={disabled}
+    >
+      <Icon className="h-4 w-4" />
+      {action.label}
+    </button>
   );
 }
 
@@ -506,6 +537,9 @@ export default function AdminLogistics() {
 
   const getShipmentForReadyRow = (row) =>
     shipmentsByOrderVendor.get(`${row.orderId}:${row.vendorId}`) || shipmentsByOrderVendor.get(String(row.orderId || ""));
+
+  const getNextShipmentAction = (shipment) =>
+    nextShipmentActions[shipment?.shipmentState || ""] || null;
 
   const activeShipments = useMemo(
     () => shipments.filter((shipment) => !terminalShipmentStates.has(shipment.shipmentState || "created")),
@@ -991,9 +1025,22 @@ export default function AdminLogistics() {
           trackingNumber: parcelAssignment.trackingNumber,
           estimatedDeliveryDate: parcelAssignment.estimatedDeliveryDate,
           note: parcelAssignment.note,
+          targetState: selectedParcel?.shipmentState || "created",
         }),
       parcelAssignment.bookingMode === "live" ? "Courier booking submitted" : "Courier assigned to parcel",
     ).then(() => setParcelAssignment(emptyParcelAssignment));
+  };
+
+  const advanceShipmentState = (shipment, action) => {
+    if (!shipment?._id || !action?.targetState) return;
+    runSave(
+      () =>
+        updateLogisticsShipmentState(shipment._id, {
+          targetState: action.targetState,
+          note: action.label,
+        }),
+      `${action.label} saved`,
+    );
   };
 
   const openDeliveryAction = (shipment, outcome = "delivered") => {
@@ -1292,6 +1339,7 @@ export default function AdminLogistics() {
                 {readyRows.length === 0 && <EmptyPanel>No vendor pickup is ready in this area.</EmptyPanel>}
                 {readyRows.slice(0, 6).map((row) => {
                   const shipment = getShipmentForReadyRow(row);
+                  const nextAction = getNextShipmentAction(shipment);
                   return (
                     <div key={`work-ready-${row.orderId}-${row.vendorId}`} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1322,14 +1370,23 @@ export default function AdminLogistics() {
                           </a>
                         )}
                         {shipment ? (
-                          <button
-                            type="button"
-                            onClick={() => openParcelAssignment(shipment)}
-                            className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-950 px-3 text-sm font-semibold text-white hover:bg-slate-800"
-                          >
-                            <Truck className="h-4 w-4" />
-                            Dispatch parcel
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openParcelAssignment(shipment)}
+                              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                              <Truck className="h-4 w-4" />
+                              Courier
+                            </button>
+                            {nextAction && (
+                              <ShipmentAdvanceButton
+                                action={nextAction}
+                                disabled={saving}
+                                onClick={() => advanceShipmentState(shipment, nextAction)}
+                              />
+                            )}
+                          </>
                         ) : (
                           <span className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
                             Parcel will appear after vendor shipment is created
@@ -1349,48 +1406,63 @@ export default function AdminLogistics() {
                   </button>
                 </div>
                 {activeShipments.length === 0 && <EmptyPanel>No parcels are moving in this area.</EmptyPanel>}
-                {activeShipments.slice(0, 6).map((shipment) => (
-                  <div key={`work-shipment-${shipment._id}`} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="font-bold text-slate-950">Parcel #{shortId(shipment._id)}</h4>
-                          <StatusPill status={shipment.shipmentState || "created"} />
-                          {shipment.codState && <StatusPill status={shipment.codState} />}
+                {activeShipments.slice(0, 6).map((shipment) => {
+                  const nextAction = getNextShipmentAction(shipment);
+                  const canConfirmDelivery = deliveryConfirmationStates.has(shipment.shipmentState || "");
+                  return (
+                    <div key={`work-shipment-${shipment._id}`} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-bold text-slate-950">Parcel #{shortId(shipment._id)}</h4>
+                            <StatusPill status={shipment.shipmentState || "created"} />
+                            {shipment.codState && <StatusPill status={shipment.codState} />}
+                          </div>
+                          <p className="mt-1 text-sm text-slate-500">Order #{shortId(shipment.orderId)} / {shipment.courierName || "Courier not assigned"}</p>
+                          <p className="mt-1 line-clamp-2 text-sm text-slate-600">{shipment.deliveryAddressText || shipment.deliveryAddress?.address || "No delivery address"}</p>
                         </div>
-                        <p className="mt-1 text-sm text-slate-500">Order #{shortId(shipment.orderId)} / {shipment.courierName || "Courier not assigned"}</p>
-                        <p className="mt-1 line-clamp-2 text-sm text-slate-600">{shipment.deliveryAddressText || shipment.deliveryAddress?.address || "No delivery address"}</p>
+                        <p className="text-sm font-bold text-primary-700 md:text-right">{formatPrice(shipment.codAmount || 0)}</p>
                       </div>
-                      <p className="text-sm font-bold text-primary-700 md:text-right">{formatPrice(shipment.codAmount || 0)}</p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openParcelAssignment(shipment)}
+                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                        >
+                          <Truck className="h-4 w-4" />
+                          Courier
+                        </button>
+                        {nextAction && (
+                          <ShipmentAdvanceButton
+                            action={nextAction}
+                            disabled={saving}
+                            onClick={() => advanceShipmentState(shipment, nextAction)}
+                          />
+                        )}
+                        {canConfirmDelivery && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openDeliveryAction(shipment, "delivered")}
+                              className="inline-flex h-9 items-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                              Delivered
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openDeliveryAction(shipment, "failed")}
+                              className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-700 hover:bg-red-50"
+                            >
+                              <AlertTriangle className="h-4 w-4" />
+                              Failed
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openParcelAssignment(shipment)}
-                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                      >
-                        <Truck className="h-4 w-4" />
-                        Courier
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openDeliveryAction(shipment, "delivered")}
-                        className="inline-flex h-9 items-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Delivered
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openDeliveryAction(shipment, "failed")}
-                        className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-700 hover:bg-red-50"
-                      >
-                        <AlertTriangle className="h-4 w-4" />
-                        Failed
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </section>
             </div>
 
@@ -1713,24 +1785,28 @@ export default function AdminLogistics() {
             {readyRows.length === 0 && <EmptyPanel>No vendor packages are ready for collection right now.</EmptyPanel>}
 
             <div className="grid gap-4">
-              {readyRows.map((row) => (
-                <div key={`${row.orderId}-${row.vendorId}`} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-bold text-slate-950">#{shortId(row.orderNumber || row.orderId)}</h3>
-                        <StatusPill status={row.status} />
-                        <StatusPill status={row.pickupStatus || "pending"} />
+              {readyRows.map((row) => {
+                const shipment = getShipmentForReadyRow(row);
+                const nextAction = getNextShipmentAction(shipment);
+                return (
+                  <div key={`${row.orderId}-${row.vendorId}`} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-base font-bold text-slate-950">#{shortId(row.orderNumber || row.orderId)}</h3>
+                          <StatusPill status={row.status} />
+                          <StatusPill status={row.pickupStatus || "pending"} />
+                          {shipment?.shipmentState && <StatusPill status={shipment.shipmentState} />}
+                        </div>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Ready {formatDate(row.readyAt)} / {row.quantity || 0} item(s) / {formatPrice(row.payableAmount || 0)}
+                        </p>
                       </div>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Ready {formatDate(row.readyAt)} / {row.quantity || 0} item(s) / {formatPrice(row.payableAmount || 0)}
-                      </p>
+                      <div className="text-left lg:text-right">
+                        <p className="text-xs font-bold uppercase text-slate-400">COD amount</p>
+                        <p className="text-lg font-bold text-primary-700">{formatPrice(row.codAmount || 0)}</p>
+                      </div>
                     </div>
-                    <div className="text-left lg:text-right">
-                      <p className="text-xs font-bold uppercase text-slate-400">COD amount</p>
-                      <p className="text-lg font-bold text-primary-700">{formatPrice(row.codAmount || 0)}</p>
-                    </div>
-                  </div>
 
                   <div className="mt-4 grid gap-4 lg:grid-cols-[1.3fr_1fr_1fr]">
                     <div className="min-w-0 rounded-lg bg-slate-50 p-4">
@@ -1778,30 +1854,57 @@ export default function AdminLogistics() {
                     </div>
                   </div>
 
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-100 text-sm">
-                      <thead className="text-left text-xs uppercase text-slate-400">
-                        <tr>
-                          <th className="py-2 pr-4">Product</th>
-                          <th className="py-2 pr-4">SKU</th>
-                          <th className="py-2 pr-4">Qty</th>
-                          <th className="py-2 text-right">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {(row.items || []).map((item) => (
-                          <tr key={`${item.productId}-${item.sku}-${item.title}`}>
-                            <td className="max-w-xs py-2 pr-4 font-medium text-slate-900">{item.title}</td>
-                            <td className="py-2 pr-4 text-slate-500">{item.sku || "N/A"}</td>
-                            <td className="py-2 pr-4 text-slate-600">{item.quantity}</td>
-                            <td className="py-2 text-right font-semibold text-slate-900">{formatPrice(item.amount || 0)}</td>
+                    <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                      {shipment ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openParcelAssignment(shipment)}
+                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            <Truck className="h-4 w-4" />
+                            Courier
+                          </button>
+                          {nextAction && (
+                            <ShipmentAdvanceButton
+                              action={nextAction}
+                              disabled={saving}
+                              onClick={() => advanceShipmentState(shipment, nextAction)}
+                            />
+                          )}
+                        </>
+                      ) : (
+                        <span className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                          Waiting for vendor shipment record
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="min-w-full divide-y divide-slate-100 text-sm">
+                        <thead className="text-left text-xs uppercase text-slate-400">
+                          <tr>
+                            <th className="py-2 pr-4">Product</th>
+                            <th className="py-2 pr-4">SKU</th>
+                            <th className="py-2 pr-4">Qty</th>
+                            <th className="py-2 text-right">Amount</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {(row.items || []).map((item) => (
+                            <tr key={`${item.productId}-${item.sku}-${item.title}`}>
+                              <td className="max-w-xs py-2 pr-4 font-medium text-slate-900">{item.title}</td>
+                              <td className="py-2 pr-4 text-slate-500">{item.sku || "N/A"}</td>
+                              <td className="py-2 pr-4 text-slate-600">{item.quantity}</td>
+                              <td className="py-2 text-right font-semibold text-slate-900">{formatPrice(item.amount || 0)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -1929,75 +2032,86 @@ export default function AdminLogistics() {
 
             {shipments.length === 0 && <EmptyPanel>No shipment parcels found for this filter.</EmptyPanel>}
             <div className="grid gap-3">
-              {shipments.map((shipment) => (
-                <div key={shipment._id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-bold text-slate-950">Parcel #{shortId(shipment._id)}</h3>
-                        <StatusPill status={shipment.shipmentState || "created"} />
-                        {shipment.codState && <StatusPill status={shipment.codState} />}
+              {shipments.map((shipment) => {
+                const nextAction = getNextShipmentAction(shipment);
+                const canConfirmDelivery = deliveryConfirmationStates.has(shipment.shipmentState || "");
+                return (
+                  <div key={shipment._id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-bold text-slate-950">Parcel #{shortId(shipment._id)}</h3>
+                          <StatusPill status={shipment.shipmentState || "created"} />
+                          {shipment.codState && <StatusPill status={shipment.codState} />}
+                        </div>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Order #{shortId(shipment.orderId)} / Vendor #{shortId(shipment.vendorId)} / {shipment.itemCount || 0} items
+                        </p>
+                        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                          {shipment.deliveryAddressText || shipment.deliveryAddress?.address || "No delivery address"}
+                        </p>
                       </div>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Order #{shortId(shipment.orderId)} / Vendor #{shortId(shipment.vendorId)} / {shipment.itemCount || 0} items
-                      </p>
-                      <p className="mt-2 max-w-3xl text-sm text-slate-600">
-                        {shipment.deliveryAddressText || shipment.deliveryAddress?.address || "No delivery address"}
-                      </p>
+                      <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[460px]">
+                        <div className="rounded-md bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase text-slate-500">Courier</p>
+                          <p className="mt-1 font-bold text-slate-950">{shipment.courierName || "Unassigned"}</p>
+                        </div>
+                        <div className="rounded-md bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase text-slate-500">Tracking</p>
+                          <p className="mt-1 font-bold text-slate-950">{shipment.trackingNumber || "Pending"}</p>
+                        </div>
+                        <div className="rounded-md bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase text-slate-500">COD</p>
+                          <p className="mt-1 font-bold text-slate-950">{formatPrice(shipment.codAmount || 0)}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[460px]">
-                      <div className="rounded-md bg-slate-50 p-3">
-                        <p className="text-xs font-semibold uppercase text-slate-500">Courier</p>
-                        <p className="mt-1 font-bold text-slate-950">{shipment.courierName || "Unassigned"}</p>
-                      </div>
-                      <div className="rounded-md bg-slate-50 p-3">
-                        <p className="text-xs font-semibold uppercase text-slate-500">Tracking</p>
-                        <p className="mt-1 font-bold text-slate-950">{shipment.trackingNumber || "Pending"}</p>
-                      </div>
-                      <div className="rounded-md bg-slate-50 p-3">
-                        <p className="text-xs font-semibold uppercase text-slate-500">COD</p>
-                        <p className="mt-1 font-bold text-slate-950">{formatPrice(shipment.codAmount || 0)}</p>
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                      <p className="text-xs text-slate-500">
+                        Booking: {String(shipment.courierBookingStatus || "draft").replaceAll("_", " ")}
+                        {shipment.courierConsignmentId ? ` / Consignment ${shipment.courierConsignmentId}` : ""}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openParcelAssignment(shipment)}
+                          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                        >
+                          <Truck className="h-4 w-4" />
+                          Courier
+                        </button>
+                        {nextAction && (
+                          <ShipmentAdvanceButton
+                            action={nextAction}
+                            disabled={saving}
+                            onClick={() => advanceShipmentState(shipment, nextAction)}
+                          />
+                        )}
+                        {canConfirmDelivery && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openDeliveryAction(shipment, "delivered")}
+                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                              Delivered
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openDeliveryAction(shipment, "failed")}
+                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-700 hover:bg-red-50"
+                            >
+                              <AlertTriangle className="h-4 w-4" />
+                              Failed
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                    <p className="text-xs text-slate-500">
-                      Booking: {String(shipment.courierBookingStatus || "draft").replaceAll("_", " ")}
-                      {shipment.courierConsignmentId ? ` / Consignment ${shipment.courierConsignmentId}` : ""}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openParcelAssignment(shipment)}
-                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 text-sm font-semibold text-white hover:bg-slate-800"
-                      >
-                        <Truck className="h-4 w-4" />
-                        Assign courier
-                      </button>
-                      {!terminalShipmentStates.has(shipment.shipmentState || "created") && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => openDeliveryAction(shipment, "delivered")}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700"
-                          >
-                            <CheckCircle2 className="h-4 w-4" />
-                            Delivered
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openDeliveryAction(shipment, "failed")}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-700 hover:bg-red-50"
-                          >
-                            <AlertTriangle className="h-4 w-4" />
-                            Failed
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

@@ -182,8 +182,13 @@ const itemStatusFromOrderStatus = (status) => {
     packed: "packed",
     ready_to_ship: "ready_to_ship",
     pickup_ready: "pickup_ready",
+    pickup_scheduled: "pickup_scheduled",
+    picked_up: "picked_up",
     shipped: "shipped",
+    in_transit: "in_transit",
+    out_for_delivery: "out_for_delivery",
     delivered: "delivered",
+    failed_delivery: "delivery_failed",
     cancelled: "cancelled",
     returned: "returned",
   };
@@ -218,11 +223,16 @@ const syncVendorFulfillmentForAdminStatus = async ({
 
     if (itemStatus === "processing") updated.processingAt = now;
     if (itemStatus === "packed") updated.packedAt = now;
+    if (itemStatus === "pickup_scheduled") updated.pickupScheduledAt = now;
+    if (itemStatus === "picked_up") updated.pickedUpAt = now;
     if (itemStatus === "shipped") {
       updated.shippedAt = now;
       if (trackingNumber) updated.trackingNumber = trackingNumber;
     }
+    if (itemStatus === "in_transit") updated.inTransitAt = now;
+    if (itemStatus === "out_for_delivery") updated.outForDeliveryAt = now;
     if (itemStatus === "delivered") updated.deliveredAt = now;
+    if (itemStatus === "delivery_failed") updated.lastDeliveryFailedAt = now;
     if (itemStatus === "cancelled") updated.cancelledAt = now;
     if (itemStatus === "returned") updated.returnedAt = now;
 

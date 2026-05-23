@@ -740,11 +740,18 @@ class Order {
       packed: statuses.filter(s => s === "packed").length,
       ready_to_ship: statuses.filter(s => s === "ready_to_ship").length,
       pickup_ready: statuses.filter(s => s === "pickup_ready").length,
+      pickup_scheduled: statuses.filter(s => s === "pickup_scheduled").length,
+      picked_up: statuses.filter(s => s === "picked_up").length,
       shipped: statuses.filter(s => s === "shipped").length,
+      in_transit: statuses.filter(s => s === "in_transit").length,
+      out_for_delivery: statuses.filter(s => s === "out_for_delivery").length,
       delivered: statuses.filter(s => s === "delivered").length,
+      delivery_failed: statuses.filter(s => s === "delivery_failed").length,
       cancelled: statuses.filter(s => s === "cancelled").length,
       returned: statuses.filter(s => s === "returned").length,
     };
+    const movingCount = counts.picked_up + counts.shipped + counts.in_transit + counts.out_for_delivery;
+    const processingCount = counts.processing + counts.packed + counts.accepted + counts.ready_to_ship + counts.pickup_ready + counts.pickup_scheduled;
 
     const nonCancelled = total - counts.cancelled;
     let derivedStatus;
@@ -768,19 +775,25 @@ class Order {
       derivedStatus = "partially_delivered";
     }
     // Priority 5: All shipped (but not delivered)
-    else if (counts.shipped === nonCancelled) {
+    else if (counts.out_for_delivery === nonCancelled) {
+      derivedStatus = "out_for_delivery";
+    } else if (counts.in_transit === nonCancelled) {
+      derivedStatus = "in_transit";
+    } else if (movingCount === nonCancelled) {
       derivedStatus = "shipped";
     }
     // Priority 6: Some shipped
-    else if (counts.shipped > 0) {
+    else if (counts.delivery_failed === nonCancelled) {
+      derivedStatus = "failed_delivery";
+    } else if (movingCount > 0 || counts.delivery_failed > 0) {
       derivedStatus = "partially_shipped";
     }
     // Priority 7: All processing/packed
-    else if ((counts.processing + counts.packed + counts.accepted + counts.ready_to_ship + counts.pickup_ready) === nonCancelled) {
+    else if (processingCount === nonCancelled) {
       derivedStatus = "processing";
     }
     // Priority 8: Some processing/packed
-    else if (counts.processing > 0 || counts.packed > 0 || counts.accepted > 0 || counts.ready_to_ship > 0 || counts.pickup_ready > 0) {
+    else if (processingCount > 0) {
       derivedStatus = "partially_processing";
     }
     // Priority 9: All pending
@@ -799,7 +812,7 @@ class Order {
               status: derivedStatus,
               changedAt: new Date(),
               changedBy: "system",
-              note: `Auto-synced: ${counts.delivered}/${nonCancelled} delivered, ${counts.shipped}/${nonCancelled} shipped, ${counts.processing + counts.packed}/${nonCancelled} processing`,
+              note: `Auto-synced: ${counts.delivered}/${nonCancelled} delivered, ${movingCount}/${nonCancelled} moving, ${processingCount}/${nonCancelled} processing`,
             },
           },
         }

@@ -91,8 +91,8 @@ const statusToStepKey = (status) => {
   const normalized = normalizeStatus(status);
   if (["created", "placed", "order_placed", "pending"].includes(normalized)) return "placed";
   if (["accepted", "confirmed", "processing"].includes(normalized)) return "confirmed";
-  if (["packed", "ready_to_ship", "pickup_ready"].includes(normalized)) return "packed";
-  if (["dispatched", "shipped", "in_transit"].includes(normalized)) return "dispatched";
+  if (["packed", "ready_to_ship", "pickup_ready", "pickup_scheduled"].includes(normalized)) return "packed";
+  if (["dispatched", "picked_up", "shipped", "in_transit"].includes(normalized)) return "dispatched";
   if (["out_for_delivery", "delivery_attempted"].includes(normalized)) return "out_for_delivery";
   if (["delivered", "returned", "partially_returned"].includes(normalized)) return "delivered";
   return null;

@@ -41,6 +41,97 @@ const getActor = (req, fallbackRole = "system") => ({
 const getShipmentModel = (req) => req.app.locals.models.Shipment;
 const isVendorActor = (req) => ["vendor", "vendor_staff"].includes(req.user?.role);
 
+const FORWARD_ORDER_SYNC = {
+  pickup_scheduled: {
+    orderStatus: "pickup_scheduled",
+    deliveryStatus: "pickup_scheduled",
+    itemStatus: "pickup_scheduled",
+    timestampField: "pickupScheduledAt",
+  },
+  picked_up: {
+    orderStatus: "picked_up",
+    deliveryStatus: "picked_up",
+    itemStatus: "picked_up",
+    timestampField: "pickedUpAt",
+  },
+  in_transit: {
+    orderStatus: "in_transit",
+    deliveryStatus: "in_transit",
+    itemStatus: "in_transit",
+    timestampField: "inTransitAt",
+  },
+  out_for_delivery: {
+    orderStatus: "out_for_delivery",
+    deliveryStatus: "out_for_delivery",
+    itemStatus: "out_for_delivery",
+    timestampField: "outForDeliveryAt",
+  },
+};
+
+const ADMIN_FORWARD_STATE_TARGETS = new Set(Object.keys(FORWARD_ORDER_SYNC));
+
+const syncOrderAfterForwardTransition = async (req, shipment = {}, targetState = "") => {
+  const db = req.app.locals.db;
+  const config = FORWARD_ORDER_SYNC[targetState];
+  if (!db?.collection || !shipment?.orderId || !config) return;
+
+  const now = new Date();
+  const orderId = normalizeId(shipment.orderId);
+  const vendorId = normalizeId(shipment.vendorId);
+  const orderQuery = idFilter(orderId);
+  const vendorOrderQuery = {
+    parentOrderId: { $in: idValues(orderId) },
+    ...(vendorId ? { vendorId: { $in: idValues(vendorId) } } : {}),
+  };
+  const assignmentQuery = { orderId: { $in: idValues(orderId) } };
+  const timestamp = shipment[config.timestampField] || now;
+
+  const orderPatch = {
+    status: config.orderStatus,
+    deliveryStatus: config.deliveryStatus,
+    [config.timestampField]: timestamp,
+    updatedAt: now,
+  };
+  const productPatch = {
+    "products.$[elem].itemStatus": config.itemStatus,
+    "products.$[elem].deliveryStatus": config.deliveryStatus,
+    "products.$[elem].statusUpdatedAt": now,
+    [`products.$[elem].${config.timestampField}`]: timestamp,
+    "products.$[elem].shipmentId": normalizeId(shipment._id),
+    ...(shipment.trackingNumber ? { "products.$[elem].trackingNumber": shipment.trackingNumber } : {}),
+    ...(shipment.courierName ? { "products.$[elem].courierName": shipment.courierName } : {}),
+  };
+
+  await Promise.all([
+    db.collection("orders").updateOne(
+      orderQuery,
+      { $set: { ...orderPatch, ...productPatch } },
+      { arrayFilters: [vendorArrayFilter(vendorId)] },
+    ),
+    db.collection("vendorOrders").updateMany(vendorOrderQuery, {
+      $set: {
+        status: config.orderStatus,
+        deliveryStatus: config.deliveryStatus,
+        [config.timestampField]: timestamp,
+        shipmentId: normalizeId(shipment._id),
+        ...(shipment.trackingNumber ? { trackingNumber: shipment.trackingNumber } : {}),
+        ...(shipment.courierName ? { courierName: shipment.courierName } : {}),
+        updatedAt: now,
+      },
+    }),
+    db.collection("dispatch_assignments").updateMany(assignmentQuery, {
+      $set: {
+        deliveryStatus: config.deliveryStatus,
+        [config.timestampField]: timestamp,
+        shipmentId: normalizeId(shipment._id),
+        ...(shipment.trackingNumber ? { trackingNumber: shipment.trackingNumber } : {}),
+        ...(shipment.courierName ? { courierName: shipment.courierName } : {}),
+        updatedAt: now,
+      },
+    }),
+  ]);
+};
+
 const syncOrderAfterDeliveryAttempt = async (req, shipment = {}, attempt = {}) => {
   const db = req.app.locals.db;
   if (!db?.collection || !shipment?.orderId) return;
@@ -73,7 +164,28 @@ const syncOrderAfterDeliveryAttempt = async (req, shipment = {}, attempt = {}) =
         : {}),
     };
     await Promise.all([
-      db.collection("orders").updateOne(orderQuery, { $set: orderPatch }),
+      db.collection("orders").updateOne(
+        orderQuery,
+        {
+          $set: {
+            ...orderPatch,
+            "products.$[elem].itemStatus": "delivered",
+            "products.$[elem].deliveryStatus": "delivered",
+            "products.$[elem].deliveredAt": orderPatch.deliveredAt,
+            "products.$[elem].statusUpdatedAt": now,
+            "products.$[elem].shipmentId": normalizeId(shipment._id),
+            ...(shipment.trackingNumber ? { "products.$[elem].trackingNumber": shipment.trackingNumber } : {}),
+            ...(shipment.courierName ? { "products.$[elem].courierName": shipment.courierName } : {}),
+            ...(codCollected
+              ? {
+                  "products.$[elem].codCollected": true,
+                  "products.$[elem].codCollectedAt": orderPatch.codCollectedAt,
+                }
+              : {}),
+          },
+        },
+        { arrayFilters: [vendorArrayFilter(vendorId)] },
+      ),
       db.collection("vendorOrders").updateMany(vendorOrderQuery, {
         $set: {
           status: "delivered",
@@ -106,7 +218,25 @@ const syncOrderAfterDeliveryAttempt = async (req, shipment = {}, attempt = {}) =
       updatedAt: now,
     };
     await Promise.all([
-      db.collection("orders").updateOne(orderQuery, { $set: failurePatch }),
+      db.collection("orders").updateOne(
+        orderQuery,
+        {
+          $set: {
+            ...failurePatch,
+            "products.$[elem].deliveryStatus": status,
+            "products.$[elem].failureReason": failurePatch.failureReason,
+            "products.$[elem].lastDeliveryFailedAt": failurePatch.lastDeliveryFailedAt,
+            "products.$[elem].statusUpdatedAt": now,
+            ...(isReturn
+              ? {
+                  "products.$[elem].itemStatus": "returned",
+                  "products.$[elem].returnedAt": now,
+                }
+              : { "products.$[elem].itemStatus": "delivery_failed" }),
+          },
+        },
+        { arrayFilters: [vendorArrayFilter(vendorId)] },
+      ),
       db.collection("vendorOrders").updateMany(vendorOrderQuery, { $set: failurePatch }),
       db.collection("dispatch_assignments").updateMany(assignmentQuery, {
         $set: {
@@ -717,9 +847,35 @@ exports.assignCourier = async (req, res) => {
 
     const assignment = buildCourierAssignmentPayload({ data: req.body, courier, booking });
     const shipment = await Shipment.assignCourier(req.params.id, assignment, getActor(req, "admin"));
+    await syncOrderAfterForwardTransition(req, shipment, shipment.shipmentState);
     res.json({ success: true, data: shipment, courierBooking: summarizeBookingForStorage(booking) });
   } catch (error) {
     jsonError(res, error, "Failed to assign courier");
+  }
+};
+
+exports.updateShipmentForwardState = async (req, res) => {
+  try {
+    const targetState = String(req.body?.targetState || req.body?.state || "").trim();
+    if (!ADMIN_FORWARD_STATE_TARGETS.has(targetState)) {
+      return res.status(400).json({
+        success: false,
+        error: "Unsupported shipment state for admin workflow",
+      });
+    }
+
+    await assertShipmentInLogisticsScope(req, await findAccessibleShipment(req, req.params.id));
+    const shipment = await getShipmentModel(req).advanceForward(req.params.id, targetState, {
+      actorRole: req.user?.role || "admin",
+      actorId: getActor(req, "admin").id,
+      type: `shipment.${targetState}`,
+      description: req.body?.note || stateLabel(targetState),
+      metadata: req.body || {},
+    });
+    await syncOrderAfterForwardTransition(req, shipment, targetState);
+    res.json({ success: true, data: shipment });
+  } catch (error) {
+    jsonError(res, error, "Failed to update shipment workflow");
   }
 };
 

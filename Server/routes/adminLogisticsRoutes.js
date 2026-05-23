@@ -35,6 +35,7 @@ const {
   markRto,
   recordDeliveryAttempt,
   updateCodState,
+  updateShipmentForwardState,
   updateReverseState,
 } = require("../controllers/shipmentController");
 
@@ -46,6 +47,7 @@ router.get("/state-machine", verifyToken, verifyAdmin, getStateMachine);
 
 router.get("/shipments", verifyToken, verifyAdmin, listVendorShipments);
 router.post("/shipments/:id/assign-courier", verifyToken, verifyAdmin, assignCourier);
+router.post("/shipments/:id/state", verifyToken, verifyAdmin, updateShipmentForwardState);
 router.post("/shipments/:id/delivery-attempt", verifyToken, verifyAdmin, recordDeliveryAttempt);
 router.post("/shipments/:id/mark-rto", verifyToken, verifyAdmin, markRto);
 router.post("/shipments/:id/confirm-rto-received", verifyToken, verifyAdmin, confirmRtoReceived);

@@ -309,6 +309,7 @@ class Shipment {
 
   async assignCourier(id, data = {}, actor = {}) {
     const booking = data.courierBooking || data.booking || null;
+    const targetState = data.targetState || data.dispatchState || "in_transit";
     const set = {
       courierId: data.courierId || null,
       courierCode: data.courierCode || data.courier_code || null,
@@ -322,11 +323,11 @@ class Shipment {
       estimatedDeliveryDate: data.estimatedDeliveryDate ? new Date(data.estimatedDeliveryDate) : null,
     };
     await this.collection.updateOne(idQuery(id), { $set: { ...set, updatedAt: new Date() } });
-    return this.advanceForward(id, "in_transit", {
+    return this.advanceForward(id, targetState, {
       actorRole: actor.role || "admin",
       actorId: actor.id,
-      type: "shipment.in_transit",
-      description: "Courier assigned and shipment moved in transit",
+      type: `shipment.${targetState}`,
+      description: targetState === "in_transit" ? "Courier assigned and shipment moved in transit" : "Courier assigned",
       metadata: set,
     });
   }
