@@ -538,6 +538,16 @@ export default function AdminLogistics() {
     [activeShipments],
   );
 
+  const outstandingCodOrders = useMemo(
+    () =>
+      (codFloat.orders || []).filter(
+        (row) =>
+          Number(row.outstandingAmount || 0) > 0 ||
+          ["collected", "discrepancy"].includes(row.collectionStatus),
+      ),
+    [codFloat.orders],
+  );
+
   const codToRemitAmount = useMemo(
     () => outstandingCodOrders.reduce((sum, row) => sum + Number(row.outstandingAmount || row.amount || 0), 0),
     [outstandingCodOrders],
@@ -565,16 +575,6 @@ export default function AdminLogistics() {
       .map((id) => courierById.get(String(id))?.name)
       .filter(Boolean)
       .join(", ");
-
-  const outstandingCodOrders = useMemo(
-    () =>
-      (codFloat.orders || []).filter(
-        (row) =>
-          Number(row.outstandingAmount || 0) > 0 ||
-          ["collected", "discrepancy"].includes(row.collectionStatus),
-      ),
-    [codFloat.orders],
-  );
 
   const selectedCodOrders = useMemo(
     () => outstandingCodOrders.filter((row) => selectedCodOrderIds.includes(row.orderId)),
