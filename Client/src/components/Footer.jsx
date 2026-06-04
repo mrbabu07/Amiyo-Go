@@ -121,6 +121,14 @@ export default function Footer() {
               </li>
               <li>
                 <Link
+                  to="/university"
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  Amiyo-Go University
+                </Link>
+              </li>
+              <li>
+                <Link
                   to="/about"
                   className="text-gray-400 hover:text-white transition-colors"
                 >

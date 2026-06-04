@@ -6,6 +6,7 @@ import {
   ChevronDown,
   CreditCard,
   FileCheck2,
+  GraduationCap,
   Headphones,
   Home,
   LayoutDashboard,
@@ -116,6 +117,7 @@ const navGroups = [
 
 const singleLinks = [
   { name: "Dashboard", path: "/vendor/dashboard", icon: LayoutDashboard },
+  { name: "University", path: "/university?role=vendor", icon: GraduationCap },
   { name: "Settings", path: "/vendor/settings", icon: Settings, permission: "settings:manage" },
 ];
 

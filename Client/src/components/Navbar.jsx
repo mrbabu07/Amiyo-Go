@@ -15,7 +15,7 @@ import SearchBar from "./SearchBar";
 import { LOYALTY_BALANCE_EVENT, getLoyaltyPointsFromPayload } from "../utils/loyaltyBalance";
 
 export default function Navbar() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, logout, isAdmin } = useAuth();
   const { cartCount } = useCart();
   const { wishlistCount } = useWishlist();
@@ -117,11 +117,16 @@ export default function Navbar() {
     }
   };
 
+  const universityLabel = i18n.resolvedLanguage?.startsWith("bn")
+    ? "ইউনিভার্সিটি"
+    : t("navbar.university", "University");
+
   const navLinks = [
     { name: t("navbar.home"), path: "/" },
     { name: t("navbar.products"), path: "/products" },
     ...(isShopDirectoryVisible ? [{ name: "Shops", path: "/shops" }] : []),
     { name: t("navbar.flashSales"), path: "/flash-sales" },
+    { name: universityLabel, path: "/university" },
   ];
 
   const categoryGroups = useMemo(() => {
@@ -348,6 +353,29 @@ export default function Navbar() {
                             </svg>
                             <span className="text-sm text-gray-700 dark:text-gray-300">
                               {t("navbar.my_orders")}
+                            </span>
+                          </Link>
+
+                          <Link
+                            to="/university?role=customer"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            <svg
+                              className="w-5 h-5 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                              />
+                            </svg>
+                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                              {universityLabel}
                             </span>
                           </Link>
 
@@ -1126,6 +1154,13 @@ export default function Navbar() {
                     className="block px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors"
                   >
                     {t("navbar.my_orders")}
+                  </Link>
+                  <Link
+                    to="/university?role=customer"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  >
+                    {universityLabel}
                   </Link>
                   <Link
                     to="/vendor/register"

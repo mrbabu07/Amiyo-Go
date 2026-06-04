@@ -10,6 +10,7 @@ import {
   DollarSign,
   FileCheck,
   FileClock,
+  GraduationCap,
   Home,
   LayoutDashboard,
   LogOut,
@@ -45,6 +46,12 @@ const navigation = [
     name: 'Operations',
     icon: Activity,
     path: '/admin/operations',
+    exact: true,
+  },
+  {
+    name: 'University',
+    icon: GraduationCap,
+    path: '/university?role=admin',
     exact: true,
   },
   {
@@ -240,6 +247,7 @@ const hasPermission = (permissions = {}, resource, action) => {
 
 const canAccessPath = (path, { isAdmin, permissions }) => {
   if (!path) return true;
+  if (path.startsWith('/university')) return true;
   if (isAdmin) return true;
 
   const rule = adminPermissionRules.find((item) => item.pattern.test(path));
