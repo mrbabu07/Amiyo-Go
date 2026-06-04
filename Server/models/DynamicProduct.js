@@ -92,11 +92,9 @@ const dynamicProductSchema = new mongoose.Schema(
 );
 
 // Indexes for faster queries
-dynamicProductSchema.index({ slug: 1 });
 dynamicProductSchema.index({ category: 1 });
 dynamicProductSchema.index({ vendor: 1 });
 dynamicProductSchema.index({ isActive: 1 });
-dynamicProductSchema.index({ sku: 1 });
 
 // Generate slug from name if not provided
 dynamicProductSchema.pre("save", function (next) {

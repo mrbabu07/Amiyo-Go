@@ -148,7 +148,6 @@ const sellerProfileSchema = new mongoose.Schema({
 });
 
 // Indexes
-sellerProfileSchema.index({ userId: 1 });
 sellerProfileSchema.index({ coordinates: "2dsphere" });
 sellerProfileSchema.index({ sellerType: 1 });
 sellerProfileSchema.index({ badge: 1 });

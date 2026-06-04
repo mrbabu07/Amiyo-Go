@@ -1,8 +1,20 @@
 require("dotenv").config();
+const dns = require("dns");
 const {
   buildCorsOptions,
   validateStartupEnv,
 } = require("./config/env");
+
+if (process.env.NODE_DNS_SERVERS) {
+  const dnsServers = process.env.NODE_DNS_SERVERS
+    .split(",")
+    .map((server) => server.trim())
+    .filter(Boolean);
+  if (dnsServers.length > 0) {
+    dns.setServers(dnsServers);
+    console.log(`Node DNS servers configured: ${dnsServers.join(", ")}`);
+  }
+}
 
 const startupEnv = validateStartupEnv(process.env);
 if (!startupEnv.ok) {

@@ -168,7 +168,6 @@ const listingSchema = new mongoose.Schema({
 });
 
 // Indexes
-listingSchema.index({ listingId: 1 });
 listingSchema.index({ sellerId: 1 });
 listingSchema.index({ location: "2dsphere" });
 listingSchema.index({ status: 1 });

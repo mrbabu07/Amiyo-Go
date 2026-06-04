@@ -67,7 +67,6 @@ const dynamicCategorySchema = new mongoose.Schema(
 );
 
 // Index for faster queries
-dynamicCategorySchema.index({ slug: 1 });
 dynamicCategorySchema.index({ isActive: 1 });
 
 module.exports = mongoose.model("DynamicCategory", dynamicCategorySchema);

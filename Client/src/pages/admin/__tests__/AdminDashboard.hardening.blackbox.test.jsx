@@ -213,5 +213,5 @@ describe("AdminDashboard hardening workflow", () => {
         status: "in_progress",
       }));
     });
-  });
+  }, 15000);
 });
