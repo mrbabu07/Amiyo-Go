@@ -50,7 +50,7 @@ const navigation = [
   {
     name: 'Audit Logs',
     icon: FileClock,
-    path: '/admin/audit-logs',
+    path: '/admin/audit',
     exact: true,
   },
   {
@@ -66,11 +66,23 @@ const navigation = [
     exact: true,
   },
   {
+    name: 'Settings',
+    icon: Settings,
+    path: '/admin/settings',
+    exact: true,
+  },
+  {
+    name: 'Staff',
+    icon: Users,
+    path: '/admin/staff',
+    exact: true,
+  },
+  {
     name: 'Vendors',
     icon: Store,
     children: [
       { name: 'Requests', path: '/admin/vendor-requests', exact: true, alertKey: 'vendors' },
-      { name: 'KYC Review', path: '/admin/vendor-kyc', exact: true },
+      { name: 'KYC Review', path: '/admin/vendors/kyc', exact: true },
       { name: 'All Vendors', path: '/admin/vendors' },
       { name: 'Activity', path: '/admin/vendor-activity', exact: true, alertKey: 'vendorActivity' },
       { name: 'Vendor Chats', path: '/admin/chats', exact: true, alertKey: 'vendorChats' },
@@ -92,6 +104,7 @@ const navigation = [
     icon: ShoppingBag,
     children: [
       { name: 'All Orders', path: '/admin/orders', exact: true, alertKey: 'orders' },
+      { name: 'COD Reconciliation', path: '/admin/cod-reconciliation', exact: true, alertKey: 'payments' },
       { name: 'COD Delivery', path: '/admin/cod-delivery', exact: true, alertKey: 'payments' },
       { name: 'Returns', path: '/admin/returns', exact: true, alertKey: 'returns' },
       { name: 'Logistics', path: '/admin/logistics', exact: true },
@@ -110,6 +123,8 @@ const navigation = [
     icon: Megaphone,
     children: [
       { name: 'Promotions', path: '/admin/promotions', exact: true },
+      { name: 'Banners', path: '/admin/banners', exact: true },
+      { name: 'Vouchers', path: '/admin/vouchers', exact: true },
       { name: 'Coupons', path: '/admin/coupons', exact: true },
       { name: 'Flash Sales', path: '/admin/flash-sales', exact: true },
       { name: 'Offers', path: '/admin/offers' },
@@ -122,7 +137,7 @@ const navigation = [
     children: [
       { name: 'Vendor Payouts', path: '/admin/payouts', exact: true, alertKey: 'payouts' },
       { name: 'Payout Requests', path: '/admin/payout-requests', exact: true, alertKey: 'payoutRequests' },
-      { name: 'Manual Payments', path: '/admin/payment-verifications', exact: true, alertKey: 'payments' },
+      { name: 'Payment Verification', path: '/admin/payment-verification', exact: true, alertKey: 'payments' },
     ],
   },
   {
@@ -133,7 +148,7 @@ const navigation = [
       { name: 'Trust & Safety', path: '/admin/trust-safety', exact: true },
       { name: 'User Roles', path: '/admin/users', exact: true },
       { name: 'Insights', path: '/admin/insights', exact: true },
-      { name: 'Reviews', path: '/admin/reviews', exact: true },
+      { name: 'Reviews', path: '/admin/reviews/moderation', exact: true },
       { name: 'Q&A', path: '/admin/qa', exact: true },
     ],
   },
@@ -149,7 +164,7 @@ const quickLinks = [
   { name: 'Store', path: '/', icon: Home },
   { name: 'Orders', path: '/admin/orders', icon: ClipboardList },
   { name: 'Vendors', path: '/admin/vendor-requests', icon: FileCheck },
-  { name: 'Payments', path: '/admin/payment-verifications', icon: CreditCard },
+  { name: 'Payments', path: '/admin/payment-verification', icon: CreditCard },
 ];
 
 const parseNavPath = (path = '') => {
@@ -186,9 +201,9 @@ const matchesRoute = (location, item) => {
 const adminPermissionRules = [
   { pattern: /^\/admin$/, resource: 'system', action: 'read' },
   { pattern: /^\/admin\/operations/, resource: 'system', action: 'read' },
-  { pattern: /^\/admin\/audit-logs/, resource: 'audit_logs', action: 'read' },
+  { pattern: /^\/admin\/(audit|audit-logs)/, resource: 'audit_logs', action: 'read' },
   { pattern: /^\/admin\/analytics/, resource: 'analytics', action: 'read' },
-  { pattern: /^\/admin\/platform/, resource: 'system', action: 'read' },
+  { pattern: /^\/admin\/(platform|settings|staff)/, resource: 'system', action: 'read' },
   { pattern: /^\/admin\/(vendor|vendors|chats|chat)/, resource: 'vendors', action: 'read' },
   { pattern: /^\/admin\/(products|inventory)/, resource: 'products', action: 'read' },
   { pattern: /^\/admin\/categories|^\/admin\/category-requests/, resource: 'categories', action: 'read' },
@@ -197,8 +212,9 @@ const adminPermissionRules = [
   { pattern: /^\/admin\/logistics/, resource: 'orders', action: 'read' },
   { pattern: /^\/admin\/delivery-settings/, resource: 'system', action: 'read' },
   { pattern: /^\/admin\/support/, resource: 'support', action: 'read' },
-  { pattern: /^\/admin\/(promotions|coupons|flash-sales|offers|newsletter)/, resource: 'system', action: 'read' },
-  { pattern: /^\/admin\/(payouts|payout-requests|payment-verifications|cod-delivery)/, resource: 'payments', action: 'read' },
+  { pattern: /^\/admin\/(promotions|banners|flash-sales|offers|newsletter)/, resource: 'promotions', action: 'read' },
+  { pattern: /^\/admin\/(vouchers|coupons)/, resource: 'coupons', action: 'read' },
+  { pattern: /^\/admin\/(payouts|payout-requests|payment-verification|payment-verifications|cod-delivery|cod-reconciliation)/, resource: 'payments', action: 'read' },
   { pattern: /^\/admin\/(customers|insights)/, resource: 'users', action: 'read' },
   { pattern: /^\/admin\/trust-safety/, resource: 'system', action: 'read' },
   { pattern: /^\/admin\/users/, resource: 'users', action: 'read' },

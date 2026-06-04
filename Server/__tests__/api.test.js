@@ -129,6 +129,30 @@ jest.mock("../controllers/orderController", () => ({
   adminForceRefundOrder: (req, res) => res.json({ route: "orders:force-refund", id: req.params.id }),
 }));
 
+jest.mock("../controllers/paymentController", () => ({
+  getManualPaymentQueue: (req, res) => res.json({ route: "payments:manual-queue", status: req.query.status || "pending" }),
+  approveManualPayment: (req, res) => res.json({ route: "payments:manual-approve", id: req.params.orderId }),
+  rejectManualPayment: (req, res) => res.json({ route: "payments:manual-reject", id: req.params.orderId }),
+}));
+
+jest.mock("../controllers/couponController", () => ({
+  getAllCoupons: (req, res) => res.json({ route: "coupons:list" }),
+  getCouponById: (req, res) => res.json({ route: "coupons:id", id: req.params.id }),
+  getActiveCoupons: (req, res) => res.json({ route: "coupons:active" }),
+  validateCoupon: (req, res) => res.json({ route: "coupons:validate", code: req.body.code }),
+  createCoupon: (req, res) => res.status(201).json({ route: "coupons:create", code: req.body.code }),
+  updateCoupon: (req, res) => res.json({ route: "coupons:update", id: req.params.id }),
+  deleteCoupon: (req, res) => res.json({ route: "coupons:delete", id: req.params.id }),
+  applyCoupon: (req, res) => res.json({ route: "coupons:apply" }),
+}));
+
+jest.mock("../controllers/reviewController", () => ({
+  getAllReviews: (req, res) => res.json({ route: "reviews:admin-list" }),
+  getUnrepliedReviews: (req, res) => res.json({ route: "reviews:unreplied" }),
+  addAdminReply: (req, res) => res.json({ route: "reviews:admin-reply", id: req.params.reviewId }),
+  deleteReviewAdmin: (req, res) => res.json({ route: "reviews:admin-delete", id: req.params.reviewId }),
+}));
+
 jest.mock("../controllers/vendorController", () => ({
   registerVendor: (req, res) => res.status(201).json({ route: "vendors:register" }),
   getFollowedVendorFeed: (req, res) => res.json({ route: "vendors:followed-feed" }),
@@ -595,7 +619,10 @@ const buildApp = () => {
   app.use("/api/search", require("../routes/searchRoutes"));
   app.use("/api/discovery", require("../routes/discoveryRoutes"));
   app.use("/api/platform", require("../routes/platformRoutes"));
+  app.use("/api/settings", require("../routes/settingsRoutes"));
+  app.use("/api/vouchers", require("../routes/voucherRoutes"));
   app.use("/api/orders", require("../routes/orderRoutes"));
+  app.use("/api/vendor/kyc", require("../routes/vendorKycRoutes"));
   app.use("/api/vendors", require("../routes/vendorRoutes"));
   app.use("/api/vendor-chat", require("../routes/vendorChatRoutes"));
   app.use("/api/admin/dashboard", require("../routes/adminDashboardRoutes"));
@@ -608,7 +635,15 @@ const buildApp = () => {
   app.use("/api/admin/customers", require("../routes/adminCustomerRoutes"));
   app.use("/api/admin/trust-safety", require("../routes/adminTrustSafetyRoutes"));
   app.use("/api/admin/platform", require("../routes/adminPlatformRoutes"));
+  app.use("/api/admin/vendors/kyc", require("../routes/adminVendorKycRoutes"));
   app.use("/api/admin/vendors", require("../routes/adminVendorRoutes"));
+  app.use("/api/admin/payment-verification", require("../routes/adminPaymentVerificationRoutes"));
+  app.use("/api/admin/settings", require("../routes/adminSettingsRoutes"));
+  app.use("/api/admin/staff", require("../routes/adminStaffRoutes"));
+  app.use("/api/admin/vouchers", require("../routes/adminVoucherRoutes"));
+  app.use("/api/admin/cod", require("../routes/adminCodRoutes"));
+  app.use("/api/admin/reviews", require("../routes/adminReviewRoutes"));
+  app.use("/api/admin/orders", require("../routes/adminOrderExportRoutes"));
   app.use((req, res) => res.status(404).json({ error: "Not found" }));
   return app;
 };
@@ -1994,6 +2029,71 @@ describe("Black-box API tests", () => {
 
       expect(response.status).toBe(403);
       expect(response.body).toEqual({ error: "Admin access required" });
+    });
+  });
+
+  describe("admin control alias API behavior", () => {
+    test("payment verification and vendor KYC aliases reach the operational queues", async () => {
+      const payment = await request(app)
+        .get("/api/admin/payment-verification?status=pending")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const kyc = await request(app)
+        .get("/api/admin/vendors/kyc?status=pending")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const vendorKyc = await request(app)
+        .get("/api/vendor/kyc/status")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "vendor");
+
+      expect(payment.body).toEqual({ route: "payments:manual-queue", status: "pending" });
+      expect(kyc.body).toEqual({ route: "vendors:kyc-queue" });
+      expect(vendorKyc.body).toEqual({ route: "vendors:kyc-me" });
+    });
+
+    test("settings, staff, vouchers, COD, reviews, and order export aliases are wired", async () => {
+      const settings = await request(app)
+        .get("/api/admin/settings")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const publicSettings = await request(app).get("/api/settings/public");
+      const staff = await request(app)
+        .get("/api/admin/staff")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const vouchers = await request(app)
+        .get("/api/admin/vouchers")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const publicVoucher = await request(app)
+        .post("/api/vouchers/validate")
+        .send({ code: "SAVE10" });
+      const cod = await request(app)
+        .get("/api/admin/cod")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const reviews = await request(app)
+        .get("/api/admin/reviews")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+      const exportRes = await request(app)
+        .get("/api/admin/orders/export")
+        .set("Authorization", "Bearer test")
+        .set("x-test-role", "admin");
+
+      expect(settings.body).toEqual({ route: "admin-platform:config" });
+      expect(publicSettings.body).toEqual({
+        route: "platform:public-config",
+        featureFlags: { shopDirectory: true },
+        storefront: { shopsVisible: true },
+      });
+      expect(staff.body).toEqual({ route: "admin-platform:staff" });
+      expect(vouchers.body).toEqual({ route: "coupons:list" });
+      expect(publicVoucher.body).toEqual({ route: "coupons:validate", code: "SAVE10" });
+      expect(cod.body).toEqual({ route: "orders:cod-reconciliation" });
+      expect(reviews.body).toEqual({ route: "reviews:admin-list" });
+      expect(exportRes.body).toEqual({ route: "orders:export-csv" });
     });
   });
 

@@ -12,9 +12,9 @@ import {
 import toast, { Toaster } from "react-hot-toast";
 import Modal from "../../components/Modal";
 import {
-  approveManualPayment,
-  getManualPaymentQueue,
-  rejectManualPayment,
+  approveAdminPaymentVerification,
+  getAdminPaymentVerificationQueue,
+  rejectAdminPaymentVerification,
 } from "../../services/api";
 import { useCurrency } from "../../hooks/useCurrency";
 
@@ -106,7 +106,7 @@ export default function AdminPaymentVerifications() {
   const loadQueue = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await getManualPaymentQueue({ status, method });
+      const response = await getAdminPaymentVerificationQueue({ status, method });
       setItems(response.data.data || []);
     } catch (error) {
       console.error("Failed to load manual payments:", error);
@@ -141,7 +141,7 @@ export default function AdminPaymentVerifications() {
     if (!item) return;
     setBusyOrderId(item.orderId);
     try {
-      await approveManualPayment(item.orderId, {
+      await approveAdminPaymentVerification(item.orderId, {
         note: actionForm.note,
         allowDuplicate,
       });
@@ -169,7 +169,7 @@ export default function AdminPaymentVerifications() {
     }
     setBusyOrderId(item.orderId);
     try {
-      await rejectManualPayment(item.orderId, { reason: actionForm.reason });
+      await rejectAdminPaymentVerification(item.orderId, { reason: actionForm.reason });
       toast.success("Payment rejected");
       closeDialog();
       await loadQueue();

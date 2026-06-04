@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, FileText, RefreshCw, XCircle } from "lucide-react";
-import { getAdminVendorKycQueue, reviewAdminVendorKyc } from "../../services/api";
+import { getAdminVendorKycQueueV2, reviewAdminVendorKycV2 } from "../../services/api";
 import { Pagination } from "../../components/ui/data";
 
 export default function AdminVendorKyc() {
@@ -15,7 +15,7 @@ export default function AdminVendorKyc() {
   const loadQueue = async () => {
     setLoading(true);
     try {
-      const response = await getAdminVendorKycQueue({ status });
+      const response = await getAdminVendorKycQueueV2({ status });
       setItems(response.data.data || []);
     } catch (error) {
       console.error("Failed to load KYC queue:", error);
@@ -45,7 +45,7 @@ export default function AdminVendorKyc() {
 
     setBusyVendorId(vendorId);
     try {
-      await reviewAdminVendorKyc(vendorId, { status: nextStatus, reason });
+      await reviewAdminVendorKycV2(vendorId, { status: nextStatus, reason });
       await loadQueue();
     } catch (error) {
       alert(error.response?.data?.error || "Failed to review KYC");

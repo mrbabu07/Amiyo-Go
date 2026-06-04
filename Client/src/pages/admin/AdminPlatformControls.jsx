@@ -47,6 +47,7 @@ const tabs = [
 ];
 
 const roleOptions = [
+  ["super_admin", "Super Admin"],
   ["admin", "Super Admin"],
   ["manager", "Operations Manager"],
   ["finance_manager", "Finance Manager"],
@@ -183,9 +184,9 @@ function Section({ title, icon: Icon, children, action }) {
   );
 }
 
-export default function AdminPlatformControls() {
+export default function AdminPlatformControls({ initialTab = "communications" }) {
   const { isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState("communications");
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
   const [overview, setOverview] = useState(null);

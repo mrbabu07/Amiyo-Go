@@ -5,6 +5,7 @@ const { verifyToken, verifyAdmin } = require("../middleware/auth");
 
 // Public routes
 router.get("/active", flashSaleController.getActiveFlashSales);
+router.get("/current", flashSaleController.getActiveFlashSales);
 router.get("/upcoming", flashSaleController.getUpcomingFlashSales);
 router.get("/:id", flashSaleController.getFlashSaleById);
 

@@ -1,4 +1,5 @@
 const STAFF_ROLES = [
+  "super_admin",
   "admin",
   "manager",
   "support",
@@ -151,6 +152,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
   },
 };
 
+DEFAULT_ROLE_PERMISSIONS.super_admin = DEFAULT_ROLE_PERMISSIONS.admin;
+
 const METHOD_ACTION = {
   GET: "read",
   POST: "create",
@@ -165,17 +168,18 @@ const RESOURCE_BY_PATH = [
   [/\/admin\/products|\/vendor\/products|\/products|\/inventory/, "products"],
   [/\/category|\/categories|\/dynamic-categories|\/category-fields|\/category-requests/, "categories"],
   [/\/coupon/, "coupons"],
+  [/\/voucher/, "coupons"],
   [/\/review/, "reviews"],
   [/\/return/, "returns"],
   [/\/support/, "support"],
   [/\/chat|\/vendor-chat/, "chat"],
-  [/\/payment|\/payout|\/finance/, "payments"],
+  [/\/payment|\/payout|\/finance|\/cod/, "payments"],
   [/\/admin\/logistics/, "orders"],
   [/\/dispatch/, "orders"],
   [/\/analytics/, "analytics"],
   [/\/order/, "orders"],
   [/\/broadcast|\/template|\/email-campaign|\/announcement/, "communications"],
-  [/\/campaign|\/offer|\/flash-sales|\/newsletter|\/promotion/, "promotions"],
+  [/\/campaign|\/offer|\/flash-sales|\/newsletter|\/promotion|\/banner/, "promotions"],
   [/\/audit/, "audit_logs"],
 ];
 
@@ -215,7 +219,7 @@ const hasPermission = (permissions, resource, action) => {
 
 const roleCan = (user, resource, action, permissionDoc = null) => {
   if (!user) return false;
-  if (user.role === "admin") return true;
+  if (user.role === "admin" || user.role === "super_admin") return true;
 
   // Marketplace staff can operate assigned sections, but destructive actions
   // and platform settings remain super-admin only even if a stale/custom

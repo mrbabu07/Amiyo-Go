@@ -116,6 +116,16 @@ const VendorActivityDashboard = lazyLoadWithRetry(() => import("../pages/admin/V
 const AdminVendorKyc = lazyLoadWithRetry(() => import("../pages/admin/AdminVendorKyc"));
 const AdminNewsletter = lazyLoadWithRetry(() => import("../pages/admin/AdminNewsletter"));
 const AdminPlatformControls = lazyLoadWithRetry(() => import("../pages/admin/AdminPlatformControls"));
+const AdminBannerManagement = lazyLoadWithRetry(() => import("../pages/admin/BannerManagement"));
+const AdminPaymentVerification = lazyLoadWithRetry(() => import("../pages/admin/PaymentVerification"));
+const AdminVendorKYC = lazyLoadWithRetry(() => import("../pages/admin/VendorKYC"));
+const AdminPlatformSettings = lazyLoadWithRetry(() => import("../pages/admin/PlatformSettings"));
+const AdminStaffManagement = lazyLoadWithRetry(() => import("../pages/admin/StaffManagement"));
+const AdminVouchers = lazyLoadWithRetry(() => import("../pages/admin/Vouchers"));
+const AdminCODReconciliation = lazyLoadWithRetry(() => import("../pages/admin/CODReconciliation"));
+const AdminAuditLogAlias = lazyLoadWithRetry(() => import("../pages/admin/AuditLogs"));
+const AdminReviewModeration = lazyLoadWithRetry(() => import("../pages/admin/ReviewModeration"));
+const AdminFlashSaleManagement = lazyLoadWithRetry(() => import("../pages/admin/FlashSaleManagement"));
 
 const lazyElement = (Component) => (
   <ErrorBoundary>
@@ -283,12 +293,16 @@ const router = createBrowserRouter([
     children: [
       { path: "", element: adminElement(AdminDashboard, "system", "read") },
       { path: "operations", element: adminElement(AdminOperations, "system", "read") },
+      { path: "audit", element: adminElement(AdminAuditLogAlias, "audit_logs", "read") },
       { path: "audit-logs", element: adminElement(AdminAuditLogs, "audit_logs", "read") },
       { path: "analytics", element: adminElement(AdminAnalyticsReports, "analytics", "read") },
+      { path: "settings", element: adminElement(AdminPlatformSettings, "system", "read") },
+      { path: "staff", element: adminElement(AdminStaffManagement, "system", "read") },
       { path: "platform", element: adminElement(AdminPlatformControls, "system", "read") },
       { path: "vendors", element: adminElement(AdminVendors, "vendors", "read") },
       { path: "vendor-requests", element: adminElement(AdminVendors, "vendors", "read") },
       { path: "vendors/:vendorId", element: adminElement(AdminVendorDetail, "vendors", "read") },
+      { path: "vendors/kyc", element: adminElement(AdminVendorKYC, "vendors", "update") },
       { path: "vendor-activity", element: adminElement(VendorActivityDashboard, "vendors", "read") },
       { path: "vendor-kyc", element: adminElement(AdminVendorKyc, "vendors", "update") },
       { path: "chats", element: adminElement(AdminVendorChats, "vendors", "read") },
@@ -298,10 +312,12 @@ const router = createBrowserRouter([
       { path: "products/edit/:id", element: adminElement(ProductForm, "products", "update") },
       { path: "inventory", element: adminElement(AdminInventory, "inventory", "read") },
       { path: "orders", element: adminElement(AdminOrders, "orders", "read") },
+      { path: "cod-reconciliation", element: adminElement(AdminCODReconciliation, "payments", "read") },
       { path: "cod-delivery", element: adminElement(AdminCodDelivery, "payments", "read") },
       { path: "returns", element: adminElement(AdminReturns, "returns", "read") },
       { path: "payouts", element: adminElement(AdminPayouts, "payments", "read") },
       { path: "payout-requests", element: adminElement(AdminPayoutRequests, "payments", "read") },
+      { path: "payment-verification", element: adminElement(AdminPaymentVerification, "payments", "read") },
       { path: "payment-verifications", element: adminElement(AdminPaymentVerifications, "payments", "read") },
       { path: "newsletter", element: adminElement(AdminNewsletter, "communications", "read") },
       { path: "categories", element: adminElement(AdminDynamicCategories, "categories", "read") },
@@ -309,7 +325,10 @@ const router = createBrowserRouter([
       { path: "categories/:categoryId/attributes", element: adminElement(AdminEditCategoryAttributes, "categories", "update") },
       { path: "category-requests", element: adminElement(AdminCategoryRequests, "categories", "read") },
       { path: "promotions", element: adminElement(AdminPromotions, "promotions", "read") },
+      { path: "banners", element: adminElement(AdminBannerManagement, "promotions", "read") },
+      { path: "vouchers", element: adminElement(AdminVouchers, "coupons", "read") },
       { path: "coupons", element: adminElement(AdminCoupons, "coupons", "read") },
+      { path: "flash-sales/manage", element: adminElement(AdminFlashSaleManagement, "promotions", "read") },
       { path: "flash-sales", element: adminElement(AdminFlashSales, "promotions", "read") },
       { path: "offers", element: adminElement(AdminOffers, "promotions", "read") },
       { path: "offers/add", element: adminElement(OfferForm, "promotions", "create") },
@@ -321,6 +340,7 @@ const router = createBrowserRouter([
       { path: "users", element: adminElement(AdminUserManagement, "users", "read") },
       { path: "insights", element: adminElement(AdminCustomerInsights, "users", "read") },
       { path: "support", element: adminElement(AdminSupport, "support", "read") },
+      { path: "reviews/moderation", element: adminElement(AdminReviewModeration, "reviews", "read") },
       { path: "reviews", element: adminElement(AdminReviews, "reviews", "read") },
       { path: "qa", element: adminElement(AdminQA, "products", "read") },
     ],

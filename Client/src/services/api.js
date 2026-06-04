@@ -14,6 +14,8 @@ const idempotentMutations = [
   { method: "patch", pattern: /^\/orders\/admin\/[^/]+\/confirm-cod-payment$/ },
   { method: "post", pattern: /^\/payments\/process$/ },
   { method: "patch", pattern: /^\/payments\/manual-verifications\/[^/]+\/(approve|reject)$/ },
+  { method: "patch", pattern: /^\/admin\/payment-verification\/[^/]+\/(approve|reject)$/ },
+  { method: "patch", pattern: /^\/admin\/payment-verification\/bulk$/ },
   { method: "post", pattern: /^\/payments\/[^/]+\/refund$/ },
   { method: "post", pattern: /^\/returns$/ },
   { method: "post", pattern: /^\/returns\/[^/]+\/refund$/ },
@@ -526,6 +528,10 @@ export const deleteAdminSavedView = (key) =>
   api.delete(`/admin/dashboard/views/${encodeURIComponent(key)}`);
 export const getAdminAuditLogs = (params = {}) =>
   api.get("/admin/audit-logs", { params });
+export const getUnifiedAdminAuditLogs = (params = {}) =>
+  api.get("/admin/audit", { params });
+export const getUnifiedAdminAuditStats = () =>
+  api.get("/admin/audit/stats");
 export const searchAdminResources = (params = {}) =>
   api.get("/admin/search", { params });
 export const getAdminSearchResourceDetail = (type, id) =>
@@ -560,6 +566,14 @@ export const getPlatformVouchers = () =>
   api.get("/admin/promotions/vouchers");
 export const createPlatformVoucher = (data) =>
   api.post("/admin/promotions/vouchers", data);
+export const getAdminVouchers = (params = {}) =>
+  api.get("/admin/vouchers", { params });
+export const createAdminVoucher = (data) =>
+  api.post("/admin/vouchers", data);
+export const updateAdminVoucher = (id, data) =>
+  api.patch(`/admin/vouchers/${id}`, data);
+export const deleteAdminVoucher = (id) =>
+  api.delete(`/admin/vouchers/${id}`);
 export const getHomepageSlots = () =>
   api.get("/admin/promotions/homepage-slots");
 export const saveHomepageSlot = (data) =>
@@ -753,6 +767,12 @@ export const invitePlatformStaff = (data) =>
   api.post("/admin/platform/staff", data);
 export const updatePlatformStaffRole = (staffId, data) =>
   api.patch(`/admin/platform/staff/${staffId}/role`, data);
+export const getAdminStaffAccess = () =>
+  api.get("/admin/staff");
+export const inviteAdminStaff = (data) =>
+  api.post("/admin/staff", data);
+export const updateAdminStaffRole = (staffId, data) =>
+  api.patch(`/admin/staff/${staffId}/role`, data);
 export const getPlatformStaffActivityLog = (params = {}) =>
   api.get("/admin/platform/staff/activity-log", { params });
 export const setupPlatformStaffTwoFactor = (staffId) =>
@@ -761,6 +781,52 @@ export const verifyPlatformStaffTwoFactor = (staffId, data) =>
   api.post(`/admin/platform/staff/${staffId}/2fa/verify`, data);
 export const updatePlatformRoleSessionPolicy = (role, data) =>
   api.put(`/admin/platform/roles/${role}/session-policy`, data);
+
+// Admin control aliases
+export const getAdminPaymentVerificationQueue = (params = {}) =>
+  api.get("/admin/payment-verification", { params });
+export const getAdminPaymentVerificationStats = () =>
+  api.get("/admin/payment-verification/stats");
+export const approveAdminPaymentVerification = (orderId, data = {}) =>
+  api.patch(`/admin/payment-verification/${orderId}/approve`, data);
+export const rejectAdminPaymentVerification = (orderId, data = {}) =>
+  api.patch(`/admin/payment-verification/${orderId}/reject`, data);
+export const bulkAdminPaymentVerification = (data = {}) =>
+  api.patch("/admin/payment-verification/bulk", data);
+export const getAdminVendorKycQueueV2 = (params = {}) =>
+  api.get("/admin/vendors/kyc", { params });
+export const reviewAdminVendorKycV2 = (vendorId, data) =>
+  api.patch(`/admin/vendors/kyc/${vendorId}/review`, data);
+export const getAdminBanners = (params = {}) =>
+  api.get("/admin/banners", { params });
+export const createAdminBanner = (formData) =>
+  api.post("/admin/banners", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+export const updateAdminBanner = (id, formData) =>
+  api.patch(`/admin/banners/${id}`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+export const deleteAdminBanner = (id) =>
+  api.delete(`/admin/banners/${id}`);
+export const getPublicBanners = (placement) =>
+  api.get(`/banners/${placement}`);
+export const getAdminSettings = () =>
+  api.get("/admin/settings");
+export const updateAdminSettings = (data) =>
+  api.patch("/admin/settings", data);
+export const getPublicSettings = () =>
+  api.get("/settings/public");
+export const getAdminCodQueue = (params = {}) =>
+  api.get("/admin/cod", { params });
+export const markAdminCodCollected = (orderId, data = {}) =>
+  api.post(`/admin/cod/${orderId}/mark-collected`, data);
+export const markAdminCodRemitted = (orderId, data = {}) =>
+  api.post(`/admin/cod/${orderId}/mark-remitted`, data);
+export const markAdminCodFailed = (orderId, data = {}) =>
+  api.post(`/admin/cod/${orderId}/mark-failed`, data);
+export const downloadAdminOrdersExport = (params = {}) =>
+  api.get("/admin/orders/export", { params, responseType: "blob" });
 
 export const getDispatchAssignments = (params = {}) =>
   api.get("/admin/dispatch/assignments", { params });

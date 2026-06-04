@@ -6,6 +6,50 @@ const router = express.Router();
 
 router.use(verifyToken, verifyAdmin);
 
+router.get("/stats", async (req, res) => {
+  try {
+    const collection = req.app.locals.db.collection("audit_logs");
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const [total, last7Days, byModule, byAction, bySeverity] = await Promise.all([
+      collection.countDocuments(),
+      collection.countDocuments({ createdAt: { $gte: since } }),
+      collection
+        .aggregate([
+          { $group: { _id: { $ifNull: ["$module", "$resource"] }, count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 12 },
+        ])
+        .toArray(),
+      collection
+        .aggregate([
+          { $group: { _id: "$action", count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 12 },
+        ])
+        .toArray(),
+      collection
+        .aggregate([
+          { $group: { _id: { $ifNull: ["$severity", "info"] }, count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+        ])
+        .toArray(),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        last7Days,
+        byModule,
+        byAction,
+        bySeverity,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.get("/", async (req, res) => {
   try {
     const collection = req.app.locals.db.collection("audit_logs");

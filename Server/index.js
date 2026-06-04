@@ -91,6 +91,9 @@ const StockAlert = require("./models/StockAlert");
 const StoreLocation = require("./models/StoreLocation");
 const Permission = require("./models/Permission");
 const AuditLog = require("./models/AuditLog");
+const Banner = require("./models/Banner");
+const PaymentVerification = require("./models/PaymentVerification");
+const PlatformSettings = require("./models/PlatformSettings");
 const VendorShop = require("./models/VendorShop");
 const AnalyticsSummary = require("./models/AnalyticsSummary");
 const OrderEvent = require("./models/OrderEvent");
@@ -144,7 +147,9 @@ const questionRoutes = require("./routes/questionRoutes");
 const deliverySettingsRoutes = require("./routes/deliverySettingsRoutes");
 const deliveryRoutes = require("./routes/deliveryRoutes");
 const vendorRoutes = require("./routes/vendorRoutes");
+const vendorKycRoutes = require("./routes/vendorKycRoutes");
 const shopRoutes = require("./routes/shops");
+const bannerRoutes = require("./routes/bannerRoutes");
 const vendorShopRoutes = require("./routes/vendorShopRoutes");
 const vendorProductRoutes = require("./routes/vendorProductRoutes");
 const vendorFinanceRoutes = require("./routes/vendorFinanceRoutes");
@@ -156,6 +161,15 @@ const adminProductRoutes = require("./routes/adminProductRoutes");
 const adminFinanceRoutes = require("./routes/adminFinanceRoutes");
 const adminPayoutRoutes  = require("./routes/adminPayoutRoutes");
 const adminVendorRoutes = require("./routes/adminVendorRoutes");
+const adminVendorKycRoutes = require("./routes/adminVendorKycRoutes");
+const adminPaymentVerificationRoutes = require("./routes/adminPaymentVerificationRoutes");
+const adminBannerRoutes = require("./routes/adminBannerRoutes");
+const adminSettingsRoutes = require("./routes/adminSettingsRoutes");
+const adminStaffRoutes = require("./routes/adminStaffRoutes");
+const adminVoucherRoutes = require("./routes/adminVoucherRoutes");
+const adminCodRoutes = require("./routes/adminCodRoutes");
+const adminReviewRoutes = require("./routes/adminReviewRoutes");
+const adminOrderExportRoutes = require("./routes/adminOrderExportRoutes");
 const adminVendorMarketingRoutes = require("./routes/adminVendorMarketingRoutes");
 const adminAlertRoutes = require("./routes/adminAlertRoutes");
 const adminDashboardRoutes = require("./routes/adminDashboardRoutes");
@@ -186,6 +200,8 @@ const trustSafetyRoutes = require("./routes/trustSafetyRoutes");
 const adminGrowthRoutes = require("./routes/adminGrowthRoutes");
 const vendorGrowthRoutes = require("./routes/vendorGrowthRoutes");
 const platformRoutes = require("./routes/platformRoutes");
+const settingsRoutes = require("./routes/settingsRoutes");
+const voucherRoutes = require("./routes/voucherRoutes");
 const webhookRoutes = require("./routes/webhookRoutes");
 const pushService = require("./services/push/pushService");
 
@@ -316,6 +332,9 @@ async function run() {
       StoreLocation: new StoreLocation(db),
       Permission: new Permission(db),
       AuditLog: new AuditLog(db),
+      Banner: new Banner(db),
+      PaymentVerification: new PaymentVerification(db),
+      PlatformSettings: new PlatformSettings(db),
       VendorShop: new VendorShop(db),
       AnalyticsSummary: new AnalyticsSummary(db),
       OrderEvent: new OrderEvent(db),
@@ -379,6 +398,7 @@ async function run() {
     console.log("✅ Reviews routes registered");
 
     app.use("/api/coupons", couponRoutes);
+    app.use("/api/vouchers", voucherRoutes);
     console.log("✅ Coupons routes registered");
 
     app.use("/api/addresses", addressRoutes);
@@ -406,6 +426,7 @@ async function run() {
     app.use("/api/growth", growthRoutes);
     app.use("/api/trust-safety", trustSafetyRoutes);
     app.use("/api/platform", platformRoutes);
+    app.use("/api/settings", settingsRoutes);
     console.log("✅ Recommendations routes registered");
 
     app.use("/api/stock-alerts", stockAlertRoutes);
@@ -429,10 +450,12 @@ async function run() {
     app.use("/api/vendors/staff", vendorStaffRoutes);
     app.use("/api/vendors/finance", vendorFinanceRoutes);
     console.log("✅ Vendor Finance routes registered");
+    app.use("/api/vendor/kyc", vendorKycRoutes);
     app.use("/api/vendors", vendorRoutes);
     console.log("✅ Vendor routes registered");
 
     app.use("/api/shops", shopRoutes);
+    app.use("/api/banners", bannerRoutes);
     console.log("✅ Shop storefront routes registered");
 
     app.use("/api/vendor/shop", vendorShopRoutes);
@@ -454,9 +477,18 @@ async function run() {
     app.use("/api/admin/products", adminProductRoutes);
     console.log("✅ Admin Product Moderation routes registered");
 
+    app.use("/api/admin/vendors/kyc", adminVendorKycRoutes);
     app.use("/api/admin/vendors", adminVendorRoutes);
     console.log("✅ Admin Vendor routes registered");
 
+    app.use("/api/admin/payment-verification", adminPaymentVerificationRoutes);
+    app.use("/api/admin/banners", adminBannerRoutes);
+    app.use("/api/admin/settings", adminSettingsRoutes);
+    app.use("/api/admin/staff", adminStaffRoutes);
+    app.use("/api/admin/vouchers", adminVoucherRoutes);
+    app.use("/api/admin/cod", adminCodRoutes);
+    app.use("/api/admin/reviews", adminReviewRoutes);
+    app.use("/api/admin/orders", adminOrderExportRoutes);
     app.use("/api/admin/vendor-marketing", adminVendorMarketingRoutes);
     console.log("✅ Admin Vendor Marketing routes registered");
 
@@ -477,6 +509,7 @@ async function run() {
 
     app.use("/api/admin/promotions", adminPromotionRoutes);
     console.log("Admin Promotions routes registered");
+    app.use("/api/admin/flash-sales", flashSaleRoutes);
     app.use("/api/admin/growth", adminGrowthRoutes);
     console.log("Admin Growth routes registered");
 
