@@ -51,7 +51,7 @@ const navigation = [
   {
     name: 'University',
     icon: GraduationCap,
-    path: '/university?role=admin',
+    path: '/admin/university',
     exact: true,
   },
   {
@@ -207,6 +207,7 @@ const matchesRoute = (location, item) => {
 
 const adminPermissionRules = [
   { pattern: /^\/admin$/, resource: 'system', action: 'read' },
+  { pattern: /^\/admin\/university/, resource: 'system', action: 'read' },
   { pattern: /^\/admin\/operations/, resource: 'system', action: 'read' },
   { pattern: /^\/admin\/(audit|audit-logs)/, resource: 'audit_logs', action: 'read' },
   { pattern: /^\/admin\/analytics/, resource: 'analytics', action: 'read' },

@@ -117,7 +117,7 @@ const navGroups = [
 
 const singleLinks = [
   { name: "Dashboard", path: "/vendor/dashboard", icon: LayoutDashboard },
-  { name: "University", path: "/university?role=vendor", icon: GraduationCap },
+  { name: "University", path: "/vendor/university", icon: GraduationCap },
   { name: "Settings", path: "/vendor/settings", icon: Settings, permission: "settings:manage" },
 ];
 

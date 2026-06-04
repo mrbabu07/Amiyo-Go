@@ -77,8 +77,10 @@ const VendorReturnDetail = lazyLoadWithRetry(() => import("../pages/vendor/Vendo
 const VendorBulkUpload = lazyLoadWithRetry(() => import("../pages/vendor/VendorBulkUpload"));
 const VendorSupportChat = lazyLoadWithRetry(() => import("../pages/vendor/VendorSupportChat"));
 const VendorKyc = lazyLoadWithRetry(() => import("../pages/vendor/VendorKyc"));
+const VendorUniversity = lazyLoadWithRetry(() => import("../pages/vendor/VendorUniversity"));
 
 const AdminDashboard = lazyLoadWithRetry(() => import("../pages/admin/AdminDashboard"));
+const AdminUniversity = lazyLoadWithRetry(() => import("../pages/admin/AdminUniversity"));
 const AdminOperations = lazyLoadWithRetry(() => import("../pages/admin/AdminOperations"));
 const AdminAuditLogs = lazyLoadWithRetry(() => import("../pages/admin/AdminAuditLogs"));
 const AdminAnalyticsReports = lazyLoadWithRetry(() => import("../pages/admin/AdminAnalyticsReports"));
@@ -244,6 +246,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="dashboard" replace /> },
       { path: "dashboard", element: lazyElement(VendorHome) },
+      { path: "university", element: lazyElement(VendorUniversity) },
       { path: "products", element: vendorElement(VendorProducts, "products:view") },
       { path: "products/add", element: vendorElement(VendorAddProduct, "products:manage") },
       { path: "products/edit/:id", element: vendorElement(VendorEditProduct, "products:manage") },
@@ -294,6 +297,7 @@ const router = createBrowserRouter([
     ),
     children: [
       { path: "", element: adminElement(AdminDashboard, "system", "read") },
+      { path: "university", element: adminElement(AdminUniversity, "system", "read") },
       { path: "operations", element: adminElement(AdminOperations, "system", "read") },
       { path: "audit", element: adminElement(AdminAuditLogAlias, "audit_logs", "read") },
       { path: "audit-logs", element: adminElement(AdminAuditLogs, "audit_logs", "read") },

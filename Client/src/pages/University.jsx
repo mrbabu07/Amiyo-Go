@@ -11,7 +11,10 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { universityQuickGuides, universityRoles } from "../data/amiyoUniversity";
+import { customerUniversityQuickGuides, customerUniversityRole } from "../data/universityCustomer";
+
+const DEFAULT_UNIVERSITY_ROLES = [customerUniversityRole];
+const DEFAULT_QUICK_GUIDES = customerUniversityQuickGuides;
 
 const roleIcons = {
   customer: UserRound,
@@ -24,6 +27,14 @@ const modeLabels = [
   { id: "en", label: "English" },
   { id: "bn", label: "বাংলা" },
 ];
+
+export const CUSTOMER_UNIVERSITY_HERO = {
+  title: "Learn how to shop safely on Amiyo-Go",
+  description: {
+    en: "Customer guides for browsing, checkout, vouchers, order tracking, returns, reviews, and support.",
+    bn: "ব্রাউজিং, চেকআউট, ভাউচার, অর্ডার ট্র্যাকিং, রিটার্ন, রিভিউ ও সাপোর্টের কাস্টমার গাইড।",
+  },
+};
 
 function textOf(value, mode) {
   if (!value) return "";
@@ -130,26 +141,48 @@ function LessonCard({ module, mode, index }) {
   );
 }
 
-export default function University() {
+export default function University({
+  roles = DEFAULT_UNIVERSITY_ROLES,
+  quickGuides = DEFAULT_QUICK_GUIDES,
+  heroCopy = CUSTOMER_UNIVERSITY_HERO,
+  defaultRole,
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialRole = searchParams.get("role");
+  const visibleRoles = useMemo(
+    () => roles.filter(Boolean),
+    [roles],
+  );
+  const fallbackRoleId = defaultRole || visibleRoles[0]?.id || "customer";
+  const roleParam = searchParams.get("role");
   const [activeRoleId, setActiveRoleId] = useState(
-    universityRoles.some((role) => role.id === initialRole) ? initialRole : "customer",
+    visibleRoles.some((role) => role.id === roleParam) ? roleParam : fallbackRoleId,
   );
   const [mode, setMode] = useState("both");
 
   useEffect(() => {
-    if (searchParams.get("role") !== activeRoleId) {
+    if (!visibleRoles.some((role) => role.id === activeRoleId)) {
+      setActiveRoleId(fallbackRoleId);
+    }
+  }, [activeRoleId, fallbackRoleId, visibleRoles]);
+
+  useEffect(() => {
+    if (visibleRoles.length <= 1) {
+      if (roleParam) setSearchParams({}, { replace: true });
+      return;
+    }
+
+    if (roleParam !== activeRoleId) {
       setSearchParams({ role: activeRoleId }, { replace: true });
     }
-  }, [activeRoleId, searchParams, setSearchParams]);
+  }, [activeRoleId, roleParam, setSearchParams, visibleRoles.length]);
 
   const activeRole = useMemo(
-    () => universityRoles.find((role) => role.id === activeRoleId) || universityRoles[0],
-    [activeRoleId],
+    () => visibleRoles.find((role) => role.id === activeRoleId) || visibleRoles[0] || customerUniversityRole,
+    [activeRoleId, visibleRoles],
   );
 
   const ActiveIcon = roleIcons[activeRole.id] || GraduationCap;
+  const activeHeroCopy = visibleRoles.length === 1 ? heroCopy : null;
 
   return (
     <div className="bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-white">
@@ -161,13 +194,13 @@ export default function University() {
               Amiyo-Go University
             </div>
             <h1 className="mt-5 max-w-3xl text-3xl font-black tracking-tight text-slate-950 dark:text-white sm:text-4xl lg:text-5xl">
-              Marketplace learning center for every role
+              {activeHeroCopy?.title || "Marketplace learning center"}
             </h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600 dark:text-slate-300">
-              Customer, seller, and admin workflows explained in English and Bangla, with direct links to the exact pages where each action happens.
+              {activeHeroCopy?.description?.en || "Role-based workflows explained in English and Bangla, with direct links to the exact pages where each action happens."}
             </p>
             <p className="mt-2 max-w-3xl text-base leading-7 text-slate-600 dark:text-slate-300">
-              কাস্টমার, সেলার ও অ্যাডমিন ওয়ার্কফ্লো ইংরেজি ও বাংলায় শেখার জায়গা, যেখানে প্রতিটি কাজের জন্য সরাসরি পেজ লিংক আছে।
+              {activeHeroCopy?.description?.bn || "রোল-ভিত্তিক ওয়ার্কফ্লো ইংরেজি ও বাংলায় শেখার জায়গা, যেখানে প্রতিটি কাজের জন্য সরাসরি পেজ লিংক আছে।"}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
@@ -215,7 +248,7 @@ export default function University() {
             </div>
 
             <div className="mt-5 grid gap-3">
-              {universityQuickGuides.map((guide) => (
+              {quickGuides.map((guide) => (
                 <div key={guide.title.en} className="rounded-lg bg-white p-4 dark:bg-slate-900">
                   <div className="flex items-center gap-2 text-sm font-black text-slate-950 dark:text-white">
                     <BookOpenCheck className="h-4 w-4 text-[#1e7098]" />
@@ -237,7 +270,7 @@ export default function University() {
       <section className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="grid gap-3 md:grid-cols-3">
-            {universityRoles.map((role) => (
+            {visibleRoles.map((role) => (
               <RoleTab
                 key={role.id}
                 role={role}
