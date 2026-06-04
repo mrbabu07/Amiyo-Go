@@ -127,6 +127,7 @@ const loyaltyRoutes = require("./routes/loyaltyRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const questionRoutes = require("./routes/questionRoutes");
 const deliverySettingsRoutes = require("./routes/deliverySettingsRoutes");
+const deliveryRoutes = require("./routes/deliveryRoutes");
 const vendorRoutes = require("./routes/vendorRoutes");
 const shopRoutes = require("./routes/shops");
 const vendorShopRoutes = require("./routes/vendorShopRoutes");
@@ -200,7 +201,14 @@ app.use(helmet({
 }));
 app.use(cors(buildCorsOptions(process.env)));
 app.use(healthRoutes);
-app.use(express.json({ limit: '10mb' })); // Increased limit for image uploads
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    if (req.originalUrl?.startsWith("/api/delivery/")) {
+      req.rawBody = buf.toString("utf8");
+    }
+  },
+})); // Increased limit for image uploads
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(sanitizeMiddleware);
 app.use("/api/search", searchLimiter);
@@ -391,6 +399,7 @@ async function run() {
     console.log("✅ Question routes registered");
 
     app.use("/api/delivery-settings", deliverySettingsRoutes);
+    app.use("/api/delivery", deliveryRoutes);
     console.log("✅ Delivery Settings routes registered");
 
     app.use("/api/vendors/staff", vendorStaffRoutes);

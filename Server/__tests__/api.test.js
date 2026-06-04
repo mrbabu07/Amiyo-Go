@@ -346,6 +346,7 @@ jest.mock("../controllers/adminLogisticsController", () => ({
     res.set("Content-Type", "text/csv");
     res.send("Courier,Order ID\nPathao,order-1");
   },
+  getReadyToShipCollections: (req, res) => res.json({ route: "admin-logistics:ready-to-ship" }),
   listPickupStaff: (req, res) => res.json({ route: "admin-logistics:pickup-staff" }),
   upsertPickupStaff: (req, res) =>
     res.status(req.params.staffId ? 200 : 201).json({

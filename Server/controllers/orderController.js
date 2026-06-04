@@ -16,6 +16,9 @@ const {
   COIN_FEATURE_DISABLED_MESSAGE,
   areCoinRewardsEnabled,
 } = require("../utils/platformFeatures");
+const {
+  createAmiyoDeliveryShipment,
+} = require("../services/amiyoDeliveryIntegrationService");
 
 const normalizeId = (id) => {
   if (!id) return null;
@@ -35,18 +38,25 @@ const asPlainSettings = (settings = {}) =>
 const loadDeliveryControls = async (db) => {
   if (!db?.collection) return { deliveryFeeRules: [], deliveryZones: [] };
 
-  const [deliveryFeeRules, deliveryZones] = await Promise.all([
-    db.collection("delivery_fee_rules")
-      .find({ status: { $ne: "inactive" } })
-      .sort({ priority: 1, createdAt: -1 })
-      .toArray(),
-    db.collection("delivery_zones")
-      .find({ status: { $ne: "inactive" } })
-      .sort({ sortOrder: 1, name: 1 })
-      .toArray(),
-  ]);
+  try {
+    const [deliveryFeeRules, deliveryZones] = await Promise.all([
+      db.collection("delivery_fee_rules")
+        .find({ status: { $ne: "inactive" } })
+        .sort({ priority: 1, createdAt: -1 })
+        .toArray(),
+      db.collection("delivery_zones")
+        .find({ status: { $ne: "inactive" } })
+        .sort({ sortOrder: 1, name: 1 })
+        .toArray(),
+    ]);
 
-  return { deliveryFeeRules, deliveryZones };
+    return { deliveryFeeRules, deliveryZones };
+  } catch (error) {
+    if (process.env.NODE_ENV !== "test") {
+      console.error("Failed to load delivery controls; using defaults:", error.message);
+    }
+    return { deliveryFeeRules: [], deliveryZones: [] };
+  }
 };
 
 const buildVendorPickupAddress = (vendor) => {
@@ -855,6 +865,7 @@ const createOrder = async (req, res) => {
 
     // Create vendor orders for each vendor
     const vendorOrderIds = [];
+    const createdVendorOrders = [];
     for (const [vendorId, vendorProducts] of Object.entries(vendorGroups)) {
       // Calculate vendor order subtotal
       const vendorSubtotal = vendorProducts.reduce((sum, item) => {
@@ -916,6 +927,7 @@ const createOrder = async (req, res) => {
 
       const vendorOrder = await VendorOrder.create(vendorOrderData);
       vendorOrderIds.push(vendorOrder._id);
+      createdVendorOrders.push(vendorOrder);
       
       console.log(`✅ Vendor order created for vendor ${vendorId}:`, vendorOrder._id);
     }
@@ -1007,6 +1019,37 @@ const createOrder = async (req, res) => {
       );
     }
 
+    let amiyoDelivery = null;
+    try {
+      const orderForDelivery = await Order.findById(orderId);
+      amiyoDelivery = await createAmiyoDeliveryShipment(orderForDelivery || createdOrder, {
+        app: req.app,
+        db: req.app.locals.db || Product.collection?.db,
+        Order,
+        vendorOrders: createdVendorOrders,
+        shipmentDrafts,
+        actorId: req.user?.uid || null,
+      });
+
+      if (amiyoDelivery?.skipped) {
+        console.log("Amiyo Delivery integration skipped:", amiyoDelivery.reason);
+      } else {
+        console.log("Amiyo Delivery order created:", {
+          orderId: orderId.toString(),
+          deliveryOrderId: amiyoDelivery.deliveryOrderId,
+          trackingId: amiyoDelivery.trackingId,
+        });
+      }
+    } catch (deliveryError) {
+      amiyoDelivery = {
+        attempted: true,
+        success: false,
+        provider: "amiyo_delivery",
+        error: deliveryError.message,
+      };
+      console.error("Amiyo Delivery order creation failed:", deliveryError.message);
+    }
+
     // Update product stock
     console.log("📦 Updating product stock...");
     for (const item of products) {
@@ -1089,6 +1132,7 @@ const createOrder = async (req, res) => {
         total: createdOrder?.total,
         couponApplied: createdOrder?.couponApplied || null,
         shipmentDrafts,
+        amiyoDelivery,
       },
       message: "Order created successfully",
     });

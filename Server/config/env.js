@@ -58,6 +58,10 @@ function getServiceConfigStatus(env = process.env) {
   const steadfastConfigured =
     hasValue(env.STEADFAST_API_KEY) && (hasValue(env.STEADFAST_SECRET_KEY) || hasValue(env.STEADFAST_API_SECRET));
   const courierConfigured = redxConfigured || steadfastConfigured || hasValue(env.COURIER_API_KEY);
+  const amiyoDeliveryConfigured =
+    hasValue(env.AMIYO_DELIVERY_API_URL) &&
+    hasValue(env.AMIYO_DELIVERY_INTEGRATION_TOKEN) &&
+    hasValue(env.AMIYO_DELIVERY_CALLBACK_API_SECRET);
 
   return {
     mongodb: serviceStatus("mongodb", hasValue(env.MONGO_URI), true, {
@@ -93,6 +97,10 @@ function getServiceConfigStatus(env = process.env) {
         steadfast: steadfastConfigured,
         generic: hasValue(env.COURIER_API_KEY),
       },
+    }),
+    amiyoDelivery: serviceStatus("amiyoDelivery", amiyoDeliveryConfigured, env.AMIYO_DELIVERY_REQUIRED === "true", {
+      mode: amiyoDeliveryConfigured ? "integration" : "skipped",
+      apiUrl: env.AMIYO_DELIVERY_API_URL || "",
     }),
   };
 }
