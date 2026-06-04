@@ -35,6 +35,34 @@ const colors = {
   table: "#f8fafc",
 };
 
+const fontPaths = {
+  regular: "C:\\Windows\\Fonts\\Nirmala.ttf",
+  bold: "C:\\Windows\\Fonts\\NirmalaB.ttf",
+  semibold: "C:\\Windows\\Fonts\\NirmalaS.ttf",
+};
+
+const fonts = {
+  regular: "Helvetica",
+  bold: "Helvetica-Bold",
+  semibold: "Helvetica-Bold",
+  mono: "Courier",
+};
+
+if (fs.existsSync(fontPaths.regular)) {
+  doc.registerFont("Body", fontPaths.regular);
+  fonts.regular = "Body";
+}
+
+if (fs.existsSync(fontPaths.bold)) {
+  doc.registerFont("BodyBold", fontPaths.bold);
+  fonts.bold = "BodyBold";
+}
+
+if (fs.existsSync(fontPaths.semibold)) {
+  doc.registerFont("BodySemiBold", fontPaths.semibold);
+  fonts.semibold = "BodySemiBold";
+}
+
 function ensureSpace(height = 24) {
   if (doc.y + height > pageBottom) {
     doc.addPage();
@@ -44,7 +72,7 @@ function ensureSpace(height = 24) {
 function writeText(text, options = {}) {
   ensureSpace(options.height || 18);
   doc
-    .font(options.font || "Helvetica")
+    .font(options.font || fonts.regular)
     .fontSize(options.size || 10)
     .fillColor(options.color || colors.text)
     .text(text, {
@@ -75,7 +103,7 @@ function writeHeading(text, level) {
     doc.moveDown(level === 1 ? 0.8 : 0.55);
   }
   doc
-    .font("Helvetica-Bold")
+    .font(fonts.bold)
     .fontSize(sizes[level] || 11.5)
     .fillColor(level === 1 ? colors.accent : colors.heading)
     .text(normalized, { width: pageWidth, lineGap: 1 });
@@ -97,7 +125,7 @@ function writeBullet(text, indent = 0) {
   const y = doc.y + 4;
   doc.circle(x + 3, y, 1.6).fillColor(colors.accent).fill();
   doc
-    .font("Helvetica")
+    .font(fonts.regular)
     .fontSize(10)
     .fillColor(colors.text)
     .text(text.trim(), x + 14, doc.y, {
@@ -109,7 +137,7 @@ function writeBullet(text, indent = 0) {
 function writeCode(text) {
   ensureSpace(18);
   doc
-    .font("Courier")
+    .font(fonts.mono)
     .fontSize(8.7)
     .fillColor("#1f2937")
     .text(text, {
@@ -122,7 +150,7 @@ function writeTableLine(line) {
   ensureSpace(18);
   if (/^\|\s*-+/.test(line)) return;
   doc
-    .font("Courier")
+    .font(fonts.mono)
     .fontSize(7.8)
     .fillColor("#111827")
     .text(line, {
@@ -131,10 +159,55 @@ function writeTableLine(line) {
     });
 }
 
+function writeImage(alt, imagePath) {
+  const normalizedPath = imagePath.replace(/^<|>$/g, "");
+  const absolutePath = path.isAbsolute(normalizedPath)
+    ? normalizedPath
+    : path.join(root, normalizedPath);
+
+  if (!fs.existsSync(absolutePath)) {
+    writeText(`[Missing screenshot: ${normalizedPath}]`, {
+      size: 9,
+      color: "#b91c1c",
+      font: fonts.semibold,
+    });
+    return;
+  }
+
+  const image = doc.openImage(absolutePath);
+  const maxHeight = /mobile/i.test(absolutePath) ? 360 : 310;
+  const scale = Math.min(pageWidth / image.width, maxHeight / image.height);
+  const width = image.width * scale;
+  const height = image.height * scale;
+
+  ensureSpace(height + 34);
+  const x = doc.page.margins.left + (pageWidth - width) / 2;
+
+  doc
+    .roundedRect(x - 2, doc.y - 2, width + 4, height + 4, 4)
+    .strokeColor(colors.line)
+    .lineWidth(0.7)
+    .stroke();
+  doc.image(absolutePath, x, doc.y, { width, height });
+  doc.y += height + 8;
+
+  if (alt) {
+    doc
+      .font(fonts.semibold)
+      .fontSize(8.8)
+      .fillColor(colors.muted)
+      .text(`Figure: ${alt}`, doc.page.margins.left, doc.y, {
+        width: pageWidth,
+        align: "center",
+      });
+    doc.moveDown(0.6);
+  }
+}
+
 function drawCover() {
   doc.rect(0, 0, doc.page.width, doc.page.height).fill("#f8fafc");
   doc
-    .font("Helvetica-Bold")
+    .font(fonts.bold)
     .fontSize(30)
     .fillColor(colors.accent)
     .text("Amiyo-Go", doc.page.margins.left, 118, { width: pageWidth, align: "center" });
@@ -144,7 +217,7 @@ function drawCover() {
     .text("Marketplace Thesis Documentation", { width: pageWidth, align: "center" });
   doc.moveDown(1.2);
   doc
-    .font("Helvetica")
+    .font(fonts.regular)
     .fontSize(11.5)
     .fillColor(colors.muted)
     .text("Architecture, features, workflows, implementation status, testing, deployment, and future scope", {
@@ -154,7 +227,7 @@ function drawCover() {
     });
   doc.moveDown(2.5);
   doc
-    .font("Helvetica-Bold")
+    .font(fonts.bold)
     .fontSize(12)
     .fillColor(colors.heading)
     .text("Prepared for project documentation and production-readiness review", {
@@ -163,7 +236,7 @@ function drawCover() {
     });
   doc.moveDown(0.5);
   doc
-    .font("Helvetica")
+    .font(fonts.regular)
     .fontSize(10.5)
     .fillColor(colors.muted)
     .text("Generated from AMIYO_GO_THESIS_DOCUMENTATION.md", { width: pageWidth, align: "center" });
@@ -194,6 +267,9 @@ for (const rawLine of lines) {
     writeHeading(line.replace(/^### /, ""), 3);
   } else if (/^#### /.test(line)) {
     writeHeading(line.replace(/^#### /, ""), 4);
+  } else if (/^!\[.*?\]\(.+?\)\s*$/.test(line.trim())) {
+    const match = line.trim().match(/^!\[(.*?)\]\((.+?)\)\s*$/);
+    writeImage(match[1], match[2]);
   } else if (/^\s*-\s+/.test(line)) {
     const indent = line.match(/^\s*/)[0].length * 3;
     writeBullet(line.replace(/^\s*-\s+/, ""), indent);
@@ -220,7 +296,7 @@ for (let i = range.start; i < range.start + range.count; i += 1) {
   doc.switchToPage(i);
   const footer = `Amiyo-Go Thesis Documentation | Page ${i + 1} of ${range.count}`;
   doc
-    .font("Helvetica")
+    .font(fonts.regular)
     .fontSize(8)
     .fillColor("#6b7280")
     .text(footer, doc.page.margins.left, doc.page.height - 34, {

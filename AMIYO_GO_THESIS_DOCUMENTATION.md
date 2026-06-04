@@ -27,7 +27,7 @@ Marketplace, ecommerce, multi-vendor, seller center, admin dashboard, logistics,
 2. Project Goals and Scope
 3. Stakeholder and Role Analysis
 4. Technology Stack
-5. System Architecture
+5. System Architecture and UI Screenshots
 6. Frontend Architecture
 7. Backend Architecture
 8. Database and Persistence Model
@@ -290,6 +290,124 @@ The frontend separates role experience through:
 - Route guards.
 - Role-specific navigation.
 - Protected University pages for vendor/admin training.
+
+## 5.5 Screenshot Walkthrough and How It Works
+
+This screenshot set was captured from the running frontend on 2026-06-04. It intentionally uses public and access pages only, so the PDF does not expose private admin/vendor data or real customer records. Protected vendor/admin dashboards are documented through workflows and route descriptions instead of unauthenticated screenshots.
+
+এই স্ক্রিনশটগুলো ২০২৬-০৬-০৪ তারিখে রানিং frontend থেকে নেওয়া হয়েছে। এখানে শুধু public/access page ব্যবহার করা হয়েছে, তাই PDF-এ private admin/vendor data বা real customer record প্রকাশ করা হয়নি। Protected vendor/admin dashboard স্ক্রিনশটের বদলে workflow এবং route description দিয়ে ব্যাখ্যা করা হয়েছে।
+
+### Figure 1: Customer Home Page
+
+![Customer home page with modern marketplace sections](docs/thesis-screenshots/01-home-desktop.png)
+
+**How it works in English:**
+
+- The customer enters through the home page.
+- The header gives search, category navigation, product links, shops, flash sales, compare, language, theme, cart, and sign-in access.
+- The hero area promotes the marketplace and sends users into shopping.
+- Category, flash sale, product, and shop sections help users discover products quickly.
+- Admin-controlled banners and sections can change the front page without code changes.
+
+**কীভাবে কাজ করে বাংলায়:**
+
+- কাস্টমার home page দিয়ে marketplace-এ প্রবেশ করে।
+- Header থেকে search, category, product, shops, flash sale, compare, language, theme, cart এবং sign-in access পাওয়া যায়।
+- Hero section marketplace offer দেখায় এবং user-কে shopping flow-তে নিয়ে যায়।
+- Category, flash sale, product এবং shop section দ্রুত product discovery করতে সাহায্য করে।
+- Admin-controlled banner এবং section code change ছাড়াই homepage update করতে পারে।
+
+### Figure 2: Customer Learning Center
+
+![Customer-only Amiyo-Go University page](docs/thesis-screenshots/02-customer-university.png)
+
+**How it works in English:**
+
+- Public users only see customer learning content on `/university`.
+- Vendor and admin operating lessons are not bundled into the public route.
+- Customers learn checkout, vouchers, order tracking, returns, reviews, and support.
+- Language mode supports English, Bangla, or both together.
+
+**কীভাবে কাজ করে বাংলায়:**
+
+- Public user `/university` পেজে শুধু customer guide দেখে।
+- Vendor/admin operating lesson public route-এ bundle করা হয় না।
+- Customer checkout, voucher, order tracking, return, review এবং support শেখে।
+- Language mode English, Bangla বা দুই ভাষা একসাথে support করে।
+
+### Figure 3: Shop Discovery
+
+![Shop discovery page with filters, shop cards, and follow action](docs/thesis-screenshots/03-shops-discovery.png)
+
+**How it works in English:**
+
+- Customers can browse verified marketplace shops.
+- Search supports shop name, area, and category intent.
+- Filters allow sorting by popularity, location, rating, and category.
+- Each shop card shows trust signals, product count, follower count, location, and visit/follow actions.
+- The backend `/api/shops` route returns safe public vendor fields only.
+
+**কীভাবে কাজ করে বাংলায়:**
+
+- Customer verified marketplace shop browse করতে পারে।
+- Search shop name, area এবং category intent support করে।
+- Filter দিয়ে popularity, location, rating এবং category অনুযায়ী result দেখা যায়।
+- Shop card-এ trust signal, product count, follower count, location, visit এবং follow action থাকে।
+- Backend `/api/shops` route শুধু safe public vendor field return করে।
+
+### Figure 4: Account Registration and Address Capture
+
+![Customer registration page with default address fields](docs/thesis-screenshots/04-account-registration.png)
+
+**How it works in English:**
+
+- A new customer creates an account before using full account features.
+- Registration captures basic identity and default delivery address.
+- Address fields are structured for Bangladesh delivery workflow.
+- The saved address later supports checkout, delivery calculation, courier assignment, and support.
+
+**কীভাবে কাজ করে বাংলায়:**
+
+- নতুন customer full account feature ব্যবহারের আগে account তৈরি করে।
+- Registration basic identity এবং default delivery address নেয়।
+- Address fields Bangladesh delivery workflow অনুযায়ী structured।
+- Saved address পরে checkout, delivery calculation, courier assignment এবং support-এ ব্যবহার হয়।
+
+### Figure 5: Login and Protected Access
+
+![Login page for customer, vendor, and admin access](docs/thesis-screenshots/05-login-access.png)
+
+**How it works in English:**
+
+- Users sign in before accessing protected customer, vendor, or admin pages.
+- Route guards redirect unauthenticated users to login.
+- Admin and vendor pages also check role/permission after authentication.
+- Guest checkout remains available where the project allows it.
+
+**কীভাবে কাজ করে বাংলায়:**
+
+- Protected customer, vendor বা admin page access করার আগে user sign in করে।
+- Route guard unauthenticated user-কে login page-এ পাঠায়।
+- Admin এবং vendor page authentication-এর পরে role/permission check করে।
+- Project যেখানে allow করে সেখানে guest checkout available থাকে।
+
+### Figure 6: Mobile Home Experience
+
+![Responsive mobile home page](docs/thesis-screenshots/06-home-mobile.png)
+
+**How it works in English:**
+
+- The same marketplace experience adapts to a mobile viewport.
+- Navigation, category discovery, cart, and account access remain reachable.
+- PWA support allows the site to behave closer to an installable app.
+- Mobile layout is important because marketplace traffic is usually phone-heavy.
+
+**কীভাবে কাজ করে বাংলায়:**
+
+- একই marketplace experience mobile viewport অনুযায়ী responsive হয়।
+- Navigation, category discovery, cart এবং account access সহজে পাওয়া যায়।
+- PWA support site-কে installable app-এর মতো ব্যবহারযোগ্য করে।
+- Marketplace traffic সাধারণত mobile-heavy হওয়ায় mobile layout খুব গুরুত্বপূর্ণ।
 
 ---
 
@@ -959,6 +1077,30 @@ Admin opens /admin/university
 ```
 
 This prevents public users from viewing internal vendor/admin operating guidance.
+
+## 10.9 End-to-End Operating Narrative in English
+
+Amiyo-Go works as a connected marketplace loop. The customer starts from the home page, search, categories, or shops. After choosing a product, the customer checks price, stock, seller information, delivery estimate, reviews, Q&A, and available offers. The customer adds items to cart, applies vouchers or loyalty points, selects an address and payment method, then places the order.
+
+When the order is placed, the backend recalculates totals and stores a final order snapshot. This snapshot includes subtotal, delivery charge, discount, payable total, promotion details, payment method, customer address, and item information. The master order is split into vendor orders so each seller can process only their part of the purchase.
+
+The vendor receives the vendor order in the seller center. The vendor checks item, stock, payment state, and delivery address. The vendor packs the product, prepares slip/label where available, and marks the order pickup-ready. Admin or vendor logistics workflows then assign courier, schedule pickup, update shipment state, and track delivery.
+
+If the order is COD, COD state runs beside shipment state. If delivery succeeds, COD can move from pending to collected, remitted, and settled. If delivery fails, admin can record delivery attempts, re-attempt delivery, or mark return-to-origin. If the customer requests a return after delivery, reverse logistics starts and the item moves through approval, pickup, received, inspection, and final stock/refund decision.
+
+The admin controls the marketplace by queues. Admins review vendor applications, product moderation, payments, returns, payouts, logistics exceptions, COD reconciliation, support tickets, trust cases, campaigns, staff permissions, analytics, and audit logs. This queue-first model keeps customer, vendor, and platform operations connected and traceable.
+
+## 10.10 সম্পূর্ণ কাজের ধারা বাংলায়
+
+Amiyo-Go একটি connected marketplace loop হিসেবে কাজ করে। Customer home page, search, category বা shop থেকে shopping শুরু করে। Product বাছাই করার পরে customer price, stock, seller information, delivery estimate, review, Q&A এবং available offer দেখে। এরপর cart-এ item যোগ করে, voucher বা loyalty point apply করে, address ও payment method select করে order place করে।
+
+Order place হলে backend আবার total calculate করে final order snapshot save করে। এই snapshot-এ subtotal, delivery charge, discount, payable total, promotion details, payment method, customer address এবং item information থাকে। Master order vendor order-এ split হয়, যাতে প্রতিটি seller শুধু তার নিজের order অংশ process করতে পারে।
+
+Vendor seller center-এ vendor order পায়। Vendor item, stock, payment state এবং delivery address check করে। এরপর product pack করে, slip/label ready করে এবং order pickup-ready mark করে। তারপর admin বা vendor logistics workflow courier assign করে, pickup schedule করে, shipment state update করে এবং delivery track করে।
+
+Order যদি COD হয়, তাহলে shipment state-এর পাশাপাশি COD state চলে। Delivery successful হলে COD pending থেকে collected, remitted এবং settled state-এ যেতে পারে। Delivery failed হলে admin delivery attempt record করে, re-attempt দিতে পারে অথবা return-to-origin mark করতে পারে। Delivery-এর পরে customer return request করলে reverse logistics শুরু হয় এবং item approval, pickup, received, inspection ও final stock/refund decision-এর মধ্য দিয়ে যায়।
+
+Admin marketplace queue-based control করে। Admin vendor application, product moderation, payment verification, return, payout, logistics exception, COD reconciliation, support ticket, trust case, campaign, staff permission, analytics এবং audit log manage করে। এই queue-first model customer, vendor এবং platform operation-কে connected এবং traceable রাখে।
 
 ---
 
@@ -1679,4 +1821,3 @@ This thesis documentation consolidates information from the project source code 
 - `Client/src/components`
 - `Client/src/layouts`
 - `Client/src/routes`
-
