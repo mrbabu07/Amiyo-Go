@@ -1,20 +1,14 @@
 const webpush = require("web-push");
 
-// Configure web-push with VAPID keys from environment variables
+// Configure web-push with VAPID keys from environment variables only.
 const vapidKeys = {
-  publicKey:
-    process.env.VAPID_PUBLIC_KEY ||
-    "BEl62iUYgUivxIkv69yViEuiBIa40HI8YlOU2gKOt5-_qS3AROhD-cy_bUtpQHhNVA",
-  privateKey:
-    process.env.VAPID_PRIVATE_KEY ||
-    "dUh2Q7blFqhvdQ9jD6uQrPQO8WA0lEjqahJI6br7SKI", // Default key for development
+  publicKey: process.env.VAPID_PUBLIC_KEY || "",
+  privateKey: process.env.VAPID_PRIVATE_KEY || "",
 };
+const pushConfigured = Boolean(vapidKeys.publicKey && vapidKeys.privateKey);
 
 // Only configure VAPID if we have valid keys
-if (
-  vapidKeys.privateKey &&
-  vapidKeys.privateKey !== "your-private-vapid-key-here"
-) {
+if (pushConfigured) {
   try {
     webpush.setVapidDetails(
       process.env.VAPID_EMAIL || process.env.VAPID_SUBJECT || "mailto:admin@amiyo-go.com",
@@ -175,6 +169,11 @@ const getPreferences = async (req, res) => {
 // Send notification to specific users
 const sendNotification = async (userIds, notificationData, models = null) => {
   try {
+    if (!pushConfigured) {
+      console.log("[mock-push]", { userIds, title: notificationData?.title });
+      return { success: true, sent: 0, failed: 0, mock: true };
+    }
+
     // Get models from parameter or require them
     const NotificationSubscription =
       models?.NotificationSubscription ||
@@ -254,6 +253,11 @@ const sendNotificationByType = async (
   models = null,
 ) => {
   try {
+    if (!pushConfigured) {
+      console.log("[mock-push]", { notificationType, userIds, title: notificationData?.title });
+      return { success: true, sent: 0, failed: 0, mock: true };
+    }
+
     // Get models from parameter or require them
     const NotificationSubscription =
       models?.NotificationSubscription ||
@@ -329,6 +333,16 @@ const sendNotificationByType = async (
 // Test notification endpoint (no auth required)
 const sendTestNotificationPublic = async (req, res) => {
   try {
+    if (!pushConfigured) {
+      return res.json({
+        success: true,
+        message: "Push notifications are not configured; mock mode active",
+        sent: 0,
+        failed: 0,
+        mock: true,
+      });
+    }
+
     const NotificationSubscription =
       req.app.locals.models.NotificationSubscription;
     const { title, body, icon, badge, url, type } = req.body;
@@ -429,13 +443,10 @@ const sendTestNotification = async (req, res) => {
 // Get VAPID public key for client
 const getVapidPublicKey = async (req, res) => {
   try {
-    const publicKey =
-      process.env.VAPID_PUBLIC_KEY ||
-      "BEl62iUYgUivxIkv69yViEuiBIa40HI8YlOU2gKOt5-_qS3AROhD-cy_bUtpQHhNVA";
-
     res.json({
-      success: true,
-      publicKey: publicKey,
+      success: Boolean(process.env.VAPID_PUBLIC_KEY),
+      publicKey: process.env.VAPID_PUBLIC_KEY || "",
+      configured: pushConfigured,
     });
   } catch (error) {
     console.error("❌ Failed to get VAPID public key:", error);

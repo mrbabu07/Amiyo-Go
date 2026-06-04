@@ -1,6 +1,6 @@
 import { auth } from "../firebase/firebase.config";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 // Push Notifications Service
 class PushNotificationService {
@@ -25,20 +25,20 @@ class PushNotificationService {
       try {
         const response = await fetch(`${API_URL}/notifications/vapid-public-key`);
         const data = await response.json();
-        if (data.success) {
+        if (data.success && data.publicKey) {
           this.publicKey = data.publicKey;
           console.log("✅ VAPID public key fetched from server");
         } else {
           // Fallback to current server key
           this.publicKey =
-            "BKyAduXMPa1TwQDNjHxR7Y3Av5IpYSfuGoZZZDW_p8ixTE6x_A_h4oUIwTLf-4i_HmC16lTUVvpsUB9502Qkhb8";
+            "";
           console.log("⚠️ Using fallback VAPID public key");
         }
       } catch (error) {
         console.error("❌ Failed to fetch VAPID public key:", error);
         // Fallback to current server key
         this.publicKey =
-          "BKyAduXMPa1TwQDNjHxR7Y3Av5IpYSfuGoZZZDW_p8ixTE6x_A_h4oUIwTLf-4i_HmC16lTUVvpsUB9502Qkhb8";
+          "";
       }
     }
   }
@@ -103,6 +103,9 @@ class PushNotificationService {
 
       // Initialize and fetch VAPID key if needed
       await this.initialize();
+      if (!this.publicKey) {
+        throw new Error("Push notifications are not configured on the server");
+      }
 
       const registration = await navigator.serviceWorker.ready;
 

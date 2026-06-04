@@ -4,6 +4,7 @@ const {
   buildCorsOptions,
   validateStartupEnv,
 } = require("./config/env");
+const { validateEnv } = require("./config/validateEnv");
 
 if (process.env.NODE_DNS_SERVERS) {
   const dnsServers = process.env.NODE_DNS_SERVERS
@@ -17,6 +18,7 @@ if (process.env.NODE_DNS_SERVERS) {
 }
 
 const startupEnv = validateStartupEnv(process.env);
+const serviceEnv = validateEnv(process.env);
 if (!startupEnv.ok) {
   console.error("Server startup blocked by missing critical environment values:");
   startupEnv.errors.forEach((error) => {
@@ -137,6 +139,7 @@ const discoveryRoutes = require("./routes/discoveryRoutes");
 const stockAlertRoutes = require("./routes/stockAlertRoutes");
 const loyaltyRoutes = require("./routes/loyaltyRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const pushRoutes = require("./routes/pushRoutes");
 const questionRoutes = require("./routes/questionRoutes");
 const deliverySettingsRoutes = require("./routes/deliverySettingsRoutes");
 const deliveryRoutes = require("./routes/deliveryRoutes");
@@ -170,7 +173,9 @@ const storeLocationRoutes = require("./routes/storeLocationRoutes");
 const newsletterRoutes = require("./routes/newsletterRoutes");
 const rewardRoutes = require("./routes/rewardRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
+const uploadServiceRoutes = require("./routes/uploadServiceRoutes");
 const auditRoutes = require("./routes/auditRoutes");
+const adminAuditServiceRoutes = require("./routes/admin/auditRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const analyticsEventRoutes = require("./routes/analyticsEventRoutes");
 const dispatchRoutes = require("./routes/dispatchRoutes");
@@ -181,6 +186,8 @@ const trustSafetyRoutes = require("./routes/trustSafetyRoutes");
 const adminGrowthRoutes = require("./routes/adminGrowthRoutes");
 const vendorGrowthRoutes = require("./routes/vendorGrowthRoutes");
 const platformRoutes = require("./routes/platformRoutes");
+const webhookRoutes = require("./routes/webhookRoutes");
+const pushService = require("./services/push/pushService");
 
 // Campaign Manager routes
 const campaignRoutes = require("./routes/campaignRoutes");
@@ -199,6 +206,7 @@ app.set("trust proxy", 1);
 app.locals.boot = {
   startedAt: new Date().toISOString(),
   env: startupEnv,
+  serviceEnv,
 };
 app.locals.mongoose = mongoose;
 app.locals.jobs = {
@@ -216,7 +224,7 @@ app.use(healthRoutes);
 app.use(express.json({
   limit: '10mb',
   verify: (req, res, buf) => {
-    if (req.originalUrl?.startsWith("/api/delivery/")) {
+    if (req.originalUrl?.startsWith("/api/delivery/") || req.originalUrl?.startsWith("/api/webhooks/")) {
       req.rawBody = buf.toString("utf8");
     }
   },
@@ -227,6 +235,7 @@ app.use("/api/search", searchLimiter);
 app.use("/api/payments", paymentLimiter);
 app.use("/api/products/:id/view", productViewLimiter);
 app.use("/api/uploads", uploadLimiter);
+app.use("/api/upload", uploadLimiter);
 app.use("/api/vendor/products/bulk-jobs", uploadLimiter);
 app.use("/api/vendors/kyc", uploadLimiter);
 app.use("/api", apiLimiter);
@@ -378,6 +387,7 @@ async function run() {
     app.use("/api/returns", returnRoutes);
     console.log("✅ Returns routes registered");
     app.use("/api/payments", paymentRoutes);
+    app.use("/api/webhooks", webhookRoutes);
     console.log("✅ Payments routes registered");
     app.use("/api/offers", offerRoutes);
     console.log("✅ Offers routes registered");
@@ -405,6 +415,8 @@ async function run() {
     console.log("✅ Loyalty routes registered");
 
     app.use("/api/notifications", notificationRoutes);
+    app.use("/api/push", pushRoutes);
+    pushService.initVapid();
     console.log("✅ Notification routes registered");
 
     app.use("/api", questionRoutes);
@@ -496,7 +508,9 @@ async function run() {
     app.use("/api/newsletter", newsletterRoutes);
     app.use("/api/rewards", rewardRoutes);
     app.use("/api/uploads", uploadRoutes);
+    app.use("/api/upload", uploadServiceRoutes);
     app.use("/api/admin/audit-logs", auditRoutes);
+    app.use("/api/admin/audit", adminAuditServiceRoutes);
     app.use("/api/admin/analytics", analyticsRoutes);
     app.use("/api/analytics", analyticsEventRoutes);
     app.use("/api/admin/dispatch", dispatchRoutes);
