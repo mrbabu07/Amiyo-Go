@@ -4,8 +4,18 @@ const path = require("path");
 const PDFDocument = require("../Server/node_modules/pdfkit");
 
 const root = path.resolve(__dirname, "..");
-const inputPath = path.join(root, "AMIYO_GO_THESIS_DOCUMENTATION.md");
-const outputPath = path.join(root, "AMIYO_GO_THESIS_DOCUMENTATION.pdf");
+const inputPath = process.argv[2]
+  ? path.resolve(root, process.argv[2])
+  : path.join(root, "AMIYO_GO_THESIS_DOCUMENTATION.md");
+const outputPath = process.argv[3]
+  ? path.resolve(root, process.argv[3])
+  : path.join(root, "AMIYO_GO_THESIS_DOCUMENTATION.pdf");
+const coverTitle = process.argv[4] || "Marketplace Thesis Documentation";
+const coverSubtitle =
+  process.argv[5] ||
+  "Architecture, features, workflows, implementation status, testing, deployment, and future scope";
+const footerTitle = process.argv[6] || "Thesis Documentation";
+const sourceLabel = path.relative(root, inputPath).replace(/\\/g, "/");
 
 const source = fs.readFileSync(inputPath, "utf8");
 const lines = source.split(/\r?\n/);
@@ -15,9 +25,9 @@ const doc = new PDFDocument({
   margins: { top: 56, bottom: 56, left: 52, right: 52 },
   bufferPages: true,
   info: {
-    Title: "Amiyo-Go Marketplace Thesis Documentation",
+    Title: `Amiyo-Go ${coverTitle}`,
     Author: "Amiyo-Go Engineering",
-    Subject: "Project documentation, architecture, features, and workflows",
+    Subject: coverSubtitle,
     Keywords: "marketplace, ecommerce, thesis, documentation, Amiyo-Go",
   },
 });
@@ -214,13 +224,13 @@ function drawCover() {
   doc
     .fontSize(18)
     .fillColor(colors.heading)
-    .text("Marketplace Thesis Documentation", { width: pageWidth, align: "center" });
+    .text(coverTitle, { width: pageWidth, align: "center" });
   doc.moveDown(1.2);
   doc
     .font(fonts.regular)
     .fontSize(11.5)
     .fillColor(colors.muted)
-    .text("Architecture, features, workflows, implementation status, testing, deployment, and future scope", {
+    .text(coverSubtitle, {
       width: pageWidth,
       align: "center",
       lineGap: 3,
@@ -239,7 +249,7 @@ function drawCover() {
     .font(fonts.regular)
     .fontSize(10.5)
     .fillColor(colors.muted)
-    .text("Generated from AMIYO_GO_THESIS_DOCUMENTATION.md", { width: pageWidth, align: "center" });
+    .text(`Generated from ${sourceLabel}`, { width: pageWidth, align: "center" });
   doc.moveDown(0.5);
   doc.text("Date: 2026-06-04", { width: pageWidth, align: "center" });
   doc.addPage();
@@ -294,7 +304,7 @@ for (const rawLine of lines) {
 const range = doc.bufferedPageRange();
 for (let i = range.start; i < range.start + range.count; i += 1) {
   doc.switchToPage(i);
-  const footer = `Amiyo-Go Thesis Documentation | Page ${i + 1} of ${range.count}`;
+  const footer = `Amiyo-Go ${footerTitle} | Page ${i + 1} of ${range.count}`;
   doc
     .font(fonts.regular)
     .fontSize(8)
