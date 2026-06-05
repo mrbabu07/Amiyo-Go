@@ -45,32 +45,32 @@ export const getNotificationMeta = (type = "system") => {
     orders: {
       label: "Order update",
       icon: "package",
-      tone: "border-blue-200 bg-blue-50 text-blue-700",
+      tone: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200",
     },
     returns: {
       label: "Return/refund",
       icon: "rotate",
-      tone: "border-orange-200 bg-orange-50 text-orange-700",
+      tone: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-200",
     },
     support: {
       label: "Support",
       icon: "message",
-      tone: "border-sky-200 bg-sky-50 text-sky-700",
+      tone: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200",
     },
     promotions: {
       label: "Promotion",
       icon: "tag",
-      tone: "border-violet-200 bg-violet-50 text-violet-700",
+      tone: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200",
     },
     wishlist: {
       label: "Wishlist alert",
       icon: "heart",
-      tone: "border-pink-200 bg-pink-50 text-pink-700",
+      tone: "border-pink-200 bg-pink-50 text-pink-700 dark:border-pink-500/30 dark:bg-pink-500/10 dark:text-pink-200",
     },
     system: {
       label: "Notification",
       icon: "bell",
-      tone: "border-slate-200 bg-slate-50 text-slate-700",
+      tone: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200",
     },
   };
 
