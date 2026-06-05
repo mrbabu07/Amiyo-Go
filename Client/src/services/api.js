@@ -78,6 +78,12 @@ export const getSearchResults = (params = {}) =>
   api.get("/search/results", { params });
 export const getSearchNavigation = () => api.get("/search/navigation");
 export const saveSearchHistory = (data) => api.post("/search/history", data);
+
+// Server-side cart persistence
+export const getServerCart = () => api.get("/cart");
+export const replaceServerCart = (data) => api.put("/cart", data);
+export const mergeServerCart = (data) => api.post("/cart/merge", data);
+export const clearServerCart = () => api.delete("/cart");
 export const createProduct = (data) => api.post("/products", data);
 export const updateProduct = (id, data) => api.put(`/products/${id}`, data);
 export const deleteProduct = (id) => api.delete(`/products/${id}`);
@@ -514,6 +520,8 @@ export const getAdminDashboardOverview = (params = {}) =>
   api.get("/admin/dashboard/overview", { params });
 export const getAdminOperationsOverview = (params = {}) =>
   api.get("/admin/dashboard/operations", { params });
+export const retryNotificationDelivery = (deliveryId) =>
+  api.post(`/admin/dashboard/notification-deliveries/${deliveryId}/retry`);
 export const getAdminCaseAssignment = (caseKey) =>
   api.get(`/admin/dashboard/cases/${encodeURIComponent(caseKey)}`);
 export const updateAdminCaseAssignment = (caseKey, data) =>
@@ -637,6 +645,8 @@ export const updateLogisticsShipmentState = (shipmentId, data) =>
   api.post(`/admin/logistics/shipments/${shipmentId}/state`, data);
 export const recordLogisticsDeliveryAttempt = (shipmentId, data) =>
   api.post(`/admin/logistics/shipments/${shipmentId}/delivery-attempt`, data);
+export const syncCourierTrackingEvent = (data) =>
+  api.post("/admin/logistics/tracking-events", data);
 export const getPickupStaff = (params = {}) =>
   api.get("/admin/logistics/pickup-staff", { params });
 export const savePickupStaff = (data) =>

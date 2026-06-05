@@ -14,10 +14,12 @@ const {
   approveManualPayment,
   rejectManualPayment,
   getOrderPayment,
+} = require("../controllers/paymentController");
+const {
   handleStripeWebhook,
   handleBkashWebhook,
   handleNagadWebhook,
-} = require("../controllers/paymentController");
+} = require("../controllers/webhookController");
 
 const paymentIdempotency = idempotencyMiddleware({
   scope: "payments:process",

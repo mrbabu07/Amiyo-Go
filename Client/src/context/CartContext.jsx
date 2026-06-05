@@ -1,5 +1,8 @@
-import { createContext, useState, useEffect } from "react";
+import { createContext, useEffect, useRef, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
 import { useToast } from "./ToastContext";
+import { auth } from "../firebase/firebase.config";
+import { mergeServerCart, replaceServerCart } from "../services/api";
 import {
   getCartItemKey,
   getCartColorName,
@@ -18,14 +21,89 @@ export default function CartProvider({ children }) {
     return saved ? JSON.parse(saved) : [];
   });
   const { success } = useToast();
+  const cartRef = useRef(cart);
+  const savedForLaterRef = useRef(savedForLater);
+  const userIdRef = useRef(null);
+  const remoteSyncReadyRef = useRef(false);
+  const lastRemoteSnapshotRef = useRef("");
 
   useEffect(() => {
+    cartRef.current = cart;
     localStorage.setItem("cart", JSON.stringify(cart));
   }, [cart]);
 
   useEffect(() => {
+    savedForLaterRef.current = savedForLater;
     localStorage.setItem("cartSavedForLater", JSON.stringify(savedForLater));
   }, [savedForLater]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+      userIdRef.current = nextUser?.uid || null;
+      remoteSyncReadyRef.current = false;
+
+      if (!nextUser) {
+        lastRemoteSnapshotRef.current = "";
+        return;
+      }
+
+      try {
+        const response = await mergeServerCart({
+          items: cartRef.current,
+          savedForLater: savedForLaterRef.current,
+        });
+        if (cancelled) return;
+
+        const remoteCart = response.data?.data || {};
+        const nextItems = Array.isArray(remoteCart.items)
+          ? remoteCart.items
+          : cartRef.current;
+        const nextSavedForLater = Array.isArray(remoteCart.savedForLater)
+          ? remoteCart.savedForLater
+          : savedForLaterRef.current;
+
+        lastRemoteSnapshotRef.current = JSON.stringify({
+          items: nextItems,
+          savedForLater: nextSavedForLater,
+        });
+        setCart(nextItems);
+        setSavedForLater(nextSavedForLater);
+      } catch (error) {
+        console.error("Failed to merge server cart:", error);
+      } finally {
+        if (!cancelled) remoteSyncReadyRef.current = true;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!userIdRef.current || !remoteSyncReadyRef.current) return undefined;
+
+    const snapshot = JSON.stringify({ items: cart, savedForLater });
+    if (snapshot === lastRemoteSnapshotRef.current) return undefined;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await replaceServerCart({ items: cart, savedForLater });
+        const savedCart = response.data?.data;
+        lastRemoteSnapshotRef.current = JSON.stringify({
+          items: savedCart?.items || cart,
+          savedForLater: savedCart?.savedForLater || savedForLater,
+        });
+      } catch (error) {
+        console.error("Failed to persist server cart:", error);
+      }
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [cart, savedForLater]);
 
   const matchesItem = (item, productId, selectedSize = null, selectedColor = null) =>
     item._id === productId &&

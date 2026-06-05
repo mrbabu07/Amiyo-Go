@@ -21,8 +21,10 @@ import {
   UploadCloud,
   Wallet,
 } from "lucide-react";
+import { auth } from "../../firebase/firebase.config";
 import RoleWorkflowPanel from "../../components/workflow/RoleWorkflowPanel";
-import { getAdminOperationsOverview } from "../../services/api";
+import { getAdminOperationsOverview, retryNotificationDelivery } from "../../services/api";
+import { subscribeRealtime } from "../../services/realtime";
 import {
   adminIssueFilters,
   filterOperationIssues,
@@ -63,6 +65,7 @@ const emptyOperations = {
   notificationHealth: {
     deliveriesInWindow: 0,
     failedDeliveries: 0,
+    failedDeliveryItems: [],
     recentNotifications: [],
     broadcasts: { total: 0, queued: 0, sent: 0, failed: 0 },
     newsletter: {
@@ -323,6 +326,7 @@ export default function AdminOperations() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [error, setError] = useState("");
+  const [retryingDeliveryId, setRetryingDeliveryId] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -356,6 +360,43 @@ export default function AdminOperations() {
       window.clearInterval(interval);
     };
   }, [windowHours, refreshNonce]);
+
+  useEffect(() => {
+    let unsubscribers = [];
+    let cancelled = false;
+
+    const connect = async () => {
+      const token = await auth.currentUser?.getIdToken?.();
+      if (!token || cancelled) return;
+      unsubscribers = ["admin:operations", "marketplace:events"].map((channel) =>
+        subscribeRealtime({
+          token,
+          channel,
+          onEvent: () => setRefreshNonce((value) => value + 1),
+        }),
+      );
+    };
+
+    connect();
+
+    return () => {
+      cancelled = true;
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+    };
+  }, []);
+
+  const handleRetryNotification = async (deliveryId) => {
+    if (!deliveryId) return;
+    try {
+      setRetryingDeliveryId(deliveryId);
+      await retryNotificationDelivery(deliveryId);
+      setRefreshNonce((value) => value + 1);
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to retry notification delivery");
+    } finally {
+      setRetryingDeliveryId("");
+    }
+  };
 
   const metrics = operations.metrics || emptyOperations.metrics;
   const health = operations.health || emptyOperations.health;
@@ -701,6 +742,42 @@ export default function AdminOperations() {
                   </div>
                 </div>
               </div>
+              {(notificationHealth.failedDeliveryItems || []).length ? (
+                <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-bold text-slate-950 dark:text-white">Failed Delivery Retry</h3>
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      {(notificationHealth.failedDeliveryItems || []).length} latest
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {(notificationHealth.failedDeliveryItems || []).slice(0, 4).map((delivery) => {
+                      const deliveryId = String(delivery._id || delivery.id || "");
+                      return (
+                        <div key={deliveryId} className="flex items-start justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-950">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                              {delivery.title || delivery.notificationType || "Notification"}
+                            </p>
+                            <p className="mt-0.5 line-clamp-2 text-xs text-rose-600 dark:text-rose-300">
+                              {delivery.error || delivery.reason || delivery.channel || "Delivery failed"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRetryNotification(deliveryId)}
+                            disabled={retryingDeliveryId === deliveryId}
+                            className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-900 dark:text-rose-200 dark:hover:bg-rose-950/40"
+                          >
+                            {retryingDeliveryId === deliveryId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="h-3.5 w-3.5" />}
+                            Retry
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">

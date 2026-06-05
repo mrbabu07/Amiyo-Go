@@ -8,6 +8,21 @@ const vapidKeys = {
 };
 const pushConfigured = Boolean(vapidKeys.publicKey && vapidKeys.privateKey);
 
+const logPushDelivery = async (models = null, delivery = {}) => {
+  try {
+    const NotificationDeliveryLog = models?.NotificationDeliveryLog;
+    if (!NotificationDeliveryLog?.record) return null;
+    return await NotificationDeliveryLog.record({
+      channel: "push",
+      provider: "web-push",
+      ...delivery,
+    });
+  } catch (error) {
+    console.error("Failed to record notification delivery:", error.message);
+    return null;
+  }
+};
+
 // Only configure VAPID if we have valid keys
 if (pushConfigured) {
   try {
@@ -216,12 +231,32 @@ const sendNotification = async (userIds, notificationData, models = null) => {
 
       const promise = webpush
         .sendNotification(sub.subscription, payload)
-        .then(() => {
+        .then(async () => {
           successCount++;
+          await logPushDelivery(models, {
+            status: "sent",
+            userId: sub.userId,
+            endpoint: sub.subscription?.endpoint,
+            notificationType: notificationData.type || resolvedNotificationData.type || resolvedNotificationData.data?.type,
+            title: resolvedNotificationData.title,
+            body: resolvedNotificationData.body,
+            data: resolvedNotificationData.data,
+          });
           console.log(`✅ Notification sent to user ${sub.userId}`);
         })
-        .catch((error) => {
+        .catch(async (error) => {
           failureCount++;
+          await logPushDelivery(models, {
+            status: "failed",
+            userId: sub.userId,
+            endpoint: sub.subscription?.endpoint,
+            notificationType: notificationData.type || resolvedNotificationData.type || resolvedNotificationData.data?.type,
+            title: resolvedNotificationData.title,
+            body: resolvedNotificationData.body,
+            data: resolvedNotificationData.data,
+            error: error.message,
+            statusCode: error.statusCode || null,
+          });
           console.error(
             `❌ Failed to send notification to user ${sub.userId}:`,
             error,
@@ -303,14 +338,34 @@ const sendNotificationByType = async (
     for (const sub of subscriptions) {
       const promise = webpush
         .sendNotification(sub.subscription, payload)
-        .then(() => {
+        .then(async () => {
           successCount++;
+          await logPushDelivery(models, {
+            status: "sent",
+            userId: sub.userId,
+            endpoint: sub.subscription?.endpoint,
+            notificationType,
+            title: resolvedNotificationData.title,
+            body: resolvedNotificationData.body,
+            data: resolvedNotificationData.data,
+          });
           console.log(
             `✅ ${notificationType} notification sent to user ${sub.userId}`,
           );
         })
-        .catch((error) => {
+        .catch(async (error) => {
           failureCount++;
+          await logPushDelivery(models, {
+            status: "failed",
+            userId: sub.userId,
+            endpoint: sub.subscription?.endpoint,
+            notificationType,
+            title: resolvedNotificationData.title,
+            body: resolvedNotificationData.body,
+            data: resolvedNotificationData.data,
+            error: error.message,
+            statusCode: error.statusCode || null,
+          });
           console.error(
             `❌ Failed to send ${notificationType} notification to user ${sub.userId}:`,
             error,
@@ -402,9 +457,29 @@ const sendTestNotificationPublic = async (req, res) => {
       try {
         await webpush.sendNotification(sub.subscription, payload);
         successCount++;
+        await logPushDelivery(req.app.locals.models, {
+          status: "sent",
+          userId: sub.userId,
+          endpoint: sub.subscription?.endpoint,
+          notificationType: type || "test",
+          title: resolvedNotificationData.title,
+          body: resolvedNotificationData.body,
+          data: resolvedNotificationData.data,
+        });
         console.log(`✅ Test notification sent to subscription ${sub._id}`);
       } catch (error) {
         failureCount++;
+        await logPushDelivery(req.app.locals.models, {
+          status: "failed",
+          userId: sub.userId,
+          endpoint: sub.subscription?.endpoint,
+          notificationType: type || "test",
+          title: resolvedNotificationData.title,
+          body: resolvedNotificationData.body,
+          data: resolvedNotificationData.data,
+          error: error.message,
+          statusCode: error.statusCode || null,
+        });
         console.error(`❌ Failed to send test notification:`, error.message);
 
         // If subscription is invalid, deactivate it

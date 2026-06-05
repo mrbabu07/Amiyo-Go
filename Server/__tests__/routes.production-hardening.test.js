@@ -27,9 +27,12 @@ jest.mock("../controllers/paymentController", () => ({
   approveManualPayment: (req, res) => res.json({ route: "manual-payment-approve" }),
   rejectManualPayment: (req, res) => res.json({ route: "manual-payment-reject" }),
   getOrderPayment: (req, res) => res.json({ route: "order-payment" }),
-  handleStripeWebhook: (req, res) => res.json({ route: "stripe-webhook" }),
-  handleBkashWebhook: (req, res) => res.json({ route: "bkash-webhook" }),
-  handleNagadWebhook: (req, res) => res.json({ route: "nagad-webhook" }),
+}));
+
+jest.mock("../controllers/webhookController", () => ({
+  handleStripeWebhook: (req, res) => res.json({ route: "stripe-webhook-hardened" }),
+  handleBkashWebhook: (req, res) => res.json({ route: "bkash-webhook-hardened" }),
+  handleNagadWebhook: (req, res) => res.json({ route: "nagad-webhook-hardened" }),
 }));
 
 jest.mock("../controllers/returnController", () => ({
@@ -75,5 +78,16 @@ describe("production route hardening", () => {
 
     expect(response.status).toBe(401);
     expect(response.body).toEqual({ error: "No token provided" });
+  });
+
+  test("legacy payment webhook path uses the hardened webhook controller", async () => {
+    const app = buildApp();
+
+    const response = await request(app)
+      .post("/api/payments/webhooks/bkash")
+      .send({ transactionId: "trx-1" });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ route: "bkash-webhook-hardened" });
   });
 });

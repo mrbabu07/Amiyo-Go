@@ -62,6 +62,7 @@ const User = require("./models/User");
 const Product = require("./models/Product");
 const Category = require("./models/Category");
 const Order = require("./models/Order");
+const Cart = require("./models/Cart");
 const Wishlist = require("./models/Wishlist");
 const Review = require("./models/Review");
 const Coupon = require("./models/Coupon");
@@ -73,6 +74,7 @@ const LiveChat = require("./models/LiveChat");
 const CustomerInsight = require("./models/CustomerInsight");
 const Offer = require("./models/Offer");
 const Notification = require("./models/Notification");
+const NotificationDeliveryLog = require("./models/NotificationDeliveryLog");
 const NotificationSubscription = require("./models/NotificationSubscription");
 const Question = require("./models/Question");
 const Vendor = require("./models/Vendor");
@@ -126,6 +128,7 @@ const productRoutes = require("./routes/productRoutes");
 const searchRoutes = require("./routes/searchRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const orderRoutes = require("./routes/orderRoutes");
+const cartRoutes = require("./routes/cartRoutes");
 const userRoutes = require("./routes/userRoutes");
 const wishlistRoutes = require("./routes/wishlistRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
@@ -240,7 +243,11 @@ app.use(healthRoutes);
 app.use(express.json({
   limit: '10mb',
   verify: (req, res, buf) => {
-    if (req.originalUrl?.startsWith("/api/delivery/") || req.originalUrl?.startsWith("/api/webhooks/")) {
+    if (
+      req.originalUrl?.startsWith("/api/delivery/") ||
+      req.originalUrl?.startsWith("/api/webhooks/") ||
+      req.originalUrl?.startsWith("/api/payments/webhooks/")
+    ) {
       req.rawBody = buf.toString("utf8");
     }
   },
@@ -303,6 +310,7 @@ async function run() {
       Product: new Product(db),
       Category: new Category(db),
       Order: new Order(db),
+      Cart: new Cart(db),
       Wishlist: new Wishlist(db),
       Review: new Review(db),
       Coupon: new Coupon(db),
@@ -314,6 +322,7 @@ async function run() {
       CustomerInsight: new CustomerInsight(db),
       Offer: new Offer(db),
       Notification: new Notification(db),
+      NotificationDeliveryLog: new NotificationDeliveryLog(db),
       NotificationSubscription: new NotificationSubscription(db),
       Question: new Question(db),
       Vendor: new Vendor(db),
@@ -384,6 +393,7 @@ async function run() {
     console.log("✅ Categories routes registered");
 
     app.use("/api/orders", orderRoutes);
+    app.use("/api/cart", cartRoutes);
     app.use("/api/shipments", shipmentRoutes);
     console.log("✅ Orders routes registered");
 

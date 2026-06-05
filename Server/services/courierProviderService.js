@@ -185,6 +185,82 @@ const extractTracking = (provider, response = {}) => {
   };
 };
 
+const TRACKING_STATUS_MAP = {
+  created: "created",
+  booked: "pickup_scheduled",
+  pending: "pickup_scheduled",
+  pickup_pending: "pickup_scheduled",
+  pickup_scheduled: "pickup_scheduled",
+  picked: "picked_up",
+  picked_up: "picked_up",
+  collected: "picked_up",
+  in_transit: "in_transit",
+  transit: "in_transit",
+  shipped: "in_transit",
+  out_for_delivery: "out_for_delivery",
+  outfordelivery: "out_for_delivery",
+  delivery: "out_for_delivery",
+  delivered: "delivered",
+  success: "delivered",
+  completed: "delivered",
+  failed: "delivery_failed",
+  delivery_failed: "delivery_failed",
+  hold: "delivery_failed",
+  cancelled: "return_to_origin",
+  canceled: "return_to_origin",
+  rto: "return_to_origin",
+  return_to_origin: "return_to_origin",
+  returned: "return_to_origin",
+};
+
+const normalizeTrackingStatus = (value = "") => {
+  const key = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  return TRACKING_STATUS_MAP[key] || TRACKING_STATUS_MAP[key.replace(/_/g, "")] || "";
+};
+
+const normalizeTrackingEvent = (provider, payload = {}) => {
+  const normalizedProvider = normalizeProvider(provider || payload.provider || payload.courierProvider);
+  const tracking = extractTracking(normalizedProvider, payload);
+  const rawStatus = getNested(payload, [
+    "shipmentState",
+    "deliveryStatus",
+    "status",
+    "current_status",
+    "tracking_status",
+    "data.status",
+    "data.current_status",
+    "consignment.status",
+    "event",
+  ]);
+  const targetState = normalizeTrackingStatus(rawStatus);
+  const outcome =
+    targetState === "delivered"
+      ? "delivered"
+      : targetState === "return_to_origin"
+        ? "rto"
+        : targetState === "delivery_failed"
+          ? "failed"
+          : "";
+
+  return {
+    provider: normalizedProvider,
+    trackingNumber: tracking.trackingNumber || payload.trackingNumber || payload.tracking_number || payload.tracking_id || null,
+    consignmentId: tracking.consignmentId || payload.consignmentId || payload.consignment_id || payload.parcel_id || null,
+    orderId: payload.orderId || payload.order_id || payload.merchant_invoice_id || payload.invoice || null,
+    targetState,
+    outcome,
+    rawStatus: rawStatus || tracking.providerStatus || "",
+    reason: payload.reason || payload.failed_reason || payload.delivery_reason || payload.message || "",
+    receiverName: payload.receiverName || payload.receiver_name || payload.pod?.receiverName || "",
+    proofUrl: payload.proofUrl || payload.proof_url || payload.pod?.proofUrl || "",
+    codCollected: payload.codCollected ?? payload.cod_collected ?? true,
+    payload,
+  };
+};
+
 const buildTrackingUrl = (pattern, trackingNumber) => {
   if (!pattern || !trackingNumber) return "";
   return String(pattern).replace("{trackingNumber}", encodeURIComponent(trackingNumber));
@@ -311,5 +387,6 @@ module.exports = {
   bookShipment,
   getCourierProviderStatus,
   normalizeProvider,
+  normalizeTrackingEvent,
   summarizeBookingForStorage,
 };

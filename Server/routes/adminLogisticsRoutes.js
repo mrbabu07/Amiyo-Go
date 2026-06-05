@@ -34,6 +34,7 @@ const {
   listVendorShipments,
   markRto,
   recordDeliveryAttempt,
+  syncCourierTrackingEvent,
   updateCodState,
   updateShipmentForwardState,
   updateReverseState,
@@ -46,6 +47,7 @@ router.get("/dashboard", verifyToken, verifyAdmin, getLogisticsDashboard);
 router.get("/state-machine", verifyToken, verifyAdmin, getStateMachine);
 
 router.get("/shipments", verifyToken, verifyAdmin, listVendorShipments);
+router.post("/tracking-events", verifyToken, verifyAdmin, syncCourierTrackingEvent);
 router.post("/shipments/:id/assign-courier", verifyToken, verifyAdmin, assignCourier);
 router.post("/shipments/:id/state", verifyToken, verifyAdmin, updateShipmentForwardState);
 router.post("/shipments/:id/delivery-attempt", verifyToken, verifyAdmin, recordDeliveryAttempt);

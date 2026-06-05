@@ -5,6 +5,7 @@ const { isStaffRole } = require("../config/permissions");
 const {
   bookShipment,
   normalizeProvider,
+  normalizeTrackingEvent,
   summarizeBookingForStorage,
 } = require("../services/courierProviderService");
 const {
@@ -876,6 +877,91 @@ exports.updateShipmentForwardState = async (req, res) => {
     res.json({ success: true, data: shipment });
   } catch (error) {
     jsonError(res, error, "Failed to update shipment workflow");
+  }
+};
+
+exports.syncCourierTrackingEvent = async (req, res) => {
+  try {
+    const Shipment = getShipmentModel(req);
+    const event = normalizeTrackingEvent(req.body.provider || req.params.provider, req.body || {});
+    const lookup = [];
+    if (event.trackingNumber) lookup.push({ trackingNumber: event.trackingNumber });
+    if (event.consignmentId) lookup.push({ courierConsignmentId: event.consignmentId });
+    if (event.orderId) lookup.push({ orderId: normalizeId(event.orderId) });
+
+    if (!lookup.length) {
+      return res.status(400).json({
+        success: false,
+        error: "trackingNumber, consignmentId, or orderId is required",
+      });
+    }
+
+    const shipment = await Shipment.collection.findOne({ $or: lookup });
+    if (!shipment) {
+      return res.status(404).json({ success: false, error: "Shipment not found for tracking event" });
+    }
+
+    const actor = getActor(req, "courier");
+    const receivedAt = new Date();
+    let updated = shipment;
+
+    if (event.outcome) {
+      updated = await Shipment.recordDeliveryAttempt(shipment._id, {
+        outcome: event.outcome,
+        reason: event.reason,
+        receiverName: event.receiverName,
+        proofUrl: event.proofUrl,
+        notes: `Courier tracking event: ${event.rawStatus || event.targetState}`,
+        codCollected: event.codCollected,
+        providerPayload: event.payload,
+      }, { role: actor.role || "courier", id: actor.id || event.provider });
+      await syncOrderAfterDeliveryAttempt(req, updated, {
+        outcome: event.outcome,
+        reason: event.reason,
+        codCollected: event.codCollected,
+      });
+    } else if (event.targetState && event.targetState !== shipment.shipmentState) {
+      updated = await Shipment.advanceForward(shipment._id, event.targetState, {
+        actorRole: actor.role || "courier",
+        actorId: actor.id || event.provider,
+        type: `courier.${event.targetState}`,
+        description: `Courier tracking sync: ${event.rawStatus || event.targetState}`,
+        metadata: event,
+      });
+      await syncOrderAfterForwardTransition(req, updated, event.targetState);
+    }
+
+    const trackingEvent = {
+      ...event,
+      receivedAt,
+      syncedState: updated.shipmentState,
+    };
+    await Shipment.collection.updateOne(idFilter(shipment._id), {
+      $set: {
+        lastTrackingEvent: trackingEvent,
+        courierProvider: event.provider || shipment.courierProvider || null,
+        ...(event.trackingNumber ? { trackingNumber: event.trackingNumber } : {}),
+        ...(event.consignmentId ? { courierConsignmentId: event.consignmentId } : {}),
+        updatedAt: receivedAt,
+      },
+      $push: { trackingEvents: trackingEvent },
+    });
+
+    const saved = await Shipment.findById(shipment._id);
+    req.app.locals.realtime?.broadcast?.("admin:operations", "shipment.tracking.synced", {
+      shipmentId: normalizeId(shipment._id),
+      orderId: shipment.orderId,
+      targetState: event.targetState,
+    });
+    req.app.locals.realtime?.broadcast?.(`shipment:${normalizeId(shipment._id)}`, "shipment.tracking.synced", {
+      shipmentId: normalizeId(shipment._id),
+      targetState: event.targetState,
+    });
+
+    return res.json({ success: true, data: saved, event: trackingEvent });
+  } catch (error) {
+    console.error("Courier tracking sync failed:", error);
+    return res.status(400).json({ success: false, error: error.message });
   }
 };
 

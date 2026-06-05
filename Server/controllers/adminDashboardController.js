@@ -122,7 +122,7 @@ const countActiveDisputes = async (returnsCollection) =>
 const normalizeStatus = (value) => String(value || "").trim().toLowerCase();
 
 const failedStatusQuery = {
-  $in: ["failed", "error", "partial_failed", "delivery_failed", "webhook_failed"],
+  $in: ["failed", "error", "partial_failed", "delivery_failed", "webhook_failed", "retry_failed"],
 };
 
 const getEventDate = (doc = {}) =>
@@ -338,7 +338,7 @@ const buildAdminQueueWorkload = ({
       key: "failed_notifications",
       label: "Failed Notifications",
       owner: "Comms",
-      path: "/admin/platform",
+      path: "/admin/operations",
       items: failedNotifications,
       slaHours: 6,
       highRiskCount: failedNotifications.length,
@@ -511,7 +511,7 @@ const buildOperationIssues = ({
       severity: "medium",
       at: getEventDate(delivery),
       owner: "Comms",
-      path: "/admin/platform",
+      path: "/admin/operations",
       meta: { id: delivery._id, channel: delivery.channel, userId: delivery.userId },
     })),
     ...failedNewsletterRecipients.slice(0, limitPerGroup).map((recipient) => toOperationIssue({
@@ -2048,6 +2048,7 @@ exports.getAdminOperationsOverview = async (req, res) => {
         notificationHealth: {
           deliveriesInWindow: notificationDeliveries.length,
           failedDeliveries: failedNotificationDeliveries.length,
+          failedDeliveryItems: failedNotificationDeliveries.slice(0, 12),
           recentNotifications: recentNotifications.slice(0, 12),
           broadcasts: {
             total: notificationBroadcasts.length,
