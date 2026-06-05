@@ -17,12 +17,33 @@ describe("notification target resolver", () => {
     expect(buildNotificationLink({ type: "promotion.started", data: { campaignId: "campaign-1" } })).toBe(
       "/campaigns/campaign-1",
     );
+    expect(
+      buildNotificationLink({
+        type: "promotion.started",
+        data: { campaignSlug: "eid-sale", productId: "product-1" },
+      }),
+    ).toBe("/campaigns/eid-sale");
   });
 
   test("routes voucher notifications to cart with the voucher code", () => {
     expect(buildNotificationLink({ type: "voucher.expiring", data: { code: "SAVE10" } })).toBe(
       "/cart?coupon=SAVE10",
     );
+    expect(
+      buildNotificationLink({
+        type: "offer.unlocked",
+        data: { code: "DEAL26", productId: "product-1" },
+      }),
+    ).toBe("/cart?coupon=DEAL26");
+  });
+
+  test("routes flash sale notifications to the flash sale page before product fallback", () => {
+    expect(
+      buildNotificationLink({
+        type: "flash_sale",
+        data: { flashSaleId: "flash-1", productId: "product-1" },
+      }),
+    ).toBe("/flash-sales?flashSaleId=flash-1");
   });
 
   test("stores resolved link, url, and data url together", () => {

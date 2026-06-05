@@ -1,6 +1,6 @@
-const CACHE_NAME = "amiyo-go-v1.0.1";
-const STATIC_CACHE = "amiyo-go-static-v1.0.1";
-const DYNAMIC_CACHE = "amiyo-go-dynamic-v1.0.1";
+const CACHE_NAME = "amiyo-go-v1.0.2";
+const STATIC_CACHE = "amiyo-go-static-v1.0.2";
+const DYNAMIC_CACHE = "amiyo-go-dynamic-v1.0.2";
 
 // Assets to cache immediately
 const STATIC_ASSETS = ["/", "/offline.html", "/manifest.json"];
@@ -480,6 +480,8 @@ function resolveNotificationTarget(notification) {
   const ticketId = getNotificationValue(source, ["ticketId", "supportTicketId", "data.ticketId"]);
   const productId = getNotificationValue(source, ["productId", "listingId", "data.productId"]);
   const campaignTarget = getNotificationValue(source, ["campaignSlug", "promotionSlug", "campaignId", "promotionId", "data.campaignSlug", "data.campaignId"]);
+  const flashSaleId = getNotificationValue(source, ["flashSaleId", "flashId", "data.flashSaleId"]);
+  const offerId = getNotificationValue(source, ["offerId", "data.offerId"]);
   const shopSlug = getNotificationValue(source, ["shopSlug", "vendorSlug", "data.shopSlug", "data.vendorSlug"]);
   const code = getNotificationValue(source, ["code", "couponCode", "voucherCode", "data.code", "data.couponCode", "data.voucherCode"]);
 
@@ -491,25 +493,39 @@ function resolveNotificationTarget(notification) {
   if (returnId) return notificationPathWithQuery("/returns", { returnId });
   if (ticketId && isAdminTarget) return notificationPathWithQuery("/admin/support", { ticketId });
   if (ticketId) return notificationPathWithQuery("/support", { ticketId });
-  if (productId && (isVendorTarget || type.includes("stock_alert") || type.includes("moderation"))) return `/vendor/products/${productId}`;
-  if (productId) return `/product/${productId}`;
-  if (shopSlug) return `/shops/${shopSlug}`;
   if (type.includes("campaign") || type.includes("promotion")) {
     if (campaignTarget && !isVendorTarget && !isAdminTarget) return `/campaigns/${campaignTarget}`;
     if (isAdminTarget) return "/admin/promotions";
     if (isVendorTarget) return "/vendor/marketing/campaigns";
     return "/flash-sales";
   }
-  if (type.includes("flash_sale") || type.includes("flash-sale") || type.includes("flash")) return isAdminTarget ? "/admin/flash-sales" : "/flash-sales";
-  if (type.includes("voucher") || type.includes("coupon") || type.includes("offer") || type.includes("promo")) {
+  if (type.includes("flash_sale") || type.includes("flash-sale") || type.includes("flash")) {
+    return isAdminTarget
+      ? notificationPathWithQuery("/admin/flash-sales", { flashSaleId })
+      : notificationPathWithQuery("/flash-sales", { flashSaleId });
+  }
+  const hasVoucherCode = Boolean(code);
+  if (type.includes("voucher") || type.includes("coupon") || (hasVoucherCode && (type.includes("offer") || type.includes("promo")))) {
     if (isAdminTarget) return "/admin/promotions";
     if (isVendorTarget) return "/vendor/marketing/vouchers";
     return notificationPathWithQuery("/cart", { coupon: code });
   }
+  if (productId && (isVendorTarget || type.includes("stock_alert") || type.includes("moderation"))) return `/vendor/products/${productId}`;
+  if (productId) return `/product/${productId}`;
+  if (type.includes("offer") || type.includes("promo")) {
+    if (isAdminTarget) return "/admin/promotions";
+    if (isVendorTarget) return "/vendor/marketing/promotions";
+    return notificationPathWithQuery("/products", { offerId });
+  }
+  if (shopSlug) return `/shops/${shopSlug}`;
   if (type.includes("wishlist") || type.includes("price_drop") || type.includes("back_in_stock")) return productId ? `/product/${productId}` : "/my-alerts";
   if (type.includes("support") || type.includes("ticket")) return "/support";
   if (type.includes("return") || type.includes("refund")) return "/returns";
-  if (type.includes("delivery") || type.includes("ship") || type.includes("order") || type.includes("payment")) return isVendorTarget ? "/vendor/orders" : "/orders";
+  if (type.includes("delivery") || type.includes("ship") || type.includes("order") || type.includes("payment")) {
+    if (isVendorTarget) return "/vendor/orders";
+    if (isAdminTarget) return "/admin/orders";
+    return "/orders";
+  }
 
   return direct || "/";
 }
@@ -657,20 +673,24 @@ self.addEventListener("notificationclick", (event) => {
   }
 
   // Open the target URL
+  const resolvedTargetUrl = /^https?:\/\//i.test(targetUrl)
+    ? targetUrl
+    : new URL(targetUrl || "/", self.location.origin).href;
+
   event.waitUntil(
     clients.matchAll({ type: "window" }).then((clientList) => {
       // Check if app is already open
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && "focus" in client) {
           // Navigate existing window to target URL
-          client.navigate(targetUrl);
+          client.navigate(resolvedTargetUrl);
           return client.focus();
         }
       }
 
       // Open new window if app is not open
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+        return clients.openWindow(resolvedTargetUrl);
       }
     }),
   );

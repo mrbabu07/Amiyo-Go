@@ -80,6 +80,8 @@ const resolveEntity = (notification = {}) => {
     productId: getValue(source, ["productId", "listingId", "data.productId", "product._id", "product.id"]),
     campaignSlug: getValue(source, ["campaignSlug", "promotionSlug", "slug", "data.campaignSlug", "campaign.slug"]),
     campaignId: getValue(source, ["campaignId", "promotionId", "data.campaignId", "campaign._id", "campaign.id"]),
+    flashSaleId: getValue(source, ["flashSaleId", "flashId", "data.flashSaleId", "flashSale._id", "flashSale.id"]),
+    offerId: getValue(source, ["offerId", "data.offerId", "offer._id", "offer.id"]),
     shopSlug: getValue(source, ["shopSlug", "vendorSlug", "data.shopSlug", "data.vendorSlug", "vendor.slug"]),
     payoutId: getValue(source, ["payoutId", "data.payoutId"]),
     code: getValue(source, ["code", "couponCode", "voucherCode", "data.code", "data.couponCode", "data.voucherCode"]),
@@ -104,13 +106,6 @@ export const resolveNotificationLink = (notification = {}) => {
   if (entity.ticketId && isAdminTarget) return withQuery("/admin/support", { ticketId: entity.ticketId });
   if (entity.ticketId) return withQuery("/support", { ticketId: entity.ticketId });
 
-  if (entity.productId && (isVendorTarget || type.includes("stock_alert") || type.includes("moderation"))) {
-    return `/vendor/products/${entity.productId}`;
-  }
-  if (entity.productId) return `/product/${entity.productId}`;
-
-  if (entity.shopSlug) return `/shops/${entity.shopSlug}`;
-
   if (type.includes("campaign") || type.includes("promotion")) {
     const campaignTarget = entity.campaignSlug || entity.campaignId;
     if (campaignTarget && !isVendorTarget && !isAdminTarget) return `/campaigns/${campaignTarget}`;
@@ -120,14 +115,34 @@ export const resolveNotificationLink = (notification = {}) => {
   }
 
   if (type.includes("flash_sale") || type.includes("flash-sale") || type.includes("flash")) {
-    return isAdminTarget ? "/admin/flash-sales" : "/flash-sales";
+    return isAdminTarget
+      ? withQuery("/admin/flash-sales", { flashSaleId: entity.flashSaleId })
+      : withQuery("/flash-sales", { flashSaleId: entity.flashSaleId });
   }
 
-  if (type.includes("voucher") || type.includes("coupon") || type.includes("offer") || type.includes("promo")) {
+  const hasVoucherCode = Boolean(entity.code);
+  if (
+    type.includes("voucher") ||
+    type.includes("coupon") ||
+    (hasVoucherCode && (type.includes("offer") || type.includes("promo")))
+  ) {
     if (isAdminTarget) return "/admin/promotions";
     if (isVendorTarget) return "/vendor/marketing/vouchers";
     return withQuery("/cart", { coupon: entity.code });
   }
+
+  if (entity.productId && (isVendorTarget || type.includes("stock_alert") || type.includes("moderation"))) {
+    return `/vendor/products/${entity.productId}`;
+  }
+  if (entity.productId) return `/product/${entity.productId}`;
+
+  if (type.includes("offer") || type.includes("promo")) {
+    if (isAdminTarget) return "/admin/promotions";
+    if (isVendorTarget) return "/vendor/marketing/promotions";
+    return withQuery("/products", { offerId: entity.offerId });
+  }
+
+  if (entity.shopSlug) return `/shops/${entity.shopSlug}`;
 
   if (type.includes("wishlist") || type.includes("price_drop") || type.includes("back_in_stock")) {
     return entity.productId ? `/product/${entity.productId}` : "/my-alerts";
