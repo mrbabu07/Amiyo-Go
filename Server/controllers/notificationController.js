@@ -1,4 +1,5 @@
 const webpush = require("web-push");
+const { withResolvedNotificationLink } = require("../utils/notificationTargets");
 
 // Configure web-push with VAPID keys from environment variables only.
 const vapidKeys = {
@@ -188,7 +189,14 @@ const sendNotification = async (userIds, notificationData, models = null) => {
       return { success: true, sent: 0 };
     }
 
-    const payload = JSON.stringify(notificationData);
+    const resolvedNotificationData = withResolvedNotificationLink(notificationData);
+    const payload = JSON.stringify({
+      ...resolvedNotificationData,
+      data: {
+        ...(resolvedNotificationData.data || {}),
+        url: resolvedNotificationData.link || resolvedNotificationData.url || "/",
+      },
+    });
     const promises = [];
     let successCount = 0;
     let failureCount = 0;
@@ -276,9 +284,16 @@ const sendNotificationByType = async (
       return { success: true, sent: 0 };
     }
 
-    const payload = JSON.stringify({
+    const resolvedNotificationData = withResolvedNotificationLink({
       ...notificationData,
       type: notificationType,
+    });
+    const payload = JSON.stringify({
+      ...resolvedNotificationData,
+      data: {
+        ...(resolvedNotificationData.data || {}),
+        url: resolvedNotificationData.link || resolvedNotificationData.url || "/",
+      },
     });
 
     const promises = [];
@@ -372,7 +387,14 @@ const sendTestNotificationPublic = async (req, res) => {
       },
     };
 
-    const payload = JSON.stringify(notificationData);
+    const resolvedNotificationData = withResolvedNotificationLink(notificationData);
+    const payload = JSON.stringify({
+      ...resolvedNotificationData,
+      data: {
+        ...(resolvedNotificationData.data || {}),
+        url: resolvedNotificationData.link || resolvedNotificationData.url || "/",
+      },
+    });
     let successCount = 0;
     let failureCount = 0;
 

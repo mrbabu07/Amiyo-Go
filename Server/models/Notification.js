@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const { withResolvedNotificationLink } = require("../utils/notificationTargets");
 
 class Notification {
   constructor(db) {
@@ -18,7 +19,7 @@ class Notification {
 
   async create(notificationData) {
     const notification = {
-      ...notificationData,
+      ...withResolvedNotificationLink(notificationData),
       isRead: false,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -36,12 +37,14 @@ class Notification {
       query.isRead = false;
     }
 
-    return await this.collection
+    const rows = await this.collection
       .find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .toArray();
+
+    return rows.map((row) => withResolvedNotificationLink(row));
   }
 
   async markAsRead(notificationId, userId) {

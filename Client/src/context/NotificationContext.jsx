@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { auth } from "../firebase/firebase.config";
+import { enrichNotificationTarget } from "../utils/notificationTargets";
 
 const NotificationContext = createContext();
 
@@ -16,15 +17,19 @@ export const useNotifications = () => {
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const normalizeNotification = (notification) => ({
-    id: notification._id || notification.id,
-    title: notification.title || "Notification",
-    message: notification.message || notification.body || "",
-    type: notification.type || "system",
-    link: notification.link || notification.data?.url || "",
-    timestamp: notification.createdAt || notification.timestamp || new Date().toISOString(),
-    read: notification.isRead ?? notification.read ?? false,
-  });
+  const normalizeNotification = (notification) => {
+    const enriched = enrichNotificationTarget(notification || {});
+    return {
+      ...enriched,
+      id: enriched._id || enriched.id,
+      title: enriched.title || "Notification",
+      message: enriched.message || enriched.body || "",
+      type: enriched.type || "system",
+      link: enriched.link || "",
+      timestamp: enriched.createdAt || enriched.timestamp || new Date().toISOString(),
+      read: enriched.isRead ?? enriched.read ?? false,
+    };
+  };
 
   const loadServerNotifications = async (user) => {
     if (!user) return false;
@@ -60,7 +65,10 @@ export const NotificationProvider = ({ children }) => {
             `notifications_${user.uid}`,
           );
           if (savedNotifications) {
-            const parsed = JSON.parse(savedNotifications);
+            const parsedValue = JSON.parse(savedNotifications);
+            const parsed = Array.isArray(parsedValue)
+              ? parsedValue.map(normalizeNotification)
+              : [];
             setNotifications(parsed);
             setUnreadCount(parsed.filter((n) => !n.read).length);
           }
@@ -91,12 +99,12 @@ export const NotificationProvider = ({ children }) => {
   };
 
   const addNotification = (notification) => {
-    const newNotification = {
+    const newNotification = normalizeNotification({
       id: Date.now(),
       timestamp: new Date().toISOString(),
       read: false,
       ...notification,
-    };
+    });
     const updated = [newNotification, ...notifications];
     setNotifications(updated);
     setUnreadCount((prev) => prev + 1);

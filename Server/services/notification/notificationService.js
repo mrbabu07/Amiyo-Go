@@ -1,6 +1,7 @@
 const emailService = require("../email/emailService");
 const smsService = require("../sms/smsService");
 const pushService = require("../push/pushService");
+const { withResolvedNotificationLink } = require("../../utils/notificationTargets");
 
 async function safe(name, fn) {
   try {
@@ -11,7 +12,7 @@ async function safe(name, fn) {
 }
 
 async function persistNotification(userId, payload, channelResults = {}, app = null) {
-  const notification = {
+  const notification = withResolvedNotificationLink({
     userId: userId ? String(userId) : null,
     type: payload.type,
     title: payload.title,
@@ -26,7 +27,7 @@ async function persistNotification(userId, payload, channelResults = {}, app = n
     isRead: false,
     createdAt: new Date(),
     updatedAt: new Date(),
-  };
+  });
 
   const Notification = app?.locals?.models?.Notification;
   if (Notification?.create) {

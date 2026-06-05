@@ -9,8 +9,10 @@ import {
 describe("customer notification helper white-box behavior", () => {
   test("maps raw notification types into customer workflow groups", () => {
     expect(getNotificationGroup({ type: "delivery" })).toBe("orders");
+    expect(getNotificationGroup({ type: "order_status" })).toBe("orders");
     expect(getNotificationGroup({ type: "refund" })).toBe("returns");
     expect(getNotificationGroup({ type: "price_drop" })).toBe("wishlist");
+    expect(getNotificationGroup({ type: "voucher.expiring" })).toBe("promotions");
     expect(getNotificationGroup({ type: "unknown" })).toBe("system");
   });
 

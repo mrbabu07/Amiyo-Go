@@ -436,6 +436,84 @@ async function syncWishlistData() {
   }
 }
 
+function getNotificationValue(source, keys) {
+  for (const key of keys) {
+    const value = key.split(".").reduce((current, part) => current && current[part], source);
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return String(value).trim();
+    }
+  }
+  return "";
+}
+
+function compactNotificationPath(path) {
+  return String(path || "").replace(/\/{2,}/g, "/");
+}
+
+function sanitizeNotificationPath(value) {
+  const raw = String(value || "").trim();
+  if (!raw || raw === "#") return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return compactNotificationPath(raw.startsWith("/") ? raw : `/${raw}`);
+}
+
+function notificationPathWithQuery(path, params) {
+  const search = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value) search.set(key, value);
+  });
+  const query = search.toString();
+  return query ? `${path}?${query}` : path;
+}
+
+function resolveNotificationTarget(notification) {
+  const data = notification.data || {};
+  const source = { ...data, ...notification };
+  const type = String(notification.type || data.type || notification.eventName || data.eventName || "").toLowerCase();
+  const direct = sanitizeNotificationPath(
+    getNotificationValue(source, ["link", "url", "actionUrl", "targetUrl", "deepLink", "data.link", "data.url"]),
+  );
+  const isVendorTarget = type.startsWith("vendor") || direct.startsWith("/vendor/");
+  const isAdminTarget = type.startsWith("admin") || direct.startsWith("/admin/");
+  const orderId = getNotificationValue(source, ["orderId", "parentOrderId", "data.orderId"]);
+  const returnId = getNotificationValue(source, ["returnId", "returnRequestId", "data.returnId"]);
+  const ticketId = getNotificationValue(source, ["ticketId", "supportTicketId", "data.ticketId"]);
+  const productId = getNotificationValue(source, ["productId", "listingId", "data.productId"]);
+  const campaignTarget = getNotificationValue(source, ["campaignSlug", "promotionSlug", "campaignId", "promotionId", "data.campaignSlug", "data.campaignId"]);
+  const shopSlug = getNotificationValue(source, ["shopSlug", "vendorSlug", "data.shopSlug", "data.vendorSlug"]);
+  const code = getNotificationValue(source, ["code", "couponCode", "voucherCode", "data.code", "data.couponCode", "data.voucherCode"]);
+
+  if (orderId && isVendorTarget) return `/vendor/orders/${orderId}`;
+  if (orderId && isAdminTarget) return notificationPathWithQuery("/admin/orders", { q: orderId });
+  if (orderId) return `/orders/${orderId}`;
+  if (returnId && isVendorTarget) return `/vendor/returns/${returnId}`;
+  if (returnId && isAdminTarget) return notificationPathWithQuery("/admin/returns", { returnId });
+  if (returnId) return notificationPathWithQuery("/returns", { returnId });
+  if (ticketId && isAdminTarget) return notificationPathWithQuery("/admin/support", { ticketId });
+  if (ticketId) return notificationPathWithQuery("/support", { ticketId });
+  if (productId && (isVendorTarget || type.includes("stock_alert") || type.includes("moderation"))) return `/vendor/products/${productId}`;
+  if (productId) return `/product/${productId}`;
+  if (shopSlug) return `/shops/${shopSlug}`;
+  if (type.includes("campaign") || type.includes("promotion")) {
+    if (campaignTarget && !isVendorTarget && !isAdminTarget) return `/campaigns/${campaignTarget}`;
+    if (isAdminTarget) return "/admin/promotions";
+    if (isVendorTarget) return "/vendor/marketing/campaigns";
+    return "/flash-sales";
+  }
+  if (type.includes("flash_sale") || type.includes("flash-sale") || type.includes("flash")) return isAdminTarget ? "/admin/flash-sales" : "/flash-sales";
+  if (type.includes("voucher") || type.includes("coupon") || type.includes("offer") || type.includes("promo")) {
+    if (isAdminTarget) return "/admin/promotions";
+    if (isVendorTarget) return "/vendor/marketing/vouchers";
+    return notificationPathWithQuery("/cart", { coupon: code });
+  }
+  if (type.includes("wishlist") || type.includes("price_drop") || type.includes("back_in_stock")) return productId ? `/product/${productId}` : "/my-alerts";
+  if (type.includes("support") || type.includes("ticket")) return "/support";
+  if (type.includes("return") || type.includes("refund")) return "/returns";
+  if (type.includes("delivery") || type.includes("ship") || type.includes("order") || type.includes("payment")) return isVendorTarget ? "/vendor/orders" : "/orders";
+
+  return direct || "/";
+}
+
 // Push notification event
 self.addEventListener("push", (event) => {
   console.log("📬 Service Worker: Push notification received");
@@ -469,13 +547,28 @@ self.addEventListener("push", (event) => {
       const data = event.data.json();
       console.log("📬 Push data received:", data);
 
+      const receivedData = data.data || {};
+      const resolvedUrl = resolveNotificationTarget({
+        ...data,
+        type: data.type || receivedData.type,
+        data: {
+          ...receivedData,
+          url: receivedData.url || data.url,
+        },
+      });
+
       // Update notification with received data
       notificationData.title = data.title || notificationData.title;
       notificationData.body = data.body || notificationData.body;
       notificationData.icon = data.icon || notificationData.icon;
       notificationData.badge = data.badge || notificationData.badge;
       notificationData.tag = data.tag || "default";
-      notificationData.data = { ...notificationData.data, ...data.data };
+      notificationData.data = {
+        ...notificationData.data,
+        ...receivedData,
+        type: receivedData.type || data.type,
+        url: resolvedUrl,
+      };
 
       // Customize actions based on notification type
       if (data.type === "order_status") {
@@ -538,30 +631,29 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
   const notificationData = event.notification.data || {};
-  let targetUrl = "/";
+  let targetUrl = resolveNotificationTarget(notificationData);
 
   // Determine target URL based on action and notification data
   if (
     event.action === "view_order" ||
     notificationData.type === "order_status"
   ) {
-    targetUrl = notificationData.url || "/orders";
+    targetUrl = resolveNotificationTarget({ type: notificationData.type || "order_status", data: notificationData });
   } else if (
     event.action === "view_sale" ||
     notificationData.type === "flash_sale"
   ) {
-    targetUrl = notificationData.url || "/flash-sales";
+    targetUrl = resolveNotificationTarget({ type: notificationData.type || "flash_sale", data: notificationData });
   } else if (
     event.action === "view_product" ||
     notificationData.type === "back_in_stock"
   ) {
-    targetUrl = notificationData.url || "/products";
+    targetUrl = resolveNotificationTarget({ type: notificationData.type || "back_in_stock", data: notificationData });
   } else if (event.action === "close") {
     // Just close the notification
     return;
   } else if (notificationData.url) {
-    // Use URL from notification data
-    targetUrl = notificationData.url;
+    targetUrl = resolveNotificationTarget(notificationData);
   }
 
   // Open the target URL

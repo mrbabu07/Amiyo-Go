@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const { withResolvedNotificationLink } = require("../utils/notificationTargets");
 
 let bullQueue = null;
 let bullWorker = null;
@@ -110,7 +111,7 @@ const deliverInAppNotification = async (app, db, row) => {
     return { skipped: true, reason: "missing_user" };
   }
 
-  const payload = {
+  const payload = withResolvedNotificationLink({
     userId: notification.userId,
     type: notification.type,
     title: notification.title,
@@ -122,7 +123,7 @@ const deliverInAppNotification = async (app, db, row) => {
     vendorId: notification.vendorId || undefined,
     data: notification.data || {},
     eventId: row.eventId,
-  };
+  });
 
   const Notification = app?.locals?.models?.Notification;
   if (Notification?.create) {

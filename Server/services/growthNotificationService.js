@@ -1,3 +1,5 @@
+const { buildNotificationLink, withResolvedNotificationLink } = require("../utils/notificationTargets");
+
 const DEFAULT_TEMPLATES = {
   "cart.abandoned": {
     title: "Your cart is waiting",
@@ -7,27 +9,27 @@ const DEFAULT_TEMPLATES = {
   "wishlist.price_dropped": {
     title: "Price drop on your wishlist",
     body: "{{productName}} is now available at a better price.",
-    url: "/wishlist",
+    url: "/product/{{productId}}",
   },
   "product.back_in_stock": {
     title: "Back in stock",
     body: "{{productName}} is available again.",
-    url: "/wishlist",
+    url: "/product/{{productId}}",
   },
   "promotion.started": {
     title: "New deal is live",
     body: "{{promotionTitle}} has started.",
-    url: "/deals",
+    url: "/campaigns/{{campaignSlug}}",
   },
   "voucher.expiring": {
     title: "Voucher expiring soon",
     body: "Use {{code}} before it expires.",
-    url: "/deals",
+    url: "/cart?coupon={{code}}",
   },
   "vendor.followed.new_product": {
     title: "New product from {{vendorName}}",
     body: "{{productName}} was just added.",
-    url: "/account/vendor-feed",
+    url: "/product/{{productId}}",
   },
 };
 
@@ -87,7 +89,7 @@ const buildNotificationPayload = ({ eventName, channel = "in_app", template = {}
     url: "/",
   };
   const source = { ...fallback, ...template };
-  return {
+  const rendered = {
     eventName,
     channel,
     title: renderTemplate(source.title, payload),
@@ -95,6 +97,18 @@ const buildNotificationPayload = ({ eventName, channel = "in_app", template = {}
     url: renderTemplate(source.url || payload.url || "/", payload),
     data: payload,
   };
+  return withResolvedNotificationLink({
+    ...rendered,
+    type: eventName,
+    data: {
+      ...payload,
+      url: buildNotificationLink({
+        type: eventName,
+        url: rendered.url,
+        data: payload,
+      }),
+    },
+  });
 };
 
 class GrowthNotificationService {
@@ -163,17 +177,18 @@ class GrowthNotificationService {
       queued.push({ ...row, _id: result.insertedId });
 
       if (channel === "in_app" && recipient.userId) {
-        await db.collection("notifications").insertOne({
+        await db.collection("notifications").insertOne(withResolvedNotificationLink({
           userId: normalizeId(recipient.userId),
           type: eventName,
           title: notification.title,
           body: notification.body,
-          url: notification.url,
+          url: notification.url || notification.link,
+          link: notification.link || notification.url,
           data: notification.data,
           isRead: false,
           createdAt: new Date(),
           updatedAt: new Date(),
-        });
+        }));
       }
     }
 

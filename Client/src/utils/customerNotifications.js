@@ -27,12 +27,19 @@ const typeGroups = {
   back_in_stock: "wishlist",
 };
 
-export const getNotificationGroup = (notification = {}) =>
-  typeGroups[String(notification.type || "").toLowerCase()] || "system";
+export const getNotificationGroup = (notification = {}) => {
+  const normalized = String(notification.type || "").toLowerCase();
+  if (typeGroups[normalized]) return typeGroups[normalized];
+  if (normalized.includes("order") || normalized.includes("delivery") || normalized.includes("shipment") || normalized.includes("payment")) return "orders";
+  if (normalized.includes("return") || normalized.includes("refund")) return "returns";
+  if (normalized.includes("support") || normalized.includes("ticket")) return "support";
+  if (normalized.includes("voucher") || normalized.includes("promotion") || normalized.includes("promo") || normalized.includes("offer") || normalized.includes("campaign") || normalized.includes("flash")) return "promotions";
+  if (normalized.includes("wishlist") || normalized.includes("price_drop") || normalized.includes("back_in_stock") || normalized.includes("stock_alert")) return "wishlist";
+  return "system";
+};
 
 export const getNotificationMeta = (type = "system") => {
-  const normalized = String(type || "system").toLowerCase();
-  const group = typeGroups[normalized] || normalized;
+  const group = getNotificationGroup({ type });
 
   const meta = {
     orders: {

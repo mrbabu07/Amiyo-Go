@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useNotifications } from "../context/NotificationContext";
 import { useClickOutside } from "../hooks/useClickOutside";
 
 export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const navigate = useNavigate();
   const {
     notifications,
     unreadCount,
@@ -143,9 +144,24 @@ export default function NotificationBell() {
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
+                    role={notification.link ? "button" : undefined}
+                    tabIndex={notification.link ? 0 : undefined}
+                    onClick={() => {
+                      if (!notification.link) return;
+                      markAsRead(notification.id);
+                      setIsOpen(false);
+                      navigate(notification.link);
+                    }}
+                    onKeyDown={(event) => {
+                      if (!notification.link || !["Enter", " "].includes(event.key)) return;
+                      event.preventDefault();
+                      markAsRead(notification.id);
+                      setIsOpen(false);
+                      navigate(notification.link);
+                    }}
                     className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
                       !notification.read ? "bg-blue-50 dark:bg-blue-900/20" : ""
-                    }`}
+                    } ${notification.link ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500" : ""}`}
                   >
                     <div className="flex items-start gap-3">
                       <div
@@ -168,14 +184,20 @@ export default function NotificationBell() {
                           </span>
                           {!notification.read && (
                             <button
-                              onClick={() => markAsRead(notification.id)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                markAsRead(notification.id);
+                              }}
                               className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
                             >
                               Mark as read
                             </button>
                           )}
                           <button
-                            onClick={() => clearNotification(notification.id)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              clearNotification(notification.id);
+                            }}
                             className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium"
                           >
                             Remove
@@ -184,7 +206,8 @@ export default function NotificationBell() {
                         {notification.link && (
                           <Link
                             to={notification.link}
-                            onClick={() => {
+                            onClick={(event) => {
+                              event.stopPropagation();
                               markAsRead(notification.id);
                               setIsOpen(false);
                             }}

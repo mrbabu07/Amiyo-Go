@@ -1,5 +1,6 @@
 const webpush = require("web-push");
 const PushSubscription = require("../../models/PushSubscription");
+const { buildNotificationLink } = require("../../utils/notificationTargets");
 
 const hasValue = (value) => String(value || "").trim().length > 0;
 
@@ -39,6 +40,13 @@ async function sendPush(subscription, payload = {}) {
   }
 
   try {
+    const url = buildNotificationLink({
+      type: payload.type || payload.data?.type,
+      url: payload.url,
+      link: payload.link,
+      data: payload.data || {},
+    });
+
     await webpush.sendNotification(
       subscription,
       JSON.stringify({
@@ -47,7 +55,7 @@ async function sendPush(subscription, payload = {}) {
         icon: payload.icon || "/icons/icon-192x192.png",
         data: {
           ...(payload.data || {}),
-          url: payload.url || payload.data?.url || "/",
+          url,
         },
       }),
     );

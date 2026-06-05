@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import useCart from "../hooks/useCart";
 import useAuth from "../hooks/useAuth";
@@ -38,6 +38,7 @@ export default function Cart() {
   const { success, error } = useToast();
   const { formatPrice } = useCurrency();
   const navigate = useNavigate();
+  const location = useLocation();
   const [deliverySettings, setDeliverySettings] = useState(null);
   const [defaultAddress, setDefaultAddress] = useState(null);
   const [deliveryQuote, setDeliveryQuote] = useState(null);
@@ -53,6 +54,11 @@ export default function Cart() {
   });
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponMessage, setCouponMessage] = useState("");
+
+  useEffect(() => {
+    const code = new URLSearchParams(location.search).get("coupon");
+    if (code) setCouponCode(code.trim().toUpperCase());
+  }, [location.search]);
 
   useEffect(() => {
     const fetchDeliverySettings = async () => {
