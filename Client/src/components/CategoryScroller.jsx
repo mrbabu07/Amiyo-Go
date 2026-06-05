@@ -74,7 +74,7 @@ export default function CategoryScroller() {
 
   if (loading) {
     return (
-      <div className="bg-white py-8 border-b">
+      <div className="bg-white py-8 border-b dark:border-gray-800 dark:bg-gray-950">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-center">
             <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full"></div>
@@ -89,14 +89,14 @@ export default function CategoryScroller() {
   }
 
   return (
-    <div className="bg-gradient-to-r from-gray-50 to-white py-8 border-b border-gray-200">
+    <div className="bg-gradient-to-r from-gray-50 to-white py-8 border-b border-gray-200 dark:from-gray-950 dark:to-gray-900 dark:border-gray-800">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
               Shop by Category
             </h2>
-            <p className="text-gray-600 text-sm mt-1">
+            <p className="text-gray-600 text-sm mt-1 dark:text-gray-400">
               Discover products in your favorite categories
             </p>
           </div>
@@ -108,8 +108,8 @@ export default function CategoryScroller() {
               disabled={!canScrollLeft}
               className={`p-2 rounded-full border transition-all ${
                 canScrollLeft
-                  ? "border-gray-300 hover:border-primary-500 hover:bg-primary-50 text-gray-600 hover:text-primary-600"
-                  : "border-gray-200 text-gray-300 cursor-not-allowed"
+                  ? "border-gray-300 hover:border-primary-500 hover:bg-primary-50 text-gray-600 hover:text-primary-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-primary-400 dark:hover:bg-primary-900/30 dark:hover:text-primary-200"
+                  : "border-gray-200 text-gray-300 cursor-not-allowed dark:border-gray-800 dark:text-gray-600"
               }`}
             >
               <svg
@@ -131,8 +131,8 @@ export default function CategoryScroller() {
               disabled={!canScrollRight}
               className={`p-2 rounded-full border transition-all ${
                 canScrollRight
-                  ? "border-gray-300 hover:border-primary-500 hover:bg-primary-50 text-gray-600 hover:text-primary-600"
-                  : "border-gray-200 text-gray-300 cursor-not-allowed"
+                  ? "border-gray-300 hover:border-primary-500 hover:bg-primary-50 text-gray-600 hover:text-primary-600 dark:border-gray-700 dark:text-gray-300 dark:hover:border-primary-400 dark:hover:bg-primary-900/30 dark:hover:text-primary-200"
+                  : "border-gray-200 text-gray-300 cursor-not-allowed dark:border-gray-800 dark:text-gray-600"
               }`}
             >
               <svg
@@ -167,8 +167,8 @@ export default function CategoryScroller() {
               >
                 <div className="w-32 text-center">
                   {/* Category Icon/Image */}
-                  <div className="w-20 h-20 mx-auto mb-3 bg-gradient-to-br from-primary-100 via-primary-200 to-secondary-200 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-all duration-300 shadow-lg group-hover:shadow-xl">
-                    <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center">
+                  <div className="w-20 h-20 mx-auto mb-3 bg-gradient-to-br from-primary-100 via-primary-200 to-secondary-200 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-all duration-300 shadow-lg group-hover:shadow-xl dark:from-primary-900/70 dark:via-primary-800/50 dark:to-secondary-900/60">
+                    <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center dark:from-primary-400 dark:to-secondary-500">
                       <span className="text-2xl text-white font-bold">
                         {getCategoryIcon(category.name, index)}
                       </span>
@@ -176,7 +176,7 @@ export default function CategoryScroller() {
                   </div>
 
                   {/* Category Name */}
-                  <h3 className="font-semibold text-gray-900 text-sm group-hover:text-primary-600 transition-colors duration-200 truncate">
+                  <h3 className="font-semibold text-gray-900 text-sm group-hover:text-primary-600 transition-colors duration-200 truncate dark:text-gray-100 dark:group-hover:text-primary-300">
                     {category.name}
                   </h3>
 
@@ -189,9 +189,9 @@ export default function CategoryScroller() {
             {/* View All Categories Card */}
             <Link to="/categories" className="flex-shrink-0 group">
               <div className="w-32 text-center">
-                <div className="w-20 h-20 mx-auto mb-3 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-all duration-300 shadow-lg group-hover:shadow-xl border-2 border-dashed border-gray-300 group-hover:border-primary-400">
+                <div className="w-20 h-20 mx-auto mb-3 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-all duration-300 shadow-lg group-hover:shadow-xl border-2 border-dashed border-gray-300 group-hover:border-primary-400 dark:from-gray-800 dark:to-gray-700 dark:border-gray-600 dark:group-hover:border-primary-400">
                   <svg
-                    className="w-8 h-8 text-gray-400 group-hover:text-primary-500 transition-colors"
+                    className="w-8 h-8 text-gray-400 group-hover:text-primary-500 transition-colors dark:text-gray-300 dark:group-hover:text-primary-300"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -204,7 +204,7 @@ export default function CategoryScroller() {
                     />
                   </svg>
                 </div>
-                <h3 className="font-semibold text-gray-600 text-sm group-hover:text-primary-600 transition-colors duration-200">
+                <h3 className="font-semibold text-gray-600 text-sm group-hover:text-primary-600 transition-colors duration-200 dark:text-gray-300 dark:group-hover:text-primary-300">
                   View All
                 </h3>
                 <div className="mt-2 h-1 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
@@ -214,10 +214,10 @@ export default function CategoryScroller() {
 
           {/* Gradient Overlays for scroll indication */}
           {canScrollLeft && (
-            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-gray-50 to-transparent pointer-events-none"></div>
+            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-gray-50 to-transparent pointer-events-none dark:from-gray-950"></div>
           )}
           {canScrollRight && (
-            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none"></div>
+            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none dark:from-gray-950"></div>
           )}
         </div>
       </div>

@@ -11,19 +11,23 @@ export default function EmptyState({
   variant = "default",
 }) {
   const variants = {
-    default: "bg-gray-100",
-    cart: "bg-gradient-to-br from-primary-50 to-primary-100",
-    wishlist: "bg-gradient-to-br from-red-50 to-pink-100",
-    orders: "bg-gradient-to-br from-blue-50 to-indigo-100",
-    search: "bg-gradient-to-br from-amber-50 to-yellow-100",
+    default: "bg-gray-100 dark:bg-gray-800",
+    cart:
+      "bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900/60 dark:to-primary-800/40",
+    wishlist:
+      "bg-gradient-to-br from-red-50 to-pink-100 dark:from-red-900/50 dark:to-pink-900/40",
+    orders:
+      "bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/40",
+    search:
+      "bg-gradient-to-br from-amber-50 to-yellow-100 dark:from-amber-900/50 dark:to-yellow-900/40",
   };
 
   const iconColors = {
-    default: "text-gray-400",
-    cart: "text-primary-500",
-    wishlist: "text-red-400",
-    orders: "text-blue-400",
-    search: "text-amber-400",
+    default: "text-gray-400 dark:text-gray-300",
+    cart: "text-primary-500 dark:text-primary-300",
+    wishlist: "text-red-400 dark:text-red-300",
+    orders: "text-blue-400 dark:text-blue-300",
+    search: "text-amber-400 dark:text-amber-300",
   };
 
   return (
@@ -46,7 +50,7 @@ export default function EmptyState({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="text-2xl font-bold text-gray-900 mb-2"
+        className="text-2xl font-bold text-gray-900 mb-2 dark:text-white"
       >
         {title}
       </motion.h3>
@@ -55,7 +59,7 @@ export default function EmptyState({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="text-gray-600 mb-8 max-w-md leading-relaxed"
+        className="text-gray-600 mb-8 max-w-md leading-relaxed dark:text-gray-300"
       >
         {description}
       </motion.p>
@@ -69,7 +73,7 @@ export default function EmptyState({
           {actionLink ? (
             <Link
               to={actionLink}
-              className="bg-primary text-white px-8 py-3 rounded-lg font-semibold hover:bg-green-600 transition-all shadow-md hover:shadow-lg active:scale-95 inline-flex items-center gap-2"
+              className="bg-primary-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-primary-700 transition-all shadow-md hover:shadow-lg active:scale-95 inline-flex items-center gap-2 dark:bg-primary-500 dark:hover:bg-primary-400"
             >
               {actionText}
               <svg
@@ -89,7 +93,7 @@ export default function EmptyState({
           ) : (
             <button
               onClick={onAction}
-              className="bg-primary text-white px-8 py-3 rounded-lg font-semibold hover:bg-green-600 transition-all shadow-md hover:shadow-lg active:scale-95 inline-flex items-center gap-2"
+              className="bg-primary-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-primary-700 transition-all shadow-md hover:shadow-lg active:scale-95 inline-flex items-center gap-2 dark:bg-primary-500 dark:hover:bg-primary-400"
             >
               {actionText}
             </button>

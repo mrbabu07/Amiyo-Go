@@ -157,7 +157,7 @@ export function ConfirmModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
       <div className="space-y-4">
-        <p className="text-gray-600">{message}</p>
+        <p className="text-gray-600 dark:text-gray-300">{message}</p>
 
         <div className="flex gap-3 justify-end">
           <Button variant="ghost" onClick={onClose} disabled={loading}>
@@ -201,7 +201,7 @@ export function QuickViewModal({ isOpen, onClose, product }) {
     <Modal isOpen={isOpen} onClose={onClose} title="Quick View" size="lg">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Product Image */}
-        <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+        <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden dark:bg-gray-900">
           <img
             src={product.image || product.images?.[0]}
             alt={product.title}
@@ -211,24 +211,24 @@ export function QuickViewModal({ isOpen, onClose, product }) {
 
         {/* Product Info */}
         <div className="space-y-4">
-          <h3 className="text-2xl font-bold text-gray-900">{product.title}</h3>
+          <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{product.title}</h3>
 
-          <div className="text-3xl font-bold text-primary">
+          <div className="text-3xl font-bold text-primary-600 dark:text-primary-300">
             ৳{product.price?.toFixed(2)}
           </div>
 
           {product.description && (
-            <p className="text-gray-600">{product.description}</p>
+            <p className="text-gray-600 dark:text-gray-300">{product.description}</p>
           )}
 
           {product.sizes?.length > 0 && (
             <div>
-              <h4 className="font-semibold mb-2">Available Sizes:</h4>
+              <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">Available Sizes:</h4>
               <div className="flex gap-2">
                 {product.sizes.map((size) => (
                   <span
                     key={size}
-                    className="px-3 py-1 border border-gray-300 rounded-md text-sm"
+                    className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 dark:border-gray-700 dark:text-gray-200"
                   >
                     {size}
                   </span>
@@ -239,12 +239,12 @@ export function QuickViewModal({ isOpen, onClose, product }) {
 
           {product.colors?.length > 0 && (
             <div>
-              <h4 className="font-semibold mb-2">Available Colors:</h4>
+              <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">Available Colors:</h4>
               <div className="flex gap-2">
                 {product.colors.map((color) => (
                   <div
                     key={color.name}
-                    className="flex items-center gap-2 px-3 py-1 border border-gray-300 rounded-md text-sm"
+                    className="flex items-center gap-2 px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 dark:border-gray-700 dark:text-gray-200"
                   >
                     <div
                       className="w-4 h-4 rounded-full border"

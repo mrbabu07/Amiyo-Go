@@ -28,8 +28,8 @@ const Input = forwardRef(
       error
         ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-200"
         : focused
-          ? "border-primary focus:border-primary focus:ring-2 focus:ring-primary/20"
-          : "border-gray-200 hover:border-gray-300"
+          ? "border-primary-500 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+          : "border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600"
     }
     ${className}
   `.trim();
@@ -65,7 +65,7 @@ const Input = forwardRef(
           <motion.label
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="block text-sm font-medium text-gray-700 mb-2"
+            className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-200"
           >
             {label}
             {required && <span className="text-red-500 ml-1">*</span>}
@@ -74,7 +74,7 @@ const Input = forwardRef(
 
         <div className="relative">
           {leftIcon && (
-            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500">
               {leftIcon}
             </div>
           )}
@@ -96,12 +96,12 @@ const Input = forwardRef(
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  className="text-gray-400 hover:text-gray-600 transition-colors dark:text-gray-500 dark:hover:text-gray-300"
                 >
                   <EyeIcon show={!showPassword} />
                 </button>
               ) : (
-                <div className="text-gray-400">{rightIcon}</div>
+                <div className="text-gray-400 dark:text-gray-500">{rightIcon}</div>
               )}
             </div>
           )}
@@ -114,7 +114,7 @@ const Input = forwardRef(
             className="mt-2"
           >
             {error && (
-              <p className="text-sm text-red-600 flex items-center gap-1">
+              <p className="text-sm text-red-600 flex items-center gap-1 dark:text-red-300">
                 <svg
                   className="w-4 h-4"
                   fill="none"
@@ -132,7 +132,7 @@ const Input = forwardRef(
               </p>
             )}
             {helperText && !error && (
-              <p className="text-sm text-gray-500">{helperText}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{helperText}</p>
             )}
           </motion.div>
         )}
@@ -166,8 +166,8 @@ export const Textarea = forwardRef(
       error
         ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-200"
         : focused
-          ? "border-primary focus:border-primary focus:ring-2 focus:ring-primary/20"
-          : "border-gray-200 hover:border-gray-300"
+          ? "border-primary-500 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+          : "border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600"
     }
     ${className}
   `.trim();
@@ -175,7 +175,7 @@ export const Textarea = forwardRef(
     return (
       <div className={containerClassName}>
         {label && (
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-200">
             {label}
             {required && <span className="text-red-500 ml-1">*</span>}
           </label>
@@ -193,7 +193,7 @@ export const Textarea = forwardRef(
         {(error || helperText) && (
           <div className="mt-2">
             {error && (
-              <p className="text-sm text-red-600 flex items-center gap-1">
+              <p className="text-sm text-red-600 flex items-center gap-1 dark:text-red-300">
                 <svg
                   className="w-4 h-4"
                   fill="none"
@@ -211,7 +211,7 @@ export const Textarea = forwardRef(
               </p>
             )}
             {helperText && !error && (
-              <p className="text-sm text-gray-500">{helperText}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{helperText}</p>
             )}
           </div>
         )}
@@ -241,13 +241,13 @@ export const Select = forwardRef(
     const [focused, setFocused] = useState(false);
 
     const selectClasses = `
-    w-full px-4 py-3 border-2 rounded-lg transition-colors duration-200 focus:outline-none appearance-none bg-white
+    w-full px-4 py-3 border-2 rounded-lg transition-colors duration-200 focus:outline-none appearance-none bg-white dark:bg-gray-950 dark:text-gray-100
     ${
       error
         ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-200"
         : focused
-          ? "border-primary focus:border-primary focus:ring-2 focus:ring-primary/20"
-          : "border-gray-200 hover:border-gray-300"
+          ? "border-primary-500 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+          : "border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600"
     }
     ${className}
   `.trim();
@@ -255,7 +255,7 @@ export const Select = forwardRef(
     return (
       <div className={containerClassName}>
         {label && (
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-200">
             {label}
             {required && <span className="text-red-500 ml-1">*</span>}
           </label>
@@ -279,7 +279,7 @@ export const Select = forwardRef(
 
           <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
             <svg
-              className="w-5 h-5 text-gray-400"
+              className="w-5 h-5 text-gray-400 dark:text-gray-500"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -297,7 +297,7 @@ export const Select = forwardRef(
         {(error || helperText) && (
           <div className="mt-2">
             {error && (
-              <p className="text-sm text-red-600 flex items-center gap-1">
+              <p className="text-sm text-red-600 flex items-center gap-1 dark:text-red-300">
                 <svg
                   className="w-4 h-4"
                   fill="none"
@@ -315,7 +315,7 @@ export const Select = forwardRef(
               </p>
             )}
             {helperText && !error && (
-              <p className="text-sm text-gray-500">{helperText}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{helperText}</p>
             )}
           </div>
         )}

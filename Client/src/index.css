@@ -466,6 +466,89 @@
     border-color: rgb(51 65 85);
   }
 
+  .dark [class~="text-[#1A1A2E]"]:not([class*="dark:text-"]),
+  .dark [class~="text-[#1a1a2e]"]:not([class*="dark:text-"]),
+  .dark [class~="text-[#111827]"]:not([class*="dark:text-"]) {
+    color: rgb(248 250 252);
+  }
+
+  .dark [class~="text-[#4F4F4F]"]:not([class*="dark:text-"]),
+  .dark [class~="text-[#666666]"]:not([class*="dark:text-"]),
+  .dark [class~="text-[#6B7280]"]:not([class*="dark:text-"]) {
+    color: rgb(203 213 225);
+  }
+
+  .dark [class~="text-[#1a6387]"]:not([class*="dark:text-"]),
+  .dark [class~="text-[#1e7098]"]:not([class*="dark:text-"]),
+  .dark [class~="text-[#008A3D]"]:not([class*="dark:text-"]),
+  .dark [class~="text-[#007A38]"]:not([class*="dark:text-"]) {
+    color: rgb(186 230 253);
+  }
+
+  .dark [class~="text-[#F57224]"]:not([class*="dark:text-"]),
+  .dark [class~="text-[#f57224]"]:not([class*="dark:text-"]) {
+    color: rgb(253 186 116);
+  }
+
+  .dark [class~="bg-[#F5F5F5]"]:not([class*="dark:bg-"]),
+  .dark [class~="bg-[#EEEEEE]"]:not([class*="dark:bg-"]),
+  .dark [class~="bg-[#F7F8FA]"]:not([class*="dark:bg-"]),
+  .dark [class~="bg-[#eef8fb]"]:not([class*="dark:bg-"]),
+  .dark [class~="bg-[#f4fbfd]"]:not([class*="dark:bg-"]),
+  .dark [class~="bg-[#E9FFF3]"]:not([class*="dark:bg-"]) {
+    background-color: rgb(15 23 42);
+  }
+
+  .dark [class~="border-[#E0E0E0]"]:not([class*="dark:border-"]),
+  .dark [class~="border-[#DDE3EA]"]:not([class*="dark:border-"]) {
+    border-color: rgb(51 65 85);
+  }
+
+  .dark [class~="from-gray-50"]:not([class*="dark:from-"]),
+  .dark [class~="from-slate-50"]:not([class*="dark:from-"]) {
+    --tw-gradient-from: rgb(15 23 42) var(--tw-gradient-from-position);
+    --tw-gradient-to: rgb(15 23 42 / 0) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+
+  .dark [class~="to-white"]:not([class*="dark:to-"]),
+  .dark [class~="to-gray-50"]:not([class*="dark:to-"]),
+  .dark [class~="to-slate-50"]:not([class*="dark:to-"]) {
+    --tw-gradient-to: rgb(30 41 59) var(--tw-gradient-to-position);
+  }
+
+  .dark [class~="hover:bg-white"]:hover:not([class*="dark:hover:bg-"]),
+  .dark [class~="hover:bg-white/80"]:hover:not([class*="dark:hover:bg-"]),
+  .dark [class~="hover:bg-gray-50"]:hover:not([class*="dark:hover:bg-"]),
+  .dark [class~="hover:bg-gray-100"]:hover:not([class*="dark:hover:bg-"]),
+  .dark [class~="hover:bg-slate-50"]:hover:not([class*="dark:hover:bg-"]),
+  .dark [class~="hover:bg-slate-100"]:hover:not([class*="dark:hover:bg-"]) {
+    background-color: rgb(30 41 59);
+  }
+
+  .dark [class~="hover:bg-primary-50"]:hover:not([class*="dark:hover:bg-"]),
+  .dark [class~="focus:bg-primary-50"]:focus:not([class*="dark:focus:bg-"]) {
+    background-color: rgb(20 56 77 / 0.45);
+  }
+
+  .dark [class~="hover:text-gray-700"]:hover:not([class*="dark:hover:text-"]),
+  .dark [class~="hover:text-gray-800"]:hover:not([class*="dark:hover:text-"]),
+  .dark [class~="hover:text-gray-900"]:hover:not([class*="dark:hover:text-"]),
+  .dark [class~="hover:text-slate-700"]:hover:not([class*="dark:hover:text-"]),
+  .dark [class~="hover:text-slate-800"]:hover:not([class*="dark:hover:text-"]),
+  .dark [class~="hover:text-slate-900"]:hover:not([class*="dark:hover:text-"]) {
+    color: rgb(248 250 252);
+  }
+
+  .dark [class~="hover:text-primary-500"]:hover:not([class*="dark:hover:text-"]),
+  .dark [class~="hover:text-primary-600"]:hover:not([class*="dark:hover:text-"]),
+  .dark [class~="hover:text-primary-700"]:hover:not([class*="dark:hover:text-"]),
+  .dark .group:hover [class~="group-hover:text-primary-500"]:not([class*="dark:group-hover:text-"]),
+  .dark .group:hover [class~="group-hover:text-primary-600"]:not([class*="dark:group-hover:text-"]),
+  .dark .group:hover [class~="group-hover:text-primary-700"]:not([class*="dark:group-hover:text-"]) {
+    color: rgb(186 230 253);
+  }
+
   .text-balance {
     text-wrap: balance;
   }
