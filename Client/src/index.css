@@ -412,6 +412,60 @@
 }
 
 @layer utilities {
+  /*
+    Theme safety net: older pages still contain many light-only Tailwind color
+    utilities. These exact-token fallbacks only apply when a component has not
+    provided its own dark:* override, keeping dark mode readable across the app.
+  */
+  .dark [class~="text-gray-950"]:not([class*="dark:text-"]),
+  .dark [class~="text-slate-950"]:not([class*="dark:text-"]),
+  .dark [class~="text-gray-900"]:not([class*="dark:text-"]),
+  .dark [class~="text-slate-900"]:not([class*="dark:text-"]) {
+    color: rgb(248 250 252);
+  }
+
+  .dark [class~="text-gray-800"]:not([class*="dark:text-"]),
+  .dark [class~="text-slate-800"]:not([class*="dark:text-"]),
+  .dark [class~="text-gray-700"]:not([class*="dark:text-"]),
+  .dark [class~="text-slate-700"]:not([class*="dark:text-"]) {
+    color: rgb(226 232 240);
+  }
+
+  .dark [class~="text-gray-600"]:not([class*="dark:text-"]),
+  .dark [class~="text-slate-600"]:not([class*="dark:text-"]),
+  .dark [class~="text-gray-500"]:not([class*="dark:text-"]),
+  .dark [class~="text-slate-500"]:not([class*="dark:text-"]) {
+    color: rgb(148 163 184);
+  }
+
+  .dark [class~="bg-white"]:not([class*="dark:bg-"]),
+  .dark [class~="bg-white/95"]:not([class*="dark:bg-"]),
+  .dark [class~="bg-white/90"]:not([class*="dark:bg-"]),
+  .dark [class~="bg-white/80"]:not([class*="dark:bg-"]),
+  .dark [class~="bg-gray-50"]:not([class*="dark:bg-"]),
+  .dark [class~="bg-slate-50"]:not([class*="dark:bg-"]) {
+    background-color: rgb(15 23 42);
+  }
+
+  .dark [class~="bg-gray-100"]:not([class*="dark:bg-"]),
+  .dark [class~="bg-slate-100"]:not([class*="dark:bg-"]) {
+    background-color: rgb(30 41 59);
+  }
+
+  .dark [class~="border-gray-100"]:not([class*="dark:border-"]),
+  .dark [class~="border-slate-100"]:not([class*="dark:border-"]),
+  .dark [class~="border-gray-200"]:not([class*="dark:border-"]),
+  .dark [class~="border-slate-200"]:not([class*="dark:border-"]),
+  .dark [class~="border-gray-300"]:not([class*="dark:border-"]),
+  .dark [class~="border-slate-300"]:not([class*="dark:border-"]) {
+    border-color: rgb(51 65 85);
+  }
+
+  .dark [class~="divide-gray-200"]:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]),
+  .dark [class~="divide-slate-200"]:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]) {
+    border-color: rgb(51 65 85);
+  }
+
   .text-balance {
     text-wrap: balance;
   }
