@@ -19,6 +19,7 @@ const idempotentMutations = [
   { method: "post", pattern: /^\/payments\/[^/]+\/refund$/ },
   { method: "post", pattern: /^\/returns$/ },
   { method: "post", pattern: /^\/returns\/[^/]+\/refund$/ },
+  { method: "post", pattern: /^\/returns\/vendor\/[^/]+\/confirm-received$/ },
   { method: "patch", pattern: /^\/admin\/finance\/refunds\/[^/]+\/review$/ },
   { method: "post", pattern: /^\/vendors\/finance\/request-payout$/ },
   { method: "post", pattern: /^\/admin\/payouts\/(bulk|vendor\/[^/]+)$/ },
@@ -316,6 +317,8 @@ export const getPendingVendorResponse = () =>
   api.get("/returns/vendor/pending-response");
 export const vendorRespondToReturn = (id, data) =>
   api.post(`/returns/vendor/${id}/respond`, data);
+export const confirmVendorReturnReceived = (id, data) =>
+  api.post(`/returns/vendor/${id}/confirm-received`, data);
 
 // Payments
 export const processPayment = (data) => api.post("/payments/process", data);

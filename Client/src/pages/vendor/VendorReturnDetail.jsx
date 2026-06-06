@@ -10,6 +10,7 @@ import {
   FileText,
   ImageIcon,
   MessageSquare,
+  PackageCheck,
   PackageOpen,
   RefreshCw,
   ShieldCheck,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
+  confirmVendorReturnReceived,
   getVendorReturnById,
   uploadImages,
   vendorRespondToReturn,
@@ -27,6 +29,7 @@ import { useCurrency } from "../../hooks/useCurrency";
 import useAuth from "../../hooks/useAuth";
 import {
   buildVendorReturnTimeline,
+  canVendorConfirmReceipt,
   canVendorRespond,
   getReasonLabel,
   getVendorReturnEvidence,
@@ -177,6 +180,10 @@ export default function VendorReturnDetail() {
   const [files, setFiles] = useState([]);
   const [previews, setPreviews] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [receiptCondition, setReceiptCondition] = useState("received");
+  const [receiptNotes, setReceiptNotes] = useState("");
+  const [receiptQuantity, setReceiptQuantity] = useState("");
+  const [confirmingReceipt, setConfirmingReceipt] = useState(false);
 
   const loadReturn = useCallback(async () => {
     try {
@@ -203,6 +210,12 @@ export default function VendorReturnDetail() {
   const evidence = useMemo(() => getVendorReturnEvidence(returnItem || {}), [returnItem]);
   const timeline = useMemo(() => buildVendorReturnTimeline(returnItem || {}), [returnItem]);
   const canRespond = canManageReturns && canVendorRespond(returnItem || {});
+  const canConfirmReceipt = canManageReturns && canVendorConfirmReceipt(returnItem || {});
+  const receiptConfirmed = Boolean(
+    returnItem?.vendorReceiptConfirmed ||
+      returnItem?.itemReceivedAt ||
+      returnItem?.vendorReceivedAt,
+  );
   const selectedAction = actionOptions.find((item) => item.value === action) || actionOptions[0];
   const SelectedActionIcon = selectedAction.icon;
   const needsReason = ["disputed", "rejected"].includes(action);
@@ -280,6 +293,34 @@ export default function VendorReturnDetail() {
       toast.error(err.response?.data?.error || "Failed to submit response");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const confirmReceipt = async () => {
+    if (!returnItem) return;
+    if (!canManageReturns) {
+      toast.error("Your staff access can view returns, but cannot confirm receipt.");
+      return;
+    }
+
+    try {
+      setConfirmingReceipt(true);
+      await confirmVendorReturnReceived(returnItem._id, {
+        condition: receiptCondition,
+        notes: receiptNotes.trim() || null,
+        receivedQuantity: receiptQuantity ? Number(receiptQuantity) : undefined,
+      });
+
+      toast.success("Returned product receipt confirmed");
+      setReceiptCondition("received");
+      setReceiptNotes("");
+      setReceiptQuantity("");
+      await loadReturn();
+    } catch (err) {
+      console.error("Error confirming return receipt:", err);
+      toast.error(err.response?.data?.error || "Failed to confirm receipt");
+    } finally {
+      setConfirmingReceipt(false);
     }
   };
 
@@ -580,6 +621,118 @@ export default function VendorReturnDetail() {
                     <div className="mt-3 rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900">
                       <span className="font-semibold">Reason:</span> {returnItem.disputeReason}
                     </div>
+                  )}
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-950">Returned product receipt</h2>
+                  <p className="text-sm text-slate-500">
+                    {receiptConfirmed
+                      ? "Receipt is confirmed for this return."
+                      : canConfirmReceipt
+                        ? "Confirm once the returned item reaches your shop."
+                        : "Receipt confirmation is available after approval."}
+                  </p>
+                </div>
+                <PackageCheck className="h-5 w-5 text-slate-400" aria-hidden="true" />
+              </div>
+
+              {canConfirmReceipt ? (
+                <div className="space-y-4">
+                  <label className="block">
+                    <span className="text-sm font-semibold text-slate-700">Received condition</span>
+                    <select
+                      value={receiptCondition}
+                      onChange={(event) => setReceiptCondition(event.target.value)}
+                      className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                    >
+                      <option value="received">Received</option>
+                      <option value="good">Good condition</option>
+                      <option value="damaged">Damaged on return</option>
+                      <option value="mismatch">Item mismatch</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-semibold text-slate-700">Received quantity</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={receiptQuantity}
+                      onChange={(event) => setReceiptQuantity(event.target.value)}
+                      placeholder={String(financials.quantity || 1)}
+                      className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-semibold text-slate-700">Receipt notes</span>
+                    <textarea
+                      value={receiptNotes}
+                      onChange={(event) => setReceiptNotes(event.target.value)}
+                      rows={3}
+                      className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                      placeholder="Add package condition, missing parts, or mismatch details."
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={confirmReceipt}
+                    disabled={confirmingReceipt}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-success-600 px-4 py-3 text-sm font-semibold text-white hover:bg-success-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {confirmingReceipt ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        Confirming
+                      </>
+                    ) : (
+                      <>
+                        <PackageCheck className="h-4 w-4" aria-hidden="true" />
+                        Confirm item received
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  {receiptConfirmed ? (
+                    <>
+                      <p className="text-sm font-semibold text-slate-900">Vendor receipt confirmed</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {formatDate(returnItem.itemReceivedAt || returnItem.vendorReceivedAt)}
+                      </p>
+                      <dl className="mt-3 space-y-2 text-sm">
+                        <div className="flex justify-between gap-4">
+                          <dt className="text-slate-500">Condition</dt>
+                          <dd className="font-medium text-slate-900">
+                            {String(returnItem.vendorReceivedCondition || "received").replace(/_/g, " ")}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <dt className="text-slate-500">Quantity</dt>
+                          <dd className="font-medium text-slate-900">
+                            {returnItem.vendorReceivedQuantity || financials.quantity}
+                          </dd>
+                        </div>
+                      </dl>
+                      {returnItem.vendorReceivedNotes && (
+                        <p className="mt-3 whitespace-pre-line text-sm text-slate-700">
+                          {returnItem.vendorReceivedNotes}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-slate-600">
+                      {canManageReturns
+                        ? "Approve the return first, then confirm once the reverse item is received."
+                        : "Your staff role can review receipt status, but cannot confirm it."}
+                    </p>
                   )}
                 </div>
               )}

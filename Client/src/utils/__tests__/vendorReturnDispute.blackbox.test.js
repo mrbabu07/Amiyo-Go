@@ -1,5 +1,6 @@
 import { describe, expect, test } from "@jest/globals";
 import {
+  canVendorConfirmReceipt,
   canVendorRespond,
   getReasonLabel,
   getVendorReturnEvidence,
@@ -17,6 +18,21 @@ describe("vendor return dispute black-box behavior", () => {
       nextAction: "Respond with approval, rejection, or evidence",
     });
     expect(canVendorRespond({ status: "pending", vendorResponse: null })).toBe(true);
+  });
+
+  test("shows approved returns as ready for vendor receipt confirmation", () => {
+    expect(canVendorConfirmReceipt({ status: "approved", vendorResponse: "approved" })).toBe(true);
+
+    const status = getVendorReturnStatusMeta({
+      status: "processing",
+      itemReceivedAt: "2026-05-04T08:00:00.000Z",
+    });
+
+    expect(status).toMatchObject({
+      key: "item_received",
+      label: "Item received",
+      nextAction: "Admin can inspect and process the refund",
+    });
   });
 
   test("summarizes seller financial impact for an approved return", () => {

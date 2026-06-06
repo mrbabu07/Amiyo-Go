@@ -109,6 +109,54 @@ describe("Return model vendor responses", () => {
     );
   });
 
+  test("confirmVendorReceipt marks approved returns as received by the vendor", async () => {
+    const vendorId = "64f000000000000000000033";
+    const returnId = "64f000000000000000000034";
+    const { model, collection } = buildReturnModel({
+      existingReturn: {
+        _id: new ObjectId(returnId),
+        vendorId: new ObjectId(vendorId),
+        status: "approved",
+        quantity: 2,
+        vendorResponse: "approved",
+      },
+    });
+
+    const result = await model.confirmVendorReceipt(returnId, vendorId, {
+      condition: "good",
+      notes: "Package sealed",
+    });
+
+    expect(result).toMatchObject({
+      confirmed: true,
+      status: "processing",
+      itemReceivedAt: expect.any(Date),
+    });
+    expect(collection.updateOne).toHaveBeenCalledWith(
+      { _id: new ObjectId(returnId) },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          status: "processing",
+          vendorReceiptConfirmed: true,
+          itemReceivedAt: expect.any(Date),
+          vendorReceivedAt: expect.any(Date),
+          vendorReceivedBy: vendorId,
+          vendorReceivedCondition: "good",
+          vendorReceivedNotes: "Package sealed",
+          vendorReceivedQuantity: 2,
+        }),
+        $push: {
+          timeline: expect.objectContaining({
+            status: "item_received",
+            label: "Returned item received by vendor",
+            actorRole: "vendor",
+            note: "Package sealed",
+          }),
+        },
+      }),
+    );
+  });
+
   test("updateStatus derives vendor deduction when completed returns have no stored earning", async () => {
     const returnId = "64f000000000000000000024";
     const { model, collection } = buildReturnModel({

@@ -507,6 +507,82 @@ class Return {
   }
 
   /**
+   * Confirm the returned item has physically reached the vendor.
+   */
+  async confirmVendorReceipt(returnId, vendorId, receipt = {}) {
+    const returnDoc = await this.findById(returnId);
+    if (!returnDoc) {
+      throw new Error('Return not found');
+    }
+
+    if (!returnDoc.vendorId || returnDoc.vendorId.toString() !== vendorId.toString()) {
+      throw new Error('This return does not belong to your products');
+    }
+
+    const currentStatus = String(returnDoc.status || '').toLowerCase();
+    if (['rejected', 'completed', 'refunded', 'cancelled'].includes(currentStatus)) {
+      throw new Error('Cannot confirm receipt for a closed return');
+    }
+
+    if (!['approved', 'processing'].includes(currentStatus)) {
+      throw new Error('Return must be approved before vendor receipt can be confirmed');
+    }
+
+    if (
+      returnDoc.vendorReceiptConfirmed ||
+      returnDoc.itemReceivedAt ||
+      returnDoc.vendorReceivedAt
+    ) {
+      throw new Error('Returned product has already been received by vendor');
+    }
+
+    const now = new Date();
+    const receivedQuantity =
+      receipt.receivedQuantity === undefined ||
+      receipt.receivedQuantity === null ||
+      receipt.receivedQuantity === ''
+        ? returnDoc.quantity || 1
+        : Number(receipt.receivedQuantity);
+
+    const updateData = {
+      status: 'processing',
+      vendorReceiptConfirmed: true,
+      itemReceivedAt: now,
+      vendorReceivedAt: now,
+      vendorReceivedBy: vendorId.toString(),
+      vendorReceivedCondition: receipt.condition || 'received',
+      vendorReceivedNotes: receipt.notes || null,
+      updatedAt: now,
+    };
+
+    if (Number.isFinite(receivedQuantity) && receivedQuantity > 0) {
+      updateData.vendorReceivedQuantity = receivedQuantity;
+    }
+
+    await this.collection.updateOne(
+      { _id: new ObjectId(returnId) },
+      {
+        $set: updateData,
+        $push: {
+          timeline: {
+            status: 'item_received',
+            label: 'Returned item received by vendor',
+            at: now,
+            actorRole: 'vendor',
+            note: receipt.notes || receipt.condition || '',
+          },
+        },
+      }
+    );
+
+    return {
+      confirmed: true,
+      status: 'processing',
+      itemReceivedAt: now,
+    };
+  }
+
+  /**
    * Get returns pending vendor response
    */
   async getPendingVendorResponse(vendorId) {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "@jest/globals";
 import {
   buildVendorReturnTimeline,
+  canVendorConfirmReceipt,
   canVendorRespond,
   getVendorReturnEvidence,
   getVendorReturnFinancials,
@@ -12,6 +13,7 @@ describe("vendor return dispute white-box behavior", () => {
     expect(normalizeVendorReturnStatus({ status: "pending" })).toBe("needs_response");
     expect(normalizeVendorReturnStatus({ status: "pending", vendorResponse: "disputed" })).toBe("disputed");
     expect(normalizeVendorReturnStatus({ status: "pending", vendorResponse: "rejected" })).toBe("rejected");
+    expect(normalizeVendorReturnStatus({ status: "processing", itemReceivedAt: "2026-05-04" })).toBe("item_received");
     expect(normalizeVendorReturnStatus({ status: "Refunded" })).toBe("refunded");
   });
 
@@ -19,6 +21,14 @@ describe("vendor return dispute white-box behavior", () => {
     expect(canVendorRespond({ status: "submitted" })).toBe(true);
     expect(canVendorRespond({ status: "approved" })).toBe(false);
     expect(canVendorRespond({ status: "pending", vendorResponse: "disputed" })).toBe(false);
+  });
+
+  test("allows vendor receipt confirmation only after approval", () => {
+    expect(canVendorConfirmReceipt({ status: "approved", vendorResponse: "approved" })).toBe(true);
+    expect(canVendorConfirmReceipt({ status: "processing", vendorResponse: "approved" })).toBe(true);
+    expect(canVendorConfirmReceipt({ status: "pending" })).toBe(false);
+    expect(canVendorConfirmReceipt({ status: "approved", itemReceivedAt: "2026-05-04" })).toBe(false);
+    expect(canVendorConfirmReceipt({ status: "approved", vendorResponse: "rejected" })).toBe(false);
   });
 
   test("falls back to product price and vendor earning when amounts are missing", () => {
@@ -56,6 +66,8 @@ describe("vendor return dispute white-box behavior", () => {
       vendorResponseDate: "2026-05-02T08:00:00.000Z",
       vendorResponseNotes: "Item was sealed during handover.",
       approvedAt: "2026-05-03T08:00:00.000Z",
+      itemReceivedAt: "2026-05-04T08:00:00.000Z",
+      vendorReceivedNotes: "Received sealed package.",
       timeline: [
         {
           status: "submitted",
@@ -69,6 +81,7 @@ describe("vendor return dispute white-box behavior", () => {
       "Return submitted",
       "Vendor disputed return",
       "Return approved",
+      "Returned item received by vendor",
     ]);
     expect(timeline[1]).toMatchObject({
       type: "disputed",

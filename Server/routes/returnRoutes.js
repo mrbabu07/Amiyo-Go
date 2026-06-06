@@ -15,6 +15,7 @@ const {
   getVendorReturnById,
   getVendorReturnStats,
   vendorRespondToReturn,
+  confirmVendorReturnReceived,
   getPendingVendorResponse,
 } = require("../controllers/returnController");
 
@@ -24,6 +25,10 @@ const createReturnIdempotency = idempotencyMiddleware({
 });
 const returnRefundIdempotency = idempotencyMiddleware({
   scope: "returns:refund",
+  required: true,
+});
+const vendorReturnReceiptIdempotency = idempotencyMiddleware({
+  scope: "returns:vendor-receipt",
   required: true,
 });
 
@@ -65,6 +70,13 @@ router.post(
   requireApprovedVendor,
   requireVendorPermission("returns:manage"),
   vendorRespondToReturn,
+);
+router.post(
+  "/vendor/:id/confirm-received",
+  requireApprovedVendor,
+  requireVendorPermission("returns:manage"),
+  vendorReturnReceiptIdempotency,
+  confirmVendorReturnReceived,
 );
 
 // Admin routes

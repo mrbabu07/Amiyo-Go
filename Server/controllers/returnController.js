@@ -556,6 +556,60 @@ const vendorRespondToReturn = async (req, res) => {
 };
 
 /**
+ * Vendor confirms they received the returned product.
+ */
+const confirmVendorReturnReceived = async (req, res) => {
+  try {
+    const Return = req.app.locals.models.Return;
+    const { id } = req.params;
+    const { condition, notes, receivedQuantity } = req.body || {};
+    const vendorId = req.user.vendorId;
+
+    if (!vendorId) {
+      return res.status(403).json({
+        success: false,
+        error: "Vendor access required",
+      });
+    }
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid return ID",
+      });
+    }
+
+    if (
+      receivedQuantity !== undefined &&
+      receivedQuantity !== null &&
+      receivedQuantity !== "" &&
+      (!Number.isFinite(Number(receivedQuantity)) || Number(receivedQuantity) <= 0)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Received quantity must be a positive number",
+      });
+    }
+
+    const result = await Return.confirmVendorReceipt(id, vendorId, {
+      condition,
+      notes,
+      receivedQuantity,
+    });
+
+    res.json({
+      success: true,
+      message: "Returned product receipt confirmed",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Error confirming vendor return receipt:", error);
+    const notFound = error.message === "Return not found";
+    res.status(notFound ? 404 : 400).json({ success: false, error: error.message });
+  }
+};
+
+/**
  * Get returns pending vendor response
  */
 const getPendingVendorResponse = async (req, res) => {
@@ -595,5 +649,6 @@ module.exports = {
   getVendorReturnById,
   getVendorReturnStats,
   vendorRespondToReturn,
+  confirmVendorReturnReceived,
   getPendingVendorResponse,
 };

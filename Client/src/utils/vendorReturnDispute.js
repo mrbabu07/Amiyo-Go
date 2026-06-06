@@ -29,6 +29,11 @@ const statusMeta = {
     tone: "border-secondary-200 bg-secondary-50 text-secondary-700",
     nextAction: "Return is being processed",
   },
+  item_received: {
+    label: "Item received",
+    tone: "border-success-200 bg-success-50 text-success-700",
+    nextAction: "Admin can inspect and process the refund",
+  },
   completed: {
     label: "Completed",
     tone: "border-success-200 bg-success-50 text-success-700",
@@ -56,10 +61,16 @@ const toNumber = (value, fallback = 0) => {
 export const normalizeVendorReturnStatus = (returnItem = {}) => {
   const status = cleanKey(returnItem.status, "pending");
   const vendorResponse = cleanKey(returnItem.vendorResponse);
+  const receiptConfirmed = Boolean(
+    returnItem.vendorReceiptConfirmed ||
+      returnItem.itemReceivedAt ||
+      returnItem.vendorReceivedAt,
+  );
 
   if (status === "pending" && !vendorResponse) return "needs_response";
   if (status === "pending" && vendorResponse === "disputed") return "disputed";
   if (vendorResponse === "rejected") return "rejected";
+  if (["approved", "processing"].includes(status) && receiptConfirmed) return "item_received";
   return status || "pending";
 };
 
@@ -78,6 +89,22 @@ export const getVendorReturnStatusMeta = (returnItem = {}) => {
 export const canVendorRespond = (returnItem = {}) =>
   ["pending", "requested", "submitted"].includes(cleanKey(returnItem.status, "pending")) &&
   !returnItem.vendorResponse;
+
+export const canVendorConfirmReceipt = (returnItem = {}) => {
+  const status = cleanKey(returnItem.status, "pending");
+  const vendorResponse = cleanKey(returnItem.vendorResponse);
+  const receiptConfirmed = Boolean(
+    returnItem.vendorReceiptConfirmed ||
+      returnItem.itemReceivedAt ||
+      returnItem.vendorReceivedAt,
+  );
+
+  return (
+    ["approved", "processing"].includes(status) &&
+    !["disputed", "rejected"].includes(vendorResponse) &&
+    !receiptConfirmed
+  );
+};
 
 export const getReasonLabel = (reason) => {
   const labels = {
@@ -100,7 +127,7 @@ export const getVendorReturnFinancials = (returnItem = {}) => {
   const vendorEarningAmount = toNumber(returnItem.vendorEarningAmount);
   const adminCommissionAmount = toNumber(returnItem.adminCommissionAmount);
   const status = normalizeVendorReturnStatus(returnItem);
-  const approvedLike = ["approved", "processing", "completed", "refunded"].includes(status);
+  const approvedLike = ["approved", "processing", "item_received", "completed", "refunded"].includes(status);
   const vendorDeduction = toNumber(
     returnItem.vendorDeduction,
     approvedLike ? vendorEarningAmount : 0,
@@ -194,6 +221,7 @@ const eventLabel = (event = {}) => {
     under_review: "Vendor disputed return",
     disputed: "Vendor disputed return",
     approved: "Return approved",
+    item_received: "Returned item received by vendor",
     rejected: "Return rejected",
     processing: "Return processing",
     completed: "Return completed",
@@ -230,6 +258,14 @@ export const buildVendorReturnTimeline = (returnItem = {}) => {
     "vendor",
   );
   pushEvent(events, "approved", "Return approved", returnItem.approvedAt, returnItem.adminNotes, "admin");
+  pushEvent(
+    events,
+    "item_received",
+    "Returned item received by vendor",
+    returnItem.itemReceivedAt || returnItem.vendorReceivedAt,
+    returnItem.vendorReceivedNotes || returnItem.vendorReceivedCondition || "",
+    "vendor",
+  );
   pushEvent(events, "rejected", "Return rejected", returnItem.rejectedAt, returnItem.adminNotes, "admin");
   pushEvent(
     events,

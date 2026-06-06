@@ -29,6 +29,7 @@ import {
   vendorRespondToReturn,
 } from "../../services/api";
 import {
+  canVendorConfirmReceipt,
   canVendorRespond,
   getReasonLabel,
   getVendorReturnEvidence,
@@ -117,6 +118,20 @@ const getReturnNextStep = (returnItem) => {
       label: "Vendor response due",
       detail: "Review the customer claim and approve, reject, or dispute with evidence.",
       className: "border-primary-200 bg-primary-50 text-primary-700",
+    };
+  }
+  if (canVendorConfirmReceipt(returnItem)) {
+    return {
+      label: "Confirm receipt",
+      detail: "Mark the returned item received when it reaches your shop.",
+      className: "border-success-200 bg-success-50 text-success-700",
+    };
+  }
+  if (status.key === "item_received") {
+    return {
+      label: "Receipt confirmed",
+      detail: "Admin can inspect and process the refund.",
+      className: "border-success-200 bg-success-50 text-success-700",
     };
   }
   if (status.key === "disputed" || (status.key === "pending" && returnItem.vendorResponse)) {
@@ -243,6 +258,7 @@ export default function VendorReturns() {
         if (statusFilter === "all") return true;
         if (statusFilter === "needs_response") return canVendorRespond(returnItem);
         if (statusFilter === "pending") return meta.key === "pending" || meta.key === "disputed";
+        if (statusFilter === "processing") return ["processing", "item_received"].includes(meta.key);
         if (statusFilter === "completed") return ["completed", "refunded"].includes(meta.key);
         return meta.key === statusFilter;
       })
