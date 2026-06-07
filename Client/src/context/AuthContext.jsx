@@ -70,36 +70,48 @@ const AuthProvider = ({ children }) => {
     return signOut(auth);
   };
 
+  const refreshUserData = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      resetAuthMetadata();
+      return null;
+    }
+
+    const response = await getCurrentUser();
+    const tokenResult = await currentUser.getIdTokenResult().catch(() => null);
+    const userData = response.data?.data || null;
+    const claims = tokenResult?.claims || {};
+    const userRole = userData?.role || claims.role || null;
+
+    setJwtClaims(claims);
+    setDbUser(userData);
+    setIsAdmin(userRole === "admin");
+    setIsAdminStaff(ADMIN_ROLES.includes(userRole));
+
+    if (["vendor", "vendor_staff"].includes(userRole)) {
+      try {
+        const vendorResponse = await getMyVendorProfile();
+        setVendorProfile(vendorResponse.data?.vendor || null);
+      } catch (vendorError) {
+        if (vendorError.response?.status !== 404) {
+          console.error("Failed to fetch vendor profile:", vendorError);
+        }
+        setVendorProfile(null);
+      }
+    } else {
+      setVendorProfile(null);
+    }
+
+    return userData;
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
 
       if (currentUser) {
         try {
-          const response = await getCurrentUser();
-          const tokenResult = await currentUser.getIdTokenResult().catch(() => null);
-          const userData = response.data?.data || null;
-          const claims = tokenResult?.claims || {};
-          const userRole = userData?.role || claims.role || null;
-
-          setJwtClaims(claims);
-          setDbUser(userData);
-          setIsAdmin(userRole === "admin");
-          setIsAdminStaff(ADMIN_ROLES.includes(userRole));
-
-          if (["vendor", "vendor_staff"].includes(userRole)) {
-            try {
-              const vendorResponse = await getMyVendorProfile();
-              setVendorProfile(vendorResponse.data?.vendor || null);
-            } catch (vendorError) {
-              if (vendorError.response?.status !== 404) {
-                console.error("Failed to fetch vendor profile:", vendorError);
-              }
-              setVendorProfile(null);
-            }
-          } else {
-            setVendorProfile(null);
-          }
+          await refreshUserData();
         } catch (error) {
           console.error("Failed to fetch user data:", error);
           resetAuthMetadata();
@@ -129,6 +141,7 @@ const AuthProvider = ({ children }) => {
     signIn,
     googleLogin,
     logOut,
+    refreshUserData,
   };
 
   return (

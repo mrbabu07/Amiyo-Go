@@ -13,6 +13,7 @@ import ToastContainer from "./components/Toast";
 import GlobalLoading from "./components/GlobalLoading";
 import MobileOptimized from "./components/MobileOptimized";
 import LanguagePreferenceSync from "./components/LanguagePreferenceSync";
+import TermsAcceptancePrompt from "./components/TermsAcceptancePrompt";
 import { ErrorBoundary } from "./components/ui/feedback";
 import router from "./routes/Routes";
 
@@ -31,6 +32,7 @@ function App() {
                       <ErrorBoundary>
                         <RouterProvider router={router} />
                       </ErrorBoundary>
+                      <TermsAcceptancePrompt />
                     </PlatformConfigProvider>
                     <OfferPopup />
                     <ToastContainer />

@@ -23,5 +23,6 @@ export default function useAuth() {
     login: context.signIn,
     googleLogin: context.googleLogin,
     logout: context.logOut,
+    refreshUserData: context.refreshUserData,
   };
 }
