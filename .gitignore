@@ -85,6 +85,16 @@ Server/uploads/*
 Server/invoices/*.pdf
 !Server/invoices/.gitkeep
 
+# Local Codex session logs
+.codex-logs/
+
+# Generated detailed report outputs/assets
+AMIYO_GO_DETAILS_REPORT*.pdf
+AMIYO_GO_DETAILS_REPORT*.html
+docs/details-report-assets/
+scripts/generateDetailedReport.js
+scripts/generateBanglaDetailedReport.js
+
 # Temporary files
 *.tmp
 *.temp
