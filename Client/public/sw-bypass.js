@@ -1,7 +1,7 @@
 // BYPASS SERVICE WORKER - NO CACHING
 console.log('🚫 Service Worker: BYPASS MODE - No caching');
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   console.log('⚡ SW: Installing (bypass mode)');
   self.skipWaiting();
 });

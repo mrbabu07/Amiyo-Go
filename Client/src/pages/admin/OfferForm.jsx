@@ -38,7 +38,6 @@ export default function OfferForm() {
     if (isEditMode) {
       fetchOffer();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchProducts = async () => {

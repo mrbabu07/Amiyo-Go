@@ -11,7 +11,7 @@ export default function MobileOptimized({ children }) {
       const el = document.querySelector("meta[name=viewport]");
       if (el !== null) {
         let content = el.getAttribute("content");
-        let re = /maximum\-scale=[0-9\.]+/g;
+        let re = /maximum-scale=[0-9.]+/g;
 
         if (re.test(content)) {
           content = content.replace(re, "maximum-scale=1.0");
