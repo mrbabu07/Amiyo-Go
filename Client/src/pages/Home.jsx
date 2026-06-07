@@ -291,7 +291,10 @@ function CategoryIconStrip({ categories, t }) {
           actionTo="/categories"
           actionLabel={t("common.viewAll", "View all")}
         />
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10">
+        <div
+          className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 sm:pb-0 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10"
+          aria-label={t("home.categories", "Categories")}
+        >
           {categories.slice(0, 20).map((category, index) => {
             const CategoryIcon = getCategoryIcon(category);
             const image = getCategoryImageSource(category);
@@ -301,7 +304,7 @@ function CategoryIconStrip({ categories, t }) {
               <Link
                 key={category._id || category.slug || category.name}
                 to={getCategoryPath(category)}
-                className="group flex min-h-[8.75rem] flex-col rounded-lg border border-[#E0E0E0] bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#F57224] hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+                className="group flex min-h-[8.75rem] w-28 shrink-0 snap-start flex-col rounded-lg border border-[#E0E0E0] bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#F57224] hover:shadow-md dark:border-gray-800 dark:bg-gray-900 sm:w-auto sm:shrink"
               >
                 <span className="relative block aspect-[4/3] w-full overflow-hidden rounded-md bg-[#EEEEEE] dark:bg-gray-800">
                   {image ? (
