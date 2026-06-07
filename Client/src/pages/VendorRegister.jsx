@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Check, ChevronRight, Search, Tags } from 'lucide-react';
 import useAuth from '../hooks/useAuth';
 import { getCategories } from '../services/api';
@@ -30,6 +30,7 @@ const VendorRegister = () => {
   const [categorySearch, setCategorySearch] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Address data
   const [divisions, setDivisions] = useState([]);
@@ -268,6 +269,11 @@ const VendorRegister = () => {
       return;
     }
 
+    if (!acceptedTerms) {
+      setError('Please accept the Terms and Conditions before submitting vendor registration.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -278,7 +284,12 @@ const VendorRegister = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          acceptedTerms,
+          termsVersion: '2026.06',
+          privacyVersion: '2026.06',
+        }),
       });
 
       const data = await response.json();
@@ -675,9 +686,33 @@ const VendorRegister = () => {
             </div>
 
             {/* Submit Button */}
+            <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(event) => {
+                  setAcceptedTerms(event.target.checked);
+                  setError('');
+                }}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                required
+              />
+              <span>
+                I agree to the Amiyo-Go{' '}
+                <Link to="/terms" className="font-semibold text-blue-600 hover:text-blue-700">
+                  Terms and Conditions
+                </Link>
+                , vendor rules, category policy, payout rules, and{' '}
+                <Link to="/privacy" className="font-semibold text-blue-600 hover:text-blue-700">
+                  Privacy Policy
+                </Link>
+                .
+              </span>
+            </label>
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !acceptedTerms}
               className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Submitting...' : 'Register as Vendor'}

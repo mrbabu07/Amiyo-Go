@@ -2,9 +2,13 @@ import { useState } from "react";
 import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { auth } from "../firebase/firebase.config";
 import { useNavigate, useLocation } from "react-router-dom";
-import { getCurrentUser } from "../services/api";
+import { getCurrentUser, recordTermsAcceptance } from "../services/api";
 
-export default function SocialLogin() {
+export default function SocialLogin({
+  requireTermsAcceptance = false,
+  termsAccepted = true,
+  onTermsRequired,
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -12,6 +16,13 @@ export default function SocialLogin() {
   const from = location.state?.from?.pathname || "/";
 
   const handleGoogleLogin = async () => {
+    if (requireTermsAcceptance && !termsAccepted) {
+      const message = "Please agree to the Terms and Conditions before continuing.";
+      setError(message);
+      onTermsRequired?.(message);
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -31,6 +42,13 @@ export default function SocialLogin() {
         // Register/get user in backend database
         try {
           await getCurrentUser();
+          if (requireTermsAcceptance) {
+            await recordTermsAcceptance({
+              termsVersion: "2026.06",
+              privacyVersion: "2026.06",
+              source: "google_registration",
+            });
+          }
           console.log("✅ User registered in backend");
 
           // Navigate to intended page or home

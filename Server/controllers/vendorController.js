@@ -650,7 +650,16 @@ exports.getFollowedVendorFeed = async (req, res) => {
 // Vendor Registration
 exports.registerVendor = async (req, res) => {
   try {
-    const { shopName, phone, address, allowedCategoryIds, payoutMethod } = req.body;
+    const {
+      shopName,
+      phone,
+      address,
+      allowedCategoryIds,
+      payoutMethod,
+      acceptedTerms,
+      termsVersion,
+      privacyVersion,
+    } = req.body;
     const Vendor = req.app.locals.models.Vendor;
     const Category = req.app.locals.models.Category;
     const User = req.app.locals.models.User;
@@ -659,6 +668,12 @@ exports.registerVendor = async (req, res) => {
     if (!shopName || !phone || !Array.isArray(allowedCategoryIds) || allowedCategoryIds.length === 0) {
       return res.status(400).json({ 
         error: "Shop name, phone, and at least one category are required" 
+      });
+    }
+
+    if (acceptedTerms !== true) {
+      return res.status(400).json({
+        error: "You must accept the Terms and Conditions before registering as a vendor.",
       });
     }
 
@@ -725,6 +740,7 @@ exports.registerVendor = async (req, res) => {
     }
 
     // Create vendor
+    const now = new Date();
     const vendorData = {
       ownerUserId: req.user._id,
       shopName,
@@ -733,6 +749,20 @@ exports.registerVendor = async (req, res) => {
       address,
       allowedCategoryIds: normalizedAllowedCategoryIds,
       payoutMethod: payoutMethod || null,
+      legalAcceptance: {
+        terms: {
+          accepted: true,
+          version: toTrimmedString(termsVersion) || "2026.06",
+          acceptedAt: now,
+          source: "vendor_registration",
+        },
+        privacy: {
+          accepted: true,
+          version: toTrimmedString(privacyVersion || termsVersion) || "2026.06",
+          acceptedAt: now,
+          source: "vendor_registration",
+        },
+      },
     };
 
     const vendor = await Vendor.create(vendorData);

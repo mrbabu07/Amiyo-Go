@@ -171,6 +171,8 @@ export const updateAccountProfile = (data) =>
   api.patch("/user/account/profile", data);
 export const updateAccountPreferences = (data) =>
   api.patch("/user/account/preferences", data);
+export const recordTermsAcceptance = (data = {}) =>
+  api.post("/user/account/terms-acceptance", data);
 export const addSavedPaymentMethod = (data) =>
   api.post("/user/account/payment-methods", data);
 export const deleteSavedPaymentMethod = (methodId) =>

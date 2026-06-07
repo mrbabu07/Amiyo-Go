@@ -3,10 +3,10 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
 import SocialLogin from "../components/SocialLogin";
 import AddressLocationFields from "../components/AddressLocationFields";
-import { createAddress } from "../services/api";
+import { createAddress, recordTermsAcceptance } from "../services/api";
 
 export default function Register() {
-  const { register, googleLogin } = useAuth();
+  const { register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.intendedUrl || "/";
@@ -32,6 +32,7 @@ export default function Register() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -49,6 +50,11 @@ export default function Register() {
 
     if (formData.password.length < 6) {
       setError("Password must be at least 6 characters");
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setError("Please agree to the Terms and Conditions before creating an account.");
       return;
     }
 
@@ -72,6 +78,12 @@ export default function Register() {
         console.error('Error creating user in database:', error);
         // Continue anyway - the user will be created on first login
       }
+
+      await recordTermsAcceptance({
+        termsVersion: "2026.06",
+        privacyVersion: "2026.06",
+        source: "email_registration",
+      });
 
       await createAddress({
         name: formData.name,
@@ -98,36 +110,6 @@ export default function Register() {
       } else {
         setError(error.message || "Failed to register");
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setError("");
-    setLoading(true);
-
-    try {
-      const userCredential = await googleLogin();
-      
-      // Get Firebase token
-      const token = await userCredential.user.getIdToken();
-      
-      // Create user in MongoDB by calling the backend
-      try {
-        await fetch(`${import.meta.env.VITE_API_URL}/user/me`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-      } catch (error) {
-        console.error('Error creating user in database:', error);
-        // Continue anyway - the user will be created on first login
-      }
-      
-      navigate(from, { replace: true });
-    } catch (error) {
-      setError(error.message || "Failed to sign up with Google");
     } finally {
       setLoading(false);
     }
@@ -298,9 +280,33 @@ export default function Register() {
               />
             </div>
 
+            <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(event) => {
+                  setAcceptedTerms(event.target.checked);
+                  setError("");
+                }}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                required
+              />
+              <span>
+                I agree to the{" "}
+                <Link to="/terms" className="font-semibold text-primary-600 hover:text-primary-700">
+                  Terms and Conditions
+                </Link>{" "}
+                and{" "}
+                <Link to="/privacy" className="font-semibold text-primary-600 hover:text-primary-700">
+                  Privacy Policy
+                </Link>
+                .
+              </span>
+            </label>
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !acceptedTerms}
               className="w-full btn-primary py-3 flex items-center justify-center space-x-2"
             >
               {loading ? (
@@ -333,18 +339,22 @@ export default function Register() {
           </form>
 
           {/* Social Login */}
-          <SocialLogin />
+          <SocialLogin
+            requireTermsAcceptance
+            termsAccepted={acceptedTerms}
+            onTermsRequired={setError}
+          />
 
           {/* Terms */}
           <p className="mt-6 text-xs text-gray-500 text-center">
             By creating an account, you agree to our{" "}
-            <a href="#" className="text-primary-500 hover:underline">
-              Terms of Service
-            </a>{" "}
+            <Link to="/terms" className="text-primary-500 hover:underline">
+              Terms and Conditions
+            </Link>{" "}
             and{" "}
-            <a href="#" className="text-primary-500 hover:underline">
+            <Link to="/privacy" className="text-primary-500 hover:underline">
               Privacy Policy
-            </a>
+            </Link>
           </p>
         </div>
 

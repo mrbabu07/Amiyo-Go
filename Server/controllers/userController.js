@@ -197,6 +197,53 @@ const updateAccountPreferences = async (req, res) => {
   }
 };
 
+const recordTermsAcceptance = async (req, res) => {
+  try {
+    const User = req.app.locals.models.User;
+    const user = await ensureUser(req);
+    const now = new Date();
+    const termsVersion = String(req.body?.termsVersion || req.body?.version || "2026.06").trim();
+    const privacyVersion = String(req.body?.privacyVersion || termsVersion).trim();
+    const source = String(req.body?.source || "account").trim();
+
+    await User.collection.updateOne(
+      { firebaseUid: user.firebaseUid },
+      {
+        $set: {
+          "legalAcceptance.terms": {
+            accepted: true,
+            version: termsVersion,
+            acceptedAt: now,
+            source,
+          },
+          "legalAcceptance.privacy": {
+            accepted: true,
+            version: privacyVersion,
+            acceptedAt: now,
+            source,
+          },
+          termsAcceptanceRequired: false,
+          requiredTermsType: null,
+          requiredTermsVersion: null,
+          updatedAt: now,
+        },
+      },
+    );
+
+    res.json({
+      success: true,
+      data: {
+        termsVersion,
+        privacyVersion,
+        acceptedAt: now,
+      },
+    });
+  } catch (error) {
+    console.error("Error recording terms acceptance:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 const addSavedPaymentMethod = async (req, res) => {
   try {
     const User = req.app.locals.models.User;
@@ -482,6 +529,7 @@ module.exports = {
   getAccountProfile,
   updateAccountProfile,
   updateAccountPreferences,
+  recordTermsAcceptance,
   addSavedPaymentMethod,
   deleteSavedPaymentMethod,
   setupAccountTwoFactor,

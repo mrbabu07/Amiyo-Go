@@ -22,6 +22,8 @@ const Home = lazyLoadWithRetry(() => import("../pages/Home"));
 const About = lazyLoadWithRetry(() => import("../pages/About"));
 const Contact = lazyLoadWithRetry(() => import("../pages/Contact"));
 const University = lazyLoadWithRetry(() => import("../pages/University"));
+const TermsAndConditions = lazyLoadWithRetry(() => import("../pages/TermsAndConditions"));
+const PrivacyPolicy = lazyLoadWithRetry(() => import("../pages/PrivacyPolicy"));
 const Login = lazyLoadWithRetry(() => import("../pages/Login"));
 const Register = lazyLoadWithRetry(() => import("../pages/Register"));
 const CategoryPage = lazyLoadWithRetry(() => import("../pages/CategoryPage"));
@@ -191,6 +193,8 @@ const router = createBrowserRouter([
       { path: "/about", element: lazyElement(About) },
       { path: "/contact", element: lazyElement(Contact) },
       { path: "/university", element: lazyElement(University) },
+      { path: "/terms", element: lazyElement(TermsAndConditions) },
+      { path: "/privacy", element: lazyElement(PrivacyPolicy) },
       { path: "/auth-debug", element: lazyElement(AuthDebug) },
       { path: "/category/:category", element: lazyElement(CategoryPage) },
       { path: "/categories", element: lazyElement(CategoryPage) },

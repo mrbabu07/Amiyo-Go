@@ -7,6 +7,7 @@ const {
   getAccountProfile,
   updateAccountProfile,
   updateAccountPreferences,
+  recordTermsAcceptance,
   addSavedPaymentMethod,
   deleteSavedPaymentMethod,
   setupAccountTwoFactor,
@@ -27,6 +28,7 @@ router.get("/status", verifyToken, getUserStatus);
 router.get("/account", verifyToken, getAccountProfile);
 router.patch("/account/profile", verifyToken, updateAccountProfile);
 router.patch("/account/preferences", verifyToken, updateAccountPreferences);
+router.post("/account/terms-acceptance", verifyToken, recordTermsAcceptance);
 router.post("/account/payment-methods", verifyToken, addSavedPaymentMethod);
 router.delete("/account/payment-methods/:methodId", verifyToken, deleteSavedPaymentMethod);
 router.post("/account/2fa/setup", verifyToken, setupAccountTwoFactor);
