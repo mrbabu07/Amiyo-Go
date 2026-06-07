@@ -48,6 +48,7 @@ jest.mock("../controllers/returnController", () => ({
   getVendorReturnById: (req, res) => res.json({ route: "vendor-return-detail", id: req.params.id }),
   getVendorReturnStats: (req, res) => res.json({ route: "vendor-return-stats" }),
   vendorRespondToReturn: (req, res) => res.json({ route: "vendor-return-response" }),
+  confirmVendorReturnReceived: (req, res) => res.json({ route: "vendor-return-confirm-received" }),
   getPendingVendorResponse: (req, res) => res.json({ route: "pending-vendor-response" }),
 }));
 
