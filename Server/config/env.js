@@ -16,6 +16,7 @@ const isPlaceholderValue = (value) => {
 const requiredCoreEnv = [
   {
     key: "MONGO_URI",
+    aliases: ["MONGODB_URI"],
     service: "mongodb",
     message: "MongoDB connection string is required.",
   },
@@ -64,7 +65,7 @@ function getServiceConfigStatus(env = process.env) {
     hasValue(env.AMIYO_DELIVERY_CALLBACK_API_SECRET);
 
   return {
-    mongodb: serviceStatus("mongodb", hasValue(env.MONGO_URI), true, {
+    mongodb: serviceStatus("mongodb", hasValue(env.MONGO_URI || env.MONGODB_URI), true, {
       database: env.DB_NAME || "BazarBD",
     }),
     firebase: serviceStatus(
@@ -111,17 +112,21 @@ function validateStartupEnv(env = process.env, options = {}) {
   const isTest = env.NODE_ENV === "test";
   const strict = options.strict ?? env.NODE_ENV === "production";
 
-  requiredCoreEnv.forEach(({ key, service, message }) => {
-    if (!hasValue(env[key])) {
+  requiredCoreEnv.forEach(({ key, aliases = [], service, message }) => {
+    const keys = [key, ...aliases];
+    const value = keys.map((item) => env[item]).find(hasValue);
+    const label = keys.join(" or ");
+
+    if (!hasValue(value)) {
       errors.push({ key, service, message });
       return;
     }
 
-    if (isPlaceholderValue(env[key])) {
+    if (isPlaceholderValue(value)) {
       errors.push({
-        key,
+        key: label,
         service,
-        message: `${key} appears to contain a placeholder value.`,
+        message: `${label} appears to contain a placeholder value.`,
       });
     }
   });

@@ -67,9 +67,11 @@ async function buildReadiness(app) {
     status: config.push.configured ? "vapid_configured" : "limited",
     required: config.push.required,
   };
+  const jobState = app.locals.jobs || {};
+  const jobsDisabled = jobState.mode === "serverless" || jobState.mode === "disabled";
   const jobs = {
-    ok: Boolean(app.locals.jobs?.campaignScheduler && app.locals.jobs?.analyticsSummary && app.locals.jobs?.newsletterBroadcasts),
-    status: app.locals.jobs || {},
+    ok: jobsDisabled || Boolean(jobState.campaignScheduler && jobState.analyticsSummary && jobState.newsletterBroadcasts),
+    status: jobsDisabled ? jobState.mode : jobState,
   };
 
   const checks = {

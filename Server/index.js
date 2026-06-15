@@ -18,13 +18,17 @@ if (process.env.NODE_DNS_SERVERS) {
 }
 
 const startupEnv = validateStartupEnv(process.env);
-const serviceEnv = validateEnv(process.env);
+const serviceEnv = validateEnv(process.env, { throwOnMissing: false });
 if (!startupEnv.ok) {
   console.error("Server startup blocked by missing critical environment values:");
   startupEnv.errors.forEach((error) => {
     console.error(`- ${error.key}: ${error.message}`);
   });
-  process.exit(1);
+  const message = startupEnv.errors.map((error) => `${error.key}: ${error.message}`).join("; ");
+  if (require.main === module) {
+    process.exit(1);
+  }
+  throw new Error(`Server startup blocked by missing critical environment values: ${message}`);
 }
 startupEnv.warnings.forEach((warning) => {
   console.warn(`Startup warning: ${warning.service} - ${warning.message}`);
@@ -221,6 +225,9 @@ const campaignScheduler = require("./jobs/campaignScheduler");
 
 const app = express();
 const port = process.env.PORT || 5000;
+const isVercelRuntime = process.env.VERCEL === "1" || process.env.VERCEL === "true";
+let bootstrapPromise = null;
+let serverInstance = null;
 app.set("trust proxy", 1);
 app.locals.boot = {
   startedAt: new Date().toISOString(),
@@ -228,6 +235,7 @@ app.locals.boot = {
   serviceEnv,
 };
 app.locals.mongoose = mongoose;
+app.locals.runtime = isVercelRuntime ? "vercel" : "node";
 app.locals.jobs = {
   campaignScheduler: false,
   analyticsSummary: false,
@@ -280,7 +288,7 @@ app.use((req, res, next) => {
 app.use("/uploads", express.static("uploads")); // Serve uploaded images
 
 // MongoDB client
-const uri = process.env.MONGO_URI;
+const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
 // Use explicit DB name, defaulting to main cluster DB
 const DB_NAME = process.env.DB_NAME || "BazarBD";
 const client = new MongoClient(uri, {
@@ -291,7 +299,13 @@ const client = new MongoClient(uri, {
   },
 });
 
-async function run() {
+async function initializeApp(options = {}) {
+  if (app.locals.ready) return app;
+
+  const enableBackgroundJobs = options.enableBackgroundJobs ?? !isVercelRuntime;
+  const enableRealtime = options.enableRealtime ?? !isVercelRuntime;
+  const startLocalServer = options.startServer === true;
+
   try {
     // Connect MongoDB client (for existing models)
     await client.connect();
@@ -355,8 +369,12 @@ async function run() {
     };
 
     await app.locals.models.Permission.syncDefaults(DEFAULT_ROLE_PERMISSIONS);
-    initBulkUploadQueue(app);
-    initMarketplaceEventBus(app);
+    if (enableBackgroundJobs) {
+      initBulkUploadQueue(app);
+      initMarketplaceEventBus(app);
+    } else {
+      console.log("Queue workers skipped for serverless runtime");
+    }
 
     // Store db reference for controllers that need it
     app.locals.db = db;
@@ -571,33 +589,47 @@ async function run() {
     console.log("✅ Campaign Manager routes registered");
 
     // Initialize Campaign Manager services
-    await CampaignCacheService.initialize();
-    console.log("✅ Campaign Cache Service initialized");
+    if (enableBackgroundJobs || process.env.REDIS_URL || process.env.REDIS_HOST) {
+      await CampaignCacheService.initialize();
+      console.log("✅ Campaign Cache Service initialized");
+    } else {
+      console.log("Campaign cache skipped for serverless runtime without Redis");
+    }
 
-    campaignScheduler.initializeJobs();
-    cron.schedule("17 * * * *", () => {
-      analyticsService
-        .rebuildDailySummary({
-          db,
-          AnalyticsSummary: app.locals.models.AnalyticsSummary,
-          start: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
-          end: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        })
-        .catch((error) => console.error("Analytics summary rebuild failed:", error.message));
-    });
-    cron.schedule("* * * * *", () => {
-      newsletterBroadcastService
-        .sendDueBroadcasts(app)
-        .catch((error) => console.error("Newsletter broadcast scheduler failed:", error.message));
-    });
-    console.log("Analytics summary cron scheduled");
-    console.log("Newsletter broadcast cron scheduled");
-    console.log("✅ Campaign Scheduler initialized");
-    app.locals.jobs = {
-      campaignScheduler: true,
-      analyticsSummary: true,
-      newsletterBroadcasts: true,
-    };
+    if (enableBackgroundJobs) {
+      campaignScheduler.initializeJobs();
+      cron.schedule("17 * * * *", () => {
+        analyticsService
+          .rebuildDailySummary({
+            db,
+            AnalyticsSummary: app.locals.models.AnalyticsSummary,
+            start: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
+            end: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          })
+          .catch((error) => console.error("Analytics summary rebuild failed:", error.message));
+      });
+      cron.schedule("* * * * *", () => {
+        newsletterBroadcastService
+          .sendDueBroadcasts(app)
+          .catch((error) => console.error("Newsletter broadcast scheduler failed:", error.message));
+      });
+      console.log("Analytics summary cron scheduled");
+      console.log("Newsletter broadcast cron scheduled");
+      console.log("✅ Campaign Scheduler initialized");
+      app.locals.jobs = {
+        campaignScheduler: true,
+        analyticsSummary: true,
+        newsletterBroadcasts: true,
+      };
+    } else {
+      console.log("Background schedulers skipped for serverless runtime");
+      app.locals.jobs = {
+        mode: "serverless",
+        campaignScheduler: false,
+        analyticsSummary: false,
+        newsletterBroadcasts: false,
+      };
+    }
     app.locals.ready = true;
 
     // Error handling middleware
@@ -606,28 +638,89 @@ async function run() {
       res.status(500).json({ success: false, error: "Something went wrong!" });
     });
 
-    // Start server
-    const server = app.listen(port);
-    server.once("listening", () => {
-      console.log(`🔥 Server running on port ${port}`);
-      realtimeService.attach(server, app);
-    });
+    if (startLocalServer) {
+      startServer({ enableRealtime });
+    }
 
-    server.on("error", (error) => {
-      if (error.code === "EADDRINUSE") {
-        console.error(
-          `Port ${port} is already in use. Stop the existing backend server or set a different PORT in Server/.env.`,
-        );
-        process.exit(1);
-      }
-
-      console.error("Server startup failed:", error);
-      process.exit(1);
-    });
+    return app;
   } catch (error) {
     console.error("❌ MongoDB connection failed:", error.message);
-    process.exit(1);
+    if (options.exitOnError) {
+      process.exit(1);
+    }
+    throw error;
   }
 }
 
-run();
+function startServer({ enableRealtime = true } = {}) {
+  if (serverInstance) return serverInstance;
+
+  serverInstance = app.listen(port);
+  serverInstance.once("listening", () => {
+    console.log(`🔥 Server running on port ${port}`);
+    if (enableRealtime) {
+      realtimeService.attach(serverInstance, app);
+    } else {
+      console.log("Realtime server disabled for this runtime");
+    }
+  });
+
+  serverInstance.on("error", (error) => {
+    if (error.code === "EADDRINUSE") {
+      console.error(
+        `Port ${port} is already in use. Stop the existing backend server or set a different PORT in Server/.env.`,
+      );
+      process.exit(1);
+    }
+
+    console.error("Server startup failed:", error);
+    process.exit(1);
+  });
+
+  return serverInstance;
+}
+
+async function bootstrap(options = {}) {
+  if (app.locals.ready) return app;
+
+  if (!bootstrapPromise) {
+    bootstrapPromise = initializeApp(options).catch((error) => {
+      bootstrapPromise = null;
+      throw error;
+    });
+  }
+
+  return bootstrapPromise;
+}
+
+async function vercelHandler(req, res) {
+  try {
+    await bootstrap({
+      enableBackgroundJobs: false,
+      enableRealtime: false,
+      startServer: false,
+    });
+    return app(req, res);
+  } catch (error) {
+    console.error("Vercel function bootstrap failed:", error);
+    res.statusCode = 500;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ success: false, error: "Server failed to initialize" }));
+  }
+}
+
+if (require.main === module) {
+  bootstrap({
+    enableBackgroundJobs: true,
+    enableRealtime: true,
+    startServer: true,
+    exitOnError: true,
+  }).catch((error) => {
+    console.error("Server startup failed:", error);
+    process.exit(1);
+  });
+}
+
+module.exports = vercelHandler;
+module.exports.app = app;
+module.exports.bootstrap = bootstrap;
