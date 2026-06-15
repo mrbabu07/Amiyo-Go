@@ -16,6 +16,7 @@ const coverSubtitle =
   "Architecture, features, workflows, implementation status, testing, deployment, and future scope";
 const footerTitle = process.argv[6] || "Thesis Documentation";
 const sourceLabel = path.relative(root, inputPath).replace(/\\/g, "/");
+const generatedDate = new Date().toISOString().slice(0, 10);
 
 const source = fs.readFileSync(inputPath, "utf8");
 const lines = source.split(/\r?\n/);
@@ -251,7 +252,7 @@ function drawCover() {
     .fillColor(colors.muted)
     .text(`Generated from ${sourceLabel}`, { width: pageWidth, align: "center" });
   doc.moveDown(0.5);
-  doc.text("Date: 2026-06-04", { width: pageWidth, align: "center" });
+  doc.text(`Date: ${generatedDate}`, { width: pageWidth, align: "center" });
   doc.addPage();
 }
 
