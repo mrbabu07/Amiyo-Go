@@ -80,8 +80,15 @@ function getServiceStatus(env = process.env) {
 function validateEnv(env = process.env, options = {}) {
   const services = getServiceStatus(env);
   const strict = options.throwOnMissing ?? (env.NODE_ENV === "production" || bool(env.ENV_SERVICE_VALIDATION_STRICT));
+  const allowMissingMongo = options.allowMissingMongo === true;
   const required = Object.values(services).filter((item) => item.required && !item.configured);
-  const blocking = strict ? required : required.filter((item) => item.name === "MongoDB" && !hasValue(firstValue(env, ["MONGODB_URI", "MONGO_URI"])));
+  const blocking = strict
+    ? required
+    : required.filter((item) =>
+        item.name === "MongoDB" &&
+        !allowMissingMongo &&
+        !hasValue(firstValue(env, ["MONGODB_URI", "MONGO_URI"])),
+      );
 
   console.log("Environment service status:");
   Object.values(services).forEach((item) => {

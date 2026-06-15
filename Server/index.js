@@ -18,17 +18,18 @@ if (process.env.NODE_DNS_SERVERS) {
 }
 
 const startupEnv = validateStartupEnv(process.env);
-const serviceEnv = validateEnv(process.env, { throwOnMissing: false });
+const serviceEnv = validateEnv(process.env, { throwOnMissing: false, allowMissingMongo: true });
+const isVercelRuntime = process.env.VERCEL === "1" || process.env.VERCEL === "true";
+let startupError = null;
+
 if (!startupEnv.ok) {
   console.error("Server startup blocked by missing critical environment values:");
   startupEnv.errors.forEach((error) => {
     console.error(`- ${error.key}: ${error.message}`);
   });
   const message = startupEnv.errors.map((error) => `${error.key}: ${error.message}`).join("; ");
-  if (require.main === module) {
-    process.exit(1);
-  }
-  throw new Error(`Server startup blocked by missing critical environment values: ${message}`);
+  startupError = new Error(`Server startup blocked by missing critical environment values: ${message}`);
+  startupError.details = startupEnv.errors;
 }
 startupEnv.warnings.forEach((warning) => {
   console.warn(`Startup warning: ${warning.service} - ${warning.message}`);
@@ -41,6 +42,7 @@ const mongoose = require("mongoose");
 const cron = require("node-cron");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { auditSensitiveOperations } = require("./middleware/audit");
 const sanitizeMiddleware = require("./middleware/sanitize");
@@ -55,10 +57,16 @@ const realtimeService = require("./services/realtimeService");
 const healthRoutes = require("./routes/healthRoutes").router;
 
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-  console.log("📁 Created uploads directory");
+const uploadsDir =
+  process.env.UPLOADS_DIR ||
+  (isVercelRuntime ? path.join(os.tmpdir(), "amiyo-go-uploads") : path.join(__dirname, "uploads"));
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log("📁 Created uploads directory");
+  }
+} catch (error) {
+  console.warn(`Uploads directory is not writable: ${error.message}`);
 }
 
 // Import models
@@ -225,7 +233,6 @@ const campaignScheduler = require("./jobs/campaignScheduler");
 
 const app = express();
 const port = process.env.PORT || 5000;
-const isVercelRuntime = process.env.VERCEL === "1" || process.env.VERCEL === "true";
 let bootstrapPromise = null;
 let serverInstance = null;
 app.set("trust proxy", 1);
@@ -285,38 +292,49 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use("/uploads", express.static("uploads")); // Serve uploaded images
+app.use("/uploads", express.static(uploadsDir)); // Serve uploaded images
 
 // MongoDB client
 const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
 // Use explicit DB name, defaulting to main cluster DB
 const DB_NAME = process.env.DB_NAME || "BazarBD";
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  },
-});
+let client = null;
+
+function getMongoClient() {
+  if (!client) {
+    client = new MongoClient(uri, {
+      serverApi: {
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
+      },
+    });
+  }
+
+  return client;
+}
 
 async function initializeApp(options = {}) {
   if (app.locals.ready) return app;
+  if (startupError) throw startupError;
 
   const enableBackgroundJobs = options.enableBackgroundJobs ?? !isVercelRuntime;
   const enableRealtime = options.enableRealtime ?? !isVercelRuntime;
   const startLocalServer = options.startServer === true;
 
   try {
+    const mongoClient = getMongoClient();
+
     // Connect MongoDB client (for existing models)
-    await client.connect();
-    await client.db(DB_NAME).command({ ping: 1 });
+    await mongoClient.connect();
+    await mongoClient.db(DB_NAME).command({ ping: 1 });
     console.log(`✅ MongoDB connected successfully (${DB_NAME})`);
 
     // Connect Mongoose (for Offer model and future Mongoose models)
     await mongoose.connect(uri);
     console.log("✅ Mongoose connected successfully");
 
-    const db = client.db(DB_NAME);
+    const db = mongoClient.db(DB_NAME);
 
     // Initialize models
     app.locals.models = {
@@ -695,6 +713,11 @@ async function bootstrap(options = {}) {
 
 async function vercelHandler(req, res) {
   try {
+    const requestPath = String(req.url || "").split("?")[0];
+    if (requestPath === "/health" || requestPath === "/api/health") {
+      return app(req, res);
+    }
+
     await bootstrap({
       enableBackgroundJobs: false,
       enableRealtime: false,
@@ -705,7 +728,14 @@ async function vercelHandler(req, res) {
     console.error("Vercel function bootstrap failed:", error);
     res.statusCode = 500;
     res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({ success: false, error: "Server failed to initialize" }));
+    res.end(JSON.stringify({
+      success: false,
+      error: "Server failed to initialize",
+      message: error.message,
+      missing: Array.isArray(error.details)
+        ? error.details.map((item) => item.key).filter((key) => key === key.toUpperCase())
+        : undefined,
+    }));
   }
 }
 

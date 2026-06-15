@@ -11,6 +11,15 @@ const authDebug = (...args) => {
   if (debugAuth) console.log(...args);
 };
 
+let firebaseInitError = null;
+
+const hasFirebaseConfig = () =>
+  Boolean(
+    process.env.FIREBASE_PROJECT_ID &&
+      process.env.FIREBASE_CLIENT_EMAIL &&
+      process.env.FIREBASE_PRIVATE_KEY,
+  );
+
 // Initialize Firebase Admin
 if (!admin.apps.length) {
   const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -18,36 +27,42 @@ if (!admin.apps.length) {
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKey) {
-    console.error("\nFirebase Admin SDK is not configured.");
-    console.error("Please configure these values in Server/.env:");
-    console.error("  - FIREBASE_PROJECT_ID");
-    console.error("  - FIREBASE_CLIENT_EMAIL");
-    console.error("  - FIREBASE_PRIVATE_KEY");
-    process.exit(1);
-  }
-
-  if (projectId.includes("your_project_id") || clientEmail.includes("xxxxx")) {
-    console.error("\nFirebase credentials are still placeholder values.");
-    console.error("Please replace them with real values from Firebase Console.");
-    process.exit(1);
-  }
-
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId,
-        clientEmail,
-        privateKey: privateKey.replace(/\\n/g, "\n"),
-      }),
-    });
-    console.log("Firebase Admin SDK initialized");
-  } catch (error) {
-    console.error("\nFailed to initialize Firebase Admin SDK");
-    console.error("Error:", error.message);
-    console.error("Common issue: FIREBASE_PRIVATE_KEY must keep escaped \\n characters.");
-    process.exit(1);
+    firebaseInitError = new Error("Firebase Admin SDK is not configured.");
+    console.error(firebaseInitError.message);
+  } else if (projectId.includes("your_project_id") || clientEmail.includes("xxxxx")) {
+    firebaseInitError = new Error("Firebase credentials are still placeholder values.");
+    console.error(firebaseInitError.message);
+  } else {
+    try {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId,
+          clientEmail,
+          privateKey: privateKey.replace(/\\n/g, "\n"),
+        }),
+      });
+      console.log("Firebase Admin SDK initialized");
+    } catch (error) {
+      firebaseInitError = error;
+      console.error("\nFailed to initialize Firebase Admin SDK");
+      console.error("Error:", error.message);
+      console.error("Common issue: FIREBASE_PRIVATE_KEY must keep escaped \\n characters.");
+    }
   }
 }
+
+const requireFirebaseAdmin = (res) => {
+  if (admin.apps.length && hasFirebaseConfig() && !firebaseInitError) {
+    return true;
+  }
+
+  res.status(503).json({
+    error: "Authentication service is not configured",
+    missing: ["FIREBASE_PROJECT_ID", "FIREBASE_CLIENT_EMAIL", "FIREBASE_PRIVATE_KEY"]
+      .filter((key) => !process.env[key]),
+  });
+  return false;
+};
 
 const attachDatabaseUser = async (req, decodedToken) => {
   const User = req.app.locals.models.User;
@@ -98,6 +113,8 @@ const attachDatabaseUser = async (req, decodedToken) => {
 
 const verifyToken = async (req, res, next) => {
   try {
+    if (!requireFirebaseAdmin(res)) return;
+
     const token = req.headers.authorization?.split("Bearer ")[1];
 
     if (!token) {
@@ -120,6 +137,7 @@ const verifyOptionalToken = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split("Bearer ")[1];
     if (!token) return next();
+    if (!admin.apps.length || firebaseInitError) return next();
 
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = decodedToken;
