@@ -6,7 +6,7 @@ import useAuth from "../hooks/useAuth";
 import useCart from "../hooks/useCart";
 
 const baseItemClass =
-  "relative flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[11px] font-bold transition-colors focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950";
+  "relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[10.5px] font-extrabold transition-all duration-200 focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950";
 
 export default function BottomNavigation() {
   const { t } = useTranslation();
@@ -24,12 +24,12 @@ export default function BottomNavigation() {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 top-auto z-[210] border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(15,23,42,0.08)] lg:hidden dark:border-gray-800 dark:bg-gray-950"
+      className="fixed inset-x-0 bottom-0 top-auto z-[210] px-2 pb-[calc(env(safe-area-inset-bottom)+0.45rem)] lg:hidden"
       aria-label="Mobile primary navigation"
       role="navigation"
       style={{ bottom: 0, left: 0, position: "fixed", right: 0, top: "auto" }}
     >
-      <div className="mx-auto grid h-14 max-w-md grid-cols-5 px-2">
+      <div className="mx-auto grid h-16 max-w-md grid-cols-5 rounded-2xl border border-white/80 bg-white/95 px-1.5 shadow-[0_-10px_34px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-gray-800 dark:bg-gray-950/95">
         {items.map(({ label, to, icon: Icon, badge, end }) => (
           <NavLink
             key={to}
@@ -38,12 +38,12 @@ export default function BottomNavigation() {
             className={({ isActive }) =>
               `${baseItemClass} ${
                 isActive
-                  ? "text-primary-600 dark:text-primary-300"
+                  ? "bg-primary-50 text-primary-700 shadow-sm dark:bg-primary-950/60 dark:text-primary-200"
                   : "text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-100"
               }`
             }
           >
-            <span className="relative">
+            <span className="relative grid h-6 w-8 place-items-center">
               {createElement(Icon, {
                 className: "h-5 w-5",
                 strokeWidth: 2.2,

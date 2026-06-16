@@ -51,9 +51,9 @@ export default function QuickViewModal({ product, isOpen, onClose }) {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Quick View" size="lg">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-8">
         {/* Product Images */}
-        <div className="relative">
+        <div className="relative overflow-hidden rounded-xl border border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-950">
           <ProductBadge product={product} />
           <AutoSlideshow
             images={productImages}
@@ -67,13 +67,13 @@ export default function QuickViewModal({ product, isOpen, onClose }) {
         </div>
 
         {/* Product Info */}
-        <div className="flex flex-col">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+        <div className="flex min-w-0 flex-col">
+          <h2 className="mb-3 text-xl font-bold leading-tight text-gray-950 dark:text-white sm:text-2xl">
             {product.title}
           </h2>
 
-          <div className="flex items-center gap-4 mb-4">
-            <span className="text-3xl font-bold text-primary-500">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <span className="text-2xl font-black text-primary-600 dark:text-primary-300 sm:text-3xl">
               {formatPrice(product.price)}
             </span>
             <StockIndicator stock={product.stock} />
@@ -82,7 +82,7 @@ export default function QuickViewModal({ product, isOpen, onClose }) {
           {/* Description */}
           {product.description && (
             <div className="mb-6">
-              <p className="text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-3">
+              <p className="line-clamp-3 text-sm leading-6 text-gray-600 dark:text-gray-400 sm:text-base">
                 {product.description}
               </p>
             </div>
@@ -141,24 +141,24 @@ export default function QuickViewModal({ product, isOpen, onClose }) {
           )}
 
           {/* Quantity */}
-          <div className="flex items-center gap-4 mb-6">
+          <div className="mb-5 flex flex-wrap items-center gap-3">
             <span className="font-medium text-gray-700 dark:text-gray-300">
               Quantity:
             </span>
-            <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg">
+            <div className="flex items-center overflow-hidden rounded-lg border border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900">
               <button
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="w-10 h-10 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-l-lg"
+                className="flex h-11 w-11 items-center justify-center text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
               >
                 −
               </button>
-              <span className="w-12 text-center font-semibold">{quantity}</span>
+              <span className="w-12 text-center font-semibold text-gray-950 dark:text-white">{quantity}</span>
               <button
                 onClick={() =>
                   setQuantity(Math.min(product.stock, quantity + 1))
                 }
                 disabled={quantity >= product.stock}
-                className="w-10 h-10 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-r-lg disabled:opacity-50"
+                className="flex h-11 w-11 items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800"
               >
                 +
               </button>
@@ -166,11 +166,11 @@ export default function QuickViewModal({ product, isOpen, onClose }) {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 mt-auto">
+          <div className="modal-footer -mx-4 -mb-4 mt-auto flex flex-col gap-2 border-t border-gray-200 bg-white/95 p-4 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 sm:mx-0 sm:mb-0 sm:flex-row sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-0">
             <button
               onClick={handleAddToCart}
               disabled={product.stock === 0 || isAdding}
-              className={`flex-1 py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2 ${
+              className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 font-semibold transition ${
                 isAdding
                   ? "bg-green-500 text-white"
                   : product.stock === 0
@@ -182,7 +182,7 @@ export default function QuickViewModal({ product, isOpen, onClose }) {
             </button>
             <Link
               to={`/product/${product._id}`}
-              className="px-6 py-3 border-2 border-primary-500 text-primary-500 rounded-xl font-semibold hover:bg-primary-50 dark:hover:bg-primary-900/20 transition"
+              className="inline-flex min-h-12 items-center justify-center rounded-lg border border-primary-500 px-5 py-3 font-semibold text-primary-600 transition hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-primary-950/30"
               onClick={onClose}
             >
               View Details
