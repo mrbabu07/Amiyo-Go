@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { getActivePopupOffer } from "../services/api";
 import useAuth from "../hooks/useAuth";
 import toast from "react-hot-toast";
+import { toAssetUrl } from "../utils/url";
 
 export default function OfferPopup() {
   const [offer, setOffer] = useState(null);
@@ -66,9 +67,7 @@ export default function OfferPopup() {
 
   if (!isVisible || !offer) return null;
 
-  const imageUrl = offer.image?.startsWith("http")
-    ? offer.image
-    : `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${offer.image}`;
+  const imageUrl = toAssetUrl(offer.image);
 
   return (
     <>

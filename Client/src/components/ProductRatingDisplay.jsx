@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toApiUrl } from "../utils/url";
 
 export default function ProductRatingDisplay({
   productId,
@@ -20,7 +21,7 @@ export default function ProductRatingDisplay({
 
   const fetchProductRating = async () => {
     try {
-      const response = await fetch(`/api/reviews/product/${productId}/stats`);
+      const response = await fetch(toApiUrl(`/reviews/product/${productId}/stats`));
       const data = await response.json();
 
       if (data.success) {

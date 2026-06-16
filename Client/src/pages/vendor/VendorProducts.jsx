@@ -22,8 +22,9 @@ import useAuth from "../../hooks/useAuth";
 import useCurrency from "../../hooks/useCurrency";
 import { hasVendorPermission } from "../../utils/vendorStaffPermissions";
 import { bulkUpdateVendorProducts } from "../../services/api";
+import { API_BASE_URL } from "../../utils/url";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = API_BASE_URL;
 
 const tabs = [
   { id: "listings", label: "Listings", icon: Package, permission: "products:view" },

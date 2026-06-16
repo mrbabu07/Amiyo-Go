@@ -29,6 +29,7 @@ import ProductCard from "./ProductCard";
 import { ProductCardSkeleton } from "./Skeleton";
 import { useCurrency } from "../hooks/useCurrency";
 import { getCategoryIcon, getCategoryImageSource, getCategoryTheme } from "../utils/categoryVisuals";
+import { toAssetUrl } from "../utils/url";
 
 const SORT_OPTIONS = [
   { value: "best_match", label: "Best Match" },
@@ -395,7 +396,8 @@ const DailyNeedTile = ({ item }) => {
 };
 
 const getProductImage = (product) =>
-  product.image || product.images?.[0] || "https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=500&h=500&fit=crop";
+  toAssetUrl(product.image || product.images?.[0]) ||
+  "https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=500&h=500&fit=crop";
 
 const getVendorName = (product) =>
   product.vendorName ||

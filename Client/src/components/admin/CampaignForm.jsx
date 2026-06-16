@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL, toAssetUrl } from '../../utils/url';
+
+const campaignApi = axios.create({ baseURL: API_BASE_URL });
 
 const CampaignForm = ({ campaignId, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -28,7 +31,7 @@ const CampaignForm = ({ campaignId, onSuccess }) => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get('/api/categories');
+      const response = await campaignApi.get('/categories');
       setCategories(response.data.data || []);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
@@ -37,7 +40,7 @@ const CampaignForm = ({ campaignId, onSuccess }) => {
 
   const fetchCampaign = async () => {
     try {
-      const response = await axios.get(`/api/campaigns/${campaignId}`);
+      const response = await campaignApi.get(`/campaigns/${campaignId}`);
       const campaign = response.data.data;
       setFormData({
         ...campaign,
@@ -45,7 +48,7 @@ const CampaignForm = ({ campaignId, onSuccess }) => {
         endDate: new Date(campaign.endDate).toISOString().slice(0, 16),
         eligibleCategories: campaign.eligibleCategories.map(c => c._id),
       });
-      setImagePreview(campaign.bannerImageUrl);
+      setImagePreview(toAssetUrl(campaign.bannerImageUrl));
     } catch (error) {
       console.error('Failed to fetch campaign:', error);
     }
@@ -153,10 +156,10 @@ const CampaignForm = ({ campaignId, onSuccess }) => {
 
     setLoading(true);
     try {
-      const url = campaignId ? `/api/campaigns/${campaignId}` : '/api/campaigns';
+      const url = campaignId ? `/campaigns/${campaignId}` : '/campaigns';
       const method = campaignId ? 'put' : 'post';
 
-      const response = await axios[method](url, {
+      const response = await campaignApi[method](url, {
         ...formData,
         startDate: new Date(formData.startDate).toISOString(),
         endDate: new Date(formData.endDate).toISOString(),

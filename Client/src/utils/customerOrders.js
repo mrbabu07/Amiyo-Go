@@ -1,3 +1,5 @@
+import { toAssetUrl } from "./url";
+
 const toNumber = (value, fallback = 0) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -75,13 +77,14 @@ export const getOrderItemTitle = (item = {}) =>
   "Product";
 
 export const getOrderItemImage = (item = {}) =>
-  item.thumbnail ||
-  item.image ||
-  item.productImage ||
-  item.product?.thumbnail ||
-  item.product?.image ||
-  item.product?.images?.[0] ||
-  "";
+  toAssetUrl(
+    item.thumbnail ||
+      item.image ||
+      item.productImage ||
+      item.product?.thumbnail ||
+      item.product?.image ||
+      item.product?.images?.[0],
+  ) || "";
 
 export const getOrderItemVendorName = (item = {}, order = {}) =>
   item.vendorName ||

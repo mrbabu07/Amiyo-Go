@@ -15,8 +15,9 @@ import useAuth from "../../hooks/useAuth";
 import { getFieldsForCategory } from "../../utils/productFieldConfig";
 import { uploadVendorProductImages } from "../../services/vendorImageUpload";
 import VendorCategoryPicker from "./VendorCategoryPicker";
+import { API_BASE_URL } from "../../utils/url";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = API_BASE_URL;
 
 const defaultFormData = {
   categoryId: "",

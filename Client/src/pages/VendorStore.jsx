@@ -7,8 +7,9 @@ import BackButton from "../components/BackButton";
 import useAuth from "../hooks/useAuth";
 import { auth } from "../firebase/firebase.config";
 import { getPublicVendorMarketingItems, recordVendorMarketingEvent } from "../services/api";
+import { API_BASE_URL } from "../utils/url";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = API_BASE_URL;
 const CHECKOUT_VOUCHER_KEY = "hnilabazar_selected_voucher";
 
 const getStoreProductId = (product) =>

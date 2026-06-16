@@ -1,12 +1,9 @@
 import { useEffect, useRef } from "react";
+import { API_BASE_URL } from "../utils/url";
 
 const viewedProducts = new Set();
 const VIEW_DEDUPE_PREFIX = "amiyo:product-view:";
 const VIEW_DELAY_MS = 1200;
-
-function getApiBaseUrl() {
-  return import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-}
 
 function canUseSessionStorage() {
   return typeof window !== "undefined" && Boolean(window.sessionStorage);
@@ -47,7 +44,7 @@ const useProductView = (productId) => {
       markTracked(productId);
 
       try {
-        const response = await fetch(`${getApiBaseUrl()}/products/${productId}/view`, {
+        const response = await fetch(`${API_BASE_URL}/products/${productId}/view`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

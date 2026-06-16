@@ -1,3 +1,5 @@
+import { toAssetUrl } from "./url";
+
 export const CART_COUPON_STORAGE_KEY = "amiyogo_cart_coupon";
 
 const asNumber = (value, fallback = 0) => {
@@ -39,11 +41,12 @@ export const getVendorName = (item) =>
   "Marketplace";
 
 export const getCartItemImage = (item) =>
-  item.selectedImage ||
-  item.image ||
-  item.thumbnail ||
-  (Array.isArray(item.images) && item.images[0]) ||
-  "https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=200";
+  toAssetUrl(
+    item.selectedImage ||
+      item.image ||
+      item.thumbnail ||
+      (Array.isArray(item.images) && item.images[0]),
+  ) || "https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=200";
 
 export const getItemMaxOrder = (item) => {
   const candidates = [

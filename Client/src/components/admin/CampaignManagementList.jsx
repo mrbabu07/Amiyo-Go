@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../../utils/url';
+
+const campaignApi = axios.create({ baseURL: API_BASE_URL });
 
 const CampaignManagementList = () => {
   const [campaigns, setCampaigns] = useState([]);
@@ -19,7 +22,7 @@ const CampaignManagementList = () => {
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/campaigns', { params: filters });
+      const response = await campaignApi.get('/campaigns', { params: filters });
       setCampaigns(response.data.data || []);
       setPagination(response.data.pagination || {});
     } catch (error) {
@@ -49,7 +52,7 @@ const CampaignManagementList = () => {
 
   const handlePublish = async (campaignId) => {
     try {
-      await axios.post(`/api/campaigns/${campaignId}/publish`);
+      await campaignApi.post(`/campaigns/${campaignId}/publish`);
       fetchCampaigns();
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to publish campaign');
@@ -59,7 +62,7 @@ const CampaignManagementList = () => {
   const handleEnd = async (campaignId) => {
     if (window.confirm('Are you sure you want to end this campaign?')) {
       try {
-        await axios.post(`/api/campaigns/${campaignId}/end`);
+        await campaignApi.post(`/campaigns/${campaignId}/end`);
         fetchCampaigns();
       } catch (error) {
         alert(error.response?.data?.message || 'Failed to end campaign');
@@ -70,7 +73,7 @@ const CampaignManagementList = () => {
   const handleArchive = async (campaignId) => {
     if (window.confirm('Are you sure you want to archive this campaign?')) {
       try {
-        await axios.post(`/api/campaigns/${campaignId}/archive`);
+        await campaignApi.post(`/campaigns/${campaignId}/archive`);
         fetchCampaigns();
       } catch (error) {
         alert(error.response?.data?.message || 'Failed to archive campaign');

@@ -1,4 +1,5 @@
 import { auth } from "../firebase/firebase.config";
+import { toApiUrl } from "../utils/url";
 
 class PersonalizationService {
   constructor() {
@@ -49,7 +50,7 @@ class PersonalizationService {
   async loadUserPreferences() {
     try {
       // Try to load from API first
-      const response = await fetch(`/api/user/preferences`, {
+      const response = await fetch(toApiUrl("/user/preferences"), {
         headers: {
           Authorization: `Bearer ${await auth.currentUser?.getIdToken()}`,
         },
@@ -417,7 +418,7 @@ class PersonalizationService {
 
     try {
       // Save to API
-      await fetch("/api/user/preferences", {
+      await fetch(toApiUrl("/user/preferences"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

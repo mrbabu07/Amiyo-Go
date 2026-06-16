@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import StarRating from "./StarRating";
 import useAuth from "../../hooks/useAuth";
 import { uploadImage } from "../../services/imageUpload";
+import { toApiUrl } from "../../utils/url";
 
 const ReviewForm = ({ productId, onReviewSubmitted, onCancel }) => {
   const { t } = useTranslation();
@@ -28,7 +29,7 @@ const ReviewForm = ({ productId, onReviewSubmitted, onCancel }) => {
       if (!user || !productId) return;
 
       try {
-        const response = await fetch(`/api/reviews/can-review/${productId}`, {
+        const response = await fetch(toApiUrl(`/reviews/can-review/${productId}`), {
           headers: {
             Authorization: `Bearer ${user.accessToken}`,
           },
@@ -207,7 +208,7 @@ const ReviewForm = ({ productId, onReviewSubmitted, onCancel }) => {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/reviews", {
+      const response = await fetch(toApiUrl("/reviews"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

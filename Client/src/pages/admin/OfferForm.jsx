@@ -7,6 +7,7 @@ import {
   getProducts,
 } from "../../services/api";
 import toast from "react-hot-toast";
+import { toAssetUrl } from "../../utils/url";
 
 export default function OfferForm() {
   const { id } = useParams();
@@ -79,10 +80,7 @@ export default function OfferForm() {
       });
 
       // Set image preview
-      const imageUrl = offer.image?.startsWith("http")
-        ? offer.image
-        : `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${offer.image}`;
-      setImagePreview(imageUrl);
+      setImagePreview(toAssetUrl(offer.image));
     } catch (error) {
       console.error("Failed to fetch offer:", error);
       toast.error("Failed to load offer");

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import CountdownTimer from './CountdownTimer';
+import { API_BASE_URL, toAssetUrl } from '../utils/url';
+
+const campaignApi = axios.create({ baseURL: API_BASE_URL });
 
 const CampaignLandingPage = ({ slug }) => {
   const [campaign, setcampaign] = useState(null);
@@ -21,7 +24,7 @@ const CampaignLandingPage = ({ slug }) => {
   const fetchCampaign = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`/api/campaigns/slug/${slug}`);
+      const response = await campaignApi.get(`/campaigns/slug/${slug}`);
       const campaignData = response.data.data;
 
       // Check if campaign is active
@@ -41,7 +44,7 @@ const CampaignLandingPage = ({ slug }) => {
 
   const fetchProducts = async (campaignId) => {
     try {
-      const response = await axios.get(`/api/campaigns/${campaignId}/products`);
+      const response = await campaignApi.get(`/campaigns/${campaignId}/products`);
       setProducts(response.data.data || []);
     } catch (err) {
       console.error('Failed to fetch products:', err);
@@ -55,7 +58,7 @@ const CampaignLandingPage = ({ slug }) => {
         localStorage.setItem('sessionId', sessionId);
       }
 
-      await axios.post(`/api/campaigns/${campaign._id}/view`, {
+      await campaignApi.post(`/campaigns/${campaign._id}/view`, {
         sessionId,
         userId: localStorage.getItem('userId'),
       });
@@ -79,7 +82,7 @@ const CampaignLandingPage = ({ slug }) => {
   return (
     <div className="campaign-landing-page">
       <div className="campaign-header">
-        <img src={campaign.bannerImageUrl} alt={campaign.name} className="banner-image" />
+        <img src={toAssetUrl(campaign.bannerImageUrl)} alt={campaign.name} className="banner-image" />
         <div className="campaign-info">
           <h1>{campaign.name}</h1>
           {campaign.description && <p className="description">{campaign.description}</p>}

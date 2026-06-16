@@ -3,8 +3,9 @@ import pushNotificationService, {
   NotificationTypes,
 } from "../services/pushNotifications";
 import useAuth from "../hooks/useAuth";
+import { API_BASE_URL } from "../utils/url";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = API_BASE_URL;
 
 export default function NotificationSettings() {
   const { user } = useAuth();

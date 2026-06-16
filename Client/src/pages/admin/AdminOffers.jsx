@@ -7,6 +7,7 @@ import {
 } from "../../services/api";
 import toast from "react-hot-toast";
 import useCurrency from "../../hooks/useCurrency";
+import { toAssetUrl } from "../../utils/url";
 
 export default function AdminOffers() {
   const { formatPrice } = useCurrency();
@@ -171,9 +172,7 @@ export default function AdminOffers() {
         ) : (
           <div className="grid gap-6">
             {offers.map((offer) => {
-              const imageUrl = offer.image?.startsWith("http")
-                ? offer.image
-                : `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${offer.image}`;
+              const imageUrl = toAssetUrl(offer.image);
               const active = isOfferActive(offer);
 
               return (

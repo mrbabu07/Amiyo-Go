@@ -1,4 +1,6 @@
-const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import { API_BASE_URL } from "../utils/url";
+
+const apiUrl = API_BASE_URL;
 
 const getWsUrl = (token) => {
   const url = new URL(apiUrl.replace(/\/api\/?$/, ""));

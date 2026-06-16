@@ -1,3 +1,5 @@
+import { toAssetUrl } from "./url";
+
 // Performance monitoring utilities
 
 /**
@@ -111,5 +113,5 @@ export const getOptimizedImageUrl = (url, width = 800) => {
   // If using a CDN with image optimization
   // return `${url}?w=${width}&q=80&fm=webp`;
   
-  return url;
+  return toAssetUrl(url);
 };

@@ -10,6 +10,7 @@ import ProductRatingDisplay from "./ProductRatingDisplay";
 import { formatViewCount } from "../utils/formatters";
 import { useCurrency } from "../hooks/useCurrency";
 import { usePlatformConfig } from "../context/PlatformConfigContext";
+import { toAssetUrl } from "../utils/url";
 
 export default function ProductCard({ product }) {
   const { t } = useTranslation();
@@ -25,19 +26,20 @@ export default function ProductCard({ product }) {
     e.preventDefault();
     e.stopPropagation();
     setIsAdding(true);
-    const imageToUse =
-      product.image || (product.images && product.images[0]) || fallbackImage;
-    addToCart(product, 1, imageToUse);
+    addToCart(product, 1, displayImage);
     setTimeout(() => setIsAdding(false), 1200);
   };
 
   const fallbackImage =
     "https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=400&h=400&fit=crop";
 
-  const displayImage =
+  const rawDisplayImage =
     product.image || (product.images && product.images[0]) || fallbackImage;
+  const displayImage = toAssetUrl(rawDisplayImage) || fallbackImage;
   const imageFocus =
-    product.imageSettings?.crops?.[displayImage]?.objectPosition || "center";
+    product.imageSettings?.crops?.[rawDisplayImage]?.objectPosition ||
+    product.imageSettings?.crops?.[displayImage]?.objectPosition ||
+    "center";
   const vendorName =
     product.vendorName ||
     product.vendorShopName ||

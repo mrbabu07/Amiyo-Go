@@ -23,6 +23,7 @@ import { ProductCardSkeleton } from "../components/Skeleton";
 import { usePlatformConfig } from "../context/PlatformConfigContext";
 import { useCurrency } from "../hooks/useCurrency";
 import { getCategoryIcon, getCategoryImageSource, getCategoryTheme } from "../utils/categoryVisuals";
+import { toAssetUrl } from "../utils/url";
 
 const fallbackHeroImage =
   "https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=1400&h=700&fit=crop";
@@ -50,11 +51,12 @@ const productKey = (product) =>
   product?._id || product?.id || product?.slug || product?.title;
 
 const productImage = (product) =>
-  product?.image ||
-  product?.images?.[0] ||
-  product?.thumbnail ||
-  product?.coverImage ||
-  fallbackProductImage;
+  toAssetUrl(
+    product?.image ||
+      product?.images?.[0] ||
+      product?.thumbnail ||
+      product?.coverImage,
+  ) || fallbackProductImage;
 
 const getProductFromDeal = (deal) =>
   deal?.product
@@ -88,8 +90,8 @@ const getDealPath = (deal) => {
 
 const getShopName = (shop) => shop?.shopName || shop?.displayName || shop?.name || "Shop";
 const getShopPath = (shop) => (shop?.slug ? `/shops/${shop.slug}` : "/shops");
-const getShopLogo = (shop) => shop?.logo || shop?.logoUrl || shop?.avatar || null;
-const getShopBanner = (shop) => shop?.banner || shop?.bannerUrl || shop?.coverImage || null;
+const getShopLogo = (shop) => toAssetUrl(shop?.logo || shop?.logoUrl || shop?.avatar || null);
+const getShopBanner = (shop) => toAssetUrl(shop?.banner || shop?.bannerUrl || shop?.coverImage || null);
 const getShopRows = (response) => {
   const rows = response?.data?.data || [];
   return Array.isArray(rows) ? rows : rows.shops || [];

@@ -26,6 +26,7 @@ import {
   Watch,
   Wrench,
 } from "lucide-react";
+import { toAssetUrl } from "./url";
 
 const iconMap = {
   baby: Baby,
@@ -141,7 +142,7 @@ const isImageSource = (value) => {
 };
 
 export function getCategoryImageSource(category = {}) {
-  return [category.image, category.imageUrl, category.iconUrl, category.icon].find(isImageSource) || "";
+  return toAssetUrl([category.image, category.imageUrl, category.iconUrl, category.icon].find(isImageSource)) || "";
 }
 
 export function getCategoryKey(category = {}) {

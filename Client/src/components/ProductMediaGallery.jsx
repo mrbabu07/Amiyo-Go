@@ -9,6 +9,7 @@ import {
   RotateCcw,
   X,
 } from "lucide-react";
+import { toAssetUrl } from "../utils/url";
 
 const fallbackImage =
   "https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=900&h=900&fit=crop";
@@ -46,7 +47,8 @@ export default function ProductMediaGallery({
     ]);
     const imageItems = (productImages.length ? productImages : [fallbackImage]).map((url, index) => ({
       type: "image",
-      url,
+      sourceUrl: url,
+      url: toAssetUrl(url) || fallbackImage,
       title: index === 0 ? product?.title || "Product image" : `${product?.title || "Product"} ${index + 1}`,
     }));
     const rawVideos = [
@@ -60,21 +62,43 @@ export default function ProductMediaGallery({
       : rawVideos
           .map((video, index) => {
             if (!video) return null;
-            if (typeof video === "string") return { url: video, title: index === 0 ? "Product demo" : `Video ${index + 1}` };
+            if (typeof video === "string") return { url: toAssetUrl(video), title: index === 0 ? "Product demo" : `Video ${index + 1}` };
             return {
-              url: video.url || video.src || video.videoUrl,
+              url: toAssetUrl(video.url || video.src || video.videoUrl),
               title: video.title || video.name || `Video ${index + 1}`,
-              thumbnail: video.thumbnail || video.poster || null,
+              thumbnail: toAssetUrl(video.thumbnail || video.poster || null),
             };
           })
           .filter((video) => video?.url);
-    const videoItems = videos.map((video) => ({ type: "video", ...video }));
+    const videoItems = videos
+      .map((video, index) => {
+        if (typeof video === "string") {
+          return {
+            type: "video",
+            url: toAssetUrl(video),
+            title: index === 0 ? "Product demo" : `Video ${index + 1}`,
+          };
+        }
+
+        return {
+          type: "video",
+          ...video,
+          url: toAssetUrl(video.url),
+          thumbnail: toAssetUrl(video.thumbnail),
+        };
+      })
+      .filter((video) => video.url);
     return [...imageItems, ...videoItems];
   }, [product, selectedVariant]);
 
   useEffect(() => {
     if (!selectedImage) return undefined;
-    const index = media.findIndex((item) => item.type === "image" && item.url === selectedImage);
+    const normalizedSelectedImage = toAssetUrl(selectedImage);
+    const index = media.findIndex(
+      (item) =>
+        item.type === "image" &&
+        (item.url === normalizedSelectedImage || item.sourceUrl === selectedImage),
+    );
     if (index < 0) return undefined;
 
     const timeoutId = setTimeout(() => setActiveIndex(index), 0);
@@ -84,7 +108,9 @@ export default function ProductMediaGallery({
   const activeMedia = media[activeIndex] || media[0];
 
   const getImageFocus = (imageUrl) =>
-    product?.imageSettings?.crops?.[imageUrl]?.objectPosition || "center";
+    product?.imageSettings?.crops?.[imageUrl]?.objectPosition ||
+    product?.imageSettings?.crops?.[media.find((item) => item.url === imageUrl)?.sourceUrl]?.objectPosition ||
+    "center";
 
   const selectIndex = (nextIndex) => {
     const boundedIndex = (nextIndex + media.length) % media.length;

@@ -7,6 +7,7 @@ import StockIndicator from "./StockIndicator";
 import ProductBadge from "./ProductBadge";
 import useCart from "../hooks/useCart";
 import { useCurrency } from "../hooks/useCurrency";
+import { toAssetUrl } from "../utils/url";
 
 export default function QuickViewModal({ product, isOpen, onClose }) {
   const { addToCart } = useCart();
@@ -22,11 +23,12 @@ export default function QuickViewModal({ product, isOpen, onClose }) {
     "https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=600&h=600&fit=crop";
 
   const productImages =
-    product.images && product.images.length > 0
+    (product.images && product.images.length > 0
       ? product.images
       : product.image
         ? [product.image]
-        : [fallbackImage];
+        : [fallbackImage]
+    ).map((image) => toAssetUrl(image) || fallbackImage);
 
   const handleAddToCart = () => {
     if (product.sizes?.length > 0 && !selectedSize) {

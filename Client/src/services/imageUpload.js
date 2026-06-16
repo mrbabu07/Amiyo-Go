@@ -1,6 +1,7 @@
 import { auth } from "../firebase/firebase.config";
+import { API_BASE_URL } from "../utils/url";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = API_BASE_URL;
 
 export const uploadImage = async (imageFile, folder = "general") => {
   const user = auth.currentUser;

@@ -4,6 +4,7 @@ import StarRating from "./StarRating";
 import ReviewCard from "./ReviewCard";
 import ReviewForm from "./ReviewForm";
 import useAuth from "../../hooks/useAuth";
+import { toApiUrl } from "../../utils/url";
 
 const ReviewsSection = ({ productId }) => {
   const { t } = useTranslation();
@@ -32,7 +33,7 @@ const ReviewsSection = ({ productId }) => {
     try {
       setLoading(true);
       const response = await fetch(
-        `/api/reviews/product/${productId}?page=${currentPage}&limit=10&sort=${encodeURIComponent(sortBy)}&filter=${encodeURIComponent(filterBy)}`,
+        toApiUrl(`/reviews/product/${productId}?page=${currentPage}&limit=10&sort=${encodeURIComponent(sortBy)}&filter=${encodeURIComponent(filterBy)}`),
       );
       const data = await response.json();
 
@@ -65,7 +66,7 @@ const ReviewsSection = ({ productId }) => {
 
   const handleHelpful = async (reviewId) => {
     try {
-      const response = await fetch(`/api/reviews/${reviewId}/helpful`, {
+      const response = await fetch(toApiUrl(`/reviews/${reviewId}/helpful`), {
         method: "POST",
         headers: {
           Authorization: `Bearer ${user?.accessToken}`,
@@ -88,7 +89,7 @@ const ReviewsSection = ({ productId }) => {
 
   const handleAdminReply = async (reviewId, replyText) => {
     try {
-      const response = await fetch(`/api/admin/reviews/${reviewId}/reply`, {
+      const response = await fetch(toApiUrl(`/admin/reviews/${reviewId}/reply`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

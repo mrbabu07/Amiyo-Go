@@ -20,8 +20,9 @@ import {
   getCategoryPathLabel,
   normalizeCategoryId,
 } from "../../utils/vendorCategoryRequests";
+import { API_BASE_URL } from "../../utils/url";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = API_BASE_URL;
 
 const STATUS_STYLES = {
   pending: "bg-amber-50 text-amber-700 ring-amber-200",

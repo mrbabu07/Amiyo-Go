@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import StarRating from "./StarRating";
+import { toApiUrl } from "../../utils/url";
 
 const ProductRating = ({
   productId,
@@ -17,7 +18,7 @@ const ProductRating = ({
 
   const fetchRating = async () => {
     try {
-      const response = await fetch(`/api/reviews/product/${productId}/stats`);
+      const response = await fetch(toApiUrl(`/reviews/product/${productId}/stats`));
 
       // Check if response is ok
       if (!response.ok) {

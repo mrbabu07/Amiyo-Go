@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../../utils/url';
+
+const campaignApi = axios.create({ baseURL: API_BASE_URL });
 
 const CampaignAnalyticsDashboard = ({ campaignId }) => {
   const [analytics, setAnalytics] = useState(null);
@@ -25,10 +28,10 @@ const CampaignAnalyticsDashboard = ({ campaignId }) => {
       };
 
       const [analyticsRes, viewRes, orderRes, productsRes] = await Promise.all([
-        axios.get(`/api/campaigns/${campaignId}/analytics`, { params }),
-        axios.get(`/api/campaigns/${campaignId}/analytics/views`, { params }),
-        axios.get(`/api/campaigns/${campaignId}/analytics/orders`, { params }),
-        axios.get(`/api/campaigns/${campaignId}/analytics/top-products`, { params: { limit: 10 } }),
+        campaignApi.get(`/campaigns/${campaignId}/analytics`, { params }),
+        campaignApi.get(`/campaigns/${campaignId}/analytics/views`, { params }),
+        campaignApi.get(`/campaigns/${campaignId}/analytics/orders`, { params }),
+        campaignApi.get(`/campaigns/${campaignId}/analytics/top-products`, { params: { limit: 10 } }),
       ]);
 
       setAnalytics(analyticsRes.data.data);
@@ -44,7 +47,7 @@ const CampaignAnalyticsDashboard = ({ campaignId }) => {
 
   const handleExport = async () => {
     try {
-      const response = await axios.get(`/api/campaigns/${campaignId}/analytics/export`, {
+      const response = await campaignApi.get(`/campaigns/${campaignId}/analytics/export`, {
         params: dateRange,
         responseType: 'blob',
       });

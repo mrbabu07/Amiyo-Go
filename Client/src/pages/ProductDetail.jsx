@@ -23,6 +23,7 @@ import SellerInfoStrip from "../components/SellerInfoStrip";
 import ProductShareReportActions from "../components/ProductShareReportActions";
 import SocialProofIndicators from "../components/SocialProofIndicators";
 import { lazyLoadWithRetry } from "../utils/lazyLoad";
+import { toApiUrl } from "../utils/url";
 
 const ReviewsSection = lazyLoadWithRetry(() => import("../components/reviews/ReviewsSection"));
 const ProductRecommendations = lazyLoadWithRetry(() => import("../components/ProductRecommendations"));
@@ -86,7 +87,7 @@ export default function ProductDetail() {
 
   const fetchCategoryPath = useCallback(async (categoryId) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/categories/${categoryId}/path`);
+      const response = await fetch(toApiUrl(`/categories/${categoryId}/path`));
       if (response.ok) {
         const data = await response.json();
         setCategoryPath(data.path || []);

@@ -30,8 +30,9 @@ import {
   getVendorMarketingItems,
 } from "../../services/api";
 import { buildVendorWorkflow } from "../../utils/roleWorkflowCenter";
+import { API_BASE_URL } from "../../utils/url";
 
-const API_URL = globalThis.__AMIYO_API_URL__ || "http://localhost:5000/api";
+const API_URL = globalThis.__AMIYO_API_URL__ || API_BASE_URL;
 const SHIP_SLA_HOURS = 48;
 const LOW_VIEW_THRESHOLD = 5;
 const LOW_STOCK_THRESHOLD = 10;
