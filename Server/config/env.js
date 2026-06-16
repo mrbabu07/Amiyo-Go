@@ -8,6 +8,16 @@ const PLACEHOLDER_PATTERNS = [
 
 const hasValue = (value) => String(value || "").trim().length > 0;
 
+const DEFAULT_CLIENT_ORIGINS = [
+  "https://amiyo-go.vercel.app",
+];
+
+function normalizeCorsOrigin(value) {
+  const origin = String(value || "").trim();
+  if (!origin || origin === "*") return origin;
+  return origin.replace(/\/+$/, "");
+}
+
 const isPlaceholderValue = (value) => {
   const text = String(value || "").trim();
   return PLACEHOLDER_PATTERNS.some((pattern) => pattern.test(text));
@@ -150,10 +160,10 @@ function validateStartupEnv(env = process.env, options = {}) {
     }
   });
 
-  if (!hasValue(env.CORS_ORIGINS) && !hasValue(env.CLIENT_URL)) {
+  if (!hasValue(env.CORS_ORIGINS) && !hasValue(env.CLIENT_URL) && !hasValue(env.FRONTEND_URL) && !hasValue(env.APP_URL)) {
     warnings.push({
       service: "cors",
-      message: "CORS_ORIGINS or CLIENT_URL is not set; localhost origins will be allowed.",
+      message: "CORS_ORIGINS, CLIENT_URL, FRONTEND_URL, or APP_URL is not set; default client and localhost origins will be allowed.",
     });
   }
 
@@ -169,16 +179,19 @@ function validateStartupEnv(env = process.env, options = {}) {
 function getAllowedCorsOrigins(env = process.env) {
   const configured = [
     env.CLIENT_URL,
+    env.FRONTEND_URL,
+    env.APP_URL,
     env.CORS_ORIGINS,
   ]
     .filter(Boolean)
     .flatMap((value) => String(value).split(","))
-    .map((value) => value.trim())
+    .map(normalizeCorsOrigin)
     .filter(Boolean);
 
   return [
     ...new Set([
       ...configured,
+      ...DEFAULT_CLIENT_ORIGINS,
       "http://localhost:5173",
       "http://127.0.0.1:5173",
       "http://localhost:3000",

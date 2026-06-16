@@ -49,18 +49,25 @@ describe("environment validation", () => {
 
   test("builds a strict CORS allowlist with localhost development fallback", () => {
     const origins = getAllowedCorsOrigins({
-      CLIENT_URL: "https://amiyo.example",
+      CLIENT_URL: "https://amiyo.example/",
+      FRONTEND_URL: "https://frontend.amiyo.example",
       CORS_ORIGINS: "https://admin.amiyo.example, https://seller.amiyo.example",
     });
 
     expect(origins).toEqual(expect.arrayContaining([
       "https://amiyo.example",
+      "https://frontend.amiyo.example",
+      "https://amiyo-go.vercel.app",
       "https://admin.amiyo.example",
       "https://seller.amiyo.example",
       "http://localhost:5173",
     ]));
 
-    const corsOptions = buildCorsOptions({ CLIENT_URL: "https://amiyo.example" });
+    const corsOptions = buildCorsOptions({ CLIENT_URL: "https://amiyo.example/" });
+    const allowedCallback = jest.fn();
+    corsOptions.origin("https://amiyo.example", allowedCallback);
+    expect(allowedCallback).toHaveBeenCalledWith(null, true);
+
     const callback = jest.fn();
     corsOptions.origin("https://evil.example", callback);
     expect(callback.mock.calls[0][0]).toBeInstanceOf(Error);
