@@ -1,10 +1,18 @@
 const express = require("express");
-const archiver = require("archiver");
 const { verifyToken } = require("../middleware/auth");
 
 const router = express.Router();
 
 router.use(verifyToken);
+
+let zipArchiveCtorPromise;
+
+const getZipArchiveCtor = async () => {
+  if (!zipArchiveCtorPromise) {
+    zipArchiveCtorPromise = import("archiver").then((module) => module.ZipArchive);
+  }
+  return zipArchiveCtorPromise;
+};
 
 const writeJson = (archive, name, value) => {
   archive.append(JSON.stringify(value || [], null, 2), { name });
@@ -33,7 +41,8 @@ router.get("/export", async (req, res) => {
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="amiyo-go-account-export-${userId}.zip"`);
 
-    const archive = archiver("zip", { zlib: { level: 9 } });
+    const ZipArchive = await getZipArchiveCtor();
+    const archive = new ZipArchive({ zlib: { level: 9 } });
     archive.on("error", (error) => {
       console.error("Account export archive error:", error);
       if (!res.headersSent) {

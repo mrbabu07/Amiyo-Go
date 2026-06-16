@@ -1,4 +1,3 @@
-const { ZipArchive } = require("archiver");
 const speakeasy = require("speakeasy");
 const emailService = require("../services/emailService");
 const {
@@ -13,6 +12,15 @@ const {
   sanitizePrivacySettings,
   sanitizeProfileInput,
 } = require("../utils/accountProfile");
+
+let zipArchiveCtorPromise;
+
+const getZipArchiveCtor = async () => {
+  if (!zipArchiveCtorPromise) {
+    zipArchiveCtorPromise = import("archiver").then((module) => module.ZipArchive);
+  }
+  return zipArchiveCtorPromise;
+};
 
 const getAuthNameParts = (req) => {
   const name = req.user?.name || req.user?.displayName || "";
@@ -440,6 +448,7 @@ const exportAccountData = async (req, res) => {
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="amiyo-account-${Date.now()}.zip"`);
 
+    const ZipArchive = await getZipArchiveCtor();
     const archive = new ZipArchive({ zlib: { level: 9 } });
     archive.on("error", (error) => {
       throw error;
