@@ -8,10 +8,23 @@ import path from "path";
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   const env = loadEnv(mode, process.cwd(), "");
+  const deployedApiUrl = "https://amiyo-go-server.vercel.app/api";
+  const defaultApiUrl =
+    mode === "production"
+      ? deployedApiUrl
+      : "http://localhost:5000/api";
+  const normalizeApiUrl = (value) => {
+    const raw = String(value || "").trim().replace(/\/+$/, "");
+    if (!raw) return defaultApiUrl;
+    if (mode === "production" && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(raw)) {
+      return deployedApiUrl;
+    }
+    return raw.endsWith("/api") ? raw : `${raw}/api`;
+  };
+  const apiUrl = normalizeApiUrl(env.VITE_API_URL);
 
-  // Use environment variable or fallback to localhost
-  const apiTarget =
-    env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000";
+  // Use environment variable or environment-aware fallback.
+  const apiTarget = apiUrl.replace(/\/api\/?$/, "");
 
   return {
     plugins: [
@@ -85,8 +98,9 @@ export default defineConfig(({ mode }) => {
     },
     // PWA Configuration
     define: {
+      "import.meta.env.VITE_API_URL": JSON.stringify(apiUrl),
       "globalThis.__AMIYO_API_URL__": JSON.stringify(
-        env.VITE_API_URL || "http://localhost:5000/api",
+        apiUrl,
       ),
       __PWA_VERSION__: JSON.stringify(
         process.env.npm_package_version || "1.0.0",
