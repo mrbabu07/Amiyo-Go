@@ -1,6 +1,7 @@
 # Environment variables (IMPORTANT - Contains MongoDB URI and Firebase secrets!)
 .env
 .env.local
+.env.vercel
 .env.*.local
 
 # Dependencies
