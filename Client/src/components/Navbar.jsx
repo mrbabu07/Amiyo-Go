@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Coins } from "lucide-react";
+import { Coins, Menu, Search, X } from "lucide-react";
 import useAuth from "../hooks/useAuth";
 import useCart from "../hooks/useCart";
 import useWishlist from "../hooks/useWishlist";
@@ -12,6 +12,7 @@ import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
 import LanguageSwitcher from "./LanguageSwitcher";
 import SearchBar from "./SearchBar";
+import AppLogo from "./AppLogo";
 import { LOYALTY_BALANCE_EVENT, getLoyaltyPointsFromPayload } from "../utils/loyaltyBalance";
 
 export default function Navbar() {
@@ -25,6 +26,7 @@ export default function Navbar() {
   const loyaltyUserKey = user?.uid || user?.email || "";
   const coinRewardsEnabled = isFeatureEnabled("loyaltyCoins");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [categories, setCategories] = useState([]);
@@ -114,6 +116,8 @@ export default function Navbar() {
   const handleSearch = (query) => {
     if (query.trim()) {
       navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+      setMobileSearchOpen(false);
+      setMobileMenuOpen(false);
     }
   };
 
@@ -183,18 +187,22 @@ export default function Navbar() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
+          <div className="flex h-16 items-center justify-between gap-3 lg:h-20">
             {/* Logo */}
             <Link
               to="/"
-              className="flex items-center space-x-2 group flex-shrink-0"
+              className="group min-w-0 shrink-0"
+              onClick={() => {
+                setMobileSearchOpen(false);
+                setMobileMenuOpen(false);
+              }}
+              aria-label="Amiyo-Go home"
             >
-              <div className="w-10 h-10 bg-[#1e7098] rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">H</span>
-              </div>
-              <span className="text-2xl font-bold text-gray-900 dark:text-white hidden sm:block">
-                Amiyo-Go
-              </span>
+              <AppLogo
+                size="md"
+                className="transition-transform duration-200 group-hover:scale-[1.02]"
+                textClassName="max-[340px]:hidden"
+              />
             </Link>
 
             {/* Search Bar - Desktop */}
@@ -208,7 +216,7 @@ export default function Navbar() {
             </div>
 
             {/* Right Side Actions */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-2 lg:space-x-4">
               {/* Action Icons - Desktop */}
               <div className="hidden lg:flex items-center space-x-2">
                 <LanguageSwitcher compact />
@@ -647,46 +655,82 @@ export default function Navbar() {
                 )}
               </div>
 
+              <div className="flex items-center gap-1.5 lg:hidden">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileSearchOpen((current) => !current);
+                    setMobileMenuOpen(false);
+                    setCategoriesOpen(false);
+                    setUserMenuOpen(false);
+                  }}
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${
+                    mobileSearchOpen
+                      ? "border-[#1e7098]/35 bg-[#1e7098] text-white shadow-sm"
+                      : "border-gray-200 bg-gray-50 text-gray-700 hover:border-[#1e7098]/30 hover:bg-[#1e7098]/10 hover:text-[#1e7098] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-[#1e7098]/40"
+                  }`}
+                  aria-expanded={mobileSearchOpen}
+                  aria-label={mobileSearchOpen ? "Close search" : "Open search"}
+                >
+                  {mobileSearchOpen ? (
+                    <X className="h-5 w-5" aria-hidden="true" />
+                  ) : (
+                    <Search className="h-5 w-5" aria-hidden="true" />
+                  )}
+                </button>
+
+                {user && <NotificationBell />}
+              </div>
+
               {/* Mobile Menu Button */}
               <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen((current) => !current);
+                  setMobileSearchOpen(false);
+                }}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors lg:hidden ${
+                  mobileMenuOpen
+                    ? "border-[#1e7098]/35 bg-[#1e7098] text-white shadow-sm"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-[#1e7098]/30 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                }`}
+                aria-expanded={mobileMenuOpen}
+                aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
               >
-                <svg
-                  className="w-6 h-6 text-gray-600 dark:text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  {mobileMenuOpen ? (
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  ) : (
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 6h16M4 12h16M4 18h16"
-                    />
-                  )}
-                </svg>
+                {mobileMenuOpen ? (
+                  <X className="h-5 w-5" aria-hidden="true" />
+                ) : (
+                  <Menu className="h-5 w-5" aria-hidden="true" />
+                )}
               </button>
             </div>
           </div>
 
-          {/* Mobile Search Bar */}
-          <div className="lg:hidden pb-4">
-            <SearchBar
-              placeholder={t("navbar.search_mobile_placeholder")}
-              onSearch={handleSearch}
-              className="w-full h-12 px-4 pr-12 border-2 border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-[#1e7098] transition-colors"
-              showSuggestions={true}
-            />
-          </div>
+          {mobileSearchOpen && (
+            <div className="lg:hidden pb-3">
+              <div className="rounded-2xl border border-gray-200 bg-white p-2 shadow-xl shadow-slate-900/10 dark:border-gray-800 dark:bg-gray-900">
+                <div className="mb-2 flex items-center justify-between gap-3 px-1">
+                  <p className="text-xs font-black uppercase text-gray-500 dark:text-gray-400">
+                    Search Amiyo-Go
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setMobileSearchOpen(false)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                    aria-label="Close search"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+                <SearchBar
+                  placeholder={t("navbar.search_mobile_placeholder")}
+                  onSearch={handleSearch}
+                  className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 pr-24 text-sm font-semibold text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-[#1e7098] focus:bg-white dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-[#1e7098]"
+                  showSuggestions={true}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Secondary Navigation Bar */}

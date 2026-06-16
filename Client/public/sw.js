@@ -1,9 +1,22 @@
-const CACHE_NAME = "amiyo-go-v1.0.2";
-const STATIC_CACHE = "amiyo-go-static-v1.0.2";
-const DYNAMIC_CACHE = "amiyo-go-dynamic-v1.0.2";
+const CACHE_NAME = "amiyo-go-v1.0.3";
+const STATIC_CACHE = "amiyo-go-static-v1.0.3";
+const DYNAMIC_CACHE = "amiyo-go-dynamic-v1.0.3";
 
 // Assets to cache immediately
-const STATIC_ASSETS = ["/", "/offline.html", "/manifest.json"];
+const STATIC_ASSETS = [
+  "/",
+  "/offline.html",
+  "/manifest.json",
+  "/favicon.svg",
+  "/icons/amiyo-go-icon.svg",
+  "/icons/icon-72x72.png",
+  "/icons/icon-96x96.png",
+  "/icons/icon-144x144.png",
+  "/icons/icon-192x192.png",
+  "/icons/icon-512x512.png",
+  "/icons/maskable-512x512.png",
+  "/icons/apple-touch-icon.png",
+];
 
 // API endpoints that should NEVER be cached (always fresh)
 const NO_CACHE_PATTERNS = [

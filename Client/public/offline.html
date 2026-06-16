@@ -3,162 +3,165 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Offline - HnilaBazar</title>
+    <title>Offline - Amiyo-Go</title>
     <style>
       * {
+        box-sizing: border-box;
         margin: 0;
         padding: 0;
-        box-sizing: border-box;
       }
 
       body {
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         min-height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
-        color: white;
+        padding: 24px;
+        color: #ffffff;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background:
+          radial-gradient(circle at 18% 12%, rgba(245, 158, 11, 0.24), transparent 18rem),
+          linear-gradient(135deg, #1e7098 0%, #17627f 52%, #0f9f7a 100%);
       }
 
       .offline-container {
+        width: min(100%, 420px);
+        padding: 34px 22px;
         text-align: center;
-        max-width: 400px;
-        padding: 40px 20px;
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        border-radius: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 24px;
+        background: rgba(15, 23, 42, 0.18);
+        box-shadow: 0 22px 70px rgba(15, 23, 42, 0.26);
+        backdrop-filter: blur(18px);
       }
 
-      .offline-icon {
-        font-size: 80px;
-        margin-bottom: 20px;
-        animation: pulse 2s infinite;
+      .brand-icon {
+        width: 88px;
+        height: 88px;
+        margin: 0 auto 18px;
+        border-radius: 24px;
+        box-shadow: 0 16px 42px rgba(15, 23, 42, 0.24);
       }
 
-      @keyframes pulse {
-        0%,
-        100% {
-          transform: scale(1);
-        }
-        50% {
-          transform: scale(1.1);
-        }
+      .brand-name {
+        margin-bottom: 8px;
+        font-size: 0.82rem;
+        font-weight: 900;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        opacity: 0.86;
       }
 
       h1 {
-        font-size: 2.5rem;
-        margin-bottom: 15px;
-        font-weight: 700;
+        margin-bottom: 12px;
+        font-size: clamp(2rem, 9vw, 2.6rem);
+        line-height: 1.05;
       }
 
       .subtitle {
-        font-size: 1.2rem;
         margin-bottom: 10px;
-        opacity: 0.9;
+        font-size: 1.08rem;
+        font-weight: 800;
+        opacity: 0.92;
       }
 
       .description {
-        font-size: 1rem;
-        margin-bottom: 30px;
-        opacity: 0.8;
-        line-height: 1.6;
+        margin-bottom: 28px;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.98rem;
+        line-height: 1.65;
       }
 
       .actions {
-        display: flex;
-        flex-direction: column;
-        gap: 15px;
-        margin-bottom: 30px;
+        display: grid;
+        gap: 12px;
+        margin-bottom: 24px;
       }
 
       .btn {
-        padding: 15px 30px;
-        border: none;
-        border-radius: 12px;
-        font-size: 16px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        text-decoration: none;
+        min-height: 48px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 10px;
+        border: 0;
+        border-radius: 14px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 900;
+        text-decoration: none;
+        transition:
+          transform 0.2s ease,
+          background 0.2s ease;
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
       }
 
       .btn-primary {
-        background: rgba(255, 255, 255, 0.2);
-        color: white;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-      }
-
-      .btn-primary:hover {
-        background: rgba(255, 255, 255, 0.3);
-        transform: translateY(-2px);
+        color: #17627f;
+        background: #ffffff;
       }
 
       .btn-secondary {
-        background: transparent;
-        color: white;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-      }
-
-      .btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.1);
-        transform: translateY(-2px);
-      }
-
-      .features {
-        margin-top: 30px;
-        padding-top: 30px;
-        border-top: 1px solid rgba(255, 255, 255, 0.2);
-      }
-
-      .features h3 {
-        font-size: 1.1rem;
-        margin-bottom: 15px;
-        opacity: 0.9;
-      }
-
-      .feature-list {
-        list-style: none;
-        text-align: left;
-      }
-
-      .feature-list li {
-        padding: 8px 0;
-        opacity: 0.8;
-        font-size: 0.9rem;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .feature-icon {
-        font-size: 1.2rem;
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.32);
+        background: rgba(255, 255, 255, 0.12);
       }
 
       .status-indicator {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        margin-top: 20px;
-        padding: 10px 15px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.13);
         font-size: 0.9rem;
+        font-weight: 700;
       }
 
       .status-dot {
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        background: #ff6b6b;
+        background: #f59e0b;
         animation: blink 1.5s infinite;
+      }
+
+      .features {
+        margin-top: 28px;
+        padding-top: 24px;
+        border-top: 1px solid rgba(255, 255, 255, 0.18);
+        text-align: left;
+      }
+
+      .features h2 {
+        margin-bottom: 14px;
+        font-size: 1rem;
+      }
+
+      .feature-list {
+        display: grid;
+        gap: 10px;
+        list-style: none;
+      }
+
+      .feature-list li {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: rgba(255, 255, 255, 0.82);
+        font-size: 0.92rem;
+      }
+
+      .feature-icon {
+        width: 58px;
+        flex: 0 0 auto;
+        font-size: 0.72rem;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        color: rgba(255, 255, 255, 0.95);
       }
 
       @keyframes blink {
@@ -168,106 +171,65 @@
         }
         51%,
         100% {
-          opacity: 0.3;
-        }
-      }
-
-      @media (max-width: 480px) {
-        .offline-container {
-          margin: 20px;
-          padding: 30px 15px;
-        }
-
-        h1 {
-          font-size: 2rem;
-        }
-
-        .subtitle {
-          font-size: 1.1rem;
+          opacity: 0.35;
         }
       }
     </style>
   </head>
   <body>
-    <div class="offline-container">
-      <div class="offline-icon">📱</div>
+    <main class="offline-container">
+      <img class="brand-icon" src="/icons/icon-192x192.png" alt="Amiyo-Go" />
+      <p class="brand-name">Amiyo-Go</p>
       <h1>You're Offline</h1>
-      <p class="subtitle">No Internet Connection</p>
+      <p class="subtitle">No internet connection</p>
       <p class="description">
-        Don't worry! You can still browse some content that's been saved on your
-        device.
+        Some saved marketplace content may still work. Reconnect and refresh to
+        continue shopping.
       </p>
 
       <div class="actions">
         <button class="btn btn-primary" onclick="window.location.reload()">
-          <span>🔄</span>
           Try Again
         </button>
-        <a href="/" class="btn btn-secondary">
-          <span>🏠</span>
-          Go to Home
-        </a>
+        <a href="/" class="btn btn-secondary">Go to Home</a>
       </div>
 
       <div class="status-indicator">
         <div class="status-dot"></div>
-        <span>Waiting for connection...</span>
+        <span>Waiting for connection</span>
       </div>
 
-      <div class="features">
-        <h3>Available Offline:</h3>
+      <section class="features" aria-labelledby="offline-features">
+        <h2 id="offline-features">Available offline</h2>
         <ul class="feature-list">
-          <li>
-            <span class="feature-icon">📦</span>
-            Browse cached products
-          </li>
-          <li>
-            <span class="feature-icon">🛒</span>
-            View your cart
-          </li>
-          <li>
-            <span class="feature-icon">❤️</span>
-            Check your wishlist
-          </li>
-          <li>
-            <span class="feature-icon">📋</span>
-            View order history
-          </li>
+          <li><span class="feature-icon">SHOP</span>Browse cached products</li>
+          <li><span class="feature-icon">CART</span>View your cart</li>
+          <li><span class="feature-icon">SAVE</span>Check your wishlist</li>
+          <li><span class="feature-icon">ORDERS</span>View order history</li>
         </ul>
-      </div>
-    </div>
+      </section>
+    </main>
 
     <script>
-      // Auto-retry when connection is restored
       window.addEventListener("online", () => {
         setTimeout(() => {
           window.location.reload();
         }, 1000);
       });
 
-      // Update status indicator
       function updateConnectionStatus() {
         const statusIndicator = document.querySelector(".status-indicator");
-        const statusDot = document.querySelector(".status-dot");
 
-        if (navigator.onLine) {
+        if (navigator.onLine && statusIndicator) {
           statusIndicator.innerHTML = `
-                    <div style="width: 8px; height: 8px; border-radius: 50%; background: #51cf66;"></div>
-                    <span>Connection restored! Refreshing...</span>
-                `;
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e;"></div>
+            <span>Connection restored. Refreshing...</span>
+          `;
           setTimeout(() => window.location.reload(), 1000);
         }
       }
 
-      window.addEventListener("online", updateConnectionStatus);
-      window.addEventListener("offline", updateConnectionStatus);
-
-      // Check connection status periodically
-      setInterval(() => {
-        if (navigator.onLine) {
-          updateConnectionStatus();
-        }
-      }, 5000);
+      setInterval(updateConnectionStatus, 5000);
     </script>
   </body>
 </html>

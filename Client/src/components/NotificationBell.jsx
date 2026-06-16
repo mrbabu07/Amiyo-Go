@@ -1,5 +1,15 @@
-import { useState, useRef, useEffect } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import {
+  BadgeDollarSign,
+  Bell,
+  BellRing,
+  PackageCheck,
+  RotateCcw,
+  ShoppingBag,
+  Truck,
+  XCircle,
+} from "lucide-react";
 import { useNotifications } from "../context/NotificationContext";
 import { useClickOutside } from "../hooks/useClickOutside";
 
@@ -20,38 +30,38 @@ export default function NotificationBell() {
   const getNotificationIcon = (type) => {
     switch (type) {
       case "order":
-        return "🛍️";
+        return ShoppingBag;
       case "return":
-        return "↩️";
+        return RotateCcw;
       case "refund":
-        return "💰";
+        return BadgeDollarSign;
       case "cancel":
-        return "❌";
+        return XCircle;
       case "product":
-        return "🆕";
+        return PackageCheck;
       case "delivery":
-        return "🚚";
+        return Truck;
       default:
-        return "🔔";
+        return BellRing;
     }
   };
 
   const getNotificationColor = (type) => {
     switch (type) {
       case "order":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
+        return "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200";
       case "return":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200";
       case "refund":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+        return "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200";
       case "cancel":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+        return "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200";
       case "product":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200";
+        return "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200";
       case "delivery":
-        return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200";
+        return "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
+        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
     }
   };
 
@@ -73,42 +83,44 @@ export default function NotificationBell() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        className={`relative inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors ${
+          isOpen
+            ? "border-[#1e7098]/35 bg-[#1e7098] text-white shadow-sm"
+            : "border-gray-200 bg-white text-gray-700 hover:border-[#1e7098]/30 hover:bg-gray-50 hover:text-[#1e7098] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        }`}
         title="Notifications"
+        aria-label="Notifications"
+        aria-expanded={isOpen}
       >
-        <svg
-          className="w-6 h-6 text-gray-700 dark:text-gray-300"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-          />
-        </svg>
+        <Bell className="h-5 w-5" aria-hidden="true" />
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
+          <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black leading-none text-white ring-2 ring-white dark:ring-gray-900">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 max-h-[600px] flex flex-col">
-          {/* Header */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                Notifications
-              </h3>
+        <div className="fixed left-3 right-3 top-[4.25rem] z-[260] flex max-h-[calc((var(--vh,1vh)*100)-5rem)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl shadow-slate-900/20 dark:border-gray-700 dark:bg-gray-900 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-h-[600px]">
+          <div className="border-b border-gray-200 bg-white/95 p-4 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 dark:text-white">
+                  Notifications
+                </h3>
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                  {unreadCount > 0
+                    ? `${unreadCount} unread update${unreadCount === 1 ? "" : "s"}`
+                    : "All caught up"}
+                </p>
+              </div>
               {notifications.length > 0 && (
                 <button
+                  type="button"
                   onClick={markAllAsRead}
-                  className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
+                  className="shrink-0 text-sm font-bold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                 >
                   Mark all read
                 </button>
@@ -116,119 +128,112 @@ export default function NotificationBell() {
             </div>
           </div>
 
-          {/* Notifications List */}
-          <div className="overflow-y-auto flex-1">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="p-8 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                  <svg
-                    className="w-8 h-8 text-gray-400 dark:text-gray-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                    />
-                  </svg>
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-800">
+                  <Bell className="h-8 w-8 text-gray-400 dark:text-gray-500" aria-hidden="true" />
                 </div>
-                <p className="text-gray-500 dark:text-gray-400">
+                <p className="font-semibold text-gray-500 dark:text-gray-400">
                   No notifications yet
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                {notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    role={notification.link ? "button" : undefined}
-                    tabIndex={notification.link ? 0 : undefined}
-                    onClick={() => {
-                      if (!notification.link) return;
-                      markAsRead(notification.id);
-                      setIsOpen(false);
-                      navigate(notification.link);
-                    }}
-                    onKeyDown={(event) => {
-                      if (!notification.link || !["Enter", " "].includes(event.key)) return;
-                      event.preventDefault();
-                      markAsRead(notification.id);
-                      setIsOpen(false);
-                      navigate(notification.link);
-                    }}
-                    className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                      !notification.read ? "bg-blue-50 dark:bg-blue-900/20" : ""
-                    } ${notification.link ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500" : ""}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg ${getNotificationColor(
-                          notification.type,
-                        )}`}
-                      >
-                        {getNotificationIcon(notification.type)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                          {notification.title}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                          {notification.message}
-                        </p>
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatTime(notification.timestamp)}
-                          </span>
-                          {!notification.read && (
+              <div className="divide-y divide-gray-200 dark:divide-gray-800">
+                {notifications.map((notification) => {
+                  const Icon = getNotificationIcon(notification.type);
+
+                  return (
+                    <div
+                      key={notification.id}
+                      role={notification.link ? "button" : undefined}
+                      tabIndex={notification.link ? 0 : undefined}
+                      onClick={() => {
+                        if (!notification.link) return;
+                        markAsRead(notification.id);
+                        setIsOpen(false);
+                        navigate(notification.link);
+                      }}
+                      onKeyDown={(event) => {
+                        if (!notification.link || !["Enter", " "].includes(event.key)) return;
+                        event.preventDefault();
+                        markAsRead(notification.id);
+                        setIsOpen(false);
+                        navigate(notification.link);
+                      }}
+                      className={`p-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                        !notification.read ? "bg-blue-50 dark:bg-blue-950/30" : ""
+                      } ${notification.link ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500" : ""}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${getNotificationColor(
+                            notification.type,
+                          )}`}
+                        >
+                          <Icon className="h-5 w-5" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="line-clamp-1 text-sm font-bold text-gray-900 dark:text-white">
+                            {notification.title}
+                          </p>
+                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-gray-600 dark:text-gray-300">
+                            {notification.message}
+                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                              {formatTime(notification.timestamp)}
+                            </span>
+                            {!notification.read && (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  markAsRead(notification.id);
+                                }}
+                                className="text-xs font-bold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                              >
+                                Mark as read
+                              </button>
+                            )}
                             <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                clearNotification(notification.id);
+                              }}
+                              className="text-xs font-bold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          {notification.link && (
+                            <Link
+                              to={notification.link}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 markAsRead(notification.id);
+                                setIsOpen(false);
                               }}
-                              className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
+                              className="mt-2 inline-block text-sm font-bold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                             >
-                              Mark as read
-                            </button>
+                              View details
+                            </Link>
                           )}
-                          <button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              clearNotification(notification.id);
-                            }}
-                            className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium"
-                          >
-                            Remove
-                          </button>
                         </div>
-                        {notification.link && (
-                          <Link
-                            to={notification.link}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              markAsRead(notification.id);
-                              setIsOpen(false);
-                            }}
-                            className="inline-block mt-2 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
-                          >
-                            View details →
-                          </Link>
-                        )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
 
-          <div className="border-t border-gray-200 p-3 dark:border-gray-700">
+          <div className="border-t border-gray-200 bg-white/95 p-3 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95">
             <Link
               to="/notifications"
               onClick={() => setIsOpen(false)}
-              className="block rounded-lg px-3 py-2 text-center text-sm font-bold text-primary-700 transition hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-gray-700"
+              className="block rounded-xl bg-primary-50 px-3 py-2.5 text-center text-sm font-black text-primary-700 transition hover:bg-primary-100 dark:bg-primary-950/40 dark:text-primary-300 dark:hover:bg-primary-950/60"
             >
               Open notification center
             </Link>

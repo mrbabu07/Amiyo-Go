@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { PackageCheck, ShoppingBag } from "lucide-react";
+import { PackageCheck } from "lucide-react";
 
 const brandGradient =
   "bg-[linear-gradient(135deg,#1e7098_0%,#22c55e_52%,#f59e0b_100%)]";
@@ -39,8 +39,8 @@ export default function Loading({
       >
         <div className="h-full w-full rounded-[1.1rem] bg-white dark:bg-gray-950" />
       </MotionDiv>
-      <div className="absolute inset-2 flex items-center justify-center rounded-lg bg-primary-600 text-white shadow-sm">
-        <ShoppingBag className="h-7 w-7" strokeWidth={2.2} />
+      <div className="absolute inset-2 flex items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm">
+        <img src="/icons/amiyo-go-icon.svg" alt="" className="h-full w-full object-cover" />
       </div>
       <MotionDiv
         className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-lg bg-accent-500 text-white shadow-md ring-2 ring-white dark:ring-gray-950"
@@ -80,8 +80,8 @@ export default function Loading({
         animate={{ scale: [1, 1.12, 1], opacity: [0.6, 0.9, 0.6] }}
         transition={{ duration: 1.3, repeat: Infinity, ease: "easeInOut" }}
       />
-      <div className="absolute inset-2 flex items-center justify-center rounded-lg bg-primary-600 text-sm font-black text-white">
-        AG
+      <div className="absolute inset-2 flex items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm">
+        <img src="/icons/amiyo-go-icon.svg" alt="" className="h-full w-full object-cover" />
       </div>
     </div>
   );
