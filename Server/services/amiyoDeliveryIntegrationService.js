@@ -346,7 +346,14 @@ const requestWithRetry = async ({ url, headers, rawJson, config, fetchImpl = glo
 
 const normalizeDeliveryCreateResponse = (response = {}, payload = {}, config = {}) => {
   const data = response.data || response.order || response.deliveryOrder || response;
-  const trackingId = getNested(data, [
+  const trackingId = getNested(response, [
+    "trackingId",
+    "tracking_id",
+    "trackingNumber",
+    "tracking_number",
+    "tracking.code",
+    "tracking.id",
+  ]) || getNested(data, [
     "trackingId",
     "tracking_id",
     "trackingNumber",
@@ -354,15 +361,20 @@ const normalizeDeliveryCreateResponse = (response = {}, payload = {}, config = {
     "tracking.code",
     "tracking.id",
   ]);
-  const deliveryOrderId = getNested(data, [
+  const deliveryOrderId = getNested(response, [
     "deliveryOrderId",
     "delivery_order_id",
-    "orderId",
+    "id",
+    "_id",
+  ]) || getNested(data, [
+    "deliveryOrderId",
+    "delivery_order_id",
     "id",
     "_id",
   ]);
-  const deliveryCode = getNested(data, ["deliveryCode", "delivery_code", "code"]);
+  const deliveryCode = getNested(response, ["deliveryCode", "delivery_code", "code"]) || getNested(data, ["deliveryCode", "delivery_code", "code"]);
   const trackingUrl =
+    getNested(response, ["trackingUrl", "tracking_url", "tracking.url"]) ||
     getNested(data, ["trackingUrl", "tracking_url", "tracking.url"]) ||
     (config.clientUrl && trackingId ? `${config.clientUrl}/track/${encodeURIComponent(trackingId)}` : "");
 

@@ -6,6 +6,7 @@ const {
   signAmiyoDeliveryPayload,
   updateOrderFromDeliveryCallback,
   verifyAmiyoDeliveryCallback,
+  __test__,
 } = require("../../services/amiyoDeliveryIntegrationService");
 
 const testEnv = {
@@ -167,6 +168,30 @@ describe("amiyoDeliveryIntegrationService", () => {
         }),
       }),
     );
+  });
+
+  test("normalizes Amiyo Delivery root ids before nested marketplace order ids", () => {
+    const response = {
+      trackingId: "AMD-1001",
+      deliveryOrderId: "delivery-object-id",
+      deliveryCode: "DLY-1001",
+      deliveryOrder: {
+        _id: "nested-delivery-id",
+        orderId: "marketplace-order-id",
+        status: "created"
+      }
+    };
+
+    const normalized = __test__.normalizeDeliveryCreateResponse(response, {}, {
+      clientUrl: "https://delivery-web.local"
+    });
+
+    expect(normalized).toEqual(expect.objectContaining({
+      deliveryOrderId: "delivery-object-id",
+      deliveryCode: "DLY-1001",
+      trackingId: "AMD-1001",
+      trackingUrl: "https://delivery-web.local/track/AMD-1001"
+    }));
   });
 
   test("updates order, vendor orders, and shipments from delivered callback", async () => {
