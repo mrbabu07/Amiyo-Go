@@ -61,6 +61,59 @@ const buildAddressText = (address = {}) =>
     .filter(Boolean)
     .join(", ");
 
+const addressGeo = (address = {}) => {
+  const lat = address.lat ?? address.latitude ?? address.geo?.lat ?? address.location?.lat;
+  const lng = address.lng ?? address.longitude ?? address.geo?.lng ?? address.location?.lng;
+  const formattedAddress = address.formattedAddress || buildAddressText(address);
+  return compact({
+    lat: lat !== undefined && lat !== null && lat !== "" ? Number(lat) : undefined,
+    lng: lng !== undefined && lng !== null && lng !== "" ? Number(lng) : undefined,
+    formattedAddress,
+  });
+};
+
+const deliveryAreaFromAddress = (address = {}) => ({
+  division: String(address.division || address.state || address.city || address.district || "Unknown"),
+  district: String(address.district || address.city || address.division || "Unknown"),
+  upazila: String(address.upazila || address.area || address.city || address.district || "Unknown"),
+  union: String(address.union || address.area || address.upazila || address.city || "Unknown"),
+});
+
+const normalizeAddressObject = (address = {}) =>
+  typeof address === "string" ? { address } : address || {};
+
+const pickupAddressFromVendorOrder = (vendorOrder = {}, index = 0) => {
+  const pickup = normalizeAddressObject(vendorOrder.pickupAddress || vendorOrder.vendorAddress || {});
+  const fallbackAddress =
+    pickup.address ||
+    pickup.formattedAddress ||
+    buildAddressText(pickup) ||
+    vendorOrder.vendorAddress ||
+    `Pickup address pending for ${vendorOrder.vendorName || vendorOrder.shopName || `vendor ${index + 1}`}`;
+
+  return compact({
+    name: pickup.name || vendorOrder.vendorName || vendorOrder.shopName || `Vendor ${index + 1}`,
+    phone: normalizePhone(pickup.phone || vendorOrder.vendorPhone || ""),
+    address: fallbackAddress,
+    division: pickup.division,
+    district: pickup.district || pickup.city,
+    upazila: pickup.upazila || pickup.area,
+    union: pickup.union || pickup.area,
+    geo: addressGeo(pickup),
+  });
+};
+
+const packageCountFromItems = (items = []) =>
+  items.reduce((sum, item) => sum + Number(item.quantity || 1), 0) || 1;
+
+const packageWeightFromItems = (items = []) => {
+  const total = items.reduce(
+    (sum, item) => sum + Number(item.weight || item.packageWeight || 0) * Number(item.quantity || 1),
+    0,
+  );
+  return total > 0 ? round2(total) : 1;
+};
+
 const getIntegrationConfig = (env = process.env) => {
   const apiUrl = trimTrailingSlash(env.AMIYO_DELIVERY_API_URL || "");
   const integrationToken = env.AMIYO_DELIVERY_INTEGRATION_TOKEN || "";
@@ -145,6 +198,7 @@ const mapVendorOrder = (vendorOrder = {}, index = 0) => {
       title: item.title || item.name || item.productName || "Product",
       sku: item.sku || item.variantSku || "",
       quantity: Number(item.quantity || 1),
+      weight: Number(item.weight || item.packageWeight || 0),
       unitPrice: round2(item.price),
       totalPrice: round2(Number(item.price || 0) * Number(item.quantity || 1)),
     })),
@@ -178,54 +232,61 @@ const buildAmiyoDeliveryPayload = (order = {}, options = {}) => {
   const orderId = normalizeId(order._id || order.id || order.orderId);
   const shippingInfo = order.shippingInfo || order.deliveryAddress || {};
   const vendorOrders = buildVendorOrdersPayload(order, options);
+  const area = deliveryAreaFromAddress(shippingInfo);
   const itemCount = vendorOrders.reduce(
     (sum, vendorOrder) => sum + vendorOrder.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 1), 0),
     0,
   );
   const cod = ["cod", "cash_on_delivery", "cash on delivery"].includes(String(order.paymentMethod || "").toLowerCase());
   const total = round2(order.total ?? order.totalAmount ?? order.finalTotal ?? order.payableTotal);
+  const paymentType = cod ? "cod" : "prepaid";
+  const deliveryType = ["same_day", "scheduled", "express"].includes(order.deliveryMethod)
+    ? order.deliveryMethod
+    : "standard";
+  const deliveryAddress = shippingInfo.formattedAddress || buildAddressText(shippingInfo) || shippingInfo.address;
+  const deliveryVendorOrders = vendorOrders.map((vendorOrder, index) => ({
+    vendorOrderId: vendorOrder.vendorOrderId || `${orderId}-vendor-${index + 1}`,
+    ...(vendorOrder.vendorId ? { vendorId: vendorOrder.vendorId } : {}),
+    pickup: pickupAddressFromVendorOrder(vendorOrder, index),
+    area,
+    codAmount: paymentType === "cod" ? round2(vendorOrder.totalAmount || 0) : 0,
+    deliveryFee: round2(vendorOrder.deliveryCharge || 0),
+    paymentType,
+    parcelType: "ecommerce",
+    deliveryType,
+    packageCount: packageCountFromItems(vendorOrder.items),
+    packageWeight: packageWeightFromItems(vendorOrder.items),
+    specialInstructions: vendorOrder.note || "",
+  }));
 
   return {
-    source: "amiyo_go",
-    provider: PROVIDER,
-    order: {
-      id: orderId,
-      orderNumber: order.orderNumber || orderId.slice(-8).toUpperCase(),
-      invoiceNumber: order.invoiceNumber || "",
-      createdAt: order.createdAt || new Date(),
-      paymentMethod: order.paymentMethod || "",
-      paymentStatus: order.paymentStatus || "",
-      deliveryMethod: order.deliveryMethod || "standard",
-      subtotal: round2(order.subtotal),
-      deliveryCharge: round2(order.deliveryCharge),
-      discount: round2(order.totalDiscount || order.discountAmount || order.discount),
-      total,
-      codAmount: cod ? total : 0,
-      isGuest: Boolean(order.isGuest),
-    },
+    orderId,
     customer: {
-      id: normalizeId(order.userId),
       name: shippingInfo.name || shippingInfo.fullName || "Customer",
-      email: shippingInfo.email || "",
       phone: normalizePhone(shippingInfo.phone || shippingInfo.mobile || ""),
+      alternatePhone: normalizePhone(shippingInfo.alternatePhone || shippingInfo.secondaryPhone || ""),
+      address: deliveryAddress || "Delivery address pending",
+      division: area.division,
+      district: area.district,
+      upazila: area.upazila,
+      union: area.union,
+      geo: addressGeo(shippingInfo),
     },
-    deliveryAddress: {
-      ...shippingInfo,
-      formattedAddress: shippingInfo.formattedAddress || buildAddressText(shippingInfo),
-    },
-    vendorOrders,
-    pickupManifest: {
-      orderId,
-      vendorOrderIds: vendorOrders.map((vendorOrder) => vendorOrder.vendorOrderId).filter(Boolean),
-      vendorCount: vendorOrders.length,
-      itemCount,
-      shipmentDrafts: options.shipmentDrafts || [],
-    },
-    metadata: {
-      marketplace: "Amiyo-Go",
-      checkoutSource: options.checkoutSource || "marketplace_checkout",
-      requestedBy: normalizeId(options.actorId),
-    },
+    pickup: deliveryVendorOrders[0]?.pickup,
+    area,
+    vendorOrders: deliveryVendorOrders,
+    codAmount: paymentType === "cod" ? total : 0,
+    deliveryFee: round2(order.deliveryCharge),
+    paymentType,
+    parcelType: "ecommerce",
+    deliveryType,
+    packageCount: itemCount || 1,
+    packageWeight: packageWeightFromItems(vendorOrders.flatMap((vendorOrder) => vendorOrder.items || [])),
+    specialInstructions: [
+      order.specialInstructions,
+      options.checkoutSource ? `Checkout source: ${options.checkoutSource}` : "",
+      options.shipmentDrafts?.length ? `Shipment drafts: ${options.shipmentDrafts.length}` : "",
+    ].filter(Boolean).join("\n"),
   };
 };
 

@@ -67,14 +67,21 @@ describe("amiyoDeliveryIntegrationService", () => {
       ],
     });
 
-    expect(payload.order.id).toBe(orderId.toString());
-    expect(payload.order.codAmount).toBe(960);
+    expect(payload.orderId).toBe(orderId.toString());
+    expect(payload.codAmount).toBe(960);
+    expect(payload.customer.address).toBe("Customer, +8801700000000, House 1, Gulshan, Dhaka");
     expect(payload.customer.phone).toBe("+8801700000000");
     expect(payload.vendorOrders).toHaveLength(1);
-    expect(payload.pickupManifest).toEqual(expect.objectContaining({
-      vendorOrderIds: ["vendor-order-1"],
-      vendorCount: 1,
-      itemCount: 2,
+    expect(payload.vendorOrders[0]).toEqual(expect.objectContaining({
+      vendorOrderId: "vendor-order-1",
+      pickup: expect.objectContaining({ address: expect.stringContaining("Pickup address pending") }),
+      area: expect.objectContaining({ district: "Dhaka", upazila: "Gulshan", union: "Gulshan" }),
+      codAmount: 960,
+      deliveryFee: 60,
+      paymentType: "cod",
+      parcelType: "ecommerce",
+      deliveryType: "standard",
+      packageCount: 2,
     }));
   });
 
