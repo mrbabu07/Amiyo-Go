@@ -49,6 +49,7 @@ const buildAddressText = (address = {}) =>
   [
     address.name,
     address.phone,
+    address.details,
     address.address,
     address.line1,
     address.area,
@@ -83,17 +84,25 @@ const normalizeAddressObject = (address = {}) =>
   typeof address === "string" ? { address } : address || {};
 
 const pickupAddressFromVendorOrder = (vendorOrder = {}, index = 0) => {
-  const pickup = normalizeAddressObject(vendorOrder.pickupAddress || vendorOrder.vendorAddress || {});
+  const firstProduct = (vendorOrder.products || vendorOrder.items || [])[0] || {};
+  const pickup = normalizeAddressObject(
+    vendorOrder.pickupAddress ||
+      vendorOrder.vendorAddress ||
+      firstProduct.pickupAddress ||
+      firstProduct.vendorAddress ||
+      {}
+  );
   const fallbackAddress =
     pickup.address ||
+    pickup.details ||
     pickup.formattedAddress ||
     buildAddressText(pickup) ||
     vendorOrder.vendorAddress ||
     `Pickup address pending for ${vendorOrder.vendorName || vendorOrder.shopName || `vendor ${index + 1}`}`;
 
   return compact({
-    name: pickup.name || vendorOrder.vendorName || vendorOrder.shopName || `Vendor ${index + 1}`,
-    phone: normalizePhone(pickup.phone || vendorOrder.vendorPhone || ""),
+    name: pickup.name || vendorOrder.vendorName || vendorOrder.shopName || firstProduct.vendorName || firstProduct.shopName || `Vendor ${index + 1}`,
+    phone: normalizePhone(pickup.phone || vendorOrder.vendorPhone || firstProduct.vendorPhone || ""),
     address: fallbackAddress,
     division: pickup.division,
     district: pickup.district || pickup.city,
@@ -185,6 +194,8 @@ const mapVendorOrder = (vendorOrder = {}, index = 0) => {
     vendorName: vendorOrder.vendorName || products[0]?.vendorName || products[0]?.shopName || "Amiyo-Go",
     shopName: vendorOrder.shopName || products[0]?.shopName || products[0]?.vendorName || "Amiyo-Go",
     pickupAddress: vendorOrder.pickupAddress || vendorOrder.vendorAddress || null,
+    vendorAddress: vendorOrder.vendorAddress || products[0]?.vendorAddress || null,
+    vendorPhone: vendorOrder.vendorPhone || products[0]?.vendorPhone || "",
     subtotal: round2(vendorOrder.subtotal),
     deliveryCharge: round2(vendorOrder.deliveryCharge),
     discount: round2(vendorOrder.totalDiscount || vendorOrder.couponDiscount || vendorOrder.discount),
@@ -392,20 +403,22 @@ const normalizeDeliveryCreateResponse = (response = {}, payload = {}, config = {
 const persistDeliveryCreateSuccess = async ({ collection, orderId, normalized }) => {
   if (!collection?.updateOne || !orderId) return null;
   const now = new Date();
+  const setPatch = compact({
+    deliveryProvider: PROVIDER,
+    deliveryOrderId: normalized.deliveryOrderId,
+    deliveryCode: normalized.deliveryCode,
+    trackingId: normalized.trackingId,
+    trackingUrl: normalized.trackingUrl,
+    deliveryStatus: normalized.deliveryStatus || "created",
+    deliveryCreatedAt: now,
+    deliveryLastSyncedAt: now,
+    pickupManifest: normalized.pickupManifest,
+    updatedAt: now,
+  });
+  setPatch.deliveryError = null;
+
   return collection.updateOne(orderQuery(orderId), {
-    $set: compact({
-      deliveryProvider: PROVIDER,
-      deliveryOrderId: normalized.deliveryOrderId,
-      deliveryCode: normalized.deliveryCode,
-      trackingId: normalized.trackingId,
-      trackingUrl: normalized.trackingUrl,
-      deliveryStatus: normalized.deliveryStatus || "created",
-      deliveryCreatedAt: now,
-      deliveryLastSyncedAt: now,
-      deliveryError: null,
-      pickupManifest: normalized.pickupManifest,
-      updatedAt: now,
-    }),
+    $set: setPatch,
     $push: {
       deliveryEvents: {
         type: "delivery_order_created",
@@ -683,7 +696,6 @@ const updateOrderFromDeliveryCallback = async (orderId, payload = {}, options = 
     trackingId: payload.trackingId || payload.tracking_id || payload.trackingNumber || order.trackingId,
     trackingUrl: payload.trackingUrl || payload.tracking_url || order.trackingUrl,
     deliveryLastSyncedAt: now,
-    deliveryError: null,
     deliveryFailureReason: payload.reason || payload.failureReason,
     deliveryReturnReason: payload.returnReason,
     deliveryPod: payload.pod || payload.proofOfDelivery,
@@ -698,6 +710,7 @@ const updateOrderFromDeliveryCallback = async (orderId, payload = {}, options = 
     products: orderStatus ? patchProductsForStatus(order.products || [], orderStatus, payload) : undefined,
     updatedAt: now,
   });
+  setPatch.deliveryError = null;
 
   await collection.updateOne(query, {
     $set: setPatch,

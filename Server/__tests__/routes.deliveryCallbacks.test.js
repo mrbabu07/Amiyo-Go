@@ -97,6 +97,7 @@ describe("Amiyo Delivery callback routes", () => {
           deliveryStatus: "delivered",
           status: "delivered",
           trackingId: "TRK-1",
+          deliveryError: null,
         }),
       }),
     );

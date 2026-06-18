@@ -86,6 +86,52 @@ describe("amiyoDeliveryIntegrationService", () => {
     }));
   });
 
+  test("uses product vendor address snapshot as pickup fallback", () => {
+    const orderId = new ObjectId("64f000000000000000000202");
+    const payload = buildAmiyoDeliveryPayload({
+      _id: orderId,
+      paymentMethod: "cod",
+      total: 10030,
+      shippingInfo: {
+        name: "Customer",
+        phone: "+8801700000000",
+        address: "House 1",
+        area: "Hnila",
+        upazila: "Teknaf",
+        district: "Coxsbazar",
+        division: "Chattagram",
+      },
+    }, {
+      vendorOrders: [
+        {
+          _id: "vendor-order-2",
+          vendorId: "vendor-2",
+          totalAmount: 10030,
+          deliveryCharge: 30,
+          products: [
+            {
+              productId: "p-2",
+              title: "Laptop",
+              quantity: 1,
+              price: 10000,
+              vendorName: "Tech World Bangladesh",
+              vendorPhone: "01812345679",
+              vendorAddress: {
+                details: "Shop 45, GEC Circle, Chattogram",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(payload.vendorOrders[0].pickup).toEqual(expect.objectContaining({
+      name: "Tech World Bangladesh",
+      phone: "01812345679",
+      address: "Shop 45, GEC Circle, Chattogram",
+    }));
+  });
+
   test("signs outgoing delivery payload with timestamp.rawJson HMAC", () => {
     const rawJson = JSON.stringify({ orderId: "order-1" });
     const signed = signAmiyoDeliveryPayload(rawJson, {
@@ -165,6 +211,7 @@ describe("amiyoDeliveryIntegrationService", () => {
           deliveryCode: "AD-1001",
           trackingId: "TRK-1001",
           deliveryStatus: "created",
+          deliveryError: null,
         }),
       }),
     );
@@ -236,6 +283,7 @@ describe("amiyoDeliveryIntegrationService", () => {
           deliveryStatus: "delivered",
           status: "delivered",
           trackingId: "TRK-1001",
+          deliveryError: null,
           products: [expect.objectContaining({ itemStatus: "delivered" })],
         }),
       }),
