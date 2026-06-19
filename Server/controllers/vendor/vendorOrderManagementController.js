@@ -2,6 +2,7 @@ const { ObjectId } = require("mongodb");
 const PDFDocument = require("pdfkit");
 const bwipjs = require("bwip-js");
 const { appendOrderEvent, getTimelineForOrder } = require("../../services/orderEventService");
+const { notifyAmiyoDeliveryOrderReady } = require("../../services/amiyoDeliveryIntegrationService");
 
 /**
  * Daraz-Style Vendor Order Management Controller
@@ -329,6 +330,9 @@ exports.markReadyToShip = async (req, res) => {
 
     await Order.syncOrderStatus(orderId);
 
+    const updatedOrder = await Order.findById(orderId);
+    const amiyoDelivery = await notifyAmiyoDeliveryOrderReady(updatedOrder || order, { db, Order });
+
     await updateVendorOrderSnapshot(db, orderId, vendorId, {
       status: "ready_to_ship",
       readyToShipAt: new Date(),
@@ -357,6 +361,7 @@ exports.markReadyToShip = async (req, res) => {
       data: {
         orderId,
         readyToShipAt: new Date(),
+        amiyoDelivery,
       }
     });
   } catch (error) {
