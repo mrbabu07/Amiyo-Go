@@ -517,63 +517,6 @@ const createAmiyoDeliveryShipment = async (order = {}, options = {}) => {
   }
 };
 
-const notifyAmiyoDeliveryOrderReady = async (order = {}, options = {}) => {
-  const env = options.env || process.env;
-  const config = getIntegrationConfig(env);
-  const orderId = normalizeId(order._id || order.id || order.orderId);
-  const collection = options.orderCollection || options.Order?.collection || options.db?.collection?.("orders");
-
-  if (!config.enabled) {
-    return {
-      skipped: true,
-      reason: "not_configured",
-      provider: PROVIDER,
-    };
-  }
-
-  if (!orderId) {
-    const error = new Error("Order ID is required for Amiyo Delivery ready notification");
-    error.retryable = false;
-    throw error;
-  }
-
-  const payload = {
-    orderId,
-    event: "order.ready_to_ship",
-    status: "ready_to_ship",
-  };
-  const rawJson = JSON.stringify(payload);
-  const signed = signAmiyoDeliveryPayload(rawJson, { env });
-  const url = `${config.apiUrl}/api/integrations/amiyo/orders`;
-
-  try {
-    const response = await requestWithRetry({
-      url,
-      rawJson,
-      config,
-      fetchImpl: options.fetchImpl,
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "x-api-key": config.integrationToken,
-        "x-amiyo-timestamp": signed.timestamp,
-        "x-amiyo-signature": signed.signature,
-      },
-    });
-    const normalized = normalizeDeliveryCreateResponse(response, payload, config);
-    await persistDeliveryCreateSuccess({ collection, orderId, normalized });
-    return {
-      attempted: true,
-      success: true,
-      provider: PROVIDER,
-      ...normalized,
-    };
-  } catch (error) {
-    await persistDeliveryCreateFailure({ collection, orderId, error });
-    throw error;
-  }
-};
-
 const getRawBody = (req = {}) => {
   if (Buffer.isBuffer(req.rawBody)) return req.rawBody.toString("utf8");
   if (typeof req.rawBody === "string") return req.rawBody;
@@ -823,7 +766,6 @@ module.exports = {
   buildAmiyoDeliveryPayload,
   createAmiyoDeliveryShipment,
   getIntegrationConfig,
-  notifyAmiyoDeliveryOrderReady,
   signAmiyoDeliveryPayload,
   updateOrderFromDeliveryCallback,
   verifyAmiyoDeliveryCallback,

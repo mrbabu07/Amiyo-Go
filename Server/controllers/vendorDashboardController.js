@@ -1,6 +1,6 @@
 const { ObjectId } = require("mongodb");
 const { appendOrderEvent } = require("../services/orderEventService");
-const { notifyAmiyoDeliveryOrderReady } = require("../services/amiyoDeliveryIntegrationService");
+const { createAmiyoDeliveryShipment } = require("../services/amiyoDeliveryIntegrationService");
 
 const round2 = (value) => Math.round(((Number(value) || 0) + Number.EPSILON) * 100) / 100;
 
@@ -1551,7 +1551,11 @@ exports.updateOrderStatus = async (req, res) => {
     await Order.syncOrderStatus(orderId);
 
     const amiyoDelivery = status === "ready_to_ship"
-      ? await notifyAmiyoDeliveryOrderReady(updatedOrder || order, { db, Order })
+      ? await createAmiyoDeliveryShipment(updatedOrder || order, {
+          db,
+          Order,
+          checkoutSource: "ready_to_ship",
+        })
       : null;
 
     await appendOrderEvent({
@@ -1568,7 +1572,12 @@ exports.updateOrderStatus = async (req, res) => {
     res.json({ success: true, message: "Order status updated", amiyoDelivery });
   } catch (error) {
     console.error("Error updating order status:", error);
-    res.status(500).json({ error: "Failed to update order status" });
+    const deliverySyncFailed = Boolean(error.providerResponse || error.statusCode);
+    res.status(deliverySyncFailed ? 502 : 500).json({
+      error: deliverySyncFailed
+        ? `Ready to ship saved, but Amiyo Delivery sync failed: ${error.message}`
+        : "Failed to update order status",
+    });
   }
 };
 
@@ -1652,7 +1661,11 @@ exports.bulkUpdateVendorOrders = async (req, res) => {
 
         await Order.syncOrderStatus(orderId);
         const amiyoDelivery = status === "ready_to_ship"
-          ? await notifyAmiyoDeliveryOrderReady(updatedOrder || order, { db, Order })
+          ? await createAmiyoDeliveryShipment(updatedOrder || order, {
+              db,
+              Order,
+              checkoutSource: "ready_to_ship_bulk",
+            })
           : null;
         await appendOrderEvent({
           app: req.app,

@@ -2,7 +2,7 @@ const { ObjectId } = require("mongodb");
 const PDFDocument = require("pdfkit");
 const bwipjs = require("bwip-js");
 const { appendOrderEvent, getTimelineForOrder } = require("../../services/orderEventService");
-const { notifyAmiyoDeliveryOrderReady } = require("../../services/amiyoDeliveryIntegrationService");
+const { createAmiyoDeliveryShipment } = require("../../services/amiyoDeliveryIntegrationService");
 
 /**
  * Daraz-Style Vendor Order Management Controller
@@ -331,7 +331,11 @@ exports.markReadyToShip = async (req, res) => {
     await Order.syncOrderStatus(orderId);
 
     const updatedOrder = await Order.findById(orderId);
-    const amiyoDelivery = await notifyAmiyoDeliveryOrderReady(updatedOrder || order, { db, Order });
+    const amiyoDelivery = await createAmiyoDeliveryShipment(updatedOrder || order, {
+      db,
+      Order,
+      checkoutSource: "ready_to_ship",
+    });
 
     await updateVendorOrderSnapshot(db, orderId, vendorId, {
       status: "ready_to_ship",
@@ -366,7 +370,12 @@ exports.markReadyToShip = async (req, res) => {
     });
   } catch (error) {
     console.error("Error marking ready to ship:", error);
-    res.status(500).json({ error: "Failed to mark ready to ship" });
+    const deliverySyncFailed = Boolean(error.providerResponse || error.statusCode);
+    res.status(deliverySyncFailed ? 502 : 500).json({
+      error: deliverySyncFailed
+        ? `Ready to ship saved, but Amiyo Delivery sync failed: ${error.message}`
+        : "Failed to mark ready to ship",
+    });
   }
 };
 
