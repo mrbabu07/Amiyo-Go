@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const admin = require("firebase-admin");
 const {
   isStaffRole,
@@ -9,6 +10,59 @@ const { getScopeFromUser } = require("../utils/logisticsScope");
 const debugAuth = process.env.DEBUG_AUTH === "true";
 const authDebug = (...args) => {
   if (debugAuth) console.log(...args);
+};
+
+const placeholderToken = "replace-with-shared-api-token";
+
+const configuredServiceTokens = () =>
+  [
+    process.env.AMIYO_GO_API_SECRET,
+    process.env.AMIYO_DELIVERY_CALLBACK_API_SECRET,
+    process.env.AMIYO_DELIVERY_INTEGRATION_TOKEN,
+  ]
+    .map((token) => token?.toString?.().trim())
+    .filter((token, index, tokens) => token && token !== placeholderToken && tokens.indexOf(token) === index);
+
+const providedServiceToken = (req) => {
+  const authorization = req.headers.authorization || "";
+  return (
+    req.headers["x-amiyo-go-api-secret"] ||
+    req.headers["x-amiyo-delivery-secret"] ||
+    req.headers["x-api-key"] ||
+    req.headers["x-service-token"] ||
+    authorization.replace(/^Bearer\s+/i, "")
+  )?.toString?.().trim();
+};
+
+const tokenMatches = (provided, expected) => {
+  if (!provided || !expected) return false;
+  const providedBuffer = Buffer.from(provided);
+  const expectedBuffer = Buffer.from(expected);
+  return providedBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(providedBuffer, expectedBuffer);
+};
+
+const attachServiceAccount = (req) => {
+  req.serviceAuth = {
+    provider: "amiyo_delivery",
+    authenticatedAt: new Date(),
+  };
+  req.user = {
+    uid: "amiyo_delivery_service",
+    _id: "amiyo_delivery_service",
+    role: "admin",
+  };
+  req.dbUser = {
+    _id: "amiyo_delivery_service",
+    role: "admin",
+    name: "Amiyo Delivery Service",
+    isServiceAccount: true,
+  };
+};
+
+const serviceTokenAccepted = (req) => {
+  const tokens = configuredServiceTokens();
+  const provided = providedServiceToken(req);
+  return tokens.length > 0 && tokens.some((token) => tokenMatches(provided, token));
 };
 
 let firebaseInitError = null;
@@ -133,6 +187,29 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
+const verifyServiceToken = async (req, res, next) => {
+  const tokens = configuredServiceTokens();
+  if (!tokens.length) {
+    return res.status(503).json({ error: "Amiyo Delivery service token is not configured" });
+  }
+
+  if (!serviceTokenAccepted(req)) {
+    return res.status(401).json({ error: "Invalid service token" });
+  }
+
+  attachServiceAccount(req);
+  return next();
+};
+
+const verifyTokenOrService = async (req, res, next) => {
+  if (serviceTokenAccepted(req)) {
+    attachServiceAccount(req);
+    return next();
+  }
+
+  return verifyToken(req, res, next);
+};
+
 const verifyOptionalToken = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split("Bearer ")[1];
@@ -150,6 +227,8 @@ const verifyOptionalToken = async (req, res, next) => {
 
 const verifyAdmin = async (req, res, next) => {
   try {
+    if (req.serviceAuth?.provider === "amiyo_delivery") return next();
+
     const User = req.app.locals.models.User;
     const Permission = req.app.locals.models.Permission;
 
@@ -333,6 +412,8 @@ const requireVendorPermission = (permission) => {
 
 module.exports = {
   verifyToken,
+  verifyServiceToken,
+  verifyTokenOrService,
   verifyOptionalToken,
   verifyAdmin,
   requireRole,

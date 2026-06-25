@@ -1,7 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const { verifyToken, verifyAdmin } = require("../middleware/auth");
+const { verifyToken, verifyAdmin, verifyServiceToken, verifyTokenOrService } = require("../middleware/auth");
 const { idempotencyMiddleware } = require("../middleware/idempotency");
+const {
+  getDeliveryIntegrationOrderById,
+  listDeliveryIntegrationOrders,
+} = require("../controllers/deliveryIntegrationOrderController");
 const {
   getAllOrders,
   getAdminOrders,
@@ -42,14 +46,20 @@ const refundOrderIdempotency = idempotencyMiddleware({
   required: true,
 });
 
+const serviceAware = (serviceHandler, normalHandler) => (req, res, next) => {
+  if (req.serviceAuth?.provider === "amiyo_delivery") return serviceHandler(req, res, next);
+  return normalHandler(req, res, next);
+};
+
 // ── Admin routes ───────────────────────────────────────────────
 router.get("/admin/stats",       verifyToken, verifyAdmin, getAdminOrderStats);
 router.get("/admin/export/csv",  verifyToken, verifyAdmin, exportOrdersCsv);
 router.get("/admin/cod-reconciliation", verifyToken, verifyAdmin, getAdminCodReconciliation);
 router.get("/admin/sla-breaches", verifyToken, verifyAdmin, getAdminSlaBreaches);
 router.get("/admin/fraud-queue", verifyToken, verifyAdmin, getAdminFraudOrders);
-router.get("/admin",             verifyToken, verifyAdmin, getAdminOrders);
+router.get("/admin",             verifyTokenOrService, verifyAdmin, serviceAware(listDeliveryIntegrationOrders, getAdminOrders));
 router.patch("/admin/bulk-status",             verifyToken, verifyAdmin, bulkUpdateOrderStatus);
+router.get("/ready-to-ship", verifyServiceToken, listDeliveryIntegrationOrders);
 
 // ── Admin order action routes (Daraz-style control) ────────────
 router.get("/admin/:id/detail",             verifyToken, verifyAdmin, getAdminOrderById);
@@ -74,10 +84,11 @@ router.post("/:id/notes",            verifyToken, verifyAdmin, addOrderNote);
 router.post("/:id/invoice/regenerate", verifyToken, verifyAdmin, regenerateInvoice);
 
 // ── Existing routes (unchanged) ───────────────────────────────
-router.get("/",             verifyToken, verifyAdmin, getAllOrders);
 router.get("/my-orders",    verifyToken, getUserOrders);
+router.get("/",             verifyTokenOrService, verifyAdmin, serviceAware(listDeliveryIntegrationOrders, getAllOrders));
 router.post("/",            verifyToken, createOrderIdempotency, createOrder);
 router.post("/guest",       createOrderIdempotency, createOrder); // Guest checkout - no auth required
+router.get("/:id",          verifyServiceToken, getDeliveryIntegrationOrderById);
 router.patch("/:id/status", verifyToken, verifyAdmin, updateOrderStatus);
 router.post("/:id/cancel",  verifyToken, cancelOrder);
 router.get("/:id/invoice",  downloadInvoice);
