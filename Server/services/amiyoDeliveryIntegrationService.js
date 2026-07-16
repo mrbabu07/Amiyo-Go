@@ -243,6 +243,15 @@ const buildAmiyoDeliveryPayload = (order = {}, options = {}) => {
   const orderId = normalizeId(order._id || order.id || order.orderId);
   const shippingInfo = order.shippingInfo || order.deliveryAddress || {};
   const vendorOrders = buildVendorOrdersPayload(order, options);
+  const marketplaceStatus = String(
+    options.fulfillmentStatus ||
+    options.orderStatus ||
+    order.status ||
+    "pending",
+  ).trim().toLowerCase();
+  const syncMode = options.syncMode || (marketplaceStatus === "ready_to_ship" ? "ready_to_ship" : "order_placed");
+  const dispatchRequested = Boolean(options.dispatchRequested || marketplaceStatus === "ready_to_ship");
+  const readyForPickup = dispatchRequested || ["ready_to_ship", "pickup_ready"].includes(marketplaceStatus);
   const area = deliveryAreaFromAddress(shippingInfo);
   const itemCount = vendorOrders.reduce(
     (sum, vendorOrder) => sum + vendorOrder.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 1), 0),
@@ -268,10 +277,28 @@ const buildAmiyoDeliveryPayload = (order = {}, options = {}) => {
     packageCount: packageCountFromItems(vendorOrder.items),
     packageWeight: packageWeightFromItems(vendorOrder.items),
     specialInstructions: vendorOrder.note || "",
+    marketplaceStatus: vendorOrder.status || marketplaceStatus,
+    fulfillmentStatus: vendorOrder.status || marketplaceStatus,
+    readyForPickup: ["ready_to_ship", "pickup_ready"].includes(vendorOrder.status || marketplaceStatus),
+    dispatchRequested,
   }));
 
   return {
     orderId,
+    source: "amiyo_go",
+    syncMode,
+    marketplaceStatus,
+    orderStatus: marketplaceStatus,
+    fulfillmentStatus: marketplaceStatus,
+    readyForPickup,
+    dispatchRequested,
+    pickupRequest: dispatchRequested
+      ? {
+          requestedAt: new Date().toISOString(),
+          reason: options.dispatchReason || "ready_to_ship",
+          source: options.checkoutSource || syncMode,
+        }
+      : undefined,
     customer: {
       name: shippingInfo.name || shippingInfo.fullName || "Customer",
       phone: normalizePhone(shippingInfo.phone || shippingInfo.mobile || ""),
@@ -410,29 +437,38 @@ const normalizeDeliveryCreateResponse = (response = {}, payload = {}, config = {
   };
 };
 
-const persistDeliveryCreateSuccess = async ({ collection, orderId, normalized }) => {
+const persistDeliveryCreateSuccess = async ({ collection, orderId, normalized, syncMode = "order_placed" }) => {
   if (!collection?.updateOne || !orderId) return null;
   const now = new Date();
+  const deliveryStatus = normalized.deliveryStatus || (syncMode === "ready_to_ship" ? "ready_to_ship" : "created");
   const setPatch = compact({
     deliveryProvider: PROVIDER,
     deliveryOrderId: normalized.deliveryOrderId,
     deliveryCode: normalized.deliveryCode,
     trackingId: normalized.trackingId,
     trackingUrl: normalized.trackingUrl,
-    deliveryStatus: normalized.deliveryStatus || "created",
-    deliveryCreatedAt: now,
+    deliveryStatus,
+    deliverySyncMode: syncMode,
+    deliveryCreatedAt: syncMode === "order_placed" ? now : undefined,
+    deliveryOrderPlacedSyncedAt: syncMode === "order_placed" ? now : undefined,
+    deliveryReadyToShipSyncedAt: syncMode === "ready_to_ship" ? now : undefined,
+    deliveryDispatchRequestedAt: syncMode === "ready_to_ship" ? now : undefined,
     deliveryLastSyncedAt: now,
     pickupManifest: normalized.pickupManifest,
     updatedAt: now,
   });
   setPatch.deliveryError = null;
 
+  const eventType = syncMode === "ready_to_ship"
+    ? "delivery_ready_to_ship_synced"
+    : "delivery_order_synced";
+
   return collection.updateOne(orderQuery(orderId), {
     $set: setPatch,
     $push: {
       deliveryEvents: {
-        type: "delivery_order_created",
-        status: normalized.deliveryStatus || "created",
+        type: eventType,
+        status: deliveryStatus,
         provider: PROVIDER,
         payload: normalized.rawResponse,
         createdAt: now,
@@ -459,7 +495,7 @@ const persistDeliveryCreateFailure = async ({ collection, orderId, error }) => {
     },
     $push: {
       deliveryEvents: {
-        type: "delivery_order_create_failed",
+        type: "delivery_order_sync_failed",
         status: "creation_failed",
         provider: PROVIDER,
         message: error.message,
@@ -475,6 +511,7 @@ const createAmiyoDeliveryShipment = async (order = {}, options = {}) => {
   const config = getIntegrationConfig(env);
   const orderId = normalizeId(order._id || order.id || order.orderId);
   const collection = options.orderCollection || options.Order?.collection || options.db?.collection?.("orders");
+  const syncMode = options.syncMode || "order_placed";
 
   if (!config.enabled) {
     return {
@@ -504,17 +541,99 @@ const createAmiyoDeliveryShipment = async (order = {}, options = {}) => {
       },
     });
     const normalized = normalizeDeliveryCreateResponse(response, payload, config);
-    await persistDeliveryCreateSuccess({ collection, orderId, normalized });
+    await persistDeliveryCreateSuccess({ collection, orderId, normalized, syncMode });
     return {
       attempted: true,
       success: true,
       provider: PROVIDER,
+      syncMode,
       ...normalized,
     };
   } catch (error) {
     await persistDeliveryCreateFailure({ collection, orderId, error });
     throw error;
   }
+};
+
+const resolveVendorOrdersForOrder = async ({ order = {}, orderId, db, VendorOrder, vendorOrders = [] }) => {
+  if (Array.isArray(vendorOrders) && vendorOrders.length) return vendorOrders;
+
+  const normalizedOrderId = normalizeId(order._id || orderId);
+  if (VendorOrder?.findByParentOrderId) {
+    const rows = await VendorOrder.findByParentOrderId(normalizedOrderId);
+    if (Array.isArray(rows) && rows.length) return rows;
+  }
+
+  if (db?.collection) {
+    return db.collection("vendorOrders")
+      .find({ parentOrderId: normalizedOrderId })
+      .toArray();
+  }
+
+  return [];
+};
+
+const syncAmiyoDeliveryOrder = async (orderId, options = {}) => {
+  const Order = options.Order;
+  const db = options.db || Order?.collection?.db;
+  const order = options.order || await Order?.findById?.(orderId);
+
+  if (!order) throw new Error("Order not found");
+
+  if (
+    order.deliveryOrderId &&
+    order.deliveryStatus !== "creation_failed" &&
+    !options.forceSync
+  ) {
+    return { skipped: true, reason: "already_synced", provider: PROVIDER };
+  }
+
+  const vendorOrders = await resolveVendorOrdersForOrder({
+    order,
+    orderId,
+    db,
+    VendorOrder: options.VendorOrder,
+    vendorOrders: options.vendorOrders,
+  });
+
+  return createAmiyoDeliveryShipment(order, {
+    ...options,
+    db,
+    Order,
+    vendorOrders,
+    syncMode: options.syncMode || "order_placed",
+    checkoutSource: options.checkoutSource || "order_placed",
+    fulfillmentStatus: options.fulfillmentStatus || order.status || "pending",
+  });
+};
+
+const createAmiyoDeliveryForReadyOrder = async (orderId, options = {}) => {
+  const Order = options.Order;
+  const db = options.db || Order?.collection?.db;
+  const order = options.order || await Order?.findById?.(orderId);
+
+  if (!order) throw new Error("Order not found");
+  if (String(order.status || "").trim().toLowerCase() !== "ready_to_ship") {
+    return { skipped: true, reason: "order_not_ready_to_ship", provider: PROVIDER };
+  }
+  const vendorOrders = await resolveVendorOrdersForOrder({
+    order,
+    orderId,
+    db,
+    VendorOrder: options.VendorOrder,
+    vendorOrders: options.vendorOrders,
+  });
+
+  return createAmiyoDeliveryShipment(order, {
+    ...options,
+    db,
+    Order,
+    vendorOrders,
+    syncMode: "ready_to_ship",
+    fulfillmentStatus: "ready_to_ship",
+    dispatchRequested: true,
+    dispatchReason: "ready_to_ship",
+  });
 };
 
 const getRawBody = (req = {}) => {
@@ -764,9 +883,11 @@ const updateOrderFromDeliveryCallback = async (orderId, payload = {}, options = 
 module.exports = {
   PROVIDER,
   buildAmiyoDeliveryPayload,
+  createAmiyoDeliveryForReadyOrder,
   createAmiyoDeliveryShipment,
   getIntegrationConfig,
   signAmiyoDeliveryPayload,
+  syncAmiyoDeliveryOrder,
   updateOrderFromDeliveryCallback,
   verifyAmiyoDeliveryCallback,
   __test__: {

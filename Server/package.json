@@ -56,6 +56,7 @@
     "test:flash": "node scripts/testFlashSalesAPI.js",
     "test:all": "node scripts/testAllAPIs.js",
     "test:server": "node scripts/test-server.js",
+    "worker:delivery": "node workers/amiyoDeliveryDispatchWorker.js",
     "test:push": "node scripts/testPushNotifications.js",
     "test:notifications": "node scripts/testFullNotificationFlow.js",
     "test:notification-api": "node scripts/testNotificationAPI.js",

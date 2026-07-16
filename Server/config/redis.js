@@ -4,30 +4,33 @@ let redisClient = null;
 let redisAvailable = false;
 
 const initRedis = () => {
-  // Skip Redis if explicitly disabled
-  if (process.env.REDIS_ENABLED === "false") {
+  // Redis is optional. Do not probe localhost unless a Redis endpoint was configured.
+  if (
+    process.env.REDIS_ENABLED === "false" ||
+    (!process.env.REDIS_URL && !process.env.REDIS_HOST)
+  ) {
     return null;
   }
 
   if (redisClient) return redisClient;
 
-  const redisConfig = {
-    host: process.env.REDIS_HOST || "localhost",
-    port: process.env.REDIS_PORT || 6379,
-    password: process.env.REDIS_PASSWORD || undefined,
-    retryStrategy: (times) => {
-      // Stop retrying after 3 attempts
-      if (times > 3) {
-        return null;
-      }
-      const delay = Math.min(times * 50, 2000);
-      return delay;
-    },
+  const redisOptions = {
+    retryStrategy: (times) => (times > 3 ? null : Math.min(times * 50, 2000)),
     maxRetriesPerRequest: 3,
-    lazyConnect: true, // Don't connect immediately
+    lazyConnect: true,
   };
+  const redisConfig = process.env.REDIS_URL
+    ? process.env.REDIS_URL
+    : {
+        host: process.env.REDIS_HOST || "localhost",
+        port: process.env.REDIS_PORT || 6379,
+        password: process.env.REDIS_PASSWORD || undefined,
+        ...redisOptions,
+      };
 
-  redisClient = new Redis(redisConfig);
+  redisClient = typeof redisConfig === "string"
+    ? new Redis(redisConfig, redisOptions)
+    : new Redis(redisConfig);
 
   redisClient.on("connect", () => {
     redisAvailable = true;

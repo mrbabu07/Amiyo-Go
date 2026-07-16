@@ -73,6 +73,15 @@ function getServiceConfigStatus(env = process.env) {
     hasValue(env.AMIYO_DELIVERY_API_URL) &&
     hasValue(env.AMIYO_DELIVERY_INTEGRATION_TOKEN) &&
     hasValue(env.AMIYO_DELIVERY_CALLBACK_API_SECRET);
+  const deliveryDispatchUsesRedis =
+    env.DELIVERY_DISPATCH_USE_REDIS !== "false" &&
+    (hasValue(env.REDIS_URL) || hasValue(env.REDIS_HOST));
+  const deliveryDispatchInlineFallback = env.DELIVERY_DISPATCH_INLINE_FALLBACK !== "false";
+  const deliveryDispatchApiInline =
+    env.DELIVERY_DISPATCH_API_INLINE === "true" ||
+    (env.DELIVERY_DISPATCH_API_INLINE !== "false" &&
+      ["1", "true"].includes(String(env.VERCEL || "").toLowerCase()));
+  const deliveryDispatchConfigured = deliveryDispatchUsesRedis || deliveryDispatchInlineFallback || deliveryDispatchApiInline;
 
   return {
     mongodb: serviceStatus("mongodb", hasValue(env.MONGO_URI || env.MONGODB_URI), true, {
@@ -113,6 +122,21 @@ function getServiceConfigStatus(env = process.env) {
       mode: amiyoDeliveryConfigured ? "integration" : "skipped",
       apiUrl: env.AMIYO_DELIVERY_API_URL || "",
     }),
+    deliveryDispatch: serviceStatus(
+      "deliveryDispatch",
+      deliveryDispatchConfigured,
+      env.AMIYO_DELIVERY_REQUIRED === "true",
+      {
+        mode: deliveryDispatchUsesRedis
+          ? (deliveryDispatchApiInline ? "bullmq_api_inline" : "bullmq")
+          : deliveryDispatchInlineFallback
+            ? "inline_fallback"
+            : deliveryDispatchApiInline
+              ? "api_inline"
+              : "missing_redis",
+        apiInline: deliveryDispatchApiInline,
+      },
+    ),
   };
 }
 

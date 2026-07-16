@@ -1,6 +1,6 @@
 const { ObjectId } = require("mongodb");
 const { appendOrderEvent } = require("../services/orderEventService");
-const { createAmiyoDeliveryShipment } = require("../services/amiyoDeliveryIntegrationService");
+const { enqueueReadyToShipDelivery } = require("../services/deliveryDispatchQueue");
 
 const round2 = (value) => Math.round(((Number(value) || 0) + Number.EPSILON) * 100) / 100;
 
@@ -1550,12 +1550,8 @@ exports.updateOrderStatus = async (req, res) => {
     // Sync overall order status
     await Order.syncOrderStatus(orderId);
 
-    const amiyoDelivery = status === "ready_to_ship"
-      ? await createAmiyoDeliveryShipment(updatedOrder || order, {
-          db,
-          Order,
-          checkoutSource: "ready_to_ship",
-        })
+    const deliveryDispatch = status === "ready_to_ship"
+      ? await enqueueReadyToShipDelivery({ app: req.app, orderId, source: "vendor_order_status" })
       : null;
 
     await appendOrderEvent({
@@ -1569,7 +1565,7 @@ exports.updateOrderStatus = async (req, res) => {
       note: note || reason || "",
     });
 
-    res.json({ success: true, message: "Order status updated", amiyoDelivery });
+    res.json({ success: true, message: "Order status updated", deliveryDispatch });
   } catch (error) {
     console.error("Error updating order status:", error);
     const deliverySyncFailed = Boolean(error.providerResponse || error.statusCode);
@@ -1660,12 +1656,8 @@ exports.bulkUpdateVendorOrders = async (req, res) => {
         }
 
         await Order.syncOrderStatus(orderId);
-        const amiyoDelivery = status === "ready_to_ship"
-          ? await createAmiyoDeliveryShipment(updatedOrder || order, {
-              db,
-              Order,
-              checkoutSource: "ready_to_ship_bulk",
-            })
+        const deliveryDispatch = status === "ready_to_ship"
+          ? await enqueueReadyToShipDelivery({ app: req.app, orderId, source: "vendor_bulk_status" })
           : null;
         await appendOrderEvent({
           app: req.app,
@@ -1679,7 +1671,7 @@ exports.bulkUpdateVendorOrders = async (req, res) => {
           metadata: { bulk: true },
         });
 
-        results.push({ orderId, success: true, status, amiyoDelivery });
+        results.push({ orderId, success: true, status, deliveryDispatch });
       } catch (itemError) {
         results.push({ orderId, success: false, error: itemError.message || "Update failed" });
       }

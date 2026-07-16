@@ -127,3 +127,8 @@ Server/scripts/test-*.js
 # Documentation files are local-only except the root README shown on GitHub
 *.md
 !/README.md
+
+.vercel
+.env*
+!.env.example
+!**/.env.example

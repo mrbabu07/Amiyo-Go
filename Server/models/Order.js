@@ -788,8 +788,14 @@ class Order {
     } else if (movingCount > 0 || counts.delivery_failed > 0) {
       derivedStatus = "partially_shipped";
     }
-    // Priority 7: All processing/packed
-    else if (processingCount === nonCancelled) {
+    // Priority 7: Fully prepared orders retain their dispatchable state.
+    else if (counts.pickup_ready === nonCancelled) {
+      derivedStatus = "pickup_ready";
+    } else if (counts.ready_to_ship === nonCancelled) {
+      derivedStatus = "ready_to_ship";
+    } else if (counts.packed === nonCancelled) {
+      derivedStatus = "packed";
+    } else if (processingCount === nonCancelled) {
       derivedStatus = "processing";
     }
     // Priority 8: Some processing/packed

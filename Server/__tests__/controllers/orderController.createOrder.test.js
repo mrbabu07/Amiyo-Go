@@ -31,7 +31,17 @@ jest.mock("../../services/orderEventService", () => ({
   getTimelineForOrder: jest.fn().mockResolvedValue([]),
 }));
 
+jest.mock("../../services/amiyoDeliveryIntegrationService", () => ({
+  syncAmiyoDeliveryOrder: jest.fn().mockResolvedValue({
+    success: true,
+    provider: "amiyo_delivery",
+    syncMode: "order_placed",
+    deliveryOrderId: "delivery-placement-1",
+  }),
+}));
+
 const orderController = require("../../controllers/orderController");
+const { syncAmiyoDeliveryOrder } = require("../../services/amiyoDeliveryIntegrationService");
 
 const buildResponse = () => {
   const res = {
@@ -267,12 +277,28 @@ describe("orderController.createOrder", () => {
         shipmentState: "created",
       }),
     );
+    expect(syncAmiyoDeliveryOrder).toHaveBeenCalledWith(
+      orderId.toString(),
+      expect.objectContaining({
+        Order,
+        VendorOrder,
+        vendorOrders: [expect.objectContaining({ _id: expect.any(ObjectId) })],
+        syncMode: "order_placed",
+        checkoutSource: "order_placed",
+        fulfillmentStatus: "pending",
+      }),
+    );
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: true,
         data: expect.objectContaining({
           orderId,
+          amiyoDelivery: expect.objectContaining({
+            success: true,
+            deliveryOrderId: "delivery-placement-1",
+            syncMode: "order_placed",
+          }),
           shipmentDrafts: [
             expect.objectContaining({
               vendorId,

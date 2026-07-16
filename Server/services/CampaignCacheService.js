@@ -10,18 +10,30 @@ class CampaignCacheService {
    * Initialize Redis connection (non-blocking)
    */
   async initialize() {
+    if (
+      process.env.REDIS_ENABLED === "false" ||
+      (!process.env.REDIS_URL && !process.env.REDIS_HOST)
+    ) {
+      this.client = null;
+      this.isConnected = false;
+      console.log("Campaign cache is running without Redis");
+      return null;
+    }
+
     try {
       this.client = redis.createClient({
-        host: process.env.REDIS_HOST || "localhost",
-        port: process.env.REDIS_PORT || 6379,
-        password: process.env.REDIS_PASSWORD,
+        ...(process.env.REDIS_URL ? { url: process.env.REDIS_URL } : {}),
+        password: process.env.REDIS_PASSWORD || undefined,
         socket: {
+          ...(process.env.REDIS_URL
+            ? {}
+            : {
+                host: process.env.REDIS_HOST,
+                port: Number(process.env.REDIS_PORT || 6379),
+              }),
           reconnectStrategy: (retries) => {
-            if (retries > 10) {
-              console.warn("Redis reconnection attempts exceeded, giving up");
-              return new Error("Redis max retries exceeded");
-            }
-            return retries * 100;
+            if (retries > 3) return new Error("Redis max retries exceeded");
+            return Math.min(retries * 100, 500);
           },
         },
       });
@@ -40,10 +52,16 @@ class CampaignCacheService {
       this.client.connect().catch((err) => {
         console.warn("Redis connection failed (cache will be disabled):", err.message);
         this.isConnected = false;
+        this.client?.destroy?.();
+        this.client = null;
       });
+
+      return this.client;
     } catch (error) {
       console.warn("Failed to initialize Redis:", error.message);
       this.isConnected = false;
+      this.client = null;
+      return null;
     }
   }
 

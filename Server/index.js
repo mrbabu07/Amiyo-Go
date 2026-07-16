@@ -120,6 +120,7 @@ const { DEFAULT_ROLE_PERMISSIONS } = require("./config/permissions");
 const analyticsService = require("./services/analyticsService");
 const { initBulkUploadQueue } = require("./services/bulkUploadQueue");
 const { initMarketplaceEventBus } = require("./services/marketplaceEventBus");
+const { initDeliveryDispatchQueue } = require("./services/deliveryDispatchQueue");
 const newsletterBroadcastService = require("./services/newsletterBroadcastService");
 
 // Campaign Manager models
@@ -386,16 +387,17 @@ async function initializeApp(options = {}) {
       TrustSafety: new TrustSafety(db),
     };
 
+    // Queue workers need the database before their first job can be claimed.
+    app.locals.db = db;
     await app.locals.models.Permission.syncDefaults(DEFAULT_ROLE_PERMISSIONS);
+    await initDeliveryDispatchQueue(app, { startWorker: enableBackgroundJobs });
+
     if (enableBackgroundJobs) {
       initBulkUploadQueue(app);
       initMarketplaceEventBus(app);
     } else {
       console.log("Queue workers skipped for serverless runtime");
     }
-
-    // Store db reference for controllers that need it
-    app.locals.db = db;
 
     // Routes
     app.get("/", (req, res) => {
@@ -685,6 +687,13 @@ function startServer({ enableRealtime = true } = {}) {
 
   serverInstance.on("error", (error) => {
     if (error.code === "EADDRINUSE") {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(
+          `Amiyo-Go backend is already running on port ${port}. Duplicate development start skipped.`,
+        );
+        process.exit(0);
+      }
+
       console.error(
         `Port ${port} is already in use. Stop the existing backend server or set a different PORT in Server/.env.`,
       );

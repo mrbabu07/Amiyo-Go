@@ -2,8 +2,10 @@ const crypto = require("crypto");
 const { ObjectId } = require("mongodb");
 const {
   buildAmiyoDeliveryPayload,
+  createAmiyoDeliveryForReadyOrder,
   createAmiyoDeliveryShipment,
   signAmiyoDeliveryPayload,
+  syncAmiyoDeliveryOrder,
   updateOrderFromDeliveryCallback,
   verifyAmiyoDeliveryCallback,
   __test__,
@@ -69,6 +71,10 @@ describe("amiyoDeliveryIntegrationService", () => {
     });
 
     expect(payload.orderId).toBe(orderId.toString());
+    expect(payload.syncMode).toBe("order_placed");
+    expect(payload.marketplaceStatus).toBe("pending");
+    expect(payload.readyForPickup).toBe(false);
+    expect(payload.dispatchRequested).toBe(false);
     expect(payload.codAmount).toBe(960);
     expect(payload.customer.address).toBe("Customer, +8801700000000, House 1, Gulshan, Dhaka");
     expect(payload.customer.phone).toBe("+8801700000000");
@@ -83,6 +89,7 @@ describe("amiyoDeliveryIntegrationService", () => {
       parcelType: "ecommerce",
       deliveryType: "standard",
       packageCount: 2,
+      dispatchRequested: false,
     }));
   });
 
@@ -212,6 +219,140 @@ describe("amiyoDeliveryIntegrationService", () => {
           trackingId: "TRK-1001",
           deliveryStatus: "created",
           deliveryError: null,
+        }),
+      }),
+    );
+  });
+
+  test("syncs a newly placed order to Amiyo Delivery before it is ready to ship", async () => {
+    const orderId = new ObjectId("64f000000000000000000204");
+    const updateOne = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        data: {
+          id: "delivery-new-order",
+          trackingId: "TRK-NEW",
+          status: "created",
+        },
+      }),
+    });
+    const Order = {
+      findById: jest.fn().mockResolvedValue({
+        _id: orderId,
+        status: "pending",
+        total: 500,
+        paymentMethod: "cod",
+        shippingInfo: { name: "Customer", phone: "01700000000" },
+        products: [{ productId: "p-1", title: "Rice", vendorId: "vendor-1", quantity: 1, price: 500 }],
+      }),
+      collection: { updateOne },
+    };
+
+    const result = await syncAmiyoDeliveryOrder(orderId.toString(), {
+      env: testEnv,
+      Order,
+      fetchImpl,
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      syncMode: "order_placed",
+      deliveryOrderId: "delivery-new-order",
+    }));
+    const payload = JSON.parse(fetchImpl.mock.calls[0][0].body || fetchImpl.mock.calls[0][1]?.body || "{}");
+    expect(payload).toEqual(expect.objectContaining({
+      orderId: orderId.toString(),
+      syncMode: "order_placed",
+      fulfillmentStatus: "pending",
+      dispatchRequested: false,
+    }));
+    expect(updateOne).toHaveBeenCalledWith(
+      expect.objectContaining({ $or: expect.any(Array) }),
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          deliveryOrderPlacedSyncedAt: expect.any(Date),
+          deliverySyncMode: "order_placed",
+        }),
+      }),
+    );
+  });
+
+  test("only dispatches an order after its parent status is ready_to_ship", async () => {
+    const fetchImpl = jest.fn();
+    const Order = {
+      findById: jest.fn().mockResolvedValue({
+        _id: new ObjectId("64f000000000000000000203"),
+        status: "processing",
+      }),
+    };
+
+    await expect(createAmiyoDeliveryForReadyOrder("64f000000000000000000203", {
+      env: testEnv,
+      Order,
+      fetchImpl,
+    })).resolves.toEqual(expect.objectContaining({
+      skipped: true,
+      reason: "order_not_ready_to_ship",
+    }));
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  test("ready_to_ship resyncs an existing delivery order so rider pickup can start", async () => {
+    const orderId = new ObjectId("64f000000000000000000205");
+    const updateOne = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        data: {
+          id: "delivery-existing",
+          trackingId: "TRK-READY",
+          status: "ready_to_ship",
+        },
+      }),
+    });
+    const Order = {
+      findById: jest.fn().mockResolvedValue({
+        _id: orderId,
+        status: "ready_to_ship",
+        deliveryOrderId: "delivery-existing",
+        deliveryStatus: "created",
+        total: 500,
+        paymentMethod: "cod",
+        shippingInfo: { name: "Customer", phone: "01700000000" },
+        products: [{ productId: "p-1", title: "Rice", vendorId: "vendor-1", quantity: 1, price: 500 }],
+      }),
+      collection: { updateOne },
+    };
+
+    const result = await createAmiyoDeliveryForReadyOrder(orderId.toString(), {
+      env: testEnv,
+      Order,
+      fetchImpl,
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      syncMode: "ready_to_ship",
+      deliveryOrderId: "delivery-existing",
+    }));
+    const payload = JSON.parse(fetchImpl.mock.calls[0][1].body);
+    expect(payload).toEqual(expect.objectContaining({
+      orderId: orderId.toString(),
+      syncMode: "ready_to_ship",
+      fulfillmentStatus: "ready_to_ship",
+      dispatchRequested: true,
+      readyForPickup: true,
+    }));
+    expect(updateOne).toHaveBeenCalledWith(
+      expect.objectContaining({ $or: expect.any(Array) }),
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          deliveryReadyToShipSyncedAt: expect.any(Date),
+          deliveryDispatchRequestedAt: expect.any(Date),
+          deliverySyncMode: "ready_to_ship",
         }),
       }),
     );

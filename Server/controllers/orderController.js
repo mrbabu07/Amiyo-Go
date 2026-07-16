@@ -16,9 +16,8 @@ const {
   COIN_FEATURE_DISABLED_MESSAGE,
   areCoinRewardsEnabled,
 } = require("../utils/platformFeatures");
-const {
-  createAmiyoDeliveryShipment,
-} = require("../services/amiyoDeliveryIntegrationService");
+const { enqueueReadyToShipDelivery } = require("../services/deliveryDispatchQueue");
+const { syncAmiyoDeliveryOrder } = require("../services/amiyoDeliveryIntegrationService");
 
 const normalizeId = (id) => {
   if (!id) return null;
@@ -1021,33 +1020,31 @@ const createOrder = async (req, res) => {
 
     let amiyoDelivery = null;
     try {
-      const orderForDelivery = await Order.findById(orderId);
-      amiyoDelivery = await createAmiyoDeliveryShipment(orderForDelivery || createdOrder, {
-        app: req.app,
-        db: req.app.locals.db || Product.collection?.db,
+      const latestOrder = await Order.findById(orderId);
+      amiyoDelivery = await syncAmiyoDeliveryOrder(orderId.toString(), {
+        db: req.app.locals.db || Order.collection.db,
         Order,
+        VendorOrder,
+        order: latestOrder || createdOrder,
         vendorOrders: createdVendorOrders,
-        shipmentDrafts,
-        actorId: req.user?.uid || null,
+        syncMode: "order_placed",
+        checkoutSource: "order_placed",
+        fulfillmentStatus: "pending",
       });
-
-      if (amiyoDelivery?.skipped) {
-        console.log("Amiyo Delivery integration skipped:", amiyoDelivery.reason);
-      } else {
-        console.log("Amiyo Delivery order created:", {
-          orderId: orderId.toString(),
-          deliveryOrderId: amiyoDelivery.deliveryOrderId,
-          trackingId: amiyoDelivery.trackingId,
-        });
-      }
+      console.log("Amiyo Delivery order placement sync completed:", amiyoDelivery);
     } catch (deliveryError) {
+      console.error("Amiyo Delivery order placement sync failed:", deliveryError);
       amiyoDelivery = {
         attempted: true,
-        success: false,
+        failed: true,
         provider: "amiyo_delivery",
-        error: deliveryError.message,
+        reason: "order_placed_sync_failed",
+        error: {
+          message: deliveryError.message,
+          statusCode: deliveryError.statusCode || null,
+          retryable: deliveryError.retryable !== false,
+        },
       };
-      console.error("Amiyo Delivery order creation failed:", deliveryError.message);
     }
 
     // Update product stock
@@ -1164,6 +1161,9 @@ const updateOrderStatus = async (req, res) => {
     const validStatuses = [
       "pending",
       "processing",
+      "packed",
+      "ready_to_ship",
+      "pickup_ready",
       "shipped",
       "delivered",
       "cancelled",
@@ -1202,6 +1202,14 @@ const updateOrderStatus = async (req, res) => {
       note: req.body.note || "",
       trackingNumber,
     });
+
+    const deliveryDispatch = status === "ready_to_ship"
+      ? await enqueueReadyToShipDelivery({
+          app: req.app,
+          orderId: id,
+          source: "admin_order_status",
+        })
+      : null;
 
     await appendOrderEvent({
       app: req.app,
@@ -1336,10 +1344,11 @@ const updateOrderStatus = async (req, res) => {
     res.json({
       success: true,
       message: "Order status updated successfully",
+      deliveryDispatch,
     });
   } catch (error) {
     console.error("Error updating order status:", error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 };
 
@@ -2064,7 +2073,7 @@ const bulkUpdateOrderStatus = async (req, res) => {
       return res.status(400).json({ success: false, error: 'orderIds must be a non-empty array' });
     }
 
-    const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+    const validStatuses = ['pending', 'processing', 'packed', 'ready_to_ship', 'pickup_ready', 'shipped', 'delivered', 'cancelled'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ success: false, error: `Status must be one of: ${validStatuses.join(', ')}` });
     }
@@ -2080,6 +2089,13 @@ const bulkUpdateOrderStatus = async (req, res) => {
           changedBy: req.user?.uid || "admin",
           note: note || "",
         });
+        if (status === "ready_to_ship") {
+          await enqueueReadyToShipDelivery({
+            app: req.app,
+            orderId: id,
+            source: "admin_bulk_status",
+          });
+        }
       })
     );
 
@@ -2089,7 +2105,7 @@ const bulkUpdateOrderStatus = async (req, res) => {
     res.json({ success: true, message: `Updated ${succeeded} orders. ${failed} failed.`, succeeded, failed });
   } catch (error) {
     console.error('Error in bulkUpdateOrderStatus:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 };
 
@@ -2329,6 +2345,14 @@ const adminOverrideStatus = async (req, res) => {
       note: note || "Status overridden by admin",
     });
 
+    const deliveryDispatch = status === "ready_to_ship"
+      ? await enqueueReadyToShipDelivery({
+          app: req.app,
+          orderId: id,
+          source: "admin_override_status",
+        })
+      : null;
+
     await appendOrderEvent({
       app: req.app,
       orderId: id,
@@ -2339,10 +2363,10 @@ const adminOverrideStatus = async (req, res) => {
       note: note || "Status overridden by admin",
     });
 
-    res.json({ success: true, message: `Order status overridden to "${status}"` });
+    res.json({ success: true, message: `Order status overridden to "${status}"`, deliveryDispatch });
   } catch (error) {
     console.error("Error in adminOverrideStatus:", error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 };
 
