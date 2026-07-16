@@ -67,6 +67,7 @@ export default function AddressMapPicker({
   const markerRef = useRef(null);
   const [resolving, setResolving] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   const [message, setMessage] = useState("");
 
   const reverseGeocode = async ({ latitude: lat, longitude: lng }) => {
@@ -87,7 +88,7 @@ export default function AddressMapPicker({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.address) {
-        setMessage("Pin saved. Address fields could not be auto-filled from map.");
+        setMessage("Pin saved. Address suggestion was not available. Keep your typed address as the delivery address.");
         return;
       }
       onAddressResolved({
@@ -95,7 +96,7 @@ export default function AddressMapPicker({
         longitude: lng,
         ...extractAddressSuggestion(payload),
       });
-      setMessage("Pin saved and address suggestion added. Please review before placing order.");
+      setMessage("Pin saved. Address suggestion is shown below the map; your typed fields were not changed.");
     } catch (error) {
       console.error("Failed to resolve map address:", error);
       setMessage("Pin saved. Address lookup is unavailable right now.");
@@ -133,11 +134,13 @@ export default function AddressMapPicker({
 
     marker.on("dragend", () => commitLocation(marker.getLatLng()));
     map.on("click", (event) => commitLocation(event.latlng));
+    map.whenReady(() => setMapReady(true));
 
     mapRef.current = map;
     markerRef.current = marker;
 
     setTimeout(() => map.invalidateSize(), 0);
+    setTimeout(() => map.invalidateSize(), 250);
 
     return () => {
       map.remove();
@@ -181,32 +184,56 @@ export default function AddressMapPicker({
     );
   };
 
+  const setPinAtCenter = () => {
+    if (!mapRef.current) return;
+    commitLocation(mapRef.current.getCenter());
+  };
+
   return (
     <div className={className}>
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-bold text-gray-900">Delivery map pin</p>
+            <p className="text-sm font-bold text-gray-900">Set exact delivery pin</p>
             <p className="text-xs text-gray-500">
-              Click the map or drag the marker to set the exact drop-off point.
+              Tap anywhere on the map, drag the marker, or use current location.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={useCurrentLocation}
-            disabled={locating}
-            className="inline-flex items-center justify-center rounded-xl border border-primary-200 bg-primary-50 px-4 py-2 text-sm font-bold text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 disabled:cursor-wait disabled:opacity-70"
-          >
-            {locating ? "Locating..." : "Use current location"}
-          </button>
+          <div className="grid grid-cols-1 gap-2 sm:flex">
+            <button
+              type="button"
+              onClick={useCurrentLocation}
+              disabled={locating}
+              className="inline-flex items-center justify-center rounded-xl border border-primary-200 bg-primary-50 px-4 py-2 text-sm font-bold text-primary-700 transition hover:border-primary-300 hover:bg-primary-100 disabled:cursor-wait disabled:opacity-70"
+            >
+              {locating ? "Locating..." : "Use current location"}
+            </button>
+            <button
+              type="button"
+              onClick={setPinAtCenter}
+              className="inline-flex items-center justify-center rounded-xl bg-gray-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-gray-800"
+            >
+              Pin map center
+            </button>
+          </div>
         </div>
-        <div ref={containerRef} className="h-72 w-full sm:h-80" />
+        <div className="relative bg-slate-100">
+          {!mapReady && (
+            <div className="absolute inset-0 z-[1] flex items-center justify-center bg-slate-100 text-sm font-semibold text-slate-500">
+              Loading map...
+            </div>
+          )}
+          <div ref={containerRef} className="h-80 min-h-80 w-full sm:h-96" />
+          <div className="pointer-events-none absolute left-3 top-3 z-[401] rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-gray-700 shadow-sm">
+            Tap map to pin
+          </div>
+        </div>
       </div>
       <div className="mt-2 flex flex-col gap-1 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
         <p>
           {latitude && longitude
             ? `Selected: ${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`
-            : "No exact delivery pin selected yet."}
+            : "No delivery pin selected yet. Please tap the map for accurate delivery."}
         </p>
         <p>{resolving ? "Reading address from map..." : "Map tiles use free OpenStreetMap."}</p>
       </div>

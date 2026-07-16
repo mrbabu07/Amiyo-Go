@@ -86,6 +86,7 @@ export default function Checkout() {
   const [couponError, setCouponError] = useState("");
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [vendorNotes, setVendorNotes] = useState({});
+  const [mapSuggestion, setMapSuggestion] = useState(null);
   const [savedPaymentMethod, setSavedPaymentMethod] = useState(() => {
     try {
       return localStorage.getItem("checkoutPaymentMethod") || "";
@@ -496,6 +497,7 @@ export default function Checkout() {
       longitude: coordinates.longitude,
       mapFormattedAddress: address.mapFormattedAddress || address.location?.formattedAddress || "",
     }));
+    setMapSuggestion(null);
     setAddressLoaded(true);
     setShowAddressSelector(false);
   };
@@ -524,6 +526,7 @@ export default function Checkout() {
       longitude: "",
       mapFormattedAddress: "",
     }));
+    setMapSuggestion(null);
   };
 
   const useDefaultDelivery = () => {
@@ -569,14 +572,22 @@ export default function Checkout() {
       latitude: suggestion.latitude ?? prev.latitude,
       longitude: suggestion.longitude ?? prev.longitude,
       mapFormattedAddress: suggestion.formattedAddress || prev.mapFormattedAddress || "",
-      address: prev.address || suggestion.address || suggestion.formattedAddress || "",
-      area: prev.area || suggestion.area || "",
-      union: prev.union || suggestion.union || "",
-      upazila: prev.upazila || suggestion.upazila || "",
-      district: prev.district || suggestion.district || suggestion.city || "",
-      city: prev.city || suggestion.city || suggestion.district || "",
-      division: prev.division || suggestion.division || "",
-      zipCode: prev.zipCode || suggestion.zipCode || "",
+    }));
+    setMapSuggestion(suggestion.formattedAddress ? suggestion : null);
+  };
+
+  const applyMapSuggestion = () => {
+    if (!mapSuggestion) return;
+    setFormData((prev) => ({
+      ...prev,
+      address: prev.address || mapSuggestion.address || mapSuggestion.formattedAddress || "",
+      area: prev.area || mapSuggestion.area || "",
+      union: prev.union || mapSuggestion.union || "",
+      upazila: prev.upazila || mapSuggestion.upazila || "",
+      district: prev.district || mapSuggestion.district || mapSuggestion.city || "",
+      city: prev.city || mapSuggestion.city || mapSuggestion.district || "",
+      division: prev.division || mapSuggestion.division || "",
+      zipCode: prev.zipCode || mapSuggestion.zipCode || "",
     }));
   };
 
@@ -1464,6 +1475,14 @@ export default function Checkout() {
                     />
                   </div>
                   <div className="md:col-span-2">
+                    <div className="mb-3 rounded-2xl border border-primary-100 bg-primary-50 p-4">
+                      <p className="text-sm font-black text-gray-900">
+                        Optional but recommended: pin your delivery location
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-gray-600">
+                        This helps the rider find your exact house or pickup point. It will not replace your typed address unless you choose to use the suggestion.
+                      </p>
+                    </div>
                     <AddressMapPicker
                       latitude={formData.latitude}
                       longitude={formData.longitude}
@@ -1476,10 +1495,25 @@ export default function Checkout() {
                       }
                       onAddressResolved={handleMapAddressResolved}
                     />
-                    {formData.mapFormattedAddress && (
-                      <p className="mt-2 rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                        Map address: {formData.mapFormattedAddress}
-                      </p>
+                    {mapSuggestion && (
+                      <div className="mt-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                        <p className="text-xs font-black uppercase tracking-wide text-gray-500">
+                          Map suggestion
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-gray-900">
+                          {mapSuggestion.formattedAddress}
+                        </p>
+                        <p className="mt-2 text-xs text-gray-500">
+                          If this looks right, you can use it to fill missing address fields. Existing typed fields will stay unchanged.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={applyMapSuggestion}
+                          className="mt-3 inline-flex min-h-10 items-center justify-center rounded-xl bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700"
+                        >
+                          Use suggestion for empty fields
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2747,18 +2781,15 @@ export default function Checkout() {
           </div>
         </div>
       </div>
-      <div
-        className="fixed inset-x-0 z-40 border-t border-gray-200 bg-white/95 p-3 shadow-2xl lg:hidden"
-        style={{ bottom: "calc(4.75rem + env(safe-area-inset-bottom, 0px))" }}
-      >
-        <div className="mx-auto flex max-w-md items-center gap-3">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 shadow-2xl backdrop-blur lg:hidden">
+        <div className="mx-auto flex max-w-md items-center gap-3 pb-[env(safe-area-inset-bottom)]">
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-bold text-gray-500">
               {activeCheckoutStep >= 4
                 ? "Ready to review"
                 : checkoutSteps[activeCheckoutStep - 1]?.title || "Checkout"}
             </p>
-            <p className="truncate text-lg font-black text-primary-600">
+            <p className="truncate text-base font-black text-primary-600">
               {formatPrice(finalTotal)}
             </p>
           </div>
@@ -2766,7 +2797,7 @@ export default function Checkout() {
             type="submit"
             form="checkout-form"
             disabled={loading}
-            className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-lg bg-primary-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-primary-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "Processing" : "Place Order"}
           </button>
