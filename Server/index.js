@@ -299,11 +299,15 @@ app.use("/uploads", express.static(uploadsDir)); // Serve uploaded images
 const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
 // Use explicit DB name, defaulting to main cluster DB
 const DB_NAME = process.env.DB_NAME || "BazarBD";
+const mongoServerSelectionTimeoutMS = Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || 15000);
+const mongoConnectTimeoutMS = Number(process.env.MONGO_CONNECT_TIMEOUT_MS || 15000);
 let client = null;
 
 function getMongoClient() {
   if (!client) {
     client = new MongoClient(uri, {
+      serverSelectionTimeoutMS: mongoServerSelectionTimeoutMS,
+      connectTimeoutMS: mongoConnectTimeoutMS,
       serverApi: {
         version: ServerApiVersion.v1,
         strict: true,
@@ -327,12 +331,17 @@ async function initializeApp(options = {}) {
     const mongoClient = getMongoClient();
 
     // Connect MongoDB client (for existing models)
+    console.log(`Connecting MongoDB (${DB_NAME})...`);
     await mongoClient.connect();
     await mongoClient.db(DB_NAME).command({ ping: 1 });
     console.log(`✅ MongoDB connected successfully (${DB_NAME})`);
 
     // Connect Mongoose (for Offer model and future Mongoose models)
-    await mongoose.connect(uri);
+    await mongoose.connect(uri, {
+      dbName: DB_NAME,
+      serverSelectionTimeoutMS: mongoServerSelectionTimeoutMS,
+      connectTimeoutMS: mongoConnectTimeoutMS,
+    });
     console.log("✅ Mongoose connected successfully");
 
     const db = mongoClient.db(DB_NAME);
