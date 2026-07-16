@@ -59,7 +59,9 @@ function serviceStatus(name, configured, required = false, details = {}) {
 
 function getServiceConfigStatus(env = process.env) {
   const redisConfigured = env.REDIS_ENABLED === "false" || hasValue(env.REDIS_URL) || hasValue(env.REDIS_HOST);
+  const imgbbConfigured = hasValue(env.IMGBB_API_KEY || env.IMAGE_UPLOAD_IMGBB_API_KEY);
   const supabaseConfigured = hasValue(env.SUPABASE_URL) && hasValue(env.SUPABASE_SERVICE_ROLE_KEY);
+  const cloudinaryConfigured = hasValue(env.CLOUDINARY_CLOUD_NAME) && hasValue(env.CLOUDINARY_API_KEY) && hasValue(env.CLOUDINARY_API_SECRET);
   const emailConfigured =
     (hasValue(env.BREVO_SMTP_USER) && hasValue(env.BREVO_SMTP_KEY)) ||
     (hasValue(env.SMTP_USER) && hasValue(env.SMTP_PASS));
@@ -97,9 +99,14 @@ function getServiceConfigStatus(env = process.env) {
     redis: serviceStatus("redis", redisConfigured, env.REDIS_REQUIRED === "true", {
       disabled: env.REDIS_ENABLED === "false",
     }),
+    storage: serviceStatus("storage", imgbbConfigured || cloudinaryConfigured || supabaseConfigured, env.STORAGE_REQUIRED === "true", {
+      mode: imgbbConfigured ? "imgbb" : cloudinaryConfigured ? "cloudinary" : supabaseConfigured ? "supabase" : "local_uploads",
+      bucket: env.SUPABASE_STORAGE_BUCKET || "amiyo-go",
+      fallback: imgbbConfigured || cloudinaryConfigured || supabaseConfigured ? null : "local_uploads",
+    }),
     supabase: serviceStatus("supabase", supabaseConfigured, env.SUPABASE_REQUIRED === "true", {
       bucket: env.SUPABASE_STORAGE_BUCKET || "amiyo-go",
-      fallback: supabaseConfigured ? null : "local_uploads",
+      fallback: supabaseConfigured ? null : imgbbConfigured || cloudinaryConfigured ? "alternate_storage" : "local_uploads",
     }),
     email: serviceStatus("email", emailConfigured, env.EMAIL_REQUIRED === "true", {
       mode: emailConfigured ? "smtp" : "mock",

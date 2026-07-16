@@ -47,6 +47,8 @@ const cloudinaryConfigured = () =>
   hasValue(process.env.CLOUDINARY_API_KEY) &&
   hasValue(process.env.CLOUDINARY_API_SECRET);
 
+const imgbbConfigured = () => hasValue(process.env.IMGBB_API_KEY || process.env.IMAGE_UPLOAD_IMGBB_API_KEY);
+
 const getCloudinary = () => {
   if (!cloudinaryConfigured()) return null;
   try {
@@ -106,6 +108,37 @@ async function uploadToCloudinary(file, folder, kind) {
   };
 }
 
+async function uploadToImgBB(file, folder, kind) {
+  if (kind !== "image" || !imgbbConfigured()) return null;
+  if (typeof fetch !== "function") throw new Error("ImgBB upload requires Node.js fetch support");
+
+  const apiKey = process.env.IMGBB_API_KEY || process.env.IMAGE_UPLOAD_IMGBB_API_KEY;
+  const extension = fileExt(file);
+  const publicId = publicIdFor(folder, extension).replace(/[\\/]/g, "-");
+  const form = new URLSearchParams();
+  form.set("image", file.buffer.toString("base64"));
+  form.set("name", path.basename(publicId, extension));
+
+  const response = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(apiKey)}`, {
+    method: "POST",
+    body: form,
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok || !json?.success) {
+    throw new Error(json?.error?.message || `ImgBB upload failed with ${response.status}`);
+  }
+
+  return {
+    url: json.data?.display_url || json.data?.url,
+    publicId: json.data?.id || publicId,
+    provider: "imgbb",
+    deleteUrl: json.data?.delete_url,
+    width: json.data?.width || null,
+    height: json.data?.height || null,
+    size: file.size || file.buffer.length,
+  };
+}
+
 async function uploadToSupabase(file, folder) {
   const supabase = getSupabase();
   if (!supabase) return null;
@@ -143,6 +176,9 @@ async function uploadFile(file, folder = "general", kind = "image", req = null) 
 
   const cloudinaryResult = await uploadToCloudinary(file, folder, kind);
   if (cloudinaryResult) return cloudinaryResult;
+
+  const imgbbResult = await uploadToImgBB(file, folder, kind);
+  if (imgbbResult) return imgbbResult;
 
   const supabaseResult = await uploadToSupabase(file, folder);
   if (supabaseResult) return supabaseResult;

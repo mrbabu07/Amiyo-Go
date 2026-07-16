@@ -52,10 +52,10 @@ async function buildReadiness(app) {
     status: config.redis.disabled ? "disabled" : isRedisAvailable() ? "connected" : "optional_unavailable",
     required: config.redis.required,
   };
-  const supabase = {
-    ok: config.supabase.configured || !config.supabase.required,
-    status: config.supabase.configured ? "configured" : "local_upload_fallback",
-    required: config.supabase.required,
+  const storage = {
+    ok: config.storage.configured || !config.storage.required,
+    status: config.storage.configured ? config.storage.mode || "configured" : "local_upload_fallback",
+    required: config.storage.required,
   };
   const email = {
     ok: config.email.configured || !config.email.required,
@@ -79,14 +79,14 @@ async function buildReadiness(app) {
     mongoose,
     firebase,
     redis,
-    supabase,
+    storage,
     email,
     push,
     jobs,
   };
 
   return {
-    ok: mongo.ok && mongoose.ok && firebase.ok && redis.ok && supabase.ok && email.ok && push.ok && jobs.ok,
+    ok: mongo.ok && mongoose.ok && firebase.ok && redis.ok && storage.ok && email.ok && push.ok && jobs.ok,
     checks,
   };
 }

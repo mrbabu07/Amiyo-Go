@@ -4,9 +4,12 @@ const path = require("path");
 const sharp = require("sharp");
 const { createClient } = require("@supabase/supabase-js");
 
+const hasValue = (value) => String(value || "").trim().length > 0;
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "amiyo-go";
+const IMGBB_API_KEY = process.env.IMGBB_API_KEY || process.env.IMAGE_UPLOAD_IMGBB_API_KEY;
 const MAX_IMAGE_WIDTH = Number(process.env.IMAGE_MAX_WIDTH || 1600);
 
 let supabaseClient = null;
@@ -77,9 +80,42 @@ const localUrlFor = (req, relativePath) => {
   return `${baseUrl}/uploads/${relativePath.replace(/\\/g, "/")}`;
 };
 
+const uploadToImgBB = async (processed, file, storagePath) => {
+  if (!hasValue(IMGBB_API_KEY) || !processed.contentType?.startsWith("image/")) return null;
+  if (typeof fetch !== "function") {
+    throw new Error("ImgBB upload requires Node.js fetch support");
+  }
+
+  const form = new URLSearchParams();
+  form.set("image", processed.buffer.toString("base64"));
+  form.set("name", path.basename(storagePath, path.extname(storagePath)));
+
+  const response = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(IMGBB_API_KEY)}`, {
+    method: "POST",
+    body: form,
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok || !json?.success) {
+    throw new Error(json?.error?.message || `ImgBB upload failed with ${response.status}`);
+  }
+
+  return {
+    url: json.data?.display_url || json.data?.url,
+    path: json.data?.image?.filename || storagePath,
+    provider: "imgbb",
+    deleteUrl: json.data?.delete_url,
+    size: processed.buffer.length,
+    mimetype: processed.contentType,
+    originalName: file.originalname,
+  };
+};
+
 const uploadFile = async ({ req, file, folder = "general", options = {} }) => {
   const processed = await processFile(file, options);
   const storagePath = buildStoragePath(folder, processed.extension);
+  const imgbb = await uploadToImgBB(processed, file, storagePath);
+  if (imgbb) return imgbb;
+
   const supabase = getSupabaseClient();
 
   if (supabase) {

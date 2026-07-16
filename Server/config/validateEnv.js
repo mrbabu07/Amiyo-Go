@@ -29,6 +29,7 @@ function getServiceStatus(env = process.env) {
   const brevoConfigured = hasValue(env.BREVO_API_KEY) && hasValue(env.BREVO_API_URL);
   const sslWirelessConfigured = hasValue(env.SSL_WIRELESS_API_TOKEN) && hasValue(env.SSL_WIRELESS_SID);
   const twilioConfigured = hasValue(env.TWILIO_ACCOUNT_SID) && hasValue(env.TWILIO_AUTH_TOKEN) && hasValue(env.TWILIO_BASE_URL);
+  const imgbbConfigured = hasValue(env.IMGBB_API_KEY || env.IMAGE_UPLOAD_IMGBB_API_KEY);
   const cloudinaryConfigured = hasValue(env.CLOUDINARY_CLOUD_NAME) && hasValue(env.CLOUDINARY_API_KEY) && hasValue(env.CLOUDINARY_API_SECRET);
   const supabaseConfigured = hasValue(env.SUPABASE_URL) && hasValue(firstValue(env, ["SUPABASE_SERVICE_KEY", "SUPABASE_SERVICE_ROLE_KEY"]));
 
@@ -67,8 +68,8 @@ function getServiceStatus(env = process.env) {
       realMode: sslWirelessConfigured ? "ssl-wireless" : "twilio",
       mockMode: "mock",
     }),
-    storage: status("Storage", cloudinaryConfigured || supabaseConfigured, {
-      realMode: cloudinaryConfigured ? "cloudinary" : "supabase",
+    storage: status("Storage", imgbbConfigured || cloudinaryConfigured || supabaseConfigured, {
+      realMode: imgbbConfigured ? "imgbb" : cloudinaryConfigured ? "cloudinary" : "supabase",
       mockMode: "local-disk",
     }),
     push: status("Push", hasValue(env.VAPID_PUBLIC_KEY) && hasValue(env.VAPID_PRIVATE_KEY), {
