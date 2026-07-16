@@ -8,6 +8,25 @@ const extractData = (payload, tableName) => {
   return Array.isArray(payload?.data) ? payload.data : [];
 };
 
+const normalizeLocationName = (value = "") =>
+  String(value)
+    .toLowerCase()
+    .replace(/division|district|zila|zilla|upazila|thana|sadar|city|municipality|union/g, "")
+    .replace(/[^a-z0-9]/g, "");
+
+const findByLabel = (items = [], label = "") => {
+  const normalized = normalizeLocationName(label);
+  if (!normalized) return null;
+  return (
+    items.find((item) => normalizeLocationName(item.name) === normalized) ||
+    items.find((item) => {
+      const name = normalizeLocationName(item.name);
+      return name && (name.includes(normalized) || normalized.includes(name));
+    }) ||
+    null
+  );
+};
+
 export default function AddressLocationFields({ value, onChange, className = "" }) {
   const [geoData, setGeoData] = useState({
     divisions: [],
@@ -62,6 +81,79 @@ export default function AddressLocationFields({ value, onChange, className = "" 
   );
 
   const pick = (items, id) => items.find((item) => item.id === id) || null;
+
+  useEffect(() => {
+    if (!geoData.divisions.length) return;
+
+    const next = { ...value };
+    let changed = false;
+
+    const setIfChanged = (key, nextValue) => {
+      if ((next[key] || "") === (nextValue || "")) return;
+      next[key] = nextValue || "";
+      changed = true;
+    };
+
+    if (!next.divisionId && next.division) {
+      const division = findByLabel(geoData.divisions, next.division);
+      if (division) {
+        setIfChanged("divisionId", division.id);
+        setIfChanged("division", division.name);
+      }
+    }
+
+    if (!next.districtId && (next.district || next.city)) {
+      const districtCandidates = next.divisionId
+        ? geoData.districts.filter((district) => district.division_id === next.divisionId)
+        : geoData.districts;
+      const district = findByLabel(districtCandidates, next.district || next.city);
+      if (district) {
+        const division = pick(geoData.divisions, district.division_id);
+        setIfChanged("districtId", district.id);
+        setIfChanged("district", district.name);
+        setIfChanged("city", district.name);
+        if (division) {
+          setIfChanged("divisionId", division.id);
+          setIfChanged("division", division.name);
+        }
+      }
+    }
+
+    if (!next.upazilaId && next.upazila) {
+      const upazilaCandidates = next.districtId
+        ? geoData.upazilas.filter((upazila) => upazila.district_id === next.districtId)
+        : geoData.upazilas;
+      const upazila = findByLabel(upazilaCandidates, next.upazila);
+      if (upazila) {
+        const district = pick(geoData.districts, upazila.district_id);
+        const division = district ? pick(geoData.divisions, district.division_id) : null;
+        setIfChanged("upazilaId", upazila.id);
+        setIfChanged("upazila", upazila.name);
+        if (district) {
+          setIfChanged("districtId", district.id);
+          setIfChanged("district", district.name);
+          setIfChanged("city", district.name);
+        }
+        if (division) {
+          setIfChanged("divisionId", division.id);
+          setIfChanged("division", division.name);
+        }
+      }
+    }
+
+    if (!next.unionId && next.union) {
+      const unionCandidates = next.upazilaId
+        ? geoData.unions.filter((union) => union.upazilla_id === next.upazilaId)
+        : geoData.unions;
+      const union = findByLabel(unionCandidates, next.union);
+      if (union) {
+        setIfChanged("unionId", union.id);
+        setIfChanged("union", union.name);
+      }
+    }
+
+    if (changed) onChange(next);
+  }, [geoData, value, onChange]);
 
   const updateLocation = (field, id) => {
     const next = { ...value };

@@ -16,6 +16,7 @@ import { useNotifications } from "../context/NotificationContext";
 import { useCurrency } from "../hooks/useCurrency";
 import BackButton from "../components/BackButton";
 import Breadcrumb from "../components/Breadcrumb";
+import AddressMapPicker from "../components/AddressMapPicker";
 import AddressLocationFields from "../components/AddressLocationFields";
 import DeliveryEstimateWidget from "../components/DeliveryEstimateWidget";
 import { usePlatformConfig } from "../context/PlatformConfigContext";
@@ -32,6 +33,32 @@ import {
 import { notifyLoyaltyBalanceChanged } from "../utils/loyaltyBalance";
 
 const CHECKOUT_VOUCHER_KEY = "hnilabazar_selected_voucher";
+
+const getSavedCoordinates = (address = {}) => ({
+  latitude: address.latitude ?? address.location?.latitude ?? address.location?.coordinates?.[1] ?? "",
+  longitude: address.longitude ?? address.location?.longitude ?? address.location?.coordinates?.[0] ?? "",
+});
+
+const getDeliveryPin = (formData = {}) => {
+  const latitude = Number(formData.latitude);
+  const longitude = Number(formData.longitude);
+  const hasPin = Number.isFinite(latitude) && Number.isFinite(longitude);
+
+  return {
+    hasPin,
+    latitude: hasPin ? latitude : "",
+    longitude: hasPin ? longitude : "",
+    location: hasPin
+      ? {
+          type: "Point",
+          coordinates: [longitude, latitude],
+          latitude,
+          longitude,
+          formattedAddress: formData.mapFormattedAddress || "",
+        }
+      : null,
+  };
+};
 
 export default function Checkout() {
   const { cart, cartTotal, clearCart } = useCart();
@@ -84,6 +111,9 @@ export default function Checkout() {
     wardNo: "",
     area: "",
     zipCode: "",
+    latitude: "",
+    longitude: "",
+    mapFormattedAddress: "",
     paymentMethod: ["cod", "bkash", "nagad", "card"].includes(savedPaymentMethod)
       ? savedPaymentMethod
       : "cod",
@@ -444,6 +474,7 @@ export default function Checkout() {
 
   // Auto-fill form with default address
   const loadAddress = (address) => {
+    const coordinates = getSavedCoordinates(address);
     setFormData((prev) => ({
       ...prev,
       name: address.name,
@@ -461,6 +492,9 @@ export default function Checkout() {
       wardNo: address.wardNo || "",
       area: address.area,
       zipCode: address.zipCode || "",
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude,
+      mapFormattedAddress: address.mapFormattedAddress || address.location?.formattedAddress || "",
     }));
     setAddressLoaded(true);
     setShowAddressSelector(false);
@@ -486,6 +520,9 @@ export default function Checkout() {
       wardNo: "",
       area: "",
       zipCode: "",
+      latitude: "",
+      longitude: "",
+      mapFormattedAddress: "",
     }));
   };
 
@@ -523,6 +560,23 @@ export default function Checkout() {
       ...(name === "paymentMethod" && ["cod", "card"].includes(value)
         ? { transactionId: "" }
         : {}),
+    }));
+  };
+
+  const handleMapAddressResolved = (suggestion = {}) => {
+    setFormData((prev) => ({
+      ...prev,
+      latitude: suggestion.latitude ?? prev.latitude,
+      longitude: suggestion.longitude ?? prev.longitude,
+      mapFormattedAddress: suggestion.formattedAddress || prev.mapFormattedAddress || "",
+      address: prev.address || suggestion.address || suggestion.formattedAddress || "",
+      area: prev.area || suggestion.area || "",
+      union: prev.union || suggestion.union || "",
+      upazila: prev.upazila || suggestion.upazila || "",
+      district: prev.district || suggestion.district || suggestion.city || "",
+      city: prev.city || suggestion.city || suggestion.district || "",
+      division: prev.division || suggestion.division || "",
+      zipCode: prev.zipCode || suggestion.zipCode || "",
     }));
   };
 
@@ -711,6 +765,7 @@ export default function Checkout() {
         return;
       }
 
+      const deliveryPin = getDeliveryPin(formData);
       const orderData = {
         products: cart.map((item) => {
           // Ensure we have a valid product ID
@@ -752,6 +807,10 @@ export default function Checkout() {
           wardNo: formData.wardNo,
           area: formData.area,
           zipCode: formData.zipCode,
+          latitude: deliveryPin.latitude,
+          longitude: deliveryPin.longitude,
+          location: deliveryPin.location,
+          mapFormattedAddress: formData.mapFormattedAddress || "",
         },
         paymentMethod: formData.paymentMethod,
         transactionId: ["bkash", "nagad", "rocket"].includes(
@@ -1403,6 +1462,25 @@ export default function Checkout() {
                       placeholder="House name/no, flat, road, landmark"
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all resize-none"
                     />
+                  </div>
+                  <div className="md:col-span-2">
+                    <AddressMapPicker
+                      latitude={formData.latitude}
+                      longitude={formData.longitude}
+                      onChange={(pin) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          latitude: pin.latitude,
+                          longitude: pin.longitude,
+                        }))
+                      }
+                      onAddressResolved={handleMapAddressResolved}
+                    />
+                    {formData.mapFormattedAddress && (
+                      <p className="mt-2 rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                        Map address: {formData.mapFormattedAddress}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
