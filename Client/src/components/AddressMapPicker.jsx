@@ -6,6 +6,19 @@ import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 const DEFAULT_CENTER = [23.8103, 90.4125];
+const TILE_LAYERS = {
+  street: {
+    label: "Street",
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+  },
+  satellite: {
+    label: "Satellite",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution:
+      "Tiles &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+  },
+};
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -65,9 +78,14 @@ export default function AddressMapPicker({
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
+  const tileLayerRef = useRef(null);
   const [resolving, setResolving] = useState(false);
   const [locating, setLocating] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  const [mapStyle, setMapStyle] = useState("street");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState("");
 
   const reverseGeocode = async ({ latitude: lat, longitude: lng }) => {
@@ -115,6 +133,18 @@ export default function AddressMapPicker({
     reverseGeocode(next);
   };
 
+  const addTileLayer = (style, map = mapRef.current) => {
+    if (!map) return;
+    const config = TILE_LAYERS[style] || TILE_LAYERS.street;
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+    }
+    tileLayerRef.current = L.tileLayer(config.url, {
+      attribution: config.attribution,
+      maxZoom: 19,
+    }).addTo(map);
+  };
+
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -126,9 +156,7 @@ export default function AddressMapPicker({
       scrollWheelZoom: false,
     });
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-    }).addTo(map);
+    addTileLayer("street", map);
 
     const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
 
@@ -146,6 +174,7 @@ export default function AddressMapPicker({
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
+      tileLayerRef.current = null;
     };
   }, []);
 
@@ -189,14 +218,85 @@ export default function AddressMapPicker({
     commitLocation(mapRef.current.getCenter());
   };
 
+  const changeMapStyle = (style) => {
+    setMapStyle(style);
+    addTileLayer(style);
+  };
+
+  const searchLocation = async (event) => {
+    event?.preventDefault?.();
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResults([]);
+      setMessage("Type an area, road, landmark, or district name first.");
+      return;
+    }
+
+    try {
+      setSearching(true);
+      setMessage("");
+      const params = new URLSearchParams({
+        format: "jsonv2",
+        q: query,
+        countrycodes: "bd",
+        addressdetails: "1",
+        limit: "6",
+      });
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+        headers: { Accept: "application/json" },
+      });
+      const rows = await response.json().catch(() => []);
+      if (!response.ok || !Array.isArray(rows) || rows.length === 0) {
+        setSearchResults([]);
+        setMessage("No location found. Try a nearby area, road, or district name.");
+        return;
+      }
+      setSearchResults(rows);
+      setMessage("Select a search result below, then adjust the pin if needed.");
+    } catch (error) {
+      console.error("Failed to search location:", error);
+      setMessage("Location search is unavailable right now. You can still tap the map.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const selectSearchResult = (result) => {
+    const lat = Number(result.lat);
+    const lng = Number(result.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    mapRef.current?.setView([lat, lng], 16);
+    markerRef.current?.setLatLng([lat, lng]);
+    const next = {
+      latitude: Number(lat.toFixed(6)),
+      longitude: Number(lng.toFixed(6)),
+      ...extractAddressSuggestion(result),
+    };
+    onChange?.({ latitude: next.latitude, longitude: next.longitude });
+    onAddressResolved?.(next);
+    setSearchResults([]);
+    setMessage("Location selected. You can drag the marker or tap another point to adjust.");
+  };
+
+  const clearPin = () => {
+    onChange?.({ latitude: "", longitude: "" });
+    setSearchResults([]);
+    setMessage("Pin cleared. Search or tap the map to set a new delivery point.");
+    if (mapRef.current && markerRef.current) {
+      markerRef.current.setLatLng(DEFAULT_CENTER);
+      mapRef.current.setView(DEFAULT_CENTER, 11);
+    }
+  };
+
   return (
     <div className={className}>
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-4 border-b border-gray-100 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-bold text-gray-900">Set exact delivery pin</p>
             <p className="text-xs text-gray-500">
-              Tap anywhere on the map, drag the marker, or use current location.
+              Search, switch satellite view, tap anywhere on the map, or drag the marker.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:flex">
@@ -216,6 +316,63 @@ export default function AddressMapPicker({
               Pin map center
             </button>
           </div>
+          </div>
+
+          <form onSubmit={searchLocation} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search area, road, landmark, district..."
+              className="min-h-11 rounded-xl border border-gray-200 px-4 text-sm font-medium text-gray-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+            />
+            <button
+              type="submit"
+              disabled={searching}
+              className="min-h-11 rounded-xl bg-primary-600 px-5 text-sm font-black text-white transition hover:bg-primary-700 disabled:cursor-wait disabled:opacity-70"
+            >
+              {searching ? "Searching..." : "Search"}
+            </button>
+          </form>
+
+          {searchResults.length > 0 && (
+            <div className="max-h-56 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 p-2">
+              {searchResults.map((result) => (
+                <button
+                  key={`${result.place_id}-${result.lat}-${result.lon}`}
+                  type="button"
+                  onClick={() => selectSearchResult(result)}
+                  className="block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-gray-800 transition hover:bg-white hover:text-primary-700"
+                >
+                  {result.display_name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(TILE_LAYERS).map(([key, config]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => changeMapStyle(key)}
+                className={`rounded-full px-4 py-2 text-xs font-black transition ${
+                  mapStyle === key
+                    ? "bg-primary-600 text-white"
+                    : "border border-gray-200 bg-white text-gray-700 hover:border-primary-200 hover:bg-primary-50"
+                }`}
+              >
+                {config.label} view
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={clearPin}
+              className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-xs font-black text-red-700 transition hover:bg-red-100"
+            >
+              Clear / change pin
+            </button>
+          </div>
         </div>
         <div className="relative bg-slate-100">
           {!mapReady && (
@@ -225,7 +382,10 @@ export default function AddressMapPicker({
           )}
           <div ref={containerRef} className="h-80 min-h-80 w-full sm:h-96" />
           <div className="pointer-events-none absolute left-3 top-3 z-[401] rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-gray-700 shadow-sm">
-            Tap map to pin
+            Tap map to change pin
+          </div>
+          <div className="pointer-events-none absolute bottom-3 left-1/2 z-[401] -translate-x-1/2 rounded-full bg-gray-950/85 px-4 py-2 text-xs font-black text-white shadow-lg">
+            Move map, then press "Pin map center"
           </div>
         </div>
       </div>

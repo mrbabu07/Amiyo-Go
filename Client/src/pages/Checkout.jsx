@@ -572,6 +572,14 @@ export default function Checkout() {
       latitude: suggestion.latitude ?? prev.latitude,
       longitude: suggestion.longitude ?? prev.longitude,
       mapFormattedAddress: suggestion.formattedAddress || prev.mapFormattedAddress || "",
+      address: prev.address || suggestion.address || suggestion.formattedAddress || "",
+      area: prev.area || suggestion.area || "",
+      union: prev.union || suggestion.union || "",
+      upazila: prev.upazila || suggestion.upazila || "",
+      district: prev.district || suggestion.district || suggestion.city || "",
+      city: prev.city || suggestion.city || suggestion.district || "",
+      division: prev.division || suggestion.division || "",
+      zipCode: prev.zipCode || suggestion.zipCode || "",
     }));
     setMapSuggestion(suggestion.formattedAddress ? suggestion : null);
   };
