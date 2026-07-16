@@ -132,3 +132,5 @@ Server/scripts/test-*.js
 .env*
 !.env.example
 !**/.env.example
+*.zip
+/package-lock.json
