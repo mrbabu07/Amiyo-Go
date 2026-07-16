@@ -13,6 +13,28 @@ const IMGBB_API_KEY = process.env.IMGBB_API_KEY || process.env.IMAGE_UPLOAD_IMGB
 const MAX_IMAGE_WIDTH = Number(process.env.IMAGE_MAX_WIDTH || 1600);
 
 let supabaseClient = null;
+let cloudinaryClient = null;
+
+const cloudinaryConfigured = () =>
+  hasValue(process.env.CLOUDINARY_CLOUD_NAME) &&
+  hasValue(process.env.CLOUDINARY_API_KEY) &&
+  hasValue(process.env.CLOUDINARY_API_SECRET);
+
+const getCloudinaryClient = () => {
+  if (!cloudinaryConfigured()) return null;
+
+  if (!cloudinaryClient) {
+    const { v2 } = require("cloudinary");
+    v2.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+    cloudinaryClient = v2;
+  }
+
+  return cloudinaryClient;
+};
 
 const getSupabaseClient = () => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
@@ -110,9 +132,43 @@ const uploadToImgBB = async (processed, file, storagePath) => {
   };
 };
 
+const cloudinaryResourceType = (contentType = "") => {
+  if (contentType.startsWith("image/")) return "image";
+  if (contentType.startsWith("video/")) return "video";
+  return "raw";
+};
+
+const uploadToCloudinary = async (processed, file, folder) => {
+  const cloudinary = getCloudinaryClient();
+  if (!cloudinary) return null;
+
+  const dataUri = `data:${processed.contentType};base64,${processed.buffer.toString("base64")}`;
+  const result = await cloudinary.uploader.upload(dataUri, {
+    folder: safeFolder(folder),
+    resource_type: cloudinaryResourceType(processed.contentType),
+    use_filename: true,
+    unique_filename: true,
+  });
+
+  return {
+    url: result.secure_url,
+    path: result.public_id,
+    publicId: result.public_id,
+    provider: "cloudinary",
+    size: result.bytes || processed.buffer.length,
+    mimetype: processed.contentType,
+    originalName: file.originalname,
+    width: result.width || null,
+    height: result.height || null,
+  };
+};
+
 const uploadFile = async ({ req, file, folder = "general", options = {} }) => {
   const processed = await processFile(file, options);
   const storagePath = buildStoragePath(folder, processed.extension);
+  const cloudinary = await uploadToCloudinary(processed, file, folder);
+  if (cloudinary) return cloudinary;
+
   const imgbb = await uploadToImgBB(processed, file, storagePath);
   if (imgbb) return imgbb;
 
