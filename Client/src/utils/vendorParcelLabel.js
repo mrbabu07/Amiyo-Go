@@ -147,21 +147,18 @@ export const buildVendorParcelLabelModel = (order = {}, vendor = {}) => {
 
 export const buildVendorParcelQrPayload = (label = {}) =>
   [
-    "AMIYO_GO_PARCEL_V1",
-    `PARCEL:${textValue(label.parcelId)}`,
-    `ORDER:${textValue(label.orderId)}`,
-    `VENDOR:${textValue(label.vendorId)}`,
-    `TRACKING:${textValue(label.trackingNumber, "PENDING")}`,
-    `PAYMENT:${textValue(label.paymentType, "UNKNOWN")}`,
-    `STATUS:${normalizeStatus(label.paymentStatusLabel).toUpperCase()}`,
-    `ORDER_STATUS:${normalizeStatus(label.status).toUpperCase()}`,
-    `SUBTOTAL:${numberValue(label.vendorSubtotal).toFixed(2)}`,
-    `DELIVERY:${numberValue(label.deliveryCharge).toFixed(2)}`,
-    `DISCOUNT:${numberValue(label.discountAmount).toFixed(2)}`,
-    `AMOUNT:${numberValue(label.payableAmount).toFixed(2)}`,
-    `ITEMS:${Math.max(0, numberValue(label.itemCount))}`,
-    `UNITS:${Math.max(0, numberValue(label.quantity))}`,
-    "CURRENCY:BDT",
+    "AGP2",
+    `P=${textValue(label.parcelId)}`,
+    `O=${textValue(label.orderId)}`,
+    `V=${textValue(label.vendorId)}`,
+    `T=${textValue(label.trackingNumber, "PENDING")}`,
+    `PM=${textValue(label.paymentType, "UNKNOWN")}`,
+    `PS=${normalizeStatus(label.paymentStatusLabel).toUpperCase()}`,
+    `OS=${normalizeStatus(label.status).toUpperCase()}`,
+    `A=${numberValue(label.payableAmount).toFixed(2)}`,
+    `I=${Math.max(0, numberValue(label.itemCount))}`,
+    `Q=${Math.max(0, numberValue(label.quantity))}`,
+    "C=BDT",
   ].join("|");
 
 const renderItems = (label) => {
@@ -256,7 +253,7 @@ export const renderVendorParcelLabelDocument = (labels = []) => {
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; background: #e5e7eb; color: #050505; font-family: Arial, Helvetica, sans-serif; }
         body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-        .label-page { display: grid; width: 100mm; height: 150mm; grid-template-rows: 16mm 38mm 20mm 12mm 27mm 18mm 7mm; align-content: start; margin: 8mm auto; padding: 4mm; overflow: hidden; background: #fff; page-break-after: always; break-after: page; }
+        .label-page { display: grid; width: 100mm; height: 150mm; grid-template-rows: 16mm 38mm 24mm 12mm 23mm 18mm 7mm; align-content: start; margin: 8mm auto; padding: 4mm; overflow: hidden; background: #fff; page-break-after: always; break-after: page; }
         .label-page:last-child { page-break-after: auto; break-after: auto; }
         .label-header { display: flex; min-width: 0; overflow: hidden; align-items: flex-start; justify-content: space-between; gap: 3mm; border-bottom: 1.2mm solid #050505; padding-bottom: 2.5mm; }
         .brand { font-size: 12pt; font-weight: 900; letter-spacing: 0; }
@@ -271,13 +268,13 @@ export const renderVendorParcelLabelDocument = (labels = []) => {
         .qr-wrap { display: flex; align-items: center; flex-direction: column; justify-content: flex-start; }
         .qr-wrap img { width: 26mm; height: 26mm; image-rendering: pixelated; }
         .qr-wrap span { max-width: 29mm; margin-top: .8mm; font-size: 5.7pt; font-weight: 800; line-height: 1.05; text-align: center; text-transform: uppercase; }
-        .meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: .5mm solid #050505; }
-        .meta-grid div { min-height: 10mm; overflow: hidden; padding: 1.5mm 2mm; border-right: .35mm solid #050505; border-bottom: .35mm solid #050505; }
+        .meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 13mm 11mm; overflow: hidden; border-bottom: .5mm solid #050505; }
+        .meta-grid div { min-height: 0; overflow: hidden; padding: 1.4mm 2mm; border-right: .35mm solid #050505; border-bottom: .35mm solid #050505; }
         .meta-grid div:nth-child(2n) { border-right: 0; }
         .meta-grid div:nth-last-child(-n+2) { border-bottom: 0; }
         .meta-grid span { display: block; font-size: 6pt; font-weight: 800; }
-        .meta-grid strong { display: block; margin-top: .8mm; font-size: 9pt; overflow-wrap: anywhere; }
-        .meta-grid small { display: block; margin-top: .6mm; font-size: 6pt; font-weight: 700; line-height: 1.1; text-transform: uppercase; }
+        .meta-grid strong { display: block; margin-top: .7mm; font-size: 8.5pt; line-height: 1.05; overflow-wrap: anywhere; }
+        .meta-grid small { display: block; margin-top: .5mm; font-size: 5.7pt; font-weight: 700; line-height: 1; text-transform: uppercase; }
         .amount-breakdown { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden; border-bottom: .5mm solid #050505; }
         .amount-breakdown div { min-width: 0; padding: 1.5mm 1mm; border-right: .35mm solid #050505; text-align: center; }
         .amount-breakdown div:last-child { border-right: 0; }

@@ -38,7 +38,10 @@ describe("vendor parcel label black-box behavior", () => {
     ]);
 
     expect(html).toContain("@page { size: 100mm 150mm; margin: 0; }");
-    expect(html).toContain("grid-template-rows: 16mm 38mm 20mm 12mm 27mm 18mm 7mm");
+    expect(html).toContain("grid-template-rows: 16mm 38mm 24mm 12mm 23mm 18mm 7mm");
+    expect(html).toContain("grid-template-rows: 13mm 11mm");
+    expect(html).toContain(".meta-grid { display: grid;");
+    expect(html).toContain("overflow: hidden; border-bottom: .5mm solid #050505;");
     expect(html).toContain(".qr-wrap img { width: 26mm; height: 26mm;");
     expect(html).toContain("Parcel QR code");
     expect(html).toContain("Scan parcel + amount");
