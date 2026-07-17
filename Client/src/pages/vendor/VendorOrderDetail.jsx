@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Package,
   PackageCheck,
+  QrCode,
   RefreshCw,
   RotateCcw,
   Send,
@@ -49,6 +50,10 @@ import {
 } from "../../utils/vendorOrderDetail";
 import useAuth from "../../hooks/useAuth";
 import { hasVendorPermission } from "../../utils/vendorStaffPermissions";
+import {
+  generateVendorParcelLabel,
+  writeVendorParcelLabelPrintDocument,
+} from "../../utils/vendorParcelLabel";
 
 const pickupSlots = [
   "09:00 AM - 12:00 PM",
@@ -583,6 +588,38 @@ export default function VendorOrderDetail() {
     }
   };
 
+  const printParcelLabel = async () => {
+    const printWindow = window.open("", "_blank", "width=520,height=780");
+    if (!printWindow) {
+      toast.error("Popup blocked. Please allow popups.");
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write("<title>Preparing parcel sticker</title><p style='font-family:Arial;padding:24px'>Preparing compact parcel sticker...</p>");
+    printWindow.document.close();
+    setBusy("label");
+
+    try {
+      const firstProduct = order.products?.[0] || {};
+      const html = await generateVendorParcelLabel(order, {
+        _id: order.vendorId || firstProduct.vendorId,
+        businessName: firstProduct.vendorName || firstProduct.shopName,
+        shopName: firstProduct.shopName || firstProduct.vendorName,
+        phone: firstProduct.vendorPhone || "",
+        address: firstProduct.vendorAddress || {},
+      });
+      writeVendorParcelLabelPrintDocument(printWindow, html);
+      toast.success(`Parcel sticker ready for ${shortVendorOrderId(order)}`);
+    } catch (err) {
+      printWindow.close();
+      console.error("Failed to generate parcel sticker:", err);
+      toast.error("Failed to generate parcel sticker");
+    } finally {
+      setBusy("");
+    }
+  };
+
   const copyAddress = () => {
     if (!address) return;
     navigator.clipboard.writeText(address).then(() => toast.success("Address copied"));
@@ -653,11 +690,14 @@ export default function VendorOrderDetail() {
               <ActionButton icon={RefreshCw} disabled={Boolean(busy)} onClick={loadOrder}>
                 Refresh
               </ActionButton>
+              <ActionButton icon={QrCode} disabled={busy === "label"} onClick={printParcelLabel}>
+                Parcel sticker
+              </ActionButton>
               <ActionButton icon={FileText} disabled={busy === "packing"} onClick={() => downloadPdf("packing")}>
                 Packing slip
               </ActionButton>
               <ActionButton icon={Barcode} disabled={busy === "barcode"} onClick={() => downloadPdf("barcode")}>
-                Waybill
+                Scanner barcode
               </ActionButton>
             </div>
           </div>

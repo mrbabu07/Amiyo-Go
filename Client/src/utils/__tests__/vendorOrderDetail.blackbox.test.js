@@ -3,6 +3,7 @@ import {
   buildVendorOrderAddress,
   getVendorOrderActionPlan,
   getVendorOrderFinancials,
+  getVendorOrderPaymentSummary,
   getVendorOrderProductPricingSummaries,
   getVendorOrderStatusMeta,
   shortVendorOrderId,
@@ -71,6 +72,55 @@ describe("vendor order detail black-box behavior", () => {
       discount: 4999,
       payableTotal: 5001,
       codAmount: 5001,
+    });
+  });
+
+  test("uses the vendor delivery share instead of a parent-order delivery fee", () => {
+    const financials = getVendorOrderFinancials({
+      paymentMethod: "cod",
+      vendorSubtotal: 1000,
+      deliveryCharge: 50,
+      deliveryFee: 200,
+      totalDiscount: 100,
+      totalAmount: 5000,
+      products: [{ price: 1000, quantity: 1 }],
+    });
+
+    expect(financials).toMatchObject({
+      vendorSubtotal: 1000,
+      deliveryFee: 50,
+      discount: 100,
+      payableTotal: 950,
+      codAmount: 950,
+    });
+  });
+
+  test("keeps an explicit zero payable instead of falling back to a gross total", () => {
+    expect(
+      getVendorOrderFinancials({
+        paymentMethod: "cod",
+        payableTotal: 0,
+        totalAmount: 5000,
+        products: [{ price: 5000, quantity: 1 }],
+      }).payableTotal,
+    ).toBe(0);
+  });
+
+  test("separates payable amount from COD collection and prepaid verification state", () => {
+    const financials = { payableTotal: 950 };
+
+    expect(getVendorOrderPaymentSummary({ paymentMethod: "cod", paymentStatus: "pending" }, financials)).toMatchObject({
+      type: "COD",
+      statusLabel: "Collect on delivery",
+      payableAmount: 950,
+      collectAmount: 950,
+    });
+    expect(getVendorOrderPaymentSummary({ paymentMethod: "bkash", paymentStatus: "pending_verification" }, financials)).toMatchObject({
+      type: "PREPAID",
+      statusLabel: "Verify payment",
+      payableAmount: 950,
+      collectAmount: 0,
+      paid: false,
     });
   });
 

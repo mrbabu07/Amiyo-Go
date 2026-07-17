@@ -1012,7 +1012,7 @@ exports.downloadBarcodeLabel = async (req, res) => {
   try {
     const { orderId } = req.params;
     const { order, vendor, vendorId } = await getVendorOrderContext(req, orderId);
-    const labelText = `${orderId.slice(-10).toUpperCase()}-${vendorId.slice(-6).toUpperCase()}`;
+    const labelText = `AG-${orderId.slice(-8).toUpperCase()}-${vendorId.slice(-6).toUpperCase()}`;
     const barcode = await bwipjs.toBuffer({
       bcid: "code128",
       text: labelText,

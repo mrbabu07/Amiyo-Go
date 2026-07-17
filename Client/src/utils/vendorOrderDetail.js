@@ -65,6 +65,12 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(number) ? number : fallback;
 };
 
+export const formatVendorOrderMoney = (value) =>
+  `Tk ${toNumber(value).toLocaleString("en-BD", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+
 export const getVendorOrderId = (order = {}) =>
   order._id?.toString?.() || order.parentOrderId?.toString?.() || String(order._id || order.parentOrderId || "");
 
@@ -106,7 +112,38 @@ export const getVendorOrderStatusMeta = (order = {}) => {
 
 export const isVendorCodOrder = (order = {}) => {
   const method = cleanKey(order.paymentMethod);
-  return ["cod", "cash_on_delivery", "cash_on_delivery"].includes(method);
+  return ["cod", "cash_on_delivery"].includes(method);
+};
+
+const paidPaymentStatuses = new Set(["paid", "completed", "verified", "captured"]);
+const failedPaymentStatuses = new Set(["failed", "payment_failed", "payment_rejected", "cancelled", "expired"]);
+
+export const getVendorOrderPaymentSummary = (order = {}, financials = null) => {
+  const totals = financials || getVendorOrderFinancials(order);
+  const paymentStatus = cleanKey(order.paymentStatus, "pending");
+  const cod = isVendorCodOrder(order);
+  const codCollected = Boolean(order.codCollected || cleanKey(order.codCollectionStatus) === "collected");
+  const paid = paidPaymentStatuses.has(paymentStatus) || (cod && codCollected);
+  const failed = failedPaymentStatuses.has(paymentStatus);
+
+  return {
+    type: cod ? "COD" : "PREPAID",
+    methodLabel: cod ? "Cash on delivery" : "Prepaid",
+    status: paymentStatus,
+    statusLabel: cod
+      ? codCollected
+        ? "COD collected"
+        : "Collect on delivery"
+      : paid
+        ? "Paid"
+        : failed
+          ? "Payment failed"
+          : "Verify payment",
+    payableAmount: totals.payableTotal,
+    collectAmount: cod && !codCollected ? totals.payableTotal : 0,
+    paid,
+    failed,
+  };
 };
 
 export const getVendorOrderFinancials = (order = {}) => {
@@ -124,7 +161,7 @@ export const getVendorOrderFinancials = (order = {}) => {
     order.vendorEarnings,
     Math.max(vendorSubtotal - vendorCommission, 0),
   );
-  const deliveryFee = toNumber(order.deliveryFee || order.shippingFee || order.deliveryCharge);
+  const deliveryFee = toNumber(order.deliveryCharge ?? order.deliveryFee ?? order.shippingFee);
   const discount = toNumber(
     order.totalDiscount ??
     order.vendorVoucherDiscount ??
@@ -135,8 +172,14 @@ export const getVendorOrderFinancials = (order = {}) => {
     order.couponApplied?.discountAmount,
   );
   const computedPayableTotal = Math.max(vendorSubtotal + deliveryFee - discount, 0);
-  const storedPayableTotal = toNumber(order.payableTotal ?? order.customerPayableTotal);
-  const payableTotal = storedPayableTotal > 0 ? storedPayableTotal : computedPayableTotal;
+  const explicitPayableTotal = order.payableTotal ?? order.customerPayableTotal;
+  const hasExplicitPayableTotal =
+    explicitPayableTotal !== null &&
+    explicitPayableTotal !== undefined &&
+    Number.isFinite(Number(explicitPayableTotal));
+  const payableTotal = hasExplicitPayableTotal
+    ? Math.max(0, toNumber(explicitPayableTotal))
+    : computedPayableTotal;
 
   return {
     itemCount: products.length,

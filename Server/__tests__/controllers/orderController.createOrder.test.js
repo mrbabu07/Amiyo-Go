@@ -184,7 +184,10 @@ describe("orderController.createOrder", () => {
     };
 
     const VendorOrder = {
-      create: jest.fn().mockResolvedValue({ _id: new ObjectId("64f000000000000000000401") }),
+      create: jest.fn(async (vendorOrderData) => ({
+        ...vendorOrderData,
+        _id: new ObjectId("64f000000000000000000401"),
+      })),
     };
     const Shipment = {
       createFromOrder: jest.fn().mockResolvedValue({
@@ -275,6 +278,10 @@ describe("orderController.createOrder", () => {
           address: "Warehouse Road",
         }),
         shipmentState: "created",
+        codAmount: 1060,
+        vendorSubtotal: 1000,
+        deliveryCharge: 60,
+        discount: 0,
       }),
     );
     expect(syncAmiyoDeliveryOrder).toHaveBeenCalledWith(

@@ -188,6 +188,22 @@ const buildVendorGroupsFromOrder = (order = {}) => {
 
 const mapVendorOrder = (vendorOrder = {}, index = 0) => {
   const products = vendorOrder.products || vendorOrder.items || [];
+  const productSubtotal = products.reduce(
+    (sum, item) => sum + Number(item.price || item.unitPrice || 0) * Number(item.quantity || 1),
+    0,
+  );
+  const subtotal = round2(vendorOrder.subtotal ?? vendorOrder.vendorSubtotal ?? productSubtotal);
+  const deliveryCharge = round2(vendorOrder.deliveryCharge ?? vendorOrder.deliveryFee);
+  const discount = round2(
+    vendorOrder.totalDiscount ??
+    vendorOrder.couponDiscount ??
+    vendorOrder.discount,
+  );
+  const explicitTotal = vendorOrder.payableTotal ?? vendorOrder.totalAmount ?? vendorOrder.total;
+  const totalAmount = explicitTotal !== null && explicitTotal !== undefined && Number.isFinite(Number(explicitTotal))
+    ? round2(Math.max(0, Number(explicitTotal)))
+    : round2(Math.max(0, subtotal + deliveryCharge - discount));
+
   return {
     vendorOrderId: normalizeId(vendorOrder._id || vendorOrder.vendorOrderId || vendorOrder.id),
     vendorId: normalizeId(vendorOrder.vendorId) || null,
@@ -196,10 +212,10 @@ const mapVendorOrder = (vendorOrder = {}, index = 0) => {
     pickupAddress: vendorOrder.pickupAddress || vendorOrder.vendorAddress || null,
     vendorAddress: vendorOrder.vendorAddress || products[0]?.vendorAddress || null,
     vendorPhone: vendorOrder.vendorPhone || products[0]?.vendorPhone || "",
-    subtotal: round2(vendorOrder.subtotal),
-    deliveryCharge: round2(vendorOrder.deliveryCharge),
-    discount: round2(vendorOrder.totalDiscount || vendorOrder.couponDiscount || vendorOrder.discount),
-    totalAmount: round2(vendorOrder.totalAmount || vendorOrder.total),
+    subtotal,
+    deliveryCharge,
+    discount,
+    totalAmount,
     paymentStatus: vendorOrder.paymentStatus || "",
     status: vendorOrder.status || "pending",
     note: vendorOrder.vendorNote || vendorOrder.specialInstructions || "",

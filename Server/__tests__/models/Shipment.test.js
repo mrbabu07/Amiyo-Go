@@ -151,6 +151,26 @@ describe("Shipment model", () => {
     ]);
   });
 
+  test("uses the vendor payable total as COD instead of the gross item subtotal", async () => {
+    const vendorId = new ObjectId();
+    const { model } = buildModel();
+
+    const shipment = await model.createFromOrder(buildOrder({ vendorId }), vendorId, {
+      codAmount: 950,
+      vendorSubtotal: 1000,
+      deliveryCharge: 50,
+      discount: 100,
+    });
+
+    expect(shipment.codAmount).toBe(950);
+    expect(shipment.financialSnapshot).toEqual({
+      vendorSubtotal: 1000,
+      deliveryCharge: 50,
+      discount: 100,
+      payableTotal: 950,
+    });
+  });
+
   test("marks packed through the required pending packing step", async () => {
     const vendorId = new ObjectId();
     const { model } = buildModel();

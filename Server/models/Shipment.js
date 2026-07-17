@@ -138,8 +138,11 @@ class Shipment {
     }
 
     const cod = isCodPayment(order.paymentMethod);
+    const requestedCodAmount = Number(data.codAmount);
     const codAmount = cod
-      ? vendorItems.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0)
+      ? Number.isFinite(requestedCodAmount)
+        ? Math.max(0, requestedCodAmount)
+        : vendorItems.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0)
       : 0;
     const now = new Date();
     const trackingNumber = data.trackingNumber || shipmentNumber("AMG", order._id || order.orderId);
@@ -183,6 +186,12 @@ class Shipment {
         quantity: Number(item.quantity || 1),
       })),
       codAmount: round2(codAmount),
+      financialSnapshot: {
+        vendorSubtotal: round2(data.vendorSubtotal),
+        deliveryCharge: round2(data.deliveryCharge),
+        discount: round2(data.discount),
+        payableTotal: round2(cod ? codAmount : data.codAmount),
+      },
       labelUrl: null,
       packingSlipUrl: null,
       manifestId: null,

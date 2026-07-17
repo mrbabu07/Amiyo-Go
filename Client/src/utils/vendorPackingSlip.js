@@ -1,3 +1,8 @@
+import {
+  formatVendorOrderMoney,
+  getVendorOrderFinancials,
+} from "./vendorOrderDetail";
+
 export const generateVendorPackingSlip = (order, vendorInfo = {}) => {
   const shortOrderId = order?._id ? order._id.toString().slice(-8).toUpperCase() : "N/A";
   const products = Array.isArray(order?.products) ? order.products : [];
@@ -27,8 +32,7 @@ export const generateVendorPackingSlip = (order, vendorInfo = {}) => {
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
 
-  const formatPrice = (price) =>
-    `Tk ${Math.round(Number(price || 0)).toLocaleString()}`;
+  const formatPrice = formatVendorOrderMoney;
 
   const renderColor = (color) => {
     if (!color) return "";
@@ -37,41 +41,14 @@ export const generateVendorPackingSlip = (order, vendorInfo = {}) => {
     return "";
   };
 
-  const totalItems = products.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const subtotal = products.reduce(
-    (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
-    0,
-  );
-  const commission = products.reduce(
-    (sum, item) => sum + Number(item.adminCommissionAmount || 0),
-    0,
-  );
-  const grossVendorEarnings = products.reduce(
-    (sum, item) =>
-      sum +
-      Number(
-        item.vendorEarningAmount ??
-          Number(item.price || 0) * Number(item.quantity || 0) -
-            Number(item.adminCommissionAmount || 0),
-      ),
-    0,
-  );
-  const deliveryCharge = Number(order?.deliveryCharge || 0);
-  const discount = Number(
-    order?.totalDiscount ??
-    order?.vendorVoucherDiscount ??
-    order?.sellerVoucherDiscount ??
-    order?.discount ??
-    order?.vendorDiscount ??
-    order?.couponDiscount ??
-    0,
-  );
-  const vendorEarnings = Math.max(
-    0,
-    Number(order?.vendorEarnings ?? grossVendorEarnings - Number(order?.vendorVoucherDiscount || 0)),
-  );
-  const payableTotal = Number(order?.payableTotal ?? order?.customerPayableTotal ?? 0) ||
-    Math.max(0, subtotal + deliveryCharge - discount);
+  const financials = getVendorOrderFinancials(order || {});
+  const totalItems = financials.quantity;
+  const subtotal = financials.vendorSubtotal;
+  const commission = financials.vendorCommission;
+  const deliveryCharge = financials.deliveryFee;
+  const discount = financials.discount;
+  const vendorEarnings = financials.vendorEarnings;
+  const payableTotal = financials.payableTotal;
   const trackingNumber =
     order?.trackingNumber ||
     products.find((item) => item.trackingNumber)?.trackingNumber ||

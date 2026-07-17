@@ -100,21 +100,30 @@ const createShipmentDraftsForOrder = async ({
   Shipment,
   order,
   vendorGroups = {},
+  vendorOrders = [],
   vendorsById = {},
   actorId = null,
 }) => {
   if (!Shipment?.createFromOrder || !order?._id) return [];
 
   const drafts = [];
+  const vendorOrderByVendorId = new Map(
+    vendorOrders.map((vendorOrder) => [normalizeId(vendorOrder.vendorId) || "platform", vendorOrder]),
+  );
 
   for (const vendorId of Object.keys(vendorGroups)) {
     try {
       const vendor = vendorId === "platform" ? null : vendorsById[vendorId] || null;
+      const vendorOrder = vendorOrderByVendorId.get(vendorId);
       const shipment = await Shipment.createFromOrder(order, vendorId, {
         actorRole: "system",
         actorId,
         pickupAddress: buildVendorPickupAddress(vendor),
         shipmentState: "created",
+        codAmount: vendorOrder?.totalAmount,
+        vendorSubtotal: vendorOrder?.subtotal,
+        deliveryCharge: vendorOrder?.deliveryCharge,
+        discount: vendorOrder?.totalDiscount,
       });
 
       drafts.push({
@@ -938,6 +947,7 @@ const createOrder = async (req, res) => {
       Shipment,
       order: createdOrder,
       vendorGroups,
+      vendorOrders: createdVendorOrders,
       vendorsById,
       actorId: req.user?.uid || null,
     });

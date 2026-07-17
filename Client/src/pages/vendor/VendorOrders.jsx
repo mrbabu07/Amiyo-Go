@@ -18,6 +18,7 @@ import {
   Package,
   PackageCheck,
   Printer,
+  QrCode,
   RefreshCw,
   RotateCcw,
   Search,
@@ -30,6 +31,12 @@ import Loading from "../../components/Loading";
 import useAuth from "../../hooks/useAuth";
 import { useCurrency } from "../../hooks/useCurrency";
 import { generateVendorPackingSlip } from "../../utils/vendorPackingSlip";
+import { getVendorOrderFinancials } from "../../utils/vendorOrderDetail";
+import {
+  generateVendorParcelLabel,
+  generateVendorParcelLabels,
+  writeVendorParcelLabelPrintDocument,
+} from "../../utils/vendorParcelLabel";
 import { hasVendorPermission } from "../../utils/vendorStaffPermissions";
 import {
   downloadVendorBarcodeLabel,
@@ -199,36 +206,11 @@ const escapeHtml = (value = "") =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
-const orderProductsTotal = (order) =>
-  (order.products || []).reduce(
-    (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
-    0,
-  );
+const orderProductsTotal = (order) => getVendorOrderFinancials(order).itemSubtotal;
 
-const orderDiscountTotal = (order) =>
-  Number(
-    order.totalDiscount ??
-    order.vendorVoucherDiscount ??
-    order.sellerVoucherDiscount ??
-    order.discount ??
-    order.vendorDiscount ??
-    order.couponDiscount ??
-    order.couponApplied?.discountAmount ??
-    0,
-  ) || 0;
+const orderDiscountTotal = (order) => getVendorOrderFinancials(order).discount;
 
-const orderPayableTotal = (order) => {
-  const gross = Number(order.vendorSubtotal ?? order.subtotal ?? orderProductsTotal(order)) || 0;
-  const delivery = Number(order.deliveryCharge ?? order.deliveryFee ?? order.shippingFee ?? 0) || 0;
-  const discount = orderDiscountTotal(order);
-  const computed = Math.max(0, gross + delivery - discount);
-  const storedPayable = Number(order.payableTotal ?? order.customerPayableTotal ?? 0);
-  if (storedPayable > 0) return storedPayable;
-
-  const storedTotal = Number(order.totalAmount ?? order.total ?? 0);
-  if (discount > 0) return computed;
-  return storedTotal > 0 ? storedTotal : computed;
-};
+const orderPayableTotal = (order) => getVendorOrderFinancials(order).payableTotal;
 
 const getOrderNextStep = (order) => {
   if (order.hasReturnRequest) {
@@ -828,6 +810,39 @@ export default function VendorOrders() {
     toast.success(`Packing slip ready for ${shortId(orderId)}`);
   };
 
+  const getParcelLabelVendor = (order) => ({
+    ...(vendorProfile || {}),
+    _id: vendorProfile?._id || order.vendorId || order.products?.[0]?.vendorId,
+    businessName:
+      vendorProfile?.businessName || order.products?.[0]?.vendorName || order.products?.[0]?.shopName,
+    shopName:
+      vendorProfile?.shopName || order.products?.[0]?.shopName || order.products?.[0]?.vendorName,
+    phone: vendorProfile?.phone || order.products?.[0]?.vendorPhone || "",
+  });
+
+  const printParcelLabel = async (order) => {
+    const orderId = getOrderId(order);
+    const printWindow = window.open("", "_blank", "width=520,height=780");
+    if (!printWindow) {
+      toast.error("Popup blocked. Please allow popups.");
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write("<title>Preparing parcel sticker</title><p style='font-family:Arial;padding:24px'>Preparing compact parcel sticker...</p>");
+    printWindow.document.close();
+
+    try {
+      const html = await generateVendorParcelLabel(order, getParcelLabelVendor(order));
+      writeVendorParcelLabelPrintDocument(printWindow, html);
+      toast.success(`Parcel sticker ready for ${shortId(orderId)}`);
+    } catch (error) {
+      printWindow.close();
+      console.error("Failed to generate parcel sticker:", error);
+      toast.error("Failed to generate parcel sticker");
+    }
+  };
+
   const printBatchPackingSlips = () => {
     if (selectedOrders.length === 0) {
       toast.error("Select orders to print");
@@ -847,6 +862,37 @@ export default function VendorOrders() {
       printWindow.focus();
       printWindow.print();
     };
+  };
+
+  const printBatchParcelLabels = async () => {
+    const printableOrders = bulkWorkflow.printableOrders;
+    if (printableOrders.length === 0) {
+      toast.error("Select orders to print parcel stickers");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=520,height=780");
+    if (!printWindow) {
+      toast.error("Popup blocked. Please allow popups.");
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write("<title>Preparing parcel stickers</title><p style='font-family:Arial;padding:24px'>Preparing compact parcel stickers...</p>");
+    printWindow.document.close();
+
+    try {
+      const html = await generateVendorParcelLabels(
+        printableOrders,
+        getParcelLabelVendor(printableOrders[0]),
+      );
+      writeVendorParcelLabelPrintDocument(printWindow, html);
+      toast.success(`${printableOrders.length} parcel stickers ready`);
+    } catch (error) {
+      printWindow.close();
+      console.error("Failed to generate parcel stickers:", error);
+      toast.error("Failed to generate parcel stickers");
+    }
   };
 
   const copyAddress = (shippingInfo) => {
@@ -1034,10 +1080,13 @@ export default function VendorOrders() {
           <IconButton title="Print packing slip" onClick={() => printPackingSlip(order)}>
             <Printer className="h-4 w-4" />
           </IconButton>
+          <IconButton title="Print compact parcel sticker" onClick={() => printParcelLabel(order)}>
+            <QrCode className="h-4 w-4" />
+          </IconButton>
           <IconButton title="Download packing slip PDF" onClick={() => downloadPackingSlipPdf(order)}>
             <FileText className="h-4 w-4" />
           </IconButton>
-          <IconButton title="Download waybill barcode" onClick={() => downloadBarcodePdf(order)}>
+          <IconButton title="Download optional scanner barcode" onClick={() => downloadBarcodePdf(order)}>
             <Barcode className="h-4 w-4" />
           </IconButton>
         </div>
@@ -1274,6 +1323,15 @@ export default function VendorOrders() {
                     {bulkWorkflow.selectedCount} selected
                   </span>
                 )}
+                <button
+                  type="button"
+                  onClick={printBatchParcelLabels}
+                  disabled={bulkWorkflow.printableOrders.length === 0}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <QrCode className="h-4 w-4" />
+                  Print Labels
+                </button>
                 <button
                   type="button"
                   onClick={printBatchPackingSlips}

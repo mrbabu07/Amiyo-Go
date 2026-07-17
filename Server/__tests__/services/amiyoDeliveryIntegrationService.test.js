@@ -139,6 +139,30 @@ describe("amiyoDeliveryIntegrationService", () => {
     }));
   });
 
+  test("derives vendor COD from subtotal, delivery, and discount when total is absent", () => {
+    const payload = buildAmiyoDeliveryPayload({
+      _id: new ObjectId("64f000000000000000000203"),
+      paymentMethod: "cod",
+      total: 5000,
+      shippingInfo: { name: "Customer", phone: "01700000000", address: "Dhaka" },
+    }, {
+      vendorOrders: [{
+        _id: "vendor-order-3",
+        vendorId: "vendor-3",
+        subtotal: 1000,
+        deliveryCharge: 50,
+        totalDiscount: 100,
+        products: [{ productId: "p-3", title: "Vendor item", quantity: 1, price: 1000 }],
+      }],
+    });
+
+    expect(payload.vendorOrders[0]).toEqual(expect.objectContaining({
+      codAmount: 950,
+      deliveryFee: 50,
+    }));
+    expect(payload.vendorOrders[0].codAmount).not.toBe(5000);
+  });
+
   test("signs outgoing delivery payload with timestamp.rawJson HMAC", () => {
     const rawJson = JSON.stringify({ orderId: "order-1" });
     const signed = signAmiyoDeliveryPayload(rawJson, {
