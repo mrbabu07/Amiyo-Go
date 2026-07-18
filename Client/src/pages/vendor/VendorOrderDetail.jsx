@@ -27,6 +27,7 @@ import {
   getVendorCourierOptions,
   getVendorLogisticsShipments,
   getVendorOrderDetail,
+  getVendorParcelLabels,
   getVendorOrderTimeline,
   getVendorReturns,
   markVendorCodCollected,
@@ -602,12 +603,22 @@ export default function VendorOrderDetail() {
 
     try {
       const firstProduct = order.products?.[0] || {};
-      const html = await generateVendorParcelLabel(order, {
+      const response = await getVendorParcelLabels([orderId]);
+      const signedLabel = response.data?.labels?.[0];
+      if (!signedLabel?.qrPayload) throw new Error("Signed parcel label was not returned");
+      const html = await generateVendorParcelLabel({
+        ...order,
+        parcelQrPayload: signedLabel.qrPayload,
+        trackingNumber: signedLabel.trackingNumber,
+        pickupAddress: signedLabel.pickupAddress,
+      }, {
         _id: order.vendorId || firstProduct.vendorId,
         businessName: firstProduct.vendorName || firstProduct.shopName,
         shopName: firstProduct.shopName || firstProduct.vendorName,
         phone: firstProduct.vendorPhone || "",
-        address: firstProduct.vendorAddress || {},
+        address: signedLabel.pickupAddress || firstProduct.vendorAddress || {},
+        ...(signedLabel.vendor || {}),
+        pickupAddress: signedLabel.pickupAddress,
       });
       writeVendorParcelLabelPrintDocument(printWindow, html);
       toast.success(`Parcel sticker ready for ${shortVendorOrderId(order)}`);

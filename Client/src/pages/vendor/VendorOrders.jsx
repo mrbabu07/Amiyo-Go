@@ -43,6 +43,7 @@ import {
   downloadVendorPackingSlip,
   getMyVendorProfile,
   getVendorOrders,
+  getVendorParcelLabels,
   getVendorOrderTimeline,
   getVendorReturns,
   markVendorCodCollected,
@@ -833,7 +834,18 @@ export default function VendorOrders() {
     printWindow.document.close();
 
     try {
-      const html = await generateVendorParcelLabel(order, getParcelLabelVendor(order));
+      const response = await getVendorParcelLabels([orderId]);
+      const signedLabel = response.data?.labels?.[0];
+      if (!signedLabel?.qrPayload) throw new Error("Signed parcel label was not returned");
+      const html = await generateVendorParcelLabel(
+        {
+          ...order,
+          parcelQrPayload: signedLabel.qrPayload,
+          trackingNumber: signedLabel.trackingNumber,
+          pickupAddress: signedLabel.pickupAddress,
+        },
+        { ...getParcelLabelVendor(order), ...signedLabel.vendor, pickupAddress: signedLabel.pickupAddress },
+      );
       writeVendorParcelLabelPrintDocument(printWindow, html);
       toast.success(`Parcel sticker ready for ${shortId(orderId)}`);
     } catch (error) {
@@ -882,9 +894,27 @@ export default function VendorOrders() {
     printWindow.document.close();
 
     try {
+      const response = await getVendorParcelLabels(printableOrders.map(getOrderId));
+      const signedByOrder = new Map(
+        (response.data?.labels || []).map((label) => [String(label.orderId), label]),
+      );
+      const signedOrders = printableOrders.map((order) => {
+        const signedLabel = signedByOrder.get(getOrderId(order));
+        if (!signedLabel?.qrPayload) throw new Error(`Signed parcel label missing for ${getOrderId(order)}`);
+        return {
+          ...order,
+          parcelQrPayload: signedLabel.qrPayload,
+          trackingNumber: signedLabel.trackingNumber,
+          pickupAddress: signedLabel.pickupAddress,
+        };
+      });
       const html = await generateVendorParcelLabels(
-        printableOrders,
-        getParcelLabelVendor(printableOrders[0]),
+        signedOrders,
+        {
+          ...getParcelLabelVendor(printableOrders[0]),
+          ...(response.data?.labels?.[0]?.vendor || {}),
+          pickupAddress: response.data?.labels?.[0]?.pickupAddress,
+        },
       );
       writeVendorParcelLabelPrintDocument(printWindow, html);
       toast.success(`${printableOrders.length} parcel stickers ready`);

@@ -39,9 +39,11 @@ describe("vendor parcel label white-box behavior", () => {
   });
 
   test("keeps personal delivery details out of the rider QR payload", () => {
+    const signedPayload = "AGP2|O=order-100|V=vendor-20|T=TRK-100|M=P|S=PENDING|F=PENDING|A=0.00|I=1|Q=1|X=1999999999|H=test-signature";
     const label = buildVendorParcelLabelModel({
       _id: "order-100",
       vendorId: "vendor-20",
+      parcelQrPayload: signedPayload,
       shippingInfo: {
         name: "Private Buyer",
         phone: "01700000000",
@@ -51,17 +53,7 @@ describe("vendor parcel label white-box behavior", () => {
     });
     const payload = buildVendorParcelQrPayload(label);
 
-    expect(payload).toContain("AGP2");
-    expect(payload).toContain("O=order-100");
-    expect(payload).toContain("V=vendor-20");
-    expect(payload).toContain("T=TRK-100");
-    expect(payload).toContain("PM=PREPAID");
-    expect(payload).toContain("PS=VERIFY_PAYMENT");
-    expect(payload).toContain("OS=PENDING");
-    expect(payload).toContain("A=0.00");
-    expect(payload).toContain("I=1");
-    expect(payload).toContain("Q=1");
-    expect(payload).toContain("C=BDT");
+    expect(payload).toBe(signedPayload);
     expect(payload.length).toBeLessThan(180);
     expect(payload).not.toContain("Private Buyer");
     expect(payload).not.toContain("01700000000");
@@ -70,6 +62,7 @@ describe("vendor parcel label white-box behavior", () => {
   });
 
   test("puts only the selected vendor payable amount in a multi-order QR", () => {
+    const signedPayload = "AGP2|O=multi-order-200|V=vendor-a|T=PENDING|M=C|S=PENDING|F=PENDING|A=950.00|I=1|Q=1|X=1999999999|H=test-signature";
     const label = buildVendorParcelLabelModel({
       _id: "multi-order-200",
       vendorId: "vendor-a",
@@ -80,15 +73,21 @@ describe("vendor parcel label white-box behavior", () => {
       totalDiscount: 100,
       payableTotal: 950,
       totalAmount: 5000,
+      parcelQrPayload: signedPayload,
       products: [{ vendorId: "vendor-a", title: "Seller A item", price: 1000, quantity: 1 }],
     });
     const payload = buildVendorParcelQrPayload(label);
 
     expect(label.payableAmount).toBe(950);
     expect(label.codAmount).toBe(950);
-    expect(payload).toContain("PM=COD");
-    expect(payload).toContain("PS=COLLECT_ON_DELIVERY");
+    expect(payload).toContain("M=C");
     expect(payload).toContain("A=950.00");
     expect(payload).not.toContain("A=5000.00");
+  });
+
+  test("refuses to print an unsigned parcel QR", () => {
+    expect(() => buildVendorParcelQrPayload({ orderId: "order-1" })).toThrow(
+      "Signed parcel QR payload is unavailable",
+    );
   });
 });

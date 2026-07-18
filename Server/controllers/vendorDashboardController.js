@@ -1,6 +1,7 @@
 const { ObjectId } = require("mongodb");
 const { appendOrderEvent } = require("../services/orderEventService");
 const { enqueueReadyToShipDelivery } = require("../services/deliveryDispatchQueue");
+const { buildParcelQrPayload } = require("../services/parcelQrService");
 
 const round2 = (value) => Math.round(((Number(value) || 0) + Number.EPSILON) * 100) / 100;
 
@@ -498,6 +499,23 @@ const getVendorForRequest = async (req) => {
   const vendor = req.vendor || await Vendor.findByUserId(user._id);
   if (!vendor) return { error: "Vendor not found" };
   return { user, vendor };
+};
+
+const getDefaultVendorPickupAddress = (vendor = {}) => {
+  const pickupAddresses = Array.isArray(vendor.pickupAddresses) ? vendor.pickupAddresses.filter(Boolean) : [];
+  const pickup =
+    pickupAddresses.find((address) => address.isDefault || address.default) ||
+    pickupAddresses[0] ||
+    vendor.pickupAddress ||
+    vendor.warehouseAddress ||
+    vendor.businessAddress ||
+    vendor.address ||
+    {};
+  if (typeof pickup === "string") return { address: pickup };
+  if (!pickup.address && !pickup.street && vendor.location?.formattedAddress) {
+    return { ...pickup, address: vendor.location.formattedAddress };
+  }
+  return pickup;
 };
 
 const getVendorOrderRows = async (db, vendorId) => {
@@ -2182,6 +2200,96 @@ exports.deliverVendorItems = async (req, res) => {
   } catch (error) {
     console.error("Error in deliverVendorItems:", error);
     res.status(500).json({ error: "Failed to mark items as delivered" });
+  }
+};
+
+// Server-issued parcel labels keep the printed QR and Delivery verification contract aligned.
+exports.getVendorParcelLabels = async (req, res) => {
+  try {
+    if (!vendorStaffCan(req, "orders:view")) {
+      return rejectVendorStaffPermission(res, "orders:view");
+    }
+
+    const orderIds = [...new Set((req.body?.orderIds || []).map((value) => String(value || "").trim()).filter(Boolean))];
+    if (!orderIds.length || orderIds.length > 50) {
+      return res.status(400).json({ error: "Provide between 1 and 50 order IDs" });
+    }
+
+    const { vendor, error } = await getVendorForRequest(req);
+    if (error) return res.status(404).json({ error });
+
+    const Order = req.app.locals.models.Order;
+    const Shipment = req.app.locals.models.Shipment;
+    const vendorId = vendor._id.toString();
+    const pickupAddress = getDefaultVendorPickupAddress(vendor);
+    const labels = [];
+
+    for (const orderId of orderIds) {
+      const order = await Order.getVendorItems(orderId, vendorId);
+      if (!order) return res.status(404).json({ error: `Order ${orderId} was not found for this vendor` });
+
+      const shipment = Shipment?.findByOrderVendor
+        ? await Shipment.findByOrderVendor(orderId, vendorId, "forward")
+        : null;
+      const products = order.products || [];
+      const financials = calculateVendorOrderFinancials(order, products, vendorId, {
+        vendorSubtotal: order.vendorSubtotal,
+        vendorCommission: order.vendorCommission,
+        vendorEarnings: order.vendorEarnings,
+      });
+      const vendorOrderStatus = deriveVendorOrderStatus(
+        products.map((product) => product.itemStatus || order.status || "pending"),
+      );
+      const paymentMethod = String(order.paymentMethod || "").trim().toLowerCase();
+      const paymentType = ["cod", "cash_on_delivery", "cash on delivery"].includes(paymentMethod) ? "cod" : "prepaid";
+      const trackingNumber =
+        shipment?.trackingNumber ||
+        products.find((product) => product.trackingNumber || product.deliveryTrackingNumber)?.trackingNumber ||
+        products.find((product) => product.deliveryTrackingNumber)?.deliveryTrackingNumber ||
+        order.trackingNumber ||
+        order.trackingId ||
+        "PENDING";
+      const quantity = products.reduce((sum, product) => sum + Math.max(1, Number(product.quantity || 1)), 0);
+      const qrPayload = buildParcelQrPayload({
+        orderId,
+        vendorId,
+        trackingNumber,
+        paymentType,
+        paymentStatus: order.paymentStatus || (paymentType === "cod" ? "collect_on_delivery" : "pending"),
+        orderStatus: vendorOrderStatus,
+        payableAmount: financials.payableTotal,
+        itemCount: products.length,
+        quantity,
+      });
+
+      labels.push({
+        orderId,
+        vendorId,
+        qrPayload,
+        trackingNumber,
+        pickupAddress,
+        vendor: {
+          _id: vendorId,
+          businessName: vendor.businessName,
+          shopName: vendor.shopName,
+          phone: vendor.phone,
+        },
+        payableAmount: financials.payableTotal,
+        paymentType,
+        paymentStatus: order.paymentStatus,
+        orderStatus: vendorOrderStatus,
+        itemCount: products.length,
+        quantity,
+      });
+    }
+
+    return res.json({ success: true, labels });
+  } catch (error) {
+    console.error("Error generating vendor parcel labels:", error);
+    const configurationError = error.message === "Parcel QR signing secret is not configured";
+    return res.status(configurationError ? 503 : 500).json({
+      error: configurationError ? "Parcel label signing is unavailable" : "Failed to generate parcel labels",
+    });
   }
 };
 

@@ -286,6 +286,7 @@ const buildAmiyoDeliveryPayload = (order = {}, options = {}) => {
     pickup: pickupAddressFromVendorOrder(vendorOrder, index),
     area,
     codAmount: paymentType === "cod" ? round2(vendorOrder.totalAmount || 0) : 0,
+    payableAmount: round2(vendorOrder.totalAmount || 0),
     deliveryFee: round2(vendorOrder.deliveryCharge || 0),
     paymentType,
     parcelType: "ecommerce",

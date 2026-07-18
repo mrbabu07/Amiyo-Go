@@ -84,6 +84,7 @@ describe("amiyoDeliveryIntegrationService", () => {
       pickup: expect.objectContaining({ address: expect.stringContaining("Pickup address pending") }),
       area: expect.objectContaining({ district: "Dhaka", upazila: "Gulshan", union: "Gulshan" }),
       codAmount: 960,
+      payableAmount: 960,
       deliveryFee: 60,
       paymentType: "cod",
       parcelType: "ecommerce",

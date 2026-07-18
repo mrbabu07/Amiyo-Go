@@ -871,6 +871,9 @@ export const getVendorOrders = (params = {}) =>
 export const getVendorOrderDetail = (orderId) =>
   api.get(`/vendors/orders/${orderId}`);
 
+export const getVendorParcelLabels = (orderIds) =>
+  api.post("/vendors/orders/parcel-labels", { orderIds });
+
 export const updateVendorOrderStatus = (orderId, status, data = {}) =>
   api.patch(`/vendors/orders/${orderId}/status`, { ...data, status });
 

@@ -102,7 +102,7 @@ export const buildVendorParcelLabelModel = (order = {}, vendor = {}) => {
   );
   const vendorPhone = textValue(vendor.phone || firstVendorProduct.vendorPhone);
   const vendorAddress = addressText(
-    vendor.pickupAddress || vendor.address || firstVendorProduct.vendorAddress || {},
+    order.pickupAddress || vendor.pickupAddress || vendor.address || firstVendorProduct.vendorAddress || {},
   );
   const quantity = products.reduce(
     (sum, item) => sum + Math.max(1, numberValue(item.quantity, 1)),
@@ -116,6 +116,7 @@ export const buildVendorParcelLabelModel = (order = {}, vendor = {}) => {
   return {
     orderId,
     vendorId,
+    qrPayload: textValue(order.parcelQrPayload || order.qrPayload),
     parcelId,
     trackingNumber,
     shopName,
@@ -145,21 +146,13 @@ export const buildVendorParcelLabelModel = (order = {}, vendor = {}) => {
   };
 };
 
-export const buildVendorParcelQrPayload = (label = {}) =>
-  [
-    "AGP2",
-    `P=${textValue(label.parcelId)}`,
-    `O=${textValue(label.orderId)}`,
-    `V=${textValue(label.vendorId)}`,
-    `T=${textValue(label.trackingNumber, "PENDING")}`,
-    `PM=${textValue(label.paymentType, "UNKNOWN")}`,
-    `PS=${normalizeStatus(label.paymentStatusLabel).toUpperCase()}`,
-    `OS=${normalizeStatus(label.status).toUpperCase()}`,
-    `A=${numberValue(label.payableAmount).toFixed(2)}`,
-    `I=${Math.max(0, numberValue(label.itemCount))}`,
-    `Q=${Math.max(0, numberValue(label.quantity))}`,
-    "C=BDT",
-  ].join("|");
+export const buildVendorParcelQrPayload = (label = {}) => {
+  const payload = textValue(label.qrPayload);
+  if (!payload.startsWith("AGP2|") || !payload.includes("|H=")) {
+    throw new Error("Signed parcel QR payload is unavailable");
+  }
+  return payload;
+};
 
 const renderItems = (label) => {
   const visibleItems = label.items.slice(0, 4);
@@ -280,7 +273,7 @@ export const renderVendorParcelLabelDocument = (labels = []) => {
         .amount-breakdown div:last-child { border-right: 0; }
         .amount-breakdown span { display: block; font-size: 5.4pt; font-weight: 800; }
         .amount-breakdown strong { display: block; margin-top: .7mm; font-size: 7pt; overflow-wrap: anywhere; }
-        .amount-breakdown .amount-total { color: #fff; background: #050505; }
+        .amount-breakdown .amount-total { border: .6mm solid #050505; }
         .contents { overflow: hidden; border-bottom: .5mm solid #050505; padding: 2.5mm 0; }
         .items { display: grid; gap: 1mm; }
         .item-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 2mm; font-size: 8pt; line-height: 1.15; }
@@ -295,7 +288,7 @@ export const renderVendorParcelLabelDocument = (labels = []) => {
         footer span { min-width: 0; overflow-wrap: anywhere; }
         footer strong { flex: 0 0 auto; }
         @media print {
-          html, body { width: 100mm; background: #fff; }
+          html, body { width: 100mm; background: #fff; color-scheme: only light; }
           .label-page { margin: 0; }
         }
       </style>
