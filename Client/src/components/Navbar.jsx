@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Coins, Menu, Search, X } from "lucide-react";
+import { ChevronDown, Coins, Menu, Search, X } from "lucide-react";
 import useAuth from "../hooks/useAuth";
 import useCart from "../hooks/useCart";
 import useWishlist from "../hooks/useWishlist";
@@ -13,11 +13,12 @@ import NotificationBell from "./NotificationBell";
 import LanguageSwitcher from "./LanguageSwitcher";
 import SearchBar from "./SearchBar";
 import AppLogo from "./AppLogo";
+import AccountDropdown from "./AccountDropdown";
 import { LOYALTY_BALANCE_EVENT, getLoyaltyPointsFromPayload } from "../utils/loyaltyBalance";
 
 export default function Navbar() {
   const { t, i18n } = useTranslation();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, dbUser, role, vendorProfile, logout, isAdmin } = useAuth();
   const { cartCount } = useCart();
   const { wishlistCount } = useWishlist();
   const { compareCount } = useComparison();
@@ -296,340 +297,46 @@ export default function Navbar() {
                 {user ? (
                   <div className="relative">
                     <button
-                      onClick={() => setUserMenuOpen(!userMenuOpen)}
-                      className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                      type="button"
+                      onClick={() => setUserMenuOpen((current) => !current)}
+                      className={`flex h-10 items-center gap-1 rounded-lg px-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1e7098]/40 ${
+                        userMenuOpen
+                          ? "bg-gray-100 dark:bg-gray-800"
+                          : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                      }`}
+                      aria-label="Open account menu"
+                      aria-haspopup="menu"
+                      aria-expanded={userMenuOpen}
                     >
-                      <div className="w-8 h-8 bg-[#1e7098] rounded-full flex items-center justify-center">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1e7098] shadow-sm">
                         <span className="text-white text-sm font-semibold">
-                          {user.email?.charAt(0).toUpperCase()}
+                          {(user.displayName || dbUser?.name || user.email)?.charAt(0).toUpperCase()}
                         </span>
                       </div>
+                      <ChevronDown
+                        className={`h-4 w-4 text-gray-500 transition-transform dark:text-gray-400 ${
+                          userMenuOpen ? "rotate-180" : ""
+                        }`}
+                        aria-hidden="true"
+                      />
                     </button>
 
                     {userMenuOpen && (
-                      <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-50">
-                        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                            {user.displayName || user.email?.split("@")[0]}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {user.email}
-                          </p>
-                        </div>
-
-                        <div className="py-2">
-                          <Link
-                            to="/profile"
-                            onClick={() => setUserMenuOpen(false)}
-                            className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <svg
-                              className="w-5 h-5 text-gray-400"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                              />
-                            </svg>
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              {t("navbar.my_profile")}
-                            </span>
-                          </Link>
-
-                          <Link
-                            to="/orders"
-                            onClick={() => setUserMenuOpen(false)}
-                            className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <svg
-                              className="w-5 h-5 text-gray-400"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                              />
-                            </svg>
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              {t("navbar.my_orders")}
-                            </span>
-                          </Link>
-
-                          <Link
-                            to="/university"
-                            onClick={() => setUserMenuOpen(false)}
-                            className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <svg
-                              className="w-5 h-5 text-gray-400"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                              />
-                            </svg>
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              {universityLabel}
-                            </span>
-                          </Link>
-
-                          <Link
-                            to="/my-alerts"
-                            onClick={() => setUserMenuOpen(false)}
-                            className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <svg
-                              className="w-5 h-5 text-gray-400"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                              />
-                            </svg>
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              {t("navbar.my_alerts")}
-                            </span>
-                          </Link>
-
-                          {coinRewardsEnabled && (
-                            <Link
-                              to="/loyalty"
-                              onClick={() => setUserMenuOpen(false)}
-                              className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                            >
-                              <svg
-                                className="w-5 h-5 text-gray-400"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                />
-                              </svg>
-                              <span className="text-sm text-gray-700 dark:text-gray-300">
-                                {t("navbar.loyalty_rewards")}
-                              </span>
-                            </Link>
-                          )}
-
-                          <Link
-                            to="/vendor/register"
-                            onClick={() => setUserMenuOpen(false)}
-                            className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <svg
-                              className="w-5 h-5 text-gray-400"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                              />
-                            </svg>
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              {t("navbar.become_seller")}
-                            </span>
-                          </Link>
-
-                          <Link
-                            to="/vendor/dashboard"
-                            onClick={() => setUserMenuOpen(false)}
-                            className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <svg
-                              className="w-5 h-5 text-blue-600"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                              />
-                            </svg>
-                            <span className="text-sm text-blue-600 font-medium">
-                              {t("navbar.seller_dashboard")}
-                            </span>
-                          </Link>
-
-                          {isAdmin && (
-                            <>
-                              <Link
-                                to="/admin"
-                                onClick={() => setUserMenuOpen(false)}
-                                className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                              >
-                                <svg
-                                  className="w-5 h-5 text-[#1e7098]"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                                  />
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                                  />
-                                </svg>
-                                <span className="text-sm text-[#1e7098] font-medium">
-                                  {t("navbar.admin_dashboard")}
-                                </span>
-                              </Link>
-                              <Link
-                                to="/admin/vendors"
-                                onClick={() => setUserMenuOpen(false)}
-                                className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                              >
-                                <svg
-                                  className="w-5 h-5 text-[#1e7098]"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                                  />
-                                </svg>
-                                <span className="text-sm text-[#1e7098] font-medium">
-                                  {t("navbar.manage_vendors")}
-                                </span>
-                              </Link>
-                              <Link
-                                to="/admin/payouts"
-                                onClick={() => setUserMenuOpen(false)}
-                                className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                              >
-                                <svg
-                                  className="w-5 h-5 text-[#1e7098]"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
-                                  />
-                                </svg>
-                                <span className="text-sm text-[#1e7098] font-medium">
-                                  {t("navbar.vendor_payouts")}
-                                </span>
-                              </Link>
-                              <Link
-                                to="/admin/chats"
-                                onClick={() => setUserMenuOpen(false)}
-                                className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                              >
-                                <svg
-                                  className="w-5 h-5 text-green-600"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                                  />
-                                </svg>
-                                <span className="text-sm text-green-600 font-medium">
-                                  {t("navbar.vendor_messages")}
-                                </span>
-                              </Link>
-                              <Link
-                                to="/admin/category-requests"
-                                onClick={() => setUserMenuOpen(false)}
-                                className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                              >
-                                <svg
-                                  className="w-5 h-5 text-[#1e7098]"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-                                  />
-                                </svg>
-                                <span className="text-sm text-[#1e7098] font-medium">
-                                  {t("navbar.category_requests")}
-                                </span>
-                              </Link>
-                            </>
-                          )}
-                        </div>
-
-                        <div className="border-t border-gray-100 dark:border-gray-700 pt-2">
-                          <button
-                            onClick={() => {
-                              logout();
-                              setUserMenuOpen(false);
-                            }}
-                            className="flex items-center space-x-3 w-full px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                          >
-                            <svg
-                              className="w-5 h-5 text-red-500"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                              />
-                            </svg>
-                            <span className="text-sm text-red-600 dark:text-red-400">
-                              {t("navbar.sign_out")}
-                            </span>
-                          </button>
-                        </div>
-                      </div>
+                      <AccountDropdown
+                        user={user}
+                        dbUser={dbUser}
+                        role={role}
+                        isAdmin={isAdmin}
+                        vendorProfile={vendorProfile}
+                        coinRewardsEnabled={coinRewardsEnabled}
+                        universityLabel={universityLabel}
+                        t={t}
+                        onClose={() => setUserMenuOpen(false)}
+                        onLogout={() => {
+                          logout();
+                          setUserMenuOpen(false);
+                        }}
+                      />
                     )}
                   </div>
                 ) : (
